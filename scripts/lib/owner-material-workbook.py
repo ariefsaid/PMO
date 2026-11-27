@@ -15,11 +15,18 @@ Contract v2:
   verbatim in `evidence` (bounded display text); multi-value date/document cells are
   evidence, not refusals.
 - Non-numeric stage quantities ("Check", Excel errors, >3 decimals, negative quantities,
-  missing formula caches) are refused with exact sheet/row/column coordinates.
+  missing formula caches), missing units, and zero-planned lines with activity are
+  refused at the LINE level (skipped with exact coordinates; section flagged partial).
+  Whole sections are refused only when section identity/header/warehouse mapping fails
+  or when zero valid lines remain.
 - Owner-warehouse columns are discovered dynamically in the mapped warehouse band;
   unknown headers are refused and never guessed.
-- `closing_conflict`: 'refuse' (default) or 'movements_win' (accepts closing mismatches
-  and negative computed closing, flagging every affected row).
+- `closing_conflict`: 'refuse' (default) or 'movements_win' (column values win over
+  stale closing/set-aside/received totals and negative computed closing is accepted,
+  flagging every affected row).
+- `duplicate_items`: 'refuse' (default) or 'sum' (consolidates repeated item rows within
+  a location into one line with summed quantities, agreed category or None, and all
+  source rows preserved verbatim in `evidence.rows`, flagged in the report).
 
 Usage:
   <venv-python> -I scripts/lib/owner-material-workbook.py <workbook.xlsx> <mapping.json>
@@ -47,6 +54,17 @@ ZERO = Decimal("0")
 TOLERANCE = Decimal("0.0005")
 MAX_EVIDENCE_TEXT = 500
 ISO_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+OPENING_KEYS = (
+    "requested",
+    "set_aside",
+    "received",
+    "issued",
+    "returned",
+    "transfer_in",
+    "transfer_out",
+    "owner_return",
+)
 
 
 def norm_header(value: Any) -> str:
@@ -465,6 +483,9 @@ def parse_workbook(workbook_path: str, mapping: dict[str, Any]) -> dict[str, Any
     closing_policy = policy_cfg.get("closing_conflict", "refuse")
     if closing_policy not in ("refuse", "movements_win"):
         raise ValueError(f"Unsupported closing_conflict policy: {closing_policy}")
+    duplicate_policy = policy_cfg.get("duplicate_items", "refuse")
+    if duplicate_policy not in ("refuse", "sum"):
+        raise ValueError(f"Unsupported duplicate_items policy: {duplicate_policy}")
 
     wb_cfg = mapping.get("workbook") or {}
     loc_cfg = wb_cfg.get("location_sheet") or {}
@@ -557,39 +578,52 @@ def parse_workbook(workbook_path: str, mapping: dict[str, Any]) -> dict[str, Any
 
         cols = layout["cols"]
         ev_cols = layout["evidence_cols"]
-        refusals: list[dict[str, Any]] = []
+        section_refusals: list[dict[str, Any]] = []
+        skipped_lines: list[dict[str, Any]] = []
         policy_flags: dict[str, list[dict[str, Any]]] = {
             "closing_conflicts": [],
             "negative_closings": [],
+            "set_aside_conflicts": [],
+            "received_conflicts": [],
+            "consolidated_items": [],
         }
 
-        def add_refusal(row_num: int, col_idx: int, cls: str, reason: str) -> None:
-            refusals.append({
+        def make_refusal(
+            row_num: int, col_idx: int, cls: str, reason: str, item_code: str | None = None
+        ) -> dict[str, Any]:
+            rec: dict[str, Any] = {
                 "sheet": sname,
                 "row": row_num,
                 "column": get_column_letter(col_idx + 1),
                 "class": cls,
                 "reason": reason,
-            })
+            }
+            if item_code:
+                rec["item_code"] = item_code
+            return rec
 
         section_as_of = scfg.get("as_of") or default_as_of
         if not section_as_of or not ISO_DATE_RE.match(str(section_as_of)):
-            add_refusal(
-                layout["header_row"],
-                0,
-                "missing_as_of_date",
-                f"Section '{sname}' has no valid ISO as_of date in mapping.",
+            section_refusals.append(
+                make_refusal(
+                    layout["header_row"],
+                    0,
+                    "missing_as_of_date",
+                    f"Section '{sname}' has no valid ISO as_of date in mapping.",
+                )
             )
 
         # Validate discovered owner-warehouse headers
         resolved_whs: list[tuple[int, str, dict[str, str]]] = []
         for col_idx, wh_header, hdr_row_1b in layout["warehouses"]:
             if wh_header not in wh_map:
-                add_refusal(
-                    hdr_row_1b,
-                    col_idx,
-                    "unknown_owner_warehouse_header",
-                    f"Owner-warehouse header '{wh_header}' is not mapped in owner_warehouses.",
+                section_refusals.append(
+                    make_refusal(
+                        hdr_row_1b,
+                        col_idx,
+                        "unknown_owner_warehouse_header",
+                        f"Owner-warehouse header '{wh_header}' is not mapped in owner_warehouses.",
+                    )
                 )
             else:
                 info = wh_map[wh_header]
@@ -607,19 +641,9 @@ def parse_workbook(workbook_path: str, mapping: dict[str, Any]) -> dict[str, Any
             rf = f_rows[row_idx_0]
             return rf[idx] if idx < len(rf) else None
 
-        def check_formula_cache(row_idx_0: int, col_idx: int | None, val: Any, label: str) -> bool:
-            if col_idx is None:
-                return True
-            fv = cell_f(row_idx_0, col_idx)
-            if is_formula(fv) and val is None:
-                add_refusal(row_idx_0 + 1, col_idx, "missing_formula_cache", f"Formula in {label} has no cached value.")
-                return False
-            return True
-
-        lines: list[dict[str, Any]] = []
+        candidate_rows: list[dict[str, Any]] = []
         orders_seen: list[str] = []
         cost_codes_seen: list[str] = []
-        seen_item_rows: dict[str, int] = {}
 
         item_col = cols.get("item_code")
         order_col = cols.get("order_number")
@@ -630,13 +654,19 @@ def parse_workbook(workbook_path: str, mapping: dict[str, Any]) -> dict[str, Any
             raw_item = cell_v(rv, item_col)
             if raw_item is None:
                 if item_col is not None and is_formula(cell_f(row_idx_0, item_col)):
-                    add_refusal(row_num, item_col, "missing_formula_cache", "Item code formula has no cached value.")
+                    skipped_lines.append(
+                        make_refusal(row_num, item_col, "missing_formula_cache", "Item code formula has no cached value.")
+                    )
                 continue
             if is_excel_error(raw_item):
-                add_refusal(row_num, item_col, "excel_error", f"Excel error in item code: {raw_item}")
+                skipped_lines.append(
+                    make_refusal(row_num, item_col, "excel_error", f"Excel error in item code: {raw_item}")
+                )
                 continue
             if is_check_cell(raw_item):
-                add_refusal(row_num, item_col, "check_cell", f"Check marker in item code: {raw_item}")
+                skipped_lines.append(
+                    make_refusal(row_num, item_col, "check_cell", f"Check marker in item code: {raw_item}")
+                )
                 continue
 
             item_code = format_code(raw_item)
@@ -647,41 +677,28 @@ def parse_workbook(workbook_path: str, mapping: dict[str, Any]) -> dict[str, Any
             if raw_order is not None and norm_header(raw_order) in layout["order_number_headers"]:
                 continue
 
-            if item_code in seen_item_rows:
-                consol_key = f"{sname}:{item_code}"
-                if consol_key not in consolidations:
-                    add_refusal(
-                        row_num,
-                        item_col,
-                        "duplicate_section_item",
-                        f"Item '{item_code}' repeated in sheet '{sname}' (first at row {seen_item_rows[item_code]}) without consolidation mapping.",
-                    )
-                    continue
-            else:
-                seen_item_rows[item_code] = row_num
+            row_refusals: list[dict[str, Any]] = []
+            row_flags: dict[str, list[dict[str, Any]]] = {
+                "closing_conflicts": [],
+                "set_aside_conflicts": [],
+                "received_conflicts": [],
+            }
 
-            raw_desc = cell_v(rv, cols.get("description"))
-            check_formula_cache(row_idx_0, cols.get("description"), raw_desc, "description")
-            if is_excel_error(raw_desc):
-                add_refusal(row_num, cols["description"], "excel_error", f"Excel error in description: {raw_desc}")
-            item_name = str(raw_desc).strip() if raw_desc is not None else ""
+            def add_row_refusal(col_idx: int, cls: str, reason: str) -> None:
+                row_refusals.append(make_refusal(row_num, col_idx, cls, reason, item_code=item_code))
 
-            raw_uom = cell_v(rv, cols.get("unit"))
-            check_formula_cache(row_idx_0, cols.get("unit"), raw_uom, "unit")
-            if is_excel_error(raw_uom):
-                add_refusal(row_num, cols["unit"], "excel_error", f"Excel error in unit: {raw_uom}")
-            unit = str(raw_uom).strip() if raw_uom is not None else ""
-            if not unit or unit == "-":
-                add_refusal(row_num, cols.get("unit", 3), "missing_unit", f"Missing unit for item '{item_code}'.")
-
-            raw_cat = cell_v(rv, cols.get("category_code"))
-            if is_excel_error(raw_cat):
-                add_refusal(row_num, cols["category_code"], "excel_error", f"Excel error in category code: {raw_cat}")
-            category_code = str(raw_cat).strip() if (raw_cat is not None and str(raw_cat).strip() not in ("", "-")) else None
+            def check_row_formula_cache(col_idx: int | None, val: Any, label: str) -> bool:
+                if col_idx is None:
+                    return True
+                fv = cell_f(row_idx_0, col_idx)
+                if is_formula(fv) and val is None:
+                    add_row_refusal(col_idx, "missing_formula_cache", f"Formula in {label} has no cached value.")
+                    return False
+                return True
 
             if raw_order is not None:
                 if is_excel_error(raw_order):
-                    add_refusal(row_num, order_col, "excel_error", f"Excel error in order number: {raw_order}")
+                    add_row_refusal(order_col, "excel_error", f"Excel error in order number: {raw_order}")
                 else:
                     order_s = str(raw_order).strip()
                     if order_s and order_s != "-" and order_s not in orders_seen:
@@ -693,12 +710,31 @@ def parse_workbook(workbook_path: str, mapping: dict[str, Any]) -> dict[str, Any
                 if cost_s and cost_s != "-" and cost_s not in cost_codes_seen:
                     cost_codes_seen.append(cost_s)
 
+            raw_desc = cell_v(rv, cols.get("description"))
+            check_row_formula_cache(cols.get("description"), raw_desc, "description")
+            if is_excel_error(raw_desc):
+                add_row_refusal(cols["description"], "excel_error", f"Excel error in description: {raw_desc}")
+            item_name = str(raw_desc).strip() if raw_desc is not None else ""
+
+            raw_uom = cell_v(rv, cols.get("unit"))
+            check_row_formula_cache(cols.get("unit"), raw_uom, "unit")
+            if is_excel_error(raw_uom):
+                add_row_refusal(cols["unit"], "excel_error", f"Excel error in unit: {raw_uom}")
+            unit = str(raw_uom).strip() if raw_uom is not None else ""
+            if not unit or unit == "-":
+                add_row_refusal(cols.get("unit", 3), "missing_unit", f"Missing unit for item '{item_code}'.")
+
+            raw_cat = cell_v(rv, cols.get("category_code"))
+            if is_excel_error(raw_cat):
+                add_row_refusal(cols["category_code"], "excel_error", f"Excel error in category code: {raw_cat}")
+            category_code = str(raw_cat).strip() if (raw_cat is not None and str(raw_cat).strip() not in ("", "-")) else None
+
             # Planned quantity
             raw_planned = cell_v(rv, cols.get("planned"))
-            check_formula_cache(row_idx_0, cols.get("planned"), raw_planned, "planned quantity")
+            check_row_formula_cache(cols.get("planned"), raw_planned, "planned quantity")
             planned, err = parse_decimal(raw_planned)
             if err:
-                add_refusal(row_num, cols["planned"], err, f"Invalid planned quantity ({raw_planned}).")
+                add_row_refusal(cols["planned"], err, f"Invalid planned quantity ({raw_planned}).")
                 planned = ZERO
             planned = planned if planned is not None else ZERO
 
@@ -707,10 +743,10 @@ def parse_workbook(workbook_path: str, mapping: dict[str, Any]) -> dict[str, Any
             wh_evidence: dict[str, str] = {}
             for wh_col_idx, wh_header, wh_info in resolved_whs:
                 raw_wh = cell_v(rv, wh_col_idx)
-                check_formula_cache(row_idx_0, wh_col_idx, raw_wh, wh_header)
+                check_row_formula_cache(wh_col_idx, raw_wh, wh_header)
                 qty, q_err = parse_decimal(raw_wh)
                 if q_err:
-                    add_refusal(row_num, wh_col_idx, q_err, f"Invalid set-aside qty in {wh_header}: {raw_wh}")
+                    add_row_refusal(wh_col_idx, q_err, f"Invalid set-aside qty in {wh_header}: {raw_wh}")
                     continue
                 if qty is not None and qty > ZERO:
                     wh_sum += qty
@@ -721,18 +757,31 @@ def parse_workbook(workbook_path: str, mapping: dict[str, Any]) -> dict[str, Any
                         wh_evidence[wh_code] = format_decimal(qty)
 
             raw_total_set_aside = cell_v(rv, cols.get("total_set_aside"))
-            if check_formula_cache(row_idx_0, cols.get("total_set_aside"), raw_total_set_aside, "total set-aside"):
+            if check_row_formula_cache(cols.get("total_set_aside"), raw_total_set_aside, "total set-aside"):
                 total_sa, tr_err = parse_decimal(raw_total_set_aside)
                 if tr_err:
-                    add_refusal(row_num, cols["total_set_aside"], tr_err, f"Invalid total set-aside: {raw_total_set_aside}")
+                    add_row_refusal(cols["total_set_aside"], tr_err, f"Invalid total set-aside: {raw_total_set_aside}")
+                    set_aside_qty = wh_sum
                 elif total_sa is not None and abs(total_sa - wh_sum) > TOLERANCE:
-                    add_refusal(
-                        row_num,
-                        cols["total_set_aside"],
-                        "conflicting_cache",
-                        f"Total set-aside cached ({format_decimal(total_sa)}) != sum of warehouse columns ({format_decimal(wh_sum)}).",
-                    )
-                set_aside_qty = total_sa if total_sa is not None else wh_sum
+                    if closing_policy == "movements_win":
+                        set_aside_qty = wh_sum
+                        row_flags["set_aside_conflicts"].append({
+                            "sheet": sname,
+                            "row": row_num,
+                            "column": get_column_letter(cols["total_set_aside"] + 1),
+                            "item_code": item_code,
+                            "workbook_total": format_decimal(total_sa),
+                            "computed_total": format_decimal(wh_sum),
+                        })
+                    else:
+                        add_row_refusal(
+                            cols["total_set_aside"],
+                            "conflicting_cache",
+                            f"Total set-aside cached ({format_decimal(total_sa)}) != sum of warehouse columns ({format_decimal(wh_sum)}).",
+                        )
+                        set_aside_qty = total_sa
+                else:
+                    set_aside_qty = total_sa if total_sa is not None else wh_sum
             else:
                 set_aside_qty = wh_sum
 
@@ -740,33 +789,45 @@ def parse_workbook(workbook_path: str, mapping: dict[str, Any]) -> dict[str, Any
             raw_recd = cell_v(rv, cols.get("received_direct"))
             raw_tri = cell_v(rv, cols.get("received_transfer_in"))
             raw_total_recd = cell_v(rv, cols.get("total_received"))
-            check_formula_cache(row_idx_0, cols.get("received_direct"), raw_recd, "received direct")
-            check_formula_cache(row_idx_0, cols.get("received_transfer_in"), raw_tri, "received transfer-in")
-            check_formula_cache(row_idx_0, cols.get("total_received"), raw_total_recd, "total received")
+            check_row_formula_cache(cols.get("received_direct"), raw_recd, "received direct")
+            check_row_formula_cache(cols.get("received_transfer_in"), raw_tri, "received transfer-in")
+            check_row_formula_cache(cols.get("total_received"), raw_total_recd, "total received")
 
             q_recd, e_recd = parse_decimal(raw_recd)
             if e_recd:
-                add_refusal(row_num, cols["received_direct"], e_recd, f"Invalid received quantity: {raw_recd}")
+                add_row_refusal(cols["received_direct"], e_recd, f"Invalid received quantity: {raw_recd}")
                 q_recd = ZERO
             q_tri, e_tri = parse_decimal(raw_tri)
             if e_tri:
-                add_refusal(row_num, cols["received_transfer_in"], e_tri, f"Invalid transfer-in quantity: {raw_tri}")
+                add_row_refusal(cols["received_transfer_in"], e_tri, f"Invalid transfer-in quantity: {raw_tri}")
                 q_tri = ZERO
             q_total_recd, e_tot_r = parse_decimal(raw_total_recd)
             if e_tot_r:
-                add_refusal(row_num, cols["total_received"], e_tot_r, f"Invalid total received: {raw_total_recd}")
+                add_row_refusal(cols["total_received"], e_tot_r, f"Invalid total received: {raw_total_recd}")
                 q_total_recd = None
 
             part_sum = (q_recd or ZERO) + (q_tri or ZERO)
             if q_total_recd is not None and (cols.get("received_direct") is not None or cols.get("received_transfer_in") is not None):
                 if abs(q_total_recd - part_sum) > TOLERANCE:
-                    add_refusal(
-                        row_num,
-                        cols["total_received"],
-                        "conflicting_cache",
-                        f"Total received cached ({format_decimal(q_total_recd)}) != component sum ({format_decimal(part_sum)}).",
-                    )
-                received_qty = q_total_recd
+                    if closing_policy == "movements_win":
+                        received_qty = part_sum
+                        row_flags["received_conflicts"].append({
+                            "sheet": sname,
+                            "row": row_num,
+                            "column": get_column_letter(cols["total_received"] + 1),
+                            "item_code": item_code,
+                            "workbook_total": format_decimal(q_total_recd),
+                            "computed_total": format_decimal(part_sum),
+                        })
+                    else:
+                        add_row_refusal(
+                            cols["total_received"],
+                            "conflicting_cache",
+                            f"Total received cached ({format_decimal(q_total_recd)}) != component sum ({format_decimal(part_sum)}).",
+                        )
+                        received_qty = q_total_recd
+                else:
+                    received_qty = q_total_recd
             elif q_total_recd is not None:
                 received_qty = q_total_recd
             else:
@@ -774,74 +835,47 @@ def parse_workbook(workbook_path: str, mapping: dict[str, Any]) -> dict[str, Any
 
             # Issued, Returned, Transfer out, Owner return
             raw_issued = cell_v(rv, cols.get("issued"))
-            check_formula_cache(row_idx_0, cols.get("issued"), raw_issued, "issued quantity")
+            check_row_formula_cache(cols.get("issued"), raw_issued, "issued quantity")
             issued_qty, e_iss = parse_decimal(raw_issued)
             if e_iss:
-                add_refusal(row_num, cols["issued"], e_iss, f"Invalid issued quantity: {raw_issued}")
+                add_row_refusal(cols["issued"], e_iss, f"Invalid issued quantity: {raw_issued}")
                 issued_qty = ZERO
             issued_qty = issued_qty or ZERO
 
             raw_ret = cell_v(rv, cols.get("returned"))
-            check_formula_cache(row_idx_0, cols.get("returned"), raw_ret, "returned quantity")
+            check_row_formula_cache(cols.get("returned"), raw_ret, "returned quantity")
             returned_qty, e_ret = parse_decimal(raw_ret)
             if e_ret:
-                add_refusal(row_num, cols["returned"], e_ret, f"Invalid returned quantity: {raw_ret}")
+                add_row_refusal(cols["returned"], e_ret, f"Invalid returned quantity: {raw_ret}")
                 returned_qty = ZERO
             returned_qty = returned_qty or ZERO
 
             raw_tro = cell_v(rv, cols.get("transfer_out"))
-            check_formula_cache(row_idx_0, cols.get("transfer_out"), raw_tro, "transfer-out quantity")
+            check_row_formula_cache(cols.get("transfer_out"), raw_tro, "transfer-out quantity")
             tro_qty, e_tro = parse_decimal(raw_tro)
             if e_tro:
-                add_refusal(row_num, cols["transfer_out"], e_tro, f"Invalid transfer-out quantity: {raw_tro}")
+                add_row_refusal(cols["transfer_out"], e_tro, f"Invalid transfer-out quantity: {raw_tro}")
                 tro_qty = ZERO
             tro_qty = tro_qty or ZERO
 
             raw_or = cell_v(rv, cols.get("owner_return"))
-            check_formula_cache(row_idx_0, cols.get("owner_return"), raw_or, "owner-return quantity")
+            check_row_formula_cache(cols.get("owner_return"), raw_or, "owner-return quantity")
             or_qty, e_or = parse_decimal(raw_or)
             if e_or:
-                add_refusal(row_num, cols["owner_return"], e_or, f"Invalid owner-return quantity: {raw_or}")
+                add_row_refusal(cols["owner_return"], e_or, f"Invalid owner-return quantity: {raw_or}")
                 or_qty = ZERO
             or_qty = or_qty or ZERO
 
-            # Zero planned with activity check (FR-004)
-            has_any_activity = any(q > ZERO for q in (set_aside_qty, received_qty, issued_qty, returned_qty, tro_qty, or_qty))
-            if planned == ZERO and has_any_activity:
-                add_refusal(
-                    row_num,
-                    cols.get("planned", item_col),
-                    "zero_planned_with_movements",
-                    f"Item '{item_code}' has planned quantity 0 with positive stage quantities.",
-                )
-
-            # Closing stock arithmetic (Contract v2)
             computed_closing = received_qty - issued_qty + returned_qty - tro_qty - or_qty
-            if computed_closing < ZERO:
-                if closing_policy == "movements_win":
-                    policy_flags["negative_closings"].append({
-                        "sheet": sname,
-                        "row": row_num,
-                        "column": get_column_letter(cols.get("closing", item_col) + 1),
-                        "item_code": item_code,
-                        "computed_closing": format_decimal(computed_closing),
-                    })
-                else:
-                    add_refusal(
-                        row_num,
-                        cols.get("closing", item_col),
-                        "negative_closing_stock",
-                        f"Computed closing stock is negative ({format_decimal(computed_closing)}).",
-                    )
 
             raw_closing = cell_v(rv, cols.get("closing"))
-            if check_formula_cache(row_idx_0, cols.get("closing"), raw_closing, "closing stock"):
+            if check_row_formula_cache(cols.get("closing"), raw_closing, "closing stock"):
                 wb_closing, c_err = parse_decimal_allow_negative(raw_closing)
                 if c_err:
-                    add_refusal(row_num, cols["closing"], c_err, f"Invalid closing stock: {raw_closing}")
+                    add_row_refusal(cols["closing"], c_err, f"Invalid closing stock: {raw_closing}")
                 elif wb_closing is not None and abs(wb_closing - computed_closing) > TOLERANCE:
                     if closing_policy == "movements_win":
-                        policy_flags["closing_conflicts"].append({
+                        row_flags["closing_conflicts"].append({
                             "sheet": sname,
                             "row": row_num,
                             "column": get_column_letter(cols["closing"] + 1),
@@ -850,12 +884,15 @@ def parse_workbook(workbook_path: str, mapping: dict[str, Any]) -> dict[str, Any
                             "computed_closing": format_decimal(computed_closing),
                         })
                     else:
-                        add_refusal(
-                            row_num,
+                        add_row_refusal(
                             cols["closing"],
                             "closing_stock_conflict",
                             f"Workbook closing stock ({format_decimal(wb_closing)}) != computed closing ({format_decimal(computed_closing)}).",
                         )
+
+            if row_refusals:
+                skipped_lines.extend(row_refusals)
+                continue
 
             # Evidence (verbatim bounded display strings; never computed on)
             evidence: dict[str, Any] = {}
@@ -866,30 +903,169 @@ def parse_workbook(workbook_path: str, mapping: dict[str, Any]) -> dict[str, Any
             if wh_evidence:
                 evidence["owner_warehouses"] = wh_evidence
 
-            lines.append({
+            candidate_rows.append({
                 "row": row_num,
                 "item_code": item_code,
                 "item_name": item_name,
                 "unit": unit,
                 "category_code": category_code,
-                "planned": format_decimal(planned),
-                "opening": {
-                    "requested": format_decimal(planned),
-                    "set_aside": format_decimal(set_aside_qty),
-                    "received": format_decimal(received_qty),
-                    "issued": format_decimal(issued_qty),
-                    "returned": format_decimal(returned_qty),
-                    "transfer_in": "0",
-                    "transfer_out": format_decimal(tro_qty),
-                    "owner_return": format_decimal(or_qty),
+                "planned_d": planned,
+                "opening_d": {
+                    "requested": planned,
+                    "set_aside": set_aside_qty,
+                    "received": received_qty,
+                    "issued": issued_qty,
+                    "returned": returned_qty,
+                    "transfer_in": ZERO,
+                    "transfer_out": tro_qty,
+                    "owner_return": or_qty,
                 },
+                "evidence": evidence,
+                "row_flags": row_flags,
+            })
+
+        # Group/deduplicate candidate rows per `duplicate_items` policy
+        grouped_order: list[str] = []
+        grouped: dict[str, list[dict[str, Any]]] = {}
+        for rec in candidate_rows:
+            ic = rec["item_code"]
+            if ic not in grouped:
+                grouped_order.append(ic)
+                grouped[ic] = [rec]
+            else:
+                consol_key = f"{sname}:{ic}"
+                if duplicate_policy == "sum" or consol_key in consolidations:
+                    first_unit = grouped[ic][0]["unit"].strip().upper()
+                    this_unit = rec["unit"].strip().upper()
+                    if first_unit and this_unit and first_unit != this_unit:
+                        skipped_lines.append(
+                            make_refusal(
+                                rec["row"],
+                                cols.get("unit", item_col),
+                                "conflicting_duplicate_unit",
+                                f"Duplicate item '{ic}' has unit '{rec['unit']}' disagreeing with first row unit '{grouped[ic][0]['unit']}'.",
+                                item_code=ic,
+                            )
+                        )
+                        continue
+                    grouped[ic].append(rec)
+                else:
+                    skipped_lines.append(
+                        make_refusal(
+                            rec["row"],
+                            item_col,
+                            "duplicate_section_item",
+                            f"Item '{ic}' repeated in sheet '{sname}' (first at row {grouped[ic][0]['row']}) without consolidation mapping.",
+                            item_code=ic,
+                        )
+                    )
+
+        lines: list[dict[str, Any]] = []
+        for ic in grouped_order:
+            group = grouped[ic]
+            first = group[0]
+            total_planned = sum((r["planned_d"] for r in group), ZERO)
+            summed_opening = {
+                k: sum((r["opening_d"][k] for r in group), ZERO)
+                for k in OPENING_KEYS
+            }
+            computed_closing = (
+                summed_opening["received"]
+                + summed_opening["transfer_in"]
+                - summed_opening["issued"]
+                + summed_opening["returned"]
+                - summed_opening["transfer_out"]
+                - summed_opening["owner_return"]
+            )
+
+            # Check zero planned with activity on the resulting line (FR-004)
+            has_any_activity = any(
+                summed_opening[k] > ZERO
+                for k in ("set_aside", "received", "issued", "returned", "transfer_in", "transfer_out", "owner_return")
+            )
+            if total_planned == ZERO and has_any_activity:
+                skipped_lines.append(
+                    make_refusal(
+                        first["row"],
+                        cols.get("planned", item_col),
+                        "zero_planned_with_movements",
+                        f"Item '{ic}' has planned quantity 0 with positive stage quantities.",
+                        item_code=ic,
+                    )
+                )
+                continue
+
+            # Check negative closing stock on the resulting line (Contract v2)
+            if computed_closing < ZERO:
+                if closing_policy == "movements_win":
+                    policy_flags["negative_closings"].append({
+                        "sheet": sname,
+                        "row": first["row"],
+                        "column": get_column_letter(cols.get("closing", item_col) + 1),
+                        "item_code": ic,
+                        "computed_closing": format_decimal(computed_closing),
+                    })
+                else:
+                    skipped_lines.append(
+                        make_refusal(
+                            first["row"],
+                            cols.get("closing", item_col),
+                            "negative_closing_stock",
+                            f"Computed closing stock is negative ({format_decimal(computed_closing)}).",
+                            item_code=ic,
+                        )
+                    )
+                    continue
+
+            # Commit per-row policy flags for accepted group rows
+            for r in group:
+                for fk in ("closing_conflicts", "set_aside_conflicts", "received_conflicts"):
+                    policy_flags[fk].extend(r["row_flags"][fk])
+
+            if len(group) == 1:
+                category_code = first["category_code"]
+                evidence = first["evidence"]
+            else:
+                cats = {r["category_code"] for r in group}
+                category_code = next(iter(cats)) if len(cats) == 1 else None
+                evidence = {
+                    "rows": [
+                        {
+                            "row": r["row"],
+                            "planned": format_decimal(r["planned_d"]),
+                            "category_code": r["category_code"],
+                            "opening": {k: format_decimal(r["opening_d"][k]) for k in OPENING_KEYS},
+                            "texts": r["evidence"],
+                        }
+                        for r in group
+                    ]
+                }
+                policy_flags["consolidated_items"].append({
+                    "sheet": sname,
+                    "row": first["row"],
+                    "rows": [r["row"] for r in group],
+                    "item_code": ic,
+                    "row_count": len(group),
+                    "category_agreed": len(cats) == 1,
+                    "category_code": category_code,
+                    "planned": format_decimal(total_planned),
+                })
+
+            lines.append({
+                "row": first["row"],
+                "item_code": ic,
+                "item_name": next((r["item_name"] for r in group if r["item_name"]), ""),
+                "unit": first["unit"],
+                "category_code": category_code,
+                "planned": format_decimal(total_planned),
+                "opening": {k: format_decimal(summed_opening[k]) for k in OPENING_KEYS},
                 "evidence": evidence,
                 "expected": {
                     "closing": format_decimal(computed_closing),
                 },
             })
 
-        # Resolve owner_order_number for this sheet
+        # Resolve owner_order_number for this sheet (section-level identity)
         mapped_order = scfg.get("owner_order_number")
         if mapped_order:
             owner_order_number = str(mapped_order).strip()
@@ -897,23 +1073,27 @@ def parse_workbook(workbook_path: str, mapping: dict[str, Any]) -> dict[str, Any
             owner_order_number = orders_seen[0]
         elif len(orders_seen) > 1:
             owner_order_number = None
-            add_refusal(
-                layout["data_start"] + 1,
-                order_col if order_col is not None else 0,
-                "ambiguous_owner_order_number",
-                f"Multiple order numbers in sheet '{sname}': {', '.join(orders_seen)}. Specify sheets['{sname}'].owner_order_number.",
+            section_refusals.append(
+                make_refusal(
+                    layout["data_start"] + 1,
+                    order_col if order_col is not None else 0,
+                    "ambiguous_owner_order_number",
+                    f"Multiple order numbers in sheet '{sname}': {', '.join(orders_seen)}. Specify sheets['{sname}'].owner_order_number.",
+                )
             )
         else:
             owner_order_number = None
-            if lines:
-                add_refusal(
-                    layout["data_start"] + 1,
-                    order_col if order_col is not None else 0,
-                    "missing_owner_order_number",
-                    f"No order number found in sheet '{sname}'.",
+            if lines or skipped_lines:
+                section_refusals.append(
+                    make_refusal(
+                        layout["data_start"] + 1,
+                        order_col if order_col is not None else 0,
+                        "missing_owner_order_number",
+                        f"No order number found in sheet '{sname}'.",
+                    )
                 )
 
-        if not lines and not refusals:
+        if not lines and not section_refusals and not skipped_lines:
             excluded_sheets.append(sname)
             continue
 
@@ -928,13 +1108,21 @@ def parse_workbook(workbook_path: str, mapping: dict[str, Any]) -> dict[str, Any
             or location_name
         )
 
-        if refusals:
+        if section_refusals:
             refused_sections.append({
                 "sheet": sname,
                 "owner_order_number": owner_order_number,
                 "location_name": location_name,
                 "item_row_count": len(lines),
-                "refusals": refusals,
+                "refusals": section_refusals + skipped_lines,
+            })
+        elif not lines and skipped_lines:
+            refused_sections.append({
+                "sheet": sname,
+                "owner_order_number": owner_order_number,
+                "location_name": location_name,
+                "item_row_count": 0,
+                "refusals": skipped_lines,
             })
         else:
             accepted_sections.append({
@@ -947,6 +1135,8 @@ def parse_workbook(workbook_path: str, mapping: dict[str, Any]) -> dict[str, Any
                 "as_of": section_as_of,
                 "closing_conflict": closing_policy,
                 "reconciliation_step": reconciliation_step,
+                "partial": len(skipped_lines) > 0,
+                "skipped_lines": skipped_lines,
                 "lines": lines,
                 "policy_flags": policy_flags,
             })
@@ -958,6 +1148,7 @@ def parse_workbook(workbook_path: str, mapping: dict[str, Any]) -> dict[str, Any
         "source_digest": file_sha256(workbook_path),
         "policy": {
             "closing_conflict": closing_policy,
+            "duplicate_items": duplicate_policy,
         },
         "catalogue": {
             "items": catalogue_items,

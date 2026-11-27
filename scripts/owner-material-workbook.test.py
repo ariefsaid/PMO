@@ -534,6 +534,179 @@ class TestOwnerMaterialWorkbook(unittest.TestCase):
         self.assertEqual(len(payload["accepted_sections"]), 1)
         self.assertEqual(payload["accepted_sections"][0]["sheet"], "LOC_CLI")
 
+    def test_ac002_duplicate_items_sum_consolidates_quantities_category_and_keeps_verbatim_rows(self):
+        wb = openpyxl.Workbook()
+        wb.remove(wb.active)
+        add_standard_location_sheet(
+            wb,
+            "LOC_DUP",
+            [
+                {
+                    "LINE_NO": 1, "PART_NO": "100001", "PART_DESC": "Pipe 4in", "UNIT": "PCS",
+                    "PLAN_QTY": 10, "CAT_CODE": "CAT-A", "ORDER_NO": "WO-DUP", "COST_CODE": "CC-1",
+                    "REQ_REF": "REQ-A", "WH NORTH": 6, "WH SOUTH": 4, "HOLD_TOTAL": 10,
+                    "RECV_DIRECT": 8, "RECV_XFER": 0, "RECV_TOTAL": 8,
+                    "ISSUE_QTY": 3, "RET_QTY": 1, "END_BAL": 6,
+                },
+                {
+                    "LINE_NO": 2, "PART_NO": "100001", "PART_DESC": "Pipe 4in", "UNIT": "PCS",
+                    "PLAN_QTY": 5, "CAT_CODE": "CAT-A", "ORDER_NO": "WO-DUP", "COST_CODE": "CC-1",
+                    "REQ_REF": "REQ-B", "WH NORTH": 5, "WH SOUTH": 0, "HOLD_TOTAL": 5,
+                    "RECV_DIRECT": 5, "RECV_XFER": 0, "RECV_TOTAL": 5,
+                    "ISSUE_QTY": 2, "RET_QTY": 0, "END_BAL": 3,
+                },
+                {
+                    "LINE_NO": 3, "PART_NO": "100002", "PART_DESC": "Valve 2in", "UNIT": "EA",
+                    "PLAN_QTY": 4, "CAT_CODE": "CAT-A", "ORDER_NO": "WO-DUP", "COST_CODE": "CC-1",
+                    "WH NORTH": 4, "WH SOUTH": 0, "HOLD_TOTAL": 4,
+                    "RECV_DIRECT": 4, "RECV_XFER": 0, "RECV_TOTAL": 4, "END_BAL": 4,
+                },
+                {
+                    "LINE_NO": 4, "PART_NO": "100002", "PART_DESC": "Valve 2in", "UNIT": "EA",
+                    "PLAN_QTY": 6, "CAT_CODE": "CAT-B", "ORDER_NO": "WO-DUP", "COST_CODE": "CC-1",
+                    "WH NORTH": 6, "WH SOUTH": 0, "HOLD_TOTAL": 6,
+                    "RECV_DIRECT": 6, "RECV_XFER": 0, "RECV_TOTAL": 6, "END_BAL": 6,
+                },
+            ],
+        )
+        path = self._save(wb)
+
+        # Default policy (refuse): duplicate rows skipped at line level, section partial
+        res_refuse = self.mod.parse_workbook(path, build_base_mapping())
+        self.assertEqual(res_refuse["refused_sections"], [])
+        self.assertEqual(len(res_refuse["accepted_sections"]), 1)
+        sec_refuse = res_refuse["accepted_sections"][0]
+        self.assertTrue(sec_refuse["partial"])
+        self.assertEqual(len(sec_refuse["lines"]), 2)
+        self.assertEqual(len(sec_refuse["skipped_lines"]), 2)
+        self.assertTrue(all(s["class"] == "duplicate_section_item" for s in sec_refuse["skipped_lines"]))
+
+        # Sum policy: consolidated into 2 lines with summed quantities, agreed category, verbatim evidence.rows
+        res_sum = self.mod.parse_workbook(
+            path,
+            build_base_mapping(policy={"closing_conflict": "refuse", "duplicate_items": "sum"}),
+        )
+        self.assertEqual(res_sum["refused_sections"], [])
+        self.assertEqual(len(res_sum["accepted_sections"]), 1)
+        sec_sum = res_sum["accepted_sections"][0]
+        self.assertFalse(sec_sum["partial"])
+        self.assertEqual(len(sec_sum["lines"]), 2)
+        self.assertEqual(len(sec_sum["policy_flags"]["consolidated_items"]), 2)
+
+        by_code = {line["item_code"]: line for line in sec_sum["lines"]}
+        l1 = by_code["100001"]
+        self.assertEqual(l1["planned"], "15")
+        self.assertEqual(l1["category_code"], "CAT-A")
+        self.assertEqual(l1["opening"], {
+            "requested": "15",
+            "set_aside": "15",
+            "received": "13",
+            "issued": "5",
+            "returned": "1",
+            "transfer_in": "0",
+            "transfer_out": "0",
+            "owner_return": "0",
+        })
+        self.assertEqual(l1["expected"]["closing"], "9")
+        self.assertEqual(len(l1["evidence"]["rows"]), 2)
+        self.assertEqual(l1["evidence"]["rows"][0]["row"], 8)
+        self.assertEqual(l1["evidence"]["rows"][0]["texts"]["request_reference"], "REQ-A")
+        self.assertEqual(l1["evidence"]["rows"][1]["row"], 9)
+        self.assertEqual(l1["evidence"]["rows"][1]["texts"]["request_reference"], "REQ-B")
+
+        l2 = by_code["100002"]
+        self.assertEqual(l2["planned"], "10")
+        self.assertIsNone(l2["category_code"])
+        self.assertEqual(len(l2["evidence"]["rows"]), 2)
+
+    def test_ac002_line_level_refusals_skip_faulty_lines_and_flag_section_partial(self):
+        wb = openpyxl.Workbook()
+        wb.remove(wb.active)
+        add_standard_location_sheet(
+            wb,
+            "LOC_PARTIAL",
+            [
+                {
+                    "LINE_NO": 1, "PART_NO": "200001", "PART_DESC": "Good Item", "UNIT": "PCS",
+                    "PLAN_QTY": 10, "ORDER_NO": "WO-PART", "COST_CODE": "CC-1",
+                    "WH NORTH": 10, "WH SOUTH": 0, "HOLD_TOTAL": 10,
+                    "RECV_DIRECT": 10, "RECV_XFER": 0, "RECV_TOTAL": 10, "END_BAL": 10,
+                },
+                {
+                    "LINE_NO": 2, "PART_NO": "200002", "PART_DESC": "Zero Plan", "UNIT": "PCS",
+                    "PLAN_QTY": 0, "ORDER_NO": "WO-PART", "COST_CODE": "CC-1",
+                    "WH NORTH": 2, "WH SOUTH": 0, "HOLD_TOTAL": 2,
+                    "RECV_DIRECT": 2, "RECV_XFER": 0, "RECV_TOTAL": 2, "END_BAL": 2,
+                },
+                {
+                    "LINE_NO": 3, "PART_NO": "200003", "PART_DESC": "No Unit", "UNIT": None,
+                    "PLAN_QTY": 5, "ORDER_NO": "WO-PART", "COST_CODE": "CC-1",
+                    "WH NORTH": 5, "WH SOUTH": 0, "HOLD_TOTAL": 5,
+                    "RECV_DIRECT": 5, "RECV_XFER": 0, "RECV_TOTAL": 5, "END_BAL": 5,
+                },
+                {
+                    "LINE_NO": 4, "PART_NO": "200004", "PART_DESC": "Check Cell", "UNIT": "PCS",
+                    "PLAN_QTY": 5, "ORDER_NO": "WO-PART", "COST_CODE": "CC-1",
+                    "WH NORTH": 5, "WH SOUTH": 0, "HOLD_TOTAL": 5,
+                    "RECV_DIRECT": "Check", "RECV_XFER": 0, "RECV_TOTAL": 0, "END_BAL": 0,
+                },
+            ],
+        )
+        add_standard_location_sheet(
+            wb,
+            "LOC_AMBIG_ORDER",
+            [
+                {
+                    "LINE_NO": 1, "PART_NO": "200010", "PART_DESC": "Item A", "UNIT": "PCS",
+                    "PLAN_QTY": 5, "ORDER_NO": "WO-A", "WH NORTH": 5, "WH SOUTH": 0, "HOLD_TOTAL": 5, "END_BAL": 0,
+                },
+                {
+                    "LINE_NO": 2, "PART_NO": "200011", "PART_DESC": "Item B", "UNIT": "PCS",
+                    "PLAN_QTY": 5, "ORDER_NO": "WO-B", "WH NORTH": 5, "WH SOUTH": 0, "HOLD_TOTAL": 5, "END_BAL": 0,
+                },
+            ],
+        )
+        path = self._save(wb)
+        result = self.mod.parse_workbook(path, build_base_mapping())
+        self.assertEqual(len(result["accepted_sections"]), 1)
+        sec = result["accepted_sections"][0]
+        self.assertEqual(sec["sheet"], "LOC_PARTIAL")
+        self.assertTrue(sec["partial"])
+        self.assertEqual([l["item_code"] for l in sec["lines"]], ["200001"])
+        skip_classes = {s["class"] for s in sec["skipped_lines"]}
+        self.assertEqual(skip_classes, {"zero_planned_with_movements", "missing_unit", "check_cell"})
+
+        # Ambiguous order number still refuses the whole section
+        self.assertEqual(len(result["refused_sections"]), 1)
+        self.assertEqual(result["refused_sections"][0]["sheet"], "LOC_AMBIG_ORDER")
+        self.assertEqual(result["refused_sections"][0]["refusals"][0]["class"], "ambiguous_owner_order_number")
+
+    def test_ac002_movements_win_uses_warehouse_sum_over_stale_set_aside_total_and_flags(self):
+        wb = openpyxl.Workbook()
+        wb.remove(wb.active)
+        add_standard_location_sheet(
+            wb,
+            "LOC_STALE",
+            [
+                {
+                    "LINE_NO": 1, "PART_NO": "300010", "PART_DESC": "Stale Total Item", "UNIT": "PCS",
+                    "PLAN_QTY": 121, "ORDER_NO": "WO-STALE", "COST_CODE": "CC-S",
+                    "WH NORTH": 21, "WH SOUTH": 45, "HOLD_TOTAL": 121,
+                    "RECV_DIRECT": 121, "RECV_XFER": 0, "RECV_TOTAL": 121, "END_BAL": 121,
+                }
+            ],
+        )
+        path = self._save(wb)
+        res = self.mod.parse_workbook(path, build_base_mapping(policy={"closing_conflict": "movements_win"}))
+        self.assertEqual(res["refused_sections"], [])
+        self.assertEqual(len(res["accepted_sections"]), 1)
+        sec = res["accepted_sections"][0]
+        self.assertEqual(sec["lines"][0]["opening"]["set_aside"], "66")
+        self.assertEqual(len(sec["policy_flags"]["set_aside_conflicts"]), 1)
+        flag = sec["policy_flags"]["set_aside_conflicts"][0]
+        self.assertEqual(flag["workbook_total"], "121")
+        self.assertEqual(flag["computed_total"], "66")
+
 
 if __name__ == "__main__":
     unittest.main()

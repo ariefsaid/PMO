@@ -527,6 +527,54 @@ test('AC-002: mapping validation rejects unknown keys and buildSectionEntity emi
   assert.equal(entity.lines[0].evidence.request_reference, 'REQ-1');
   assert.equal('movements' in entity.lines[0], false, 'Contract v2 drops movements[]');
   assert.equal('reservations' in entity.lines[0], false, 'Contract v2 drops reservations[]');
+
+  const dupProblems = validateMapping(baseMapping({ policy: { closing_conflict: 'movements_win', duplicate_items: 'invalid' } }));
+  assert.ok(dupProblems.some((p) => p.includes('policy.duplicate_items')));
+  assert.deepEqual(validateMapping(baseMapping({ policy: { closing_conflict: 'movements_win', duplicate_items: 'sum' } })), []);
+});
+
+test('AC-002: partial section loads accepted lines, reports skipped_lines and policy flags, and exits 1', async () => {
+  const transport = makeFakeTransport({
+    workOrders: [
+      { id: 'wo-existing-1', wo_number: 'WO-SYN-100', client_po_number: null, title: 'Existing', status: 'Issued' },
+    ],
+  });
+  const base = sampleParsed();
+  const partialSec = {
+    ...base.accepted_sections[0],
+    partial: true,
+    skipped_lines: [
+      { sheet: 'LOC_ONE', row: 9, column: 'D', item_code: '009999', class: 'missing_unit', reason: "Missing unit for item '009999'." },
+    ],
+    policy_flags: {
+      closing_conflicts: [],
+      negative_closings: [],
+      set_aside_conflicts: [{ sheet: 'LOC_ONE', row: 8, column: 'P', item_code: '001001', workbook_total: '12', computed_total: '10' }],
+      received_conflicts: [],
+      consolidated_items: [{ sheet: 'LOC_ONE', row: 8, rows: [8, 10], item_code: '001001', row_count: 2 }],
+    },
+  };
+  const res = await runMaterialLoad(
+    {
+      workbookPath: '/fake/wb.xlsx',
+      mappingPath: '/fake/map.json',
+      mapping: baseMapping({ policy: { closing_conflict: 'movements_win', duplicate_items: 'sum' } }),
+      projectId: PROJECT_ID,
+      confirm: true,
+      parseWorkbook: async () => sampleParsed({ accepted_sections: [partialSec] }),
+    },
+    transport,
+  );
+  assert.equal(res.exit, 1);
+  assert.equal(res.report.complete, false);
+  assert.equal(res.report.counts.accepted_sections, 1);
+  assert.equal(res.report.counts.partial_sections, 1);
+  assert.equal(res.report.counts.skipped_lines, 1);
+  assert.equal(res.report.partial_sections.length, 1);
+  assert.equal(res.report.partial_sections[0].skipped_lines[0].class, 'missing_unit');
+  assert.equal(res.report.policy_flagged_sections.length, 1);
+  assert.equal(res.report.policy_flagged_sections[0].set_aside_conflicts.length, 1);
+  assert.equal(res.report.policy_flagged_sections[0].consolidated_items.length, 1);
 });
 
 test('AC-001: CLI `pmo material load` wires ordinary session, Admin check, preview default, and never prints tokens', async () => {

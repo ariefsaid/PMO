@@ -45,7 +45,7 @@ const ALLOWED_MAP_KEYS = new Set([
   'report_path',
 ]);
 
-const ALLOWED_POLICY_KEYS = new Set(['closing_conflict']);
+const ALLOWED_POLICY_KEYS = new Set(['closing_conflict', 'duplicate_items']);
 
 const ALLOWED_WORKBOOK_KEYS = new Set([
   'item_list_sheet',
@@ -175,6 +175,12 @@ export function validateMapping(mapping) {
         !['refuse', 'movements_win'].includes(mapping.policy.closing_conflict)
       ) {
         problems.push("policy.closing_conflict must be 'refuse' or 'movements_win'");
+      }
+      if (
+        mapping.policy.duplicate_items !== undefined &&
+        !['refuse', 'sum'].includes(mapping.policy.duplicate_items)
+      ) {
+        problems.push("policy.duplicate_items must be 'refuse' or 'sum'");
       }
     }
   }
@@ -798,21 +804,39 @@ export async function runMaterialLoad(opts, api) {
     ...sectionResults.filter((r) => r.status === 'refused'),
   ];
 
+  const partialSections = eligibleSections
+    .filter((s) => s.partial || (s.skipped_lines?.length ?? 0) > 0)
+    .map((s) => ({
+      sheet: s.sheet,
+      owner_order_number: s.owner_order_number,
+      location_name: s.location_name,
+      accepted_line_count: s.lines?.length ?? 0,
+      skipped_lines: s.skipped_lines ?? [],
+    }));
+  const skippedLinesCount = partialSections.reduce((sum, s) => sum + s.skipped_lines.length, 0);
+
   const policyFlaggedSections = eligibleSections
     .filter(
       (s) =>
         (s.policy_flags?.closing_conflicts?.length ?? 0) > 0 ||
-        (s.policy_flags?.negative_closings?.length ?? 0) > 0,
+        (s.policy_flags?.negative_closings?.length ?? 0) > 0 ||
+        (s.policy_flags?.set_aside_conflicts?.length ?? 0) > 0 ||
+        (s.policy_flags?.received_conflicts?.length ?? 0) > 0 ||
+        (s.policy_flags?.consolidated_items?.length ?? 0) > 0,
     )
     .map((s) => ({
       sheet: s.sheet,
       owner_order_number: s.owner_order_number,
-      closing_conflicts: s.policy_flags.closing_conflicts,
-      negative_closings: s.policy_flags.negative_closings,
+      closing_conflicts: s.policy_flags.closing_conflicts ?? [],
+      negative_closings: s.policy_flags.negative_closings ?? [],
+      set_aside_conflicts: s.policy_flags.set_aside_conflicts ?? [],
+      received_conflicts: s.policy_flags.received_conflicts ?? [],
+      consolidated_items: s.policy_flags.consolidated_items ?? [],
     }));
 
   const complete =
     refusedSections.length === 0 &&
+    partialSections.length === 0 &&
     serverRefused.length === 0 &&
     catalogueComplete &&
     sectionsComplete;
@@ -828,7 +852,10 @@ export async function runMaterialLoad(opts, api) {
     source_digest: parsed.source_digest,
     schema_version: MATERIAL_SCHEMA_VERSION,
     batch_id: lastBatchId,
-    policy: parsed.policy ?? { closing_conflict: mapping.policy?.closing_conflict ?? 'refuse' },
+    policy: parsed.policy ?? {
+      closing_conflict: mapping.policy?.closing_conflict ?? 'refuse',
+      duplicate_items: mapping.policy?.duplicate_items ?? 'refuse',
+    },
     config_summary: {
       categories: config?.categories?.length ?? 0,
       owner_warehouses: config?.owner_warehouses?.length ?? 0,
@@ -837,6 +864,8 @@ export async function runMaterialLoad(opts, api) {
     work_orders: workOrdersPlan,
     counts: {
       accepted_sections: eligibleSections.length,
+      partial_sections: partialSections.length,
+      skipped_lines: skippedLinesCount,
       refused_sections: refusedSections.length,
       catalogue_entities: catalogueEntities.length,
       server_refused: serverRefused.length,
@@ -844,6 +873,7 @@ export async function runMaterialLoad(opts, api) {
     },
     catalogue_results: catalogueResults,
     section_results: sectionResults,
+    partial_sections: partialSections,
     refused_sections: refusedSections,
     policy_flagged_sections: policyFlaggedSections,
     suggested_stock_openings: buildSuggestedStockOpenings(eligibleSections),
