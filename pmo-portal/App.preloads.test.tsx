@@ -1,3 +1,4 @@
+import { setHidePricesActive, setPricesHidden } from '@/src/lib/priceReadPath';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup } from '@testing-library/react';
 import { createMemoryRouter } from 'react-router';
@@ -20,12 +21,14 @@ import { ProjectSCurve } from './pages/project-detail/lazyProjectChunks';
 import { QueryClient } from '@tanstack/react-query';
 
 it('starts overview reads from route navigation with resolved hook access', () => {
+  setHidePricesActive(false);
+  setPricesHidden(false, true);
   const client = new QueryClient();
   const prefetch = vi.spyOn(client, 'prefetchQuery').mockResolvedValue();
   preloadForPath('/projects/p1', { orgId: 'org', client, overviewAccess: { may: () => false, realRole: 'Engineer' } });
   const keys = prefetch.mock.calls.map(([query]) => query.queryKey);
   expect(keys).toContainEqual(['project-overview-read', 'org', 'p1', { money: false, commitments: false, budget: false }]);
-  expect(keys).toContainEqual(['tasks', 'org', 'p1']);
+  expect(keys.some((key) => key[0] === 'tasks')).toBe(false);
   expect(keys.some((key) => key[0] === 'project-budget-positions')).toBe(false);
   client.clear();
 });

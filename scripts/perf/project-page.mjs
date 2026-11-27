@@ -41,6 +41,8 @@ const profileResponse = await login.request.get(apiUrl, {
 const payload = await profileResponse.json();
 const profile = Array.isArray(payload) ? payload[0] : payload;
 if (!profile) throw Error("No profile");
+if (process.env.PERF_EXPECT_ORG && profile.org_id !== process.env.PERF_EXPECT_ORG)
+  throw Error("Probe profile is outside the expected test organisation");
 const endpoint = new URL(apiUrl);
 endpoint.search = "id=eq." + profile.id;
 const changed = await login.request.patch(endpoint.href, {

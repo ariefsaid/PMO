@@ -1,3 +1,4 @@
+import { isPriceVisibilityResolved, subscribeHidePrices } from '@/src/lib/priceReadPath';
 import type { ProjectOverviewAccess } from '@/src/auth/projectOverviewAccess';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import React, { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
@@ -744,6 +745,7 @@ export const AppRoutes: React.FC = React.memo(function AppRoutes() {
 // ── Shell chrome (inside the workspace provider + AgentRuntimeProvider) ───────
 export const ShellChrome: React.FC = React.memo(function ShellChrome() {
   const realRole = useOptionalRealRole();
+  const priceVisibilityReady = React.useSyncExternalStore(subscribeHidePrices, isPriceVisibilityResolved, () => false);
   const location = useLocation();
   const { pathname, search } = location;
   const router = React.useContext(AppRouterContext);
@@ -754,8 +756,8 @@ export const ShellChrome: React.FC = React.memo(function ShellChrome() {
   const canReadClaims = may('view', 'progressClaim');
   const canViewBilling = may('view', 'salesInvoice');
   const preload = useCallback((href: string) => {
-    preloadForPath(href, orgId && currentUser ? { orgId, client: queryClient, canViewWorkOrderPlan, canReadClaims, canViewBilling, viewer: currentUser, overviewAccess: !loading && session ? { may, realRole } : undefined } : undefined);
-  }, [orgId, canViewWorkOrderPlan, canReadClaims, canViewBilling, currentUser, may, realRole, loading, session]);
+    preloadForPath(href, orgId && currentUser ? { orgId, client: queryClient, canViewWorkOrderPlan, canReadClaims, canViewBilling, viewer: currentUser, overviewAccess: !loading && session && priceVisibilityReady ? { may, realRole } : undefined } : undefined);
+  }, [orgId, canViewWorkOrderPlan, canReadClaims, canViewBilling, currentUser, may, realRole, loading, session, priceVisibilityReady]);
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [paletteOpen, setPaletteOpen] = useState(false);

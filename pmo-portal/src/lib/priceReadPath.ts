@@ -27,6 +27,7 @@ export function setPricesHidden(hidden: boolean, resolved = true): void {
   callerResolved = resolved;
   listeners.forEach((l) => l());
 }
+export const isPriceVisibilityResolved = (): boolean => hidePricesActive !== null && callerResolved;
 export const arePricesHidden = (): boolean => pricesHidden;
 export const getPriceVisibility = (): boolean | null => hidePricesActive;
 export const isHidePricesActive = (): boolean => hidePricesActive !== false;

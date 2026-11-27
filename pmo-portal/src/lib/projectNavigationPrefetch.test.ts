@@ -5,10 +5,13 @@ vi.mock('@/src/lib/repositories', () => ({ repositories: {
   project: { getWithRefs: reads.project }, projectOverview: { read: reads.overview },
   projectMoney: { budgetPositions: reads.positions }, task: { list: reads.tasks },
 } }));
+import { setHidePricesActive, setPricesHidden } from './priceReadPath';
 import { preloadProjectOverview } from './routeData';
 
 beforeEach(() => {
   vi.clearAllMocks();
+  setHidePricesActive(false);
+  setPricesHidden(false, true);
   reads.project.mockResolvedValue({ id: 'p' });
   reads.overview.mockResolvedValue({ milestones: [], finances: { marker: 'overview' } });
   reads.positions.mockResolvedValue({});
@@ -21,7 +24,7 @@ it('starts independent authorized reads before the page mounts and seeds the lea
   await vi.waitFor(() => expect(reads.overview).toHaveBeenCalledOnce());
   expect(reads.project).toHaveBeenCalledWith('p');
   expect(reads.positions).toHaveBeenCalledWith(['p']);
-  expect(reads.tasks).toHaveBeenCalledWith('p');
+  expect(reads.tasks).not.toHaveBeenCalled();
   expect(reads.overview).toHaveBeenCalledWith('p', { money: true, commitments: true, budget: true });
   await vi.waitFor(() => expect(client.getQueryData(['project-finances', 'org', 'p'])).toEqual({ marker: 'overview' }));
   preloadProjectOverview(client, 'org', 'p', { may: () => true, realRole: 'Finance' });
@@ -44,6 +47,20 @@ it('does not issue reads without organization, route id or resolved access', () 
   preloadProjectOverview(client, 'org', '', { may: () => true, realRole: 'Finance' });
   preloadProjectOverview(client, 'org', 'p');
   preloadProjectOverview(client, 'org', 'p', { may: () => true, realRole: null });
+  expect(reads.project).not.toHaveBeenCalled();
+  expect(reads.overview).not.toHaveBeenCalled();
+  expect(reads.positions).not.toHaveBeenCalled();
+  expect(reads.tasks).not.toHaveBeenCalled();
+  client.clear();
+});
+
+it('starts no navigation reads until organisation and caller price visibility resolve', () => {
+  const client = new QueryClient();
+  setHidePricesActive(null);
+  setPricesHidden(true, false);
+  preloadProjectOverview(client, 'org', 'p', { may: () => true, realRole: 'Finance' });
+  setHidePricesActive(true);
+  preloadProjectOverview(client, 'org', 'p', { may: () => true, realRole: 'Finance' });
   expect(reads.project).not.toHaveBeenCalled();
   expect(reads.overview).not.toHaveBeenCalled();
   expect(reads.positions).not.toHaveBeenCalled();
