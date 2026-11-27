@@ -1,9 +1,9 @@
+import { projectOverviewFlags } from '@/src/auth/projectOverviewAccess';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/src/auth/useAuth';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { usePermission } from '@/src/auth/usePermission';
-import { repositories } from '@/src/lib/repositories';
-import { externalDomainOwnershipKey } from './approvalsQueryKeys';
+import { projectOverviewQuery } from '@/src/lib/projectRouteQueries';
 
 /**
  * One read for the Overview's above-the-fold summaries (AC-PERF-007/008). On success it seeds the cache keys the
@@ -18,31 +18,8 @@ export function useProjectOverviewRead(projectId: string, enabled: boolean) {
   const orgId = useAuth().currentUser?.org_id;
   const may = usePermission();
   const { realRole } = useEffectiveRole();
-  const flags = {
-    money: may('view', 'salesInvoice'),
-    commitments: may('view', 'procurement'),
-    budget: realRole === 'Admin' || realRole === 'Executive' || realRole === 'Finance' || realRole === 'Project Manager',
-  };
   return useQuery({
-    queryKey: ['project-overview-read', orgId, projectId, flags],
-    queryFn: async () => {
-      const read = await repositories.projectOverview.read(projectId, flags);
-      const seed = (key: readonly unknown[], value: unknown) => {
-        if (value !== undefined) qc.setQueryData(key, value);
-      };
-      seed(['project-finances', orgId, projectId], read.finances);
-      seed(['project-billing', orgId, projectId], read.billing);
-      seed(['boq-items', orgId, projectId], read.boqItems);
-      seed(['budget-versions', orgId, projectId], read.budgetVersions ?? undefined);
-      seed(['project-committed-spend', orgId, projectId], read.committedSpend);
-      seed(externalDomainOwnershipKey(orgId), read.externalDomainOwnership);
-      seed(['org-reads-erp-ledger', orgId], read.readsErpLedger);
-      seed(['milestones', orgId, projectId], read.milestones);
-      seed(['project-comment-count', orgId, projectId], read.commentCount);
-      seed(['fx-context', orgId ?? ''], read.fxContext ?? undefined);
-      return read;
-    },
+    ...projectOverviewQuery(qc, orgId, projectId, projectOverviewFlags({ may, realRole })),
     enabled: enabled && Boolean(orgId && projectId),
-    retry: false,
   });
 }
