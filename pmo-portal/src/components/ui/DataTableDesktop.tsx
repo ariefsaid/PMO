@@ -157,7 +157,8 @@ function useStickyRowMenuSeam(
     observeIfNeeded(measure());
     let resizeFrame: number | undefined;
     const resize = () => {
-      if (resizeFrame !== undefined) return;
+      // Observed tables already receive one batched geometry read from ResizeObserver.
+      if (observer || resizeFrame !== undefined) return;
       resizeFrame = requestAnimationFrame(() => {
         resizeFrame = undefined;
         observeIfNeeded(measure());
