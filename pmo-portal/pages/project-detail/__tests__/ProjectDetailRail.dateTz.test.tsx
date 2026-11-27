@@ -13,6 +13,7 @@ import React from 'react';
 import { MemoryRouter } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
 
+vi.mock('@/src/auth/useFeature', () => ({ useFeature: () => true })); // #3023: the status control and deal actions read the sales-pipeline entitlement; on = the behaviour this test pins
 vi.mock('@/src/auth/usePermission', () => ({
   usePermission: () => () => false,
 }));
