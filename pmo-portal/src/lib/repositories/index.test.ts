@@ -340,7 +340,7 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
         'delete',
         'get',
         'getChild',
-        'list',
+        'getSignedUrl',
         'listForWorkOrder',
         'linkMicrosoftDocument',
         'list',
