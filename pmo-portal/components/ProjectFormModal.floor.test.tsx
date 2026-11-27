@@ -19,7 +19,7 @@ vi.mock('@/src/hooks/useProjects', () => ({
   useProjectManagers: () => ({ data: [{ id: 'mgr-1', full_name: 'Alice Manager' }], isError: false }),
 }));
 vi.mock('@/src/hooks/useProjectClassificationOptions', () => ({ useProjectClassificationOptions: () => ({ data: { serviceLines: [], sectors: [] }, isPending: false, isError: false }) }));
-vi.mock('@/src/hooks/useCompanies', () => ({ useCompanies: () => ({ data: [], isError: false }) }));
+vi.mock('@/src/hooks/useCompanies', () => ({ useCompanyOptions: () => ({ data: [], isError: false }) }));
 const orgDefault = vi.hoisted(() => ({ value: 'exclusive' as string | undefined }));
 vi.mock('@/src/hooks/useOrgTaxDefault', async (orig) => {
   const actual = (await orig()) as Record<string, unknown>;

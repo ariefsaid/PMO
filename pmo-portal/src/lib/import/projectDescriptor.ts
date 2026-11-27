@@ -1,5 +1,6 @@
 import { withEnglishOrgTerms } from '@/src/lib/i18n/orgTerms';
 import { repositories } from '@/src/lib/repositories';
+import { withDefaultProjectManager, type ProjectCreator } from '@/src/lib/projectManagerDefault.mjs';
 import {
   PROJECT_ORIGINATION_STATUSES,
   type CreateProjectInput,
@@ -88,6 +89,7 @@ function stageDateErrors(cells: Record<string, string>): Partial<Record<StageDat
 export function makeProjectImportDescriptor(
   companies: readonly { id: string; name: string }[],
   managers: readonly { id: string; name: string }[],
+  creator?: ProjectCreator,
 ): ImportDescriptor<ProjectImportInput> {
   const client = makeRefLookup(companies, 'Company');
   const pm = makeRefLookup(managers, 'Project manager', true);
@@ -201,7 +203,7 @@ export function makeProjectImportDescriptor(
     create: async (input) => {
       const dated = stageDatesOf(input);
       const { lead_on: _l, pq_submitted_on: _p, quoted_on: _q, tender_sent_on: _t, negotiation_on: _n, ...project } = input;
-      const row = await repositories.project.create(project as CreateProjectInput);
+      const row = await repositories.project.create(withDefaultProjectManager(project as CreateProjectInput, creator));
       if (dated.length > 0) await repositories.projectStage.importHistory(row.id, dated);
       return row;
     },

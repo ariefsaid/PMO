@@ -117,3 +117,5 @@ describe('rental invoice check', () => {
     });
   });
 });
+
+it("identifies the loaded scope of rental machine choices", () => { renderCheck(); expect(screen.getByText(/1 machines from the loaded equipment pages/)).toBeInTheDocument(); });

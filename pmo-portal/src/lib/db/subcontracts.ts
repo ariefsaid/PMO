@@ -2,9 +2,11 @@ import { supabase } from '@/src/lib/supabase/client';
 import { AppError } from '@/src/lib/appError';
 import type { Tables } from '@/src/lib/supabase/database.types';
 import type { CaptureVendorInvoiceInput, ProcurementInvoiceRow } from './procurementLifecycle';
+import { priceSource } from '@/src/lib/priceReadPath';
 
 export type PurchaseOrderRevisionRow = Tables<'purchase_order_revisions'>;
-export type PurchaseOrderLineRow = Tables<'purchase_order_lines'>;
+type PurchaseOrderLineRecord = Tables<'purchase_order_lines'>;
+export type PurchaseOrderLineRow = Pick<PurchaseOrderLineRecord, 'id' | 'org_id' | 'po_id' | 'boq_item_id' | 'quantity' | 'revision' | 'unit' | 'created_at'>;
 export type SubcontractAcceptanceRow = Tables<'subcontract_acceptances'>;
 export type SubcontractAcceptanceLineRow = Tables<'subcontract_acceptance_lines'>;
 export type PoVariationRow = Tables<'po_variations'>;
@@ -135,7 +137,8 @@ export async function listPoRevisions(poId: string): Promise<PurchaseOrderRevisi
 }
 
 export async function listPoLines(poId: string, revision?: number): Promise<PurchaseOrderLineRow[]> {
-  let query = supabase.from('purchase_order_lines').select('*').eq('po_id', poId);
+  let query = supabase.from(priceSource('purchase_order_lines') as 'purchase_order_lines')
+    .select('id,org_id,po_id,boq_item_id,quantity,revision,unit,created_at').eq('po_id', poId);
   if (revision !== undefined) {
     query = query.eq('revision', revision);
   }

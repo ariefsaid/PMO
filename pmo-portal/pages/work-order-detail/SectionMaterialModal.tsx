@@ -49,15 +49,17 @@ export const SectionMaterialModal: React.FC<Props> = ({ workOrderId, section, on
     try {
       await set.mutateAsync({ sectionId, itemId: id, quantity });
       toast(t('saved', 'Saved'), undefined, 'success');
+      return true;
     } catch (err) {
       setSubmitError(sectionRefusal(err));
+      return false;
     }
   };
   const add = async (e: React.FormEvent) => {
     e.preventDefault();
     setTried(true);
     if (!itemId || qty.trim() === '' || invalid) return;
-    await write(itemId, qty.trim());
+    if (!await write(itemId, qty.trim())) return;
     setItemId(''); setQty(''); setTried(false);
   };
 

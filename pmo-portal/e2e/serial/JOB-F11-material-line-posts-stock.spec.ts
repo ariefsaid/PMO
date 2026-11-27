@@ -1,4 +1,5 @@
 // @e2e-isolation: serial — the report's stock posting is a per-organisation setting (dsr_stock_issue, off by default) and the two-record decision needs a named validator role; the spec reads both, sets them, and restores them in finally.
+import { managedProject } from "../support/managedProject";
 /**
  * JOB-F11 — installed and returned material (#2676). A daily report carries a material line of 5 units; validation posts it from the
  * work order's site stock, and a correction reverses that posting and posts the corrected line.
@@ -34,7 +35,7 @@ test('JOB-F11 validating a report with a material line of 5 falls site stock by 
     ok('validate roles', await admin.rpc('set_daily_report_validate_roles', { p_roles: ['project_manager'] }));
 
     const sfx = runSuffix();
-    projectId = need('project', await svc.from('projects').insert({ org_id: ORG_ID, name: `${run} project`, status: 'Ongoing Project', currency: 'USD' }).select('id').single()).id;
+    projectId = need('project', await svc.from('projects').insert(managedProject(pm1.id, { org_id: ORG_ID, name: `${run} project`, status: 'Ongoing Project', currency: 'USD' })).select('id').single()).id;
     // The site location must be an open site/yard/staging warehouse of the work order's own project (guard 1320).
     const site = await makeWarehouse(svc, sfx, 'SITE', 'site', projectId);
     siteId = site.id;

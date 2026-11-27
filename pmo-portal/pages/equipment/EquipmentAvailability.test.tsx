@@ -33,8 +33,8 @@ vi.mock('@/src/hooks/useEquipment', () => ({
 }));
 vi.mock('@/src/hooks/useOrgToday', () => ({ useOrgToday: () => h.orgToday || new Date().toISOString().slice(0, 10) }));
 vi.mock('@/src/hooks/useResolvedLocale', () => ({ useOrgBusinessTimezone: () => 'UTC' }));
-vi.mock('./RentalInvoiceCheck', () => ({ default: () => <div>Rental invoice check</div> }));
-vi.mock('@/src/hooks/useCompanies', () => ({ useCompanies: () => ({ data: [{ id: 'v1', name: 'Vendor' }] }) }));
+vi.mock('./RentalInvoiceCheck', () => ({ default: ({assets}: {assets: {id: string}[]}) => <div>Rental invoice check{assets.map(a => <span key={a.id}>{a.id}</span>)}</div> }));
+vi.mock('@/src/hooks/useCompanies', () => ({ useCompanyOptions: () => ({ data: [{ id: 'v1', name: 'Vendor' }] }) }));
 vi.mock('@/src/hooks/useEquipmentAvailability', () => ({
   useStatusDays: (from: string, to: string) => { h.statusRange = [from, to]; return { data: h.statusRows, isError: h.statusError }; },
   useLatestStatusDays: () => ({ data: h.latestRows }),
@@ -277,3 +277,7 @@ describe('Equipment availability screen', () => {
   });
 
 });
+
+it("asks before changing the date with an unsaved status", async () => { renderPage(); await userEvent.selectOptions(screen.getByRole("combobox", {name: "Status of EQU-1"}), "broken"); const date = screen.getByLabelText("Status date"); await userEvent.clear(date); expect(screen.getByRole("button", {name: /keep editing/i})).toBeInTheDocument(); await userEvent.click(screen.getByRole("button", {name: /keep editing/i})); expect(screen.getByRole("combobox", {name: "Status of EQU-1"})).toHaveValue("broken"); });
+
+it("offers a rented machine from a later loaded equipment page", async () => { h.assets = Array.from({length: 200}, (_, i) => asset(String(i), String(i), "owned")); h.role = "Finance"; h.nextAssets = [asset("later-rental", "EQU-300", "rented")]; renderPage(); await userEvent.click(screen.getByRole("button", {name: "Rental invoice check"})); expect(screen.getByText("later-rental")).toBeInTheDocument(); });

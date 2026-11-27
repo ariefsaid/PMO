@@ -5,7 +5,7 @@ export interface NeedsYouResult {
   since: Date;
 }
 
-type DateRow = { date?: string | null; created_at?: string | null; invoice_date?: string | null; amount?: number | string | null; erp_outstanding_amount?: number | string | null };
+type DateRow = { id?: string; invoice_id?: string | null; currency?: string | null; voided_at?: string | null; date?: string | null; created_at?: string | null; invoice_date?: string | null; amount?: number | string | null; erp_outstanding_amount?: number | string | null };
 
 export interface NeedsYouRow {
   status: string;
@@ -36,11 +36,16 @@ function oldestDate(values: Array<string | null | undefined>): Date | null {
 }
 
 function invoiceHasBalance(invoice: DateRow, payments: readonly (DateRow & { status?: string })[]): boolean {
-  if (invoice.erp_outstanding_amount != null) return Number(invoice.erp_outstanding_amount) > 0;
+  if (invoice.voided_at) return false;
+  if (invoice.erp_outstanding_amount != null) {
+    const balance = Number(invoice.erp_outstanding_amount);
+    return !Number.isFinite(balance) || balance > 0;
+  }
   if (invoice.amount == null) return true;
-  const linkedPayments = payments.filter((payment) => payment.status === 'Paid');
+  const linkedPayments = payments.filter((payment) => payment.status === 'Paid' && Boolean(invoice.id) && payment.invoice_id === invoice.id && Boolean(invoice.currency) && payment.currency === invoice.currency);
   const paid = linkedPayments.reduce((sum, payment) => sum + Number(payment.amount ?? 0), 0);
-  return Number(invoice.amount) - paid > 0;
+  const balance = Number(invoice.amount) - paid;
+  return !Number.isFinite(balance) || balance > 0;
 }
 
 /** FE queue ordering hints only; RLS and server transition rules remain authoritative. */

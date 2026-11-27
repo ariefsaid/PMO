@@ -146,7 +146,7 @@ const ExpandedPanel: React.FC<{
                       <span className="truncate">{item.name}</span>
                       <span className="tabular text-muted-foreground shrink-0">
                         {/* #2089: the quantity renders in the viewer's locale, grouped. */}
-                        {maySeePrices ? <>{formatNumberExact(item.quantity)} × {formatCurrency(item.rate, detail.data.currency)} ={' '}
+                        {maySeePrices && item.rate != null ? <>{formatNumberExact(item.quantity)} × {formatCurrency(item.rate, detail.data.currency)} ={' '}
                         <span className="font-medium text-foreground">
                           {formatCurrency(lineTotal, detail.data.currency)}
                         </span></> : formatNumberExact(item.quantity)}
@@ -272,7 +272,7 @@ export const ProcurementListRowBase: React.FC<ProcurementListRowBaseProps> = ({ 
           </div>
           {maySeePrices && <div data-procurement-value className={`${spanOf('value', maySeePrices)} min-w-0 tabular`}>
             <dt className="font-semibold md:sr-only">{t('procurement.columns.value', 'Value')}</dt>
-            <dd className={`${FIGURE_LINE_CLASS} font-medium text-foreground`}>{formatCurrency(row.total_value, row.currency)}</dd>
+            <dd className={`${FIGURE_LINE_CLASS} font-medium text-foreground`}>{row.total_value == null ? '—' : formatCurrency(row.total_value, row.currency)}</dd>
           </div>}
           <div className={`${spanOf('status', maySeePrices)} min-w-0`}>
             <dt className="font-semibold md:sr-only">{t('procurement.columns.status', 'Status')}</dt>

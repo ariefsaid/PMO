@@ -41,16 +41,29 @@ beforeEach(() => {
   profile.assignUserManager.mockResolvedValue(undefined);
   profile.inviteUser.mockResolvedValue(undefined);
   profile.setUserStatus.mockResolvedValue(undefined);
-  profile.listOrgProfiles.mockResolvedValue([]);
+  profile.listOrgProfiles.mockResolvedValue(seed);
   profile.listProjectManagers.mockResolvedValue([]);
 });
 
 describe('useUsers', () => {
-  it("AC-AU-001: keys by ['users', orgId] and returns profile rows", async () => {
+  it('AC-PERF-2975: remounting name and assignee views reuses one organisation read', async () => {
+    const client = freshClient();
+    const first = renderHook(() => useUsers(), { wrapper: wrap(client) });
+    await waitFor(() => expect(first.result.current.isSuccess).toBe(true));
+    first.unmount();
+    const second = renderHook(() => ({ all: useAssignableProfiles(), managers: useProjectManagers() }), { wrapper: wrap(client) });
+    await waitFor(() => expect(second.result.current.all.isSuccess).toBe(true));
+    expect(second.result.current.all.data).toEqual(seed);
+    expect(second.result.current.managers.data).toEqual([]);
+    expect(profile.listOrgProfiles).toHaveBeenCalledTimes(1);
+    expect(profile.listUsers).not.toHaveBeenCalled();
+  });
+  it("AC-AU-001: shares ['org-profiles', orgId] and returns profile rows", async () => {
     const { result } = renderHook(() => useUsers(), { wrapper: wrap(freshClient()) });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(result.current.data?.[0].full_name).toBe('Renata Halloway');
-    expect(profile.listUsers).toHaveBeenCalledTimes(1);
+    expect(profile.listOrgProfiles).toHaveBeenCalledTimes(1);
+    expect(profile.listUsers).not.toHaveBeenCalled();
   });
 });
 
@@ -104,11 +117,8 @@ describe('useUserMutations', () => {
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ['users'] });
   });
 
-  // HKA-019: the task assignee picker (['org-profiles', orgId], useAssignableProfiles) and the
-  // project-manager picker (['profiles', 'pm', orgId], useProjectManagers) cache their own profile
-  // lists with a 5-minute stale window. A user-management mutation that only invalidates
-  // ['users'] leaves those pickers serving stale people (a disabled user stays assignable; a new
-  // manager is missing) until the stale window lapses.
+  // HKA-019: every profile view shares the organisation lookup; each management write
+  // must refresh it once so names, assignees and filtered manager choices stay current.
   it.each([
     ['updateRole', (m: ReturnType<typeof useUserMutations>) => m.updateRole.mutateAsync({ id: 'u2', role: 'Project Manager' })],
     ['assignManager', (m: ReturnType<typeof useUserMutations>) => m.assignManager.mutateAsync({ id: 'u2', managerId: null })],
@@ -117,17 +127,17 @@ describe('useUserMutations', () => {
   ])('%s refetches the assignee and project-manager pickers', async (_name, run) => {
     const client = freshClient();
     const { result } = renderHook(
-      () => ({ muts: useUserMutations(), assignees: useAssignableProfiles(), managers: useProjectManagers() }),
+      () => ({ muts: useUserMutations(), users: useUsers(), assignees: useAssignableProfiles(), managers: useProjectManagers() }),
       { wrapper: wrap(client) },
     );
     await waitFor(() => expect(result.current.assignees.isSuccess).toBe(true));
     await waitFor(() => expect(result.current.managers.isSuccess).toBe(true));
     expect(profile.listOrgProfiles).toHaveBeenCalledTimes(1);
-    expect(profile.listProjectManagers).toHaveBeenCalledTimes(1);
+    expect(profile.listProjectManagers).not.toHaveBeenCalled();
     await act(async () => {
       await run(result.current.muts);
     });
     await waitFor(() => expect(profile.listOrgProfiles).toHaveBeenCalledTimes(2));
-    await waitFor(() => expect(profile.listProjectManagers).toHaveBeenCalledTimes(2));
+    expect(profile.listProjectManagers).not.toHaveBeenCalled();
   });
 });

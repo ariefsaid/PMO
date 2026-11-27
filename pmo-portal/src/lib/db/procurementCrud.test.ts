@@ -120,9 +120,9 @@ describe('vendor recovery writes only vendor_id', () => {
 });
 
 describe('AC-PROC-001 createProcurement (New PR header → Draft, requester stamped, no org_id)', () => {
-  it('AC-PROC-001: inserts a Draft PR with requested_by_id, never sends org_id, returns the new row', async () => {
+  it('AC-PROC-001: inserts a Draft PR with requested_by_id and returns its client-known id without reading the raw row', async () => {
     h.result.value = {
-      data: { id: 'pr1', title: 'Welding consumables', status: 'Draft' },
+      data: null,
       error: null,
     };
     const row = await createProcurement(
@@ -144,8 +144,9 @@ describe('AC-PROC-001 createProcurement (New PR header → Draft, requester stam
     expect(insert.status).toBeUndefined();
     // org_id is NEVER sent (RLS stamps it from auth_org_id()).
     expect(JSON.stringify(h.calls.insert)).not.toContain('org_id');
-    expect(h.calls.single).toBe(1);
-    expect(row.id).toBe('pr1');
+    expect(insert.id).toBe(row.id);
+    expect(h.calls.select).toEqual([]);
+    expect(h.calls.single).toBe(0);
   });
 
   it('AC-PROC-001: omits a null vendor (no vendor_id key) and includes one when provided', async () => {
@@ -203,6 +204,18 @@ describe('AC-PROC-003 line items CRUD (procurement_items, no org_id, no generate
     expect(insert.amount).toBeUndefined();
     expect(JSON.stringify(h.calls.insert)).not.toContain('org_id');
     expect(row.id).toBe('it1');
+  });
+
+  it('AC-HPG-059 a visible draft line without an estimate sends zero', async () => {
+    h.result.value = { data: { id: 'it1' }, error: null };
+    await createProcurementItem('pr1', { name: 'Material', quantity: 2, rate: null });
+    expect(h.calls.insert[0]).toMatchObject({ rate: 0 });
+  });
+
+  it('AC-HPG-059 an unpriced draft line retry converges on the saved zero estimate', async () => {
+    const saved = { id: 'stable-id', procurement_id: 'pr1', name: 'Material', quantity: '2.00', rate: '0.00', description: null };
+    h.result.queue.push({ data: null, error: { code: '23505', message: 'duplicate' } }, { data: saved, error: null });
+    await expect(createProcurementItem('pr1', { id: 'stable-id', name: 'Material', quantity: 2, rate: null })).resolves.toEqual(saved);
   });
 
   it('AC-PROC-003 retry converges after a committed insert response is lost', async () => {
@@ -509,6 +522,12 @@ describe('#541 procurement CRUD writes reject a using-denied 0-row no-op', () =>
 
 describe('#2788 a requester who may not see prices edits their draft lines through the line functions', () => {
   afterEach(() => setPricesHidden(false));
+  it('AC-HPG-059 a hidden draft line without an estimate sends zero', async () => {
+    setPricesHidden(true);
+    h.rpcResult.value = { data: { id: 'l1', rate: null }, error: null };
+    await createProcurementItem('p1', { name: 'Material', quantity: 2, rate: null });
+    expect(h.calls.rpc).toEqual([['procurement_item_add', { p_procurement_id: 'p1', p_line: { name: 'Material', quantity: 2, rate: 0 } }]]);
+  });
   it('adds a line through procurement_item_add and returns the masked row', async () => {
     setPricesHidden(true);
     h.rpcResult.value = { data: { id: 'l1', procurement_id: 'p1', name: 'Bolt', quantity: 2, rate: null, amount: null }, error: null };

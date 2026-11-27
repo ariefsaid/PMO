@@ -1,20 +1,21 @@
+import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent, within } from '@testing-library/react';
 import type { Role } from '@/src/auth/AuthContext';
 import { ToastProvider } from '@/src/components/ui';
 
 const h = vi.hoisted(() => ({
   role: 'Project Manager' as string, ready: true,
-  rows: [] as unknown[], pending: false,
+  rows: [] as unknown[], pending: false, error: false, refetch: vi.fn(), clear: vi.fn(),
 }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: h.role as Role, effectiveRole: h.role as Role }) }));
 vi.mock('@/src/hooks/useVendorResponse', () => ({
   useVendorResponseReady: () => h.ready,
   useVendorNames: () => (id: string) => id === 'v1' ? 'Acme Rental' : id,
   formatDuration: (_t: unknown, m: number | null) => (m == null ? '—' : m === 90 ? '1 h 30 min' : `${m} min`),
-  useBreakdowns: () => ({ data: h.rows, isPending: h.pending, isError: false }),
+  useBreakdowns: () => ({ data: h.rows, isPending: h.pending, isError: h.error, refetch: h.refetch }),
   useRecordVendorResponse: () => ({ mutateAsync: vi.fn(), isPending: false }),
-  useClearVendorResponse: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useClearVendorResponse: () => ({ mutateAsync: h.clear, isPending: false }),
 }));
 vi.mock('@/src/hooks/useOrgToday', () => ({ useOrgToday: () => '2024-06-01' }));
 
@@ -28,7 +29,7 @@ const row = (over: Record<string, unknown> = {}) => ({
 const ui = (asset: { id: string; ownership?: string | null }) => render(<ToastProvider><VendorResponsePanel asset={asset} today="2024-06-01" /></ToastProvider>);
 
 describe('VendorResponsePanel (#2702)', () => {
-  beforeEach(() => { h.role = 'Project Manager'; h.ready = true; h.rows = [row()]; h.pending = false; });
+  beforeEach(() => { h.role = 'Project Manager'; h.ready = true; h.rows = [row()]; h.pending = false; h.error = false; h.refetch.mockReset(); });
 
   it('AC-EVR-011 renders nothing outside the app providers or for an owned asset', () => {
     h.ready = false;
@@ -71,3 +72,9 @@ describe('VendorResponsePanel (#2702)', () => {
     expect(container).toBeEmptyDOMElement();
   });
 });
+
+it("shows a retry action when breakdowns cannot be read", () => { h.error = true; ui({ id: "a1", ownership: "rented" }); fireEvent.click(screen.getByRole("button", {name: /retry/i})); expect(h.refetch).toHaveBeenCalledOnce(); });
+
+it("keeps response removal open when it fails", async () => { h.role = "Project Manager"; h.error = false; h.rows = [row({responded_at: "2024-03-04T01:30:00Z", response_minutes: 90})]; h.clear.mockRejectedValue(new Error("offline")); ui({id: "a1", ownership: "rented"}); await userEvent.click(screen.getByRole("button", {name: "Remove"})); await userEvent.click(within(screen.getByRole("alertdialog")).getByRole("button", {name: "Remove"})); expect(await screen.findByRole("alertdialog")).toBeInTheDocument(); });
+
+it("identifies the limited scope of the vendor summary", () => { h.error = false; h.rows = [row({responded_at: "2024-03-04T01:30:00Z", response_minutes: 90})]; render(<VendorResponseSummaryCard assets={Array.from({length: 201}, (_, i) => ({id: String(i), ownership: "rented"}))} />); expect(screen.getByText(/200 rented machines from the loaded equipment pages/)).toBeInTheDocument(); });

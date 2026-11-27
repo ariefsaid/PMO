@@ -23,7 +23,7 @@ const { projectsState, clientsState, managersState, roleBox, exportSpy } = vi.ho
 
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('../../components/ProjectStatusControl', () => ({ default: () => null }));
-vi.mock('@/src/hooks/useCompanies', () => ({ useCompanies: () => ({ data: [], isError: false, refetch: vi.fn() }) }));
+vi.mock('@/src/hooks/useCompanies', () => ({ useCompanyOptions: () => ({ data: [], isError: false, refetch: vi.fn() }) }));
 vi.mock('@/src/hooks/useProjects', () => ({
   useProjects: () => projectsState,
   useClientCompanies: () => clientsState,

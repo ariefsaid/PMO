@@ -1,4 +1,5 @@
 import { useProjectClassificationOptions } from '@/src/hooks/useProjectClassificationOptions';
+import { withDefaultProjectManager } from '@/src/lib/projectManagerDefault.mjs';
 import type { ProjectClassification } from '@/src/lib/projectClassification';
 import { companyDisplayName } from '@/src/lib/companyDisplayName';
 import { TaxRateFields } from '@/src/components/ui/TaxRateFields';
@@ -26,7 +27,7 @@ import {
 } from '@/src/components/ui';
 import { useClientCompanies, useProjectManagers } from '@/src/hooks/useProjects';
 import { useProjectNumberProposal } from '@/src/hooks/useProjectNumberProposal';
-import { useCompanies } from '@/src/hooks/useCompanies';
+import { useCompanyOptions } from '@/src/hooks/useCompanies';
 import {
   currencySymbol,
   formatMoneyInputValue,
@@ -213,8 +214,8 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
   const { data: clients = [], isError: clientsError } = useClientCompanies();
   const { data: managers = [], isError: pmError } = useProjectManagers();
   // #758: the end customer can be ANY of the org's companies (not just Client-type), so it uses
-  // the broad useCompanies() cache rather than useClientCompanies().
-  const { data: allCompanies = [], isError: endCustomersError } = useCompanies();
+  // the shared company-options cache, including every company type.
+  const { data: allCompanies = [], isError: endCustomersError } = useCompanyOptions();
 
   const form = useEntityForm<FormValues>({
     initialValues: {
@@ -395,7 +396,7 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
           await onSave(initial.id, input);
         } else if (onSubmit) {
           if (numberProposal.status !== 'success' || !values.pmoProjectNumber.trim()) return;
-          const base = {
+          const base = withDefaultProjectManager({
             ...classification,
             name: values.name.trim(),
             short_name: values.shortName.trim() || null,
@@ -408,7 +409,7 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
             ...(values.deputyId && people.deputy ? { deputy_manager_id: values.deputyId } : {}),
             start_date: values.startDate || null,
             end_date: values.endDate || null,
-          };
+          }, auth?.currentUser);
           const contractValue = parseMoneyInputAtScale(values.value, 2) ?? 0;
           // #513: the basis travels WITH the value or the value is 0. `CreateProjectInput` is a
           // union on exactly this rule, so the branch below is not defensive style — it is the only

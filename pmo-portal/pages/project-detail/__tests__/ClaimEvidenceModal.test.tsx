@@ -29,6 +29,18 @@ function renderModal(documents = DOCS, attached = ['doc-4'], earlier: string[] =
 }
 
 describe('ClaimEvidenceModal', () => {
+  it('keeps partial evidence open and retries only unfinished attachments', async () => {
+    const onAttach = vi.fn().mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error('Connection lost')).mockResolvedValue(undefined);
+    const onClose = vi.fn();
+    render(<ToastProvider><ClaimEvidenceModal documents={DOCS} attachedDocumentIds={[]} earlierDocumentIds={['doc-1', 'doc-4']} onClose={onClose} onAttach={onAttach} onError={vi.fn()} /></ToastProvider>);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Attach' }));
+    await screen.findByRole('alert', { name: 'Save failed' });
+    expect(onClose).not.toHaveBeenCalled();
+    await user.click(screen.getByRole('button', { name: 'Attach' }));
+    expect(onAttach.mock.calls.map((c) => c[0])).toEqual(['doc-1', 'doc-4', 'doc-4']);
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
   it('AC-PB-020 offers only issued or approved documents with a file that are not already attached', () => {
     renderModal();
     expect(Array.from((screen.getByLabelText('Evidence document') as HTMLSelectElement).options).map((o) => o.textContent))

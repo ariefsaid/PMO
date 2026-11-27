@@ -45,7 +45,7 @@ export type CompanyListRow = Pick<
 export const COMPANY_LIST_COLUMNS = 'id,name,short_name,type,client_number_segment,supply_risk_status';
 
 /** The directory's display row for pickers/exports that must offer EVERY company. */
-export type CompanyOptionRow = Pick<CompanyRow, 'id' | 'name' | 'short_name'>;
+export type CompanyOptionRow = Pick<CompanyRow, 'id' | 'name' | 'short_name' | 'type'>;
 
 /** One server page of the directory + the exact total matching the filter/search. */
 export interface CompanyDirectoryPage {
@@ -128,7 +128,7 @@ export async function listCompanyOptions(): Promise<CompanyOptionRow[]> {
   const rows = await fetchAllRowsByKeyset<CompanyOptionRow>((afterId, limit) => {
     let query = supabase
       .from('companies')
-      .select('id,name,short_name')
+      .select('id,name,short_name,type')
       .is('archived_at', null)
       .order('id', { ascending: true })
       .limit(limit);

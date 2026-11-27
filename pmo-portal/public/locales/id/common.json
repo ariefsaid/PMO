@@ -246,6 +246,7 @@
       "showingOf": "Menampilkan {{count}} dari {{total}}"
     },
     "listState": {
+      "readError": "Informasi ini gagal dimuat",
       "loading": "Memuat…",
       "retry": "Coba lagi",
       "tryAgainSentence": "Coba lagi.",
@@ -1303,7 +1304,6 @@
         "sub": "Terjadi kesalahan. Coba lagi.",
         "title": "Gagal memuat kontak"
       },
-      "listLabel": "Daftar kontak",
       "loading": "Memuat…",
       "loadingLabel": "Memuat kontak",
       "openRow": "Buka",

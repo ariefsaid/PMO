@@ -89,6 +89,8 @@ describe('ClosingTimeReport (AC-CTR-001 - AC-CTR-009)', () => {
     reportState.isError = false;
   });
 
+  it("offers retry when report settings cannot be read", () => { settingsState.data = null; settingsState.isError = true; renderComponent(); expect(screen.queryByTestId("closing-report-disabled")).toBeNull(); fireEvent.click(screen.getByRole("button", { name: /retry/i })); expect(settingsState.refetch).toHaveBeenCalledOnce(); });
+  it.each(["pending", "error"])("does not show KPI totals for an unknown %s result", (state) => { reportState.isPending = state === "pending"; reportState.isError = state === "error"; renderComponent(); expect(screen.queryByTestId("closing-report-kpis")).toBeNull(); });
   it('renders loading state when settings query is pending', () => {
     settingsState.isPending = true;
     renderComponent();

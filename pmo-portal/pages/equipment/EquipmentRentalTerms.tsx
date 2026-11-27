@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import {
   Button, ConfirmDialog, DataTable, EntityFormModal, FormGrid, NumberField, RecordMenu, RecordSection, SelectField, TextField, useToast, type Column,
 } from '@/src/components/ui';
-import { useCompanies } from '@/src/hooks/useCompanies';
+import { useCompanyOptions } from '@/src/hooks/useCompanies';
 import { useRentalTerms, useRentalTermHistory, useEquipmentOwnership, useChangeRentalRate, useEndRentalTerm } from '@/src/hooks/useEquipmentAvailability';
 import type { RentalTermRow } from '@/src/lib/db/equipmentAvailability';
 import { formatExactMoney, formatIsoDay, normalizeLocalizedDecimal } from '@/src/lib/format';
@@ -23,7 +23,7 @@ type Dialog = 'terms' | 'rate' | 'inService' | 'owned' | null;
 export function EquipmentRentalTerms({ asset }: { asset: Asset }) {
   const { t } = useTranslation(); const { toast } = useToast();
   const termAsset = asset.id;
-  const vendors = useCompanies('Vendor', { enabled: true });
+  const vendors = useCompanyOptions({ enabled: true }, 'Vendor');
   const saveTerm = useRentalTerms(); const saveOwnership = useEquipmentOwnership(); const changeRate = useChangeRentalRate();
   const terms = useRentalTermHistory(termAsset, true);
   const endTerm = useEndRentalTerm();

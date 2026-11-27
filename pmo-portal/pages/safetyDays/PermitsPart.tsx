@@ -1,12 +1,13 @@
+import { getActiveOrgTimezone } from "@/src/lib/locale/activeLocale";
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button, RecordSection, SelectField, StatusPill, TextField, useToast } from '@/src/components/ui';
 import { useSafetyList, useSafetyMutations } from '@/src/hooks/useSafetyDays';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { formatDay } from '@/src/lib/format';
+import { formatDay, formatInstantTime, zonedDatetimeLocalToInstant } from '@/src/lib/format';
 import type { SafetyDayDetail } from '@/src/lib/db/safetyDays';
 
-const stamp = (iso: string) => `${formatDay(iso)} ${new Date(iso).toTimeString().slice(0, 5)}`;
+const stamp = (iso: string) => `${formatDay(iso)} ${formatInstantTime(iso)}`;
 
 /** Permit to work (FR-DSF-005): number, type from the client's list, valid-from to valid-to, issued by; recorded only (OQ-DSF-2). */
 export const PermitsPart: React.FC<{ detail: SafetyDayDetail; editable: boolean }> = ({ detail, editable }) => {
@@ -22,14 +23,16 @@ export const PermitsPart: React.FC<{ detail: SafetyDayDetail; editable: boolean 
   const [issuedBy, setIssuedBy] = useState('');
   const fail = (err: unknown) => { const { headline, detail: d } = classifyMutationError(err); toast(headline, d, 'warning'); };
   const orderOk = from <= to;
-  const ok = number.trim() && /^\d{2}:\d{2}$/.test(from) && /^\d{2}:\d{2}$/.test(to) && orderOk;
+  const validFrom = zonedDatetimeLocalToInstant(`${date}T${from}`, getActiveOrgTimezone())?.toISOString();
+  const validTo = zonedDatetimeLocalToInstant(`${date}T${to}`, getActiveOrgTimezone())?.toISOString();
+  const ok = validFrom && validTo && number.trim() && /^\d{2}:\d{2}$/.test(from) && /^\d{2}:\d{2}$/.test(to) && orderOk;
   const typeLabel = (id: string | null) => types.data?.find((x) => x.id === id)?.label;
 
   const add = async () => {
     try {
       await m.savePermit.mutateAsync({
         dayId: detail.day.id, permitNumber: number, typeId: typeId || null, issuedBy,
-        validFrom: new Date(`${date}T${from}:00`).toISOString(), validTo: new Date(`${date}T${to}:00`).toISOString(),
+        validFrom: validFrom!, validTo: validTo!,
       });
       setNumber(''); setIssuedBy('');
     } catch (err) { fail(err); }
@@ -62,8 +65,8 @@ export const PermitsPart: React.FC<{ detail: SafetyDayDetail; editable: boolean 
           {(types.data?.length ?? 0) > 0 && (
             <SelectField label={t('permits.type', 'Permit type')} value={typeId} onChange={setTypeId} options={[{ value: '', label: t('permits.typeNone', 'No type') }, ...(types.data ?? []).map((x) => ({ value: x.id, label: x.label }))]} />
           )}
-          <TextField label={t('permits.validFrom', 'Valid from')} type="time" value={from} onChange={setFrom} required />
-          <TextField label={t('permits.validTo', 'Valid to')} type="time" value={to} onChange={setTo} required error={orderOk ? undefined : t('permits.order', 'Valid-to must not be before valid-from')} />
+          <TextField label={t('permits.validFrom', 'Valid from')} type="time" value={from} onChange={setFrom} required error={validFrom ? undefined : t("form.invalidWallTime", "This time does not exist in the organisation timezone")} />
+          <TextField label={t('permits.validTo', 'Valid to')} type="time" value={to} onChange={setTo} required error={!validTo ? t("form.invalidWallTime", "This time does not exist in the organisation timezone") : orderOk ? undefined : t('permits.order', 'Valid-to must not be before valid-from')} />
           <TextField label={t('permits.issuer', 'Issued by')} value={issuedBy} onChange={setIssuedBy} />
           <div className="sm:col-span-2"><Button type="submit" variant="primary" disabled={!ok || m.savePermit.isPending} data-testid="safety-permit-add">{t('permits.add', 'Add permit')}</Button></div>
         </form>

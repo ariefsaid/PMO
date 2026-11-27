@@ -1,4 +1,6 @@
 // @e2e-isolation: serial — shared seed for the #775 phase B served journey (AC-EXP-140).
+import { managedProject } from "../support/managedProject";
+import { PM_ID } from "../support/jobFixtures";
 // Flips org-global state of the shared seed org: its ERPNext binding, the `expenses` ownership row and the account
 // map, plus the Engineer's confirmed ERP Employee link. The org row itself is NEVER touched — the claims, the
 // advance and the project state their currency (IDR, the bench company's books) explicitly instead.
@@ -69,11 +71,11 @@ export async function seedExp(admin: SupabaseClient, suffix: string): Promise<Ex
   if ((count ?? 0) > 0) throw new Error('AC-EXP-140 needs the flat approval route: remove org-level spend_approvers first');
 
   const projectId = crypto.randomUUID();
-  const { error: projectErr } = await admin.from('projects').insert({
+  const { error: projectErr } = await admin.from('projects').insert(managedProject(PM_ID, {
     id: projectId, org_id: ORG_ID, name: `EXP-B-${suffix}`, status: 'Ongoing Project',
     // Stated, never stamped from the org: the bench company keeps IDR books; expenses carry no VAT.
     currency: EXP_CURRENCY, subject_to_vat: false,
-  });
+  }));
   if (projectErr) throw new Error(`seed project failed: ${projectErr.message}`);
 
   // One binding row per (org, tier) is shared by every domain — MERGE this run's config over it, and put the

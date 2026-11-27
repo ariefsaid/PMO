@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { EntityFormModal, FormGrid, FormSection, NumberField, type SubmitError } from '@/src/components/ui';
+import { EntityFormModal, FormGrid, FormSection, ListState, NumberField, type SubmitError } from '@/src/components/ui';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { formatCurrency, formatMoneyInputValue, formatNumberExact, parseMoneyInputAtScale } from '@/src/lib/format';
 import { useBoqItems } from '@/src/hooks/useProgressBilling';
@@ -55,12 +55,14 @@ export const SubcontractLinesEditor: React.FC<{
   projectId: string;
   initial: Array<{ boq_item_id: string; quantity: number }>;
   currency: string;
+  draftRead?: { isPending: boolean; isError: boolean; onRetry: () => void };
   onClose: () => void;
   onSave: (lines: SetPoLinesInput[]) => Promise<unknown>;
-}> = ({ projectId, initial, currency, onClose, onSave }) => {
+}> = ({ projectId, initial, currency, draftRead, onClose, onSave }) => {
   const { t } = useTranslation('procurement');
   const boq = useBoqItems(projectId);
   const items = boq.data ?? [];
+  const unavailable = boq.isPending || boq.isError || draftRead?.isPending || draftRead?.isError;
   const bad = t('subcontract.form.quantity', 'Quantity must be more than 0 with at most 3 decimal places');
   const form = useLineForm<SetPoLinesInput>(
     (values, errs) => items.flatMap((item) => {
@@ -72,11 +74,13 @@ export const SubcontractLinesEditor: React.FC<{
   );
   return (
     <EntityFormModal open width="lg" title={t('subcontract.editor.title', 'Set BoQ lines')}
-      submitLabel={t('subcontract.editor.save', 'Save lines')} onSubmit={form.submit} submitError={form.saveError}
+      submitLabel={t('subcontract.editor.save', 'Save lines')} onSubmit={(e) => { if (unavailable) { e.preventDefault(); return; } form.submit(e); }} submitError={form.saveError}
+      submitDisabled={unavailable}
+      disabledReason={t('subcontract.editor.loadError', 'Could not load project BoQ items.')}
       onClose={onClose} loading={form.saving} dirty={Object.values(form.values).some((v) => v !== '')}>
       <p className="mb-3 text-sm text-muted-foreground">{t('subcontract.editor.subtitle', 'Saving replaces the draft; issuing freezes it.')}</p>
       <FormSection legend={t('subcontract.editor.legend', 'Quantity per line')}>
-        {items.length === 0 ? (
+        {draftRead?.isError ? <ListState variant="error" quiet title={t('subcontract.lines.draftLoadError', 'Could not load draft BoQ lines.')} onRetry={draftRead.onRetry} /> : boq.isError ? <ListState variant="error" quiet title={t('subcontract.editor.loadError', 'Could not load project BoQ items.')} onRetry={() => void boq.refetch()} /> : boq.isPending || draftRead?.isPending ? <ListState variant="loading" rows={2} /> : items.length === 0 ? (
           <p className="text-sm text-muted-foreground">{t('subcontract.editor.noBoq', 'This project has no BoQ items yet.')}</p>
         ) : (
           <FormGrid>

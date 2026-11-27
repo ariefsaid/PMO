@@ -1,5 +1,7 @@
 import { useTranslation } from 'react-i18next';
-import { Button, Icon, StatusPill } from '@/src/components/ui';
+import { Button } from '@/src/components/ui/Button';
+import { Icon } from '@/src/components/ui/icons';
+import { StatusPill } from '@/src/components/ui/StatusPill';
 import { formatDay } from '@/src/lib/format';
 import { APPROVED_STATUSES } from '@/src/lib/m365/reference';
 

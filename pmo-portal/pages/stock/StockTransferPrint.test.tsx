@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeAll } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import React from 'react';
 import i18next from 'i18next';
@@ -9,13 +9,13 @@ import stockEn from '@/public/locales/en/stock.json';
 
 import i18nextRuntime from 'i18next';
 import { orgTermsPlugin } from '@/src/lib/i18n';
-const h = vi.hoisted(() => ({ enabled: true, blocks: ['Dispatched by', 'Received by'] }));
+const h = vi.hoisted(() => ({ error: false, retry: vi.fn(), enabled: true, blocks: ['Dispatched by', 'Received by'] }));
 vi.mock('@/src/hooks/useMaterialRequests', () => ({ useDeliveryNoteSettings: () => ({ isPending: false, data: { enabled: h.enabled, signatureBlocks: h.blocks } }) }));
 vi.mock('@/src/hooks/useOrgName', () => ({ useOrgName: () => 'Acme' }));
 vi.mock('@/src/hooks/useStockTransfers', () => ({ useStockTransfer: () => ({ isPending: false, isError: false, data: { id: 't1', number: 'TST-1', fromWarehouseId: 'w1', toWarehouseId: 'w2', note: null, sentAt: '2026-11-20T08:00:00Z', lines: [{ id: 'l1', lineNo: 1, itemId: 'i1', qtySent: '10' }] }, refetch: vi.fn() }) }));
 vi.mock('@/src/hooks/useStock', () => ({
-  useStockItems: () => ({ data: [{ id: 'i1', code: 'PIPE', name: 'Pipe', unit_id: 'u1' }] }), useStockUnits: () => ({ data: [{ id: 'u1', code: 'm' }] }),
-  useStockWarehouses: () => ({ data: [{ id: 'w1', code: 'CEN', name: 'Central store' }, { id: 'w2', code: 'S1', name: 'Site one' }] }),
+  useStockItems: () => ({ isError: h.error, refetch: h.retry, data: [{ id: 'i1', code: 'PIPE', name: 'Pipe', unit_id: 'u1' }] }), useStockUnits: () => ({ isError: h.error, refetch: h.retry, data: [{ id: 'u1', code: 'm' }] }),
+  useStockWarehouses: () => ({ isError: h.error, refetch: h.retry, data: [{ id: 'w1', code: 'CEN', name: 'Central store' }, { id: 'w2', code: 'S1', name: 'Site one' }] }),
 }));
 import StockTransferPrint from './StockTransferPrint';
 
@@ -53,3 +53,5 @@ describe('StockTransferPrint (#1122 item 7)', () => {
     expect(screen.getByRole('alert')).toHaveTextContent(/switched off/);
   });
 });
+
+it("prevents printing when catalogue reads fail and offers retry", () => { h.enabled = true; h.error = true; renderPage(); expect(screen.queryByText("PIPE")).toBeNull(); fireEvent.click(screen.getByRole("button", {name: /retry/i})); expect(h.retry).toHaveBeenCalled(); });

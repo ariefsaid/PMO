@@ -4,13 +4,13 @@
  *  folds and unfolds it, moves a subtask under its sibling, and finds the same structure on the timeline. */
 import { test, expect, type Locator, type Page } from '@playwright/test';
 import { signIn } from './helpers';
-import { serviceClient, ownProject, dropProject, uniq } from './support/jobFixtures';
+import { serviceClient, ownProject, dropProject, uniq, PM_ID } from './support/jobFixtures';
 
 test.setTimeout(150_000);
 
 const admin = serviceClient('AC-TREE-001');
 let projectId = '';
-test.beforeEach(async () => { projectId = await ownProject(admin, `AC-TREE-001 project ${uniq()}`); });
+test.beforeEach(async () => { projectId = await ownProject(admin, `AC-TREE-001 project ${uniq()}`, PM_ID); });
 test.afterEach(async () => { await dropProject(admin, projectId, ['tasks', 'task_groups']); });
 
 const rowOf = (page: Page, name: string) =>

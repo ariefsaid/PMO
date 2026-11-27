@@ -322,6 +322,9 @@
     "cardItem": "Barang",
     "cardInstalled": "Terpasang",
     "cardPlan": "Direncanakan",
-    "cardThreshold": "Peringatan pada"
+    "cardThreshold": "Peringatan pada",
+    "sourceLoadError": "Sumber material terpasang tidak dapat dimuat.",
+    "warningLoadError": "Peringatan penggunaan material tidak tersedia.",
+    "thresholdLoadError": "Ambang peringatan penggunaan tidak dapat dimuat."
   }
 }

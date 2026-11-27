@@ -37,6 +37,7 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers());
 
 describe('#2544 EquipmentCostingForm payloads', () => {
+  it("asks before discarding a changed rental rate", async () => { const close = mount(existing); const user = userEvent.setup(); const rate = screen.getByRole("textbox", {name: /work rate/i}); await user.clear(rate); await user.type(rate, "321"); await user.click(screen.getByRole("button", {name: "Cancel"})); expect(close).not.toHaveBeenCalled(); expect(screen.getByRole("button", {name: /keep editing/i})).toBeInTheDocument(); });
   it('#2544 a hire-rate costing saves the typed rates and unit, effective from the start of this month, and closes', async () => {
     const user = userEvent.setup({ advanceTimers: () => {} });
     const onClose = mount();

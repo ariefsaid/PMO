@@ -29,12 +29,10 @@ const FK_STALE_MS = 5 * 60_000; // FK reference lists change rarely; cache for 5
 export function useVendorOptions() {
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
-  return useQuery<ComboboxOption[]>({
-    queryKey: ['fk-options', 'vendor', orgId],
-    queryFn: async () => {
-      const rows = await repositories.company.list({ type: 'Vendor' });
-      return rows.map((c) => ({ value: c.id, label: companyDisplayName(c), ...(c.short_name ? { sub: c.name } : {}) }));
-    },
+  return useQuery({
+    queryKey: ['companies', orgId, 'options'],
+    queryFn: () => repositories.company.listOptions(),
+    select: (rows) => rows.filter((c) => c.type === 'Vendor').map((c) => ({ value: c.id, label: companyDisplayName(c), ...(c.short_name ? { sub: c.name } : {}) })),
     enabled: Boolean(orgId),
     staleTime: FK_STALE_MS,
   });
@@ -109,12 +107,10 @@ export function useInvoiceProjectOptions() {
 export function useClientCompanyOptions() {
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
-  return useQuery<ComboboxOption[]>({
-    queryKey: ['fk-options', 'client', orgId],
-    queryFn: async () => {
-      const rows = await repositories.company.listClients();
-      return rows.map((c) => ({ value: c.id, label: companyDisplayName(c), ...(c.short_name ? { sub: c.name } : {}) }));
-    },
+  return useQuery({
+    queryKey: ['companies', orgId, 'options'],
+    queryFn: () => repositories.company.listOptions(),
+    select: (rows) => rows.filter((c) => c.type === 'Client').map((c) => ({ value: c.id, label: companyDisplayName(c), ...(c.short_name ? { sub: c.name } : {}) })),
     enabled: Boolean(orgId),
     staleTime: FK_STALE_MS,
   });

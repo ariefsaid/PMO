@@ -1,4 +1,6 @@
 // @e2e-isolation: self-isolated — service-role inserts its own project and task and deletes both; no shared seed row is touched.
+import { managedProject } from "./support/managedProject";
+import { PM_ID } from "./support/jobFixtures";
 import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { createClient } from '@supabase/supabase-js';
@@ -29,10 +31,10 @@ test.beforeEach(async () => {
   PROJECT_ID = crypto.randomUUID();
   TASK_ID = crypto.randomUUID();
   TASK = `DND task ${crypto.randomUUID().slice(0, 8)}`;
-  const { error: projectError } = await admin.from('projects').insert({
+  const { error: projectError } = await admin.from('projects').insert(managedProject(PM_ID, {
     id: PROJECT_ID, org_id: ORG_ID, name: `DND 1637 tasks ${TASK}`, status: 'Ongoing Project',
     currency: 'USD', contract_value: 0, tax_treatment: 'exclusive', tax_amount: 0,
-  });
+  }));
   if (projectError) throw new Error(`AC-DND-015 seed project failed: ${projectError.message}`);
   const { error } = await admin.from('tasks').insert({
     id: TASK_ID, org_id: ORG_ID, project_id: PROJECT_ID, name: TASK, status: 'To Do',

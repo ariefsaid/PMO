@@ -297,6 +297,7 @@ const financeAuth = {
   refreshCurrentUser: async () => ({ error: null }),
 } as unknown as AuthContextValue;
 
+let activeClient: QueryClient;
 function renderProjectDetail(): QueryClient {
   // Mirror the app's shared client (src/lib/queryClient.ts, ADR-0005): staleTime 30s is what
   // dedupes a read shared by several mount points into ONE request. Only `retry` differs: a
@@ -307,6 +308,7 @@ function renderProjectDetail(): QueryClient {
       mutations: { retry: false },
     },
   });
+  activeClient = client;
   render(
     <AuthContext.Provider value={financeAuth}>
       <ImpersonationProvider realRole="Finance">
@@ -328,6 +330,11 @@ function renderProjectDetail(): QueryClient {
 /** Let the query tree drain: return once the endpoint log has been stable for two consecutive ticks. */
 async function settleRequests(): Promise<void> {
   await screen.findByRole('tablist', { name: /project sections/i });
+  await act(async () => { await vi.dynamicImportSettled(); });
+  await waitFor(() => expect(activeClient.isFetching()).toBe(0));
+  await waitFor(() => expect(screen.queryByTestId('project-detail-panel-loading')).not.toBeInTheDocument());
+  await act(async () => { await vi.dynamicImportSettled(); });
+  await waitFor(() => expect(activeClient.isFetching()).toBe(0));
   let stable = 0;
   for (let i = 0; i < 100 && stable < 2; i++) {
     const before = stub.endpoints.length;

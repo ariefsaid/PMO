@@ -18,7 +18,7 @@ const h = vi.hoisted(() => ({
     { id: 'p-alpha', name: 'Alpha Jetty', short_name: null, code: 'P-01' },
     { id: 'p-beta', name: 'Beta Tank', short_name: null, code: 'P-02' },
   ],
-  listForReview: vi.fn(),
+  listForReview: vi.fn(), projectsError: false, retryProjects: vi.fn(),
 }));
 
 vi.mock('@/src/auth/useAuth', () => ({
@@ -28,7 +28,7 @@ vi.mock('@/src/auth/useAuth', () => ({
   }),
 }));
 vi.mock('@/src/hooks/useProjects', () => ({
-  useProjectPickerOptions: () => ({ data: h.projects, isPending: false, isError: false, refetch: vi.fn() }),
+  useProjectPickerOptions: () => ({ data: h.projects, isPending: false, isError: h.projectsError, refetch: h.retryProjects }),
 }));
 vi.mock('@/src/lib/repositories', () => ({
   repositories: {
@@ -140,12 +140,19 @@ const mountReview = (initialEntry = '/timesheets/review', bahasa = false) => {
 
 describe('HR Officer timesheet review list (AC-HTR-001..006)', () => {
   beforeEach(() => {
-    h.role = 'Engineer';
+    h.projectsError = false; h.role = 'Engineer';
     h.builtInRole = 'hr_officer';
     h.sheets = sampleSheets;
     h.listForReview.mockReset().mockImplementation(async () => h.sheets);
   });
 
+  it('lets an HR officer retry failed project filter options', async () => {
+    h.projectsError = true;
+    mountReview();
+    expect(screen.getByRole('combobox', { name: 'Project' })).toBeDisabled();
+    await userEvent.click(screen.getByRole('button', { name: /retry|try again/i }));
+    expect(h.retryProjects).toHaveBeenCalled();
+  });
   it('AC-HTR-001 shows the Review timesheets doorway on TimesheetWeekToolbar for HR Officer and blocks non-HR Engineers on /timesheets/review', () => {
     const { unmount } = render(
       <ImpersonationProvider realRole="Engineer">
@@ -263,6 +270,7 @@ describe('HR Officer timesheet review list (AC-HTR-001..006)', () => {
     expect(list.getByText('Sari Putri')).toBeInTheDocument();
     expect(list.queryByText('Budi Santoso')).toBeNull();
     expect(screen.getByTestId('url-search').textContent).toContain('from=2026-11-15');
+    expect(h.listForReview).toHaveBeenCalledTimes(1);
   });
 
   it('AC-HTR-006 renders in Bahasa Indonesia', async () => {

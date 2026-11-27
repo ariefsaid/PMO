@@ -6,13 +6,13 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router';
 
 const transport = vi.hoisted(() => ({ clients: vi.fn(), projects: vi.fn(), allCompanies: vi.fn() }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { company: { listClients: transport.clients, list: transport.allCompanies }, project: { list: transport.projects } } }));
+vi.mock('@/src/lib/repositories', () => ({ repositories: { company: { listOptions: transport.clients, list: transport.allCompanies }, project: { list: transport.projects } } }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { org_id: 'org-test' } }) }));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/hooks/useErpItemOptions', () => ({ useErpItemOptions: () => ({ connected: false }) }));
 import { SalesInvoiceFormModal } from '../sales-invoices/SalesInvoiceFormModal';
 
-const customer = { id: 'c1', name: 'Customer One', short_name: null };
+const customer = { id: 'c1', name: 'Customer One', type: 'Client', short_name: null };
 const project = { id: 'p1', name: 'Project One', client_id: 'c1', archived_at: null, subject_to_vat: false, tax_rate: null };
 
 describe('invoice picker query recovery', () => {

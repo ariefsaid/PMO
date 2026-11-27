@@ -43,10 +43,12 @@ const usePageHasTitle = (): boolean => {
   const [has, setHas] = useState(false);
   useEffect(() => {
     if (typeof document === 'undefined') return undefined;
-    const check = () => setHas(Boolean(document.querySelector('main h1, #main-content h1, [role="main"] h1')));
+    const main = document.querySelector('main, #main-content, [role="main"]');
+    if (!main) return undefined;
+    const check = () => setHas(Boolean(main.querySelector('h1')));
     check();
     const observer = typeof MutationObserver === 'undefined' ? null : new MutationObserver(check);
-    observer?.observe(document.body, { childList: true, subtree: true });
+    observer?.observe(main, { childList: true, subtree: true });
     return () => observer?.disconnect();
   }, []);
   return has;

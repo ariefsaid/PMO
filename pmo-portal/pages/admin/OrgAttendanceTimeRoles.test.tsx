@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
@@ -67,4 +67,17 @@ describe('time record roles setting', () => {
     expect(screen.queryByRole('button', { name: 'Save' })).toBeNull();
     expect(screen.getByText('Only an Admin can change this.')).toBeInTheDocument();
   });
+});
+
+it('keeps unsaved time roles when saved roles change and offers reload', async () => {
+  h.admin = true; h.roles = { secondRecordRoles: ['quantity_surveyor'], deciderRoles: [] }; h.save.mockClear();
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(<QueryClientProvider client={qc}><ToastProvider><OrgAttendanceTimeRoles /></ToastProvider></QueryClientProvider>);
+  const group = await screen.findByRole('group', { name: 'May enter a second record' });
+  await userEvent.click(within(group).getByRole('button', { name: 'Choose roles' }));
+  await userEvent.click(within(group).getByRole('checkbox', { name: 'project_control_manager' }));
+  act(() => qc.setQueryData(['attendance-time-roles', 'org-1'], { secondRecordRoles: [], deciderRoles: [] }));
+  expect(await screen.findByRole('button', { name: /Reload saved/ })).toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+  expect(h.save).toHaveBeenCalledWith({ secondRecordRoles: ['quantity_surveyor', 'project_control_manager'], deciderRoles: [] });
 });

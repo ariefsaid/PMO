@@ -1,7 +1,8 @@
 import React, { Suspense } from 'react';
 import { Link, Navigate, Route, Routes, useLocation } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Button, ToastProvider } from '@/src/components/ui';
+import { Button } from '@/src/components/ui/Button';
+import { ToastProvider } from '@/src/components/ui/Toast';
 import { ErrorBoundary } from '@/src/components/ErrorBoundary';
 import { LoadingFallback } from '@/components/LoadingFallback';
 import { useAuth } from '@/src/auth/useAuth';

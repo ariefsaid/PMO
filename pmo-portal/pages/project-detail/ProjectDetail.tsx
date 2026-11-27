@@ -242,7 +242,7 @@ const ProjectDetail: React.FC = () => {
     <>
       <ProjectDetailHeader project={project} onEditProject={openEditProject} editIsPrimary={area === 'overview'} compact
         primaryAction={primaryActionAllowed ? <span className="hidden md:inline-flex"><PrimaryProjectAction project={project} isPipeline={isPipelineRecord} chaseOnly={chaseOnly} /></span> : undefined}
-        facts={<><ProjectHeaderFacts project={project} showBudgetFigures />{!isPipelineRecord && <ProjectIssuesLink projectId={project.id} />}</>}
+        facts={overview.isPending ? undefined : <><ProjectHeaderFacts project={project} showBudgetFigures />{!isPipelineRecord && <ProjectIssuesLink projectId={project.id} />}</>}
         menuContent={(
           <>
             <ProjectDetailRail project={project} detailsOnly />

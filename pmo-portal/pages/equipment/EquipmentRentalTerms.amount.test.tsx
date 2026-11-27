@@ -13,7 +13,7 @@ const h = vi.hoisted(() => ({
   endTerm: vi.fn(),
   terms: [] as RentalTermRow[],
 }));
-vi.mock('@/src/hooks/useCompanies', () => ({ useCompanies: () => ({ data: [{ id: 'v1', name: 'Vendor' }] }) }));
+vi.mock('@/src/hooks/useCompanies', () => ({ useCompanyOptions: () => ({ data: [{ id: 'v1', name: 'Vendor' }] }) }));
 vi.mock('@/src/hooks/useEquipmentAvailability', () => ({
   useRentalTerms: () => ({ mutateAsync: h.saveTerm, isPending: false }),
   useEquipmentOwnership: () => ({ mutateAsync: vi.fn(), isPending: false }),

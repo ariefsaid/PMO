@@ -1,3 +1,5 @@
+import { WithheldPrice } from '@/src/components/ui/WithheldPrice';
+import { useMaySeePrices } from '@/src/hooks/useHidePrices';
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ListState, StatusPill, SelectField } from '@/src/components/ui';
@@ -44,6 +46,7 @@ const Section: React.FC<{ title: string; sub?: string; children: React.ReactNode
  */
 const ConsumptionReport: React.FC<{ projectId: string }> = ({ projectId }) => {
   const { t } = useTranslation('stock');
+  const maySeePrices = useMaySeePrices();
   const loc = getNumberLocale();
   const currency = useOrgCurrency();
   const orgDay = useFxOrgDay(true).day;
@@ -68,11 +71,12 @@ const ConsumptionReport: React.FC<{ projectId: string }> = ({ projectId }) => {
       return { value, label: formatUtcMonthYearFull(new Date(`${value}-01T00:00:00Z`)) };
     });
   })();
-  const showValue = (r?.months ?? []).some((m: ConsumptionMonthRow) => m.netValue !== undefined);
+  const showValue = maySeePrices && (r?.months ?? []).some((m: ConsumptionMonthRow) => m.netValue !== undefined);
   const empty = !reversed && r && r.months.length === 0 && r.allowances.length === 0 && r.unplanned.length === 0;
 
   return (
     <div className="flex min-w-0 flex-col gap-4">
+      {!maySeePrices && q.isSuccess && <WithheldPrice />}
       {range && <div className="grid grid-cols-2 items-end gap-3">
         <SelectField label={t('consumption.from')} value={range.fromMonth} options={monthOptions} onChange={(value) => value && setRange({ ...range, fromMonth: value })} />
         <SelectField label={t('consumption.to')} value={range.toMonth} options={monthOptions} onChange={(value) => value && setRange({ ...range, toMonth: value })} />

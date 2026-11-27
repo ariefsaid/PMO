@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { setHidePricesActive } from '@/src/lib/priceReadPath';
 
 // Chainable PostgREST builder mock (the agentRuns.test.ts reference pattern, extended with the
 // filtered chain supplyRisk's warning read needs).
@@ -31,10 +32,12 @@ import {
 } from './supplyRisk';
 
 beforeEach(() => {
+  setHidePricesActive(false);
   h.from.mockClear(); h.rpc.mockClear();
   for (const k of Object.keys(h.calls) as (keyof typeof h.calls)[]) h.calls[k].length = 0;
   h.results.length = 0;
 });
+afterEach(() => setHidePricesActive(false));
 
 describe('getSupplyRiskSuggestion', () => {
   const suggestion = {
@@ -122,6 +125,16 @@ describe('listSupplyRiskWarnings', () => {
     await listSupplyRiskWarnings({ workOrderId: 'wo1' });
     expect(h.calls.eq).toContainEqual(['work_order_id', 'wo1']);
     expect(JSON.stringify(h.calls)).not.toContain('procurements.project_id');
+  });
+
+  it('reads procurement relationships through masked views when price hiding is active', async () => {
+    setHidePricesActive(true);
+    h.push({ data: [row('wo1', { id: 'v1', name: 'Late Co', supply_risk_status: 'at_risk' })], error: null });
+
+    await listSupplyRiskWarnings({ projectId: 'p1' });
+
+    expect(h.calls.from).toEqual(['purchase_orders_masked']);
+    expect(h.calls.select[0]).toContain('procurements:procurements_masked!inner');
   });
 });
 

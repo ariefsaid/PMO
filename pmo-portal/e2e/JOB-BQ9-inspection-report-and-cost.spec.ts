@@ -1,4 +1,5 @@
 // @e2e-isolation: self-isolated — owns its client, project, work order, purchase, inspection and report file; deletes only those rows in finally.
+import { managedProject } from "./support/managedProject";
 /**
  * JOB-BQ9 (quality lane): a third-party test requested with a cost. The Quality Inspector opens the tracker on the work order,
  * records the invitation and the execution, attaches the report and marks it reported — the tracker then shows the test done
@@ -29,10 +30,10 @@ test('JOB-BQ9 a quality inspector records the test, attaches its report and the 
   try {
     const finance = need('finance profile', await db.from('profiles').select('id').eq('org_id', ORG_ID).eq('email', 'finance@acme.test').single());
     companyId = need('client', await db.from('companies').insert({ org_id: ORG_ID, name: `${run} client`, type: 'Client' }).select('id').single()).id as string;
-    projectId = need('project', await db.from('projects').insert({
+    projectId = need('project', await db.from('projects').insert(managedProject(pm.id, {
       org_id: ORG_ID, name: run, status: 'Ongoing Project', currency: 'USD', client_id: companyId, contract_value: 100_000,
       tax_treatment: 'exclusive', tax_amount: 0, tax_rate: 0, tax_base_numerator: 1, tax_base_denominator: 1,
-    }).select('id').single()).id as string;
+    })).select('id').single()).id as string;
     workOrderId = crypto.randomUUID();
     ok('work order', await db.from('work_orders').insert({
       id: workOrderId, org_id: ORG_ID, project_id: projectId, title: `${run} order`, wo_number: `WO-${run}`, status: 'Issued',

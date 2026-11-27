@@ -27,6 +27,7 @@ const PipelineFigures: React.FC<{ figures: ReturnType<typeof pipelineFigures>; o
   const hidden: HiddenFigure[] = figures.weighted === null
     ? [{ label: t('sales:options.weightedForecast', 'Weighted forecast'), reason: unavailable }]
     : [];
+  if (figures.open === null) hidden.push({ label: t('sales:options.openValue', 'Open value'), reason: unavailable });
   useFigureReport(hidden);
   return (
     <dl className="grid min-w-0 grid-cols-2 gap-4">
@@ -38,14 +39,14 @@ const PipelineFigures: React.FC<{ figures: ReturnType<typeof pipelineFigures>; o
           <dd className="text-metric font-semibold tabular"><FigureLinesView figures={figures.weighted} testId="pipeline-weighted-total" /></dd>
         </div>
       )}
-      <div data-testid="pipeline-open-value" className="flex min-w-0 flex-col gap-1">
+      {figures.open !== null && <div data-testid="pipeline-open-value" className="flex min-w-0 flex-col gap-1">
         <dt className="text-control font-medium text-muted-foreground">{t('sales:options.openValue', 'Open value')}</dt>
         <dd data-testid="pipeline-open-value-figure" className="text-metric font-semibold tabular"><FigureLinesView figures={figures.open} /></dd>
         {/* Keep the population caption beside its open-value figure when the tile has room. */}
         <dd data-testid="pipeline-open-count" className="text-control text-muted-foreground">
           {t('sales:options.openCountShort', '{{n}} projects', { n: openCount })}
         </dd>
-      </div>
+      </div>}
     </dl>
   );
 };

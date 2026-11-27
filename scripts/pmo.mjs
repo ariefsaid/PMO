@@ -903,9 +903,9 @@ There is no delete. See docs/runbooks/pmo-cli.md.
 // ── commands ─────────────────────────────────────────────────────────────────────────────────────
 
 /** The signed-in user and their profile (role, status) — read live, as RLS does. */
-async function readMe(ctx) {
+async function readMe(ctx, includeJobRole = false) {
   const user = await authed(ctx, 'GET', '/auth/v1/user');
-  const q = new URLSearchParams({ id: `eq.${user.id}`, select: 'full_name,role,status' });
+  const q = new URLSearchParams({ id: `eq.${user.id}`, select: `full_name,role,status${includeJobRole ? ',built_in_role' : ''}` });
   const rows = await authed(ctx, 'GET', `/rest/v1/profiles?${q}`);
   return { user, profile: Array.isArray(rows) && rows[0] ? rows[0] : {} };
 }
@@ -1042,8 +1042,14 @@ async function dispatch(ctx, command, positionals, flags) {
       const [table, payload] = positionals;
       if (!table) throw usage('create needs a table');
       assertTable(table, 'write');
-      const body = await readPayload(ctx, payload);
+      let body = await readPayload(ctx, payload);
       guardWritePayload(table, body, 'create');
+      if (table === 'projects' && (Array.isArray(body) ? body : [body]).some(row => !row.project_manager_id)) {
+        const { user, profile } = await readMe(ctx, true);
+        const { withDefaultProjectManager } = await import('../pmo-portal/src/lib/projectManagerDefault.mjs');
+        const creator = { ...profile, id: user.id };
+        body = Array.isArray(body) ? body.map(row => withDefaultProjectManager(row, creator)) : withDefaultProjectManager(body, creator);
+      }
       return authed(ctx, 'POST', `/rest/v1/${table}`, { body, headers: { prefer: 'return=representation' } });
     }
     case 'update': {

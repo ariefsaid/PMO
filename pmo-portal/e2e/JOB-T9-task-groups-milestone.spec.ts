@@ -25,7 +25,7 @@ test('JOB-T9 a phase with three tasks shows two of three when two are done', asy
   const sfx = uniq();
   const groupName = `Foundation ${sfx}`;
   worker = await roleJobUser(admin, 'project_manager', runId('t9pm'));
-  projectId = await ownProject(admin, `JOB-T9 project ${sfx}`);
+  projectId = await ownProject(admin, `JOB-T9 project ${sfx}`, worker.id);
   const phase = need('phase', await admin.from('project_milestones').insert({
     org_id: ORG_ID, project_id: projectId, name: `Structure ${sfx}`, sort_order: 1,
   }).select('id').single());

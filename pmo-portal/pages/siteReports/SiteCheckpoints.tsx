@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button, RecordSection, StatusPill, TextArea, type StatusVariant } from '@/src/components/ui';
+import { Button, ListState, RecordSection, StatusPill, TextArea, type StatusVariant } from '@/src/components/ui';
 import { useAuth } from '@/src/auth/useAuth';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { can } from '@/src/auth/policy';
@@ -27,8 +27,8 @@ export const SiteCheckpoints: React.FC<{ workOrderId: string; workDate: string; 
   const [open, setOpen] = useState<string | null>(null);
   const now = new Date();
 
-  // A report never waits on its checkpoints: while loading, on a failed read, and with none to show, the section is absent.
-  if (query.isPending || query.isError) return null;
+  if (query.isError) return <ListState variant="error" title={t("common:ui.errorBoundary.title", "Something went wrong")} onRetry={() => void query.refetch()} />;
+  if (query.isPending) return <ListState variant="loading" />;
   const rows = query.data ?? [];
   if (rows.length === 0) return null;
 
@@ -91,8 +91,7 @@ const CheckpointRow: React.FC<{ row: DayCheckpoint; now: Date; isCurrent: boolea
     }
   };
   const openPhoto = async (path: string) => {
-    const url = await siteCheckpointRepository.photoUrl(path);
-    window.open(url, '_blank', 'noopener');
+    try { const url = await siteCheckpointRepository.photoUrl(path); window.open(url, '_blank', 'noopener'); } catch (err) { setError(classifyMutationError(err).headline); }
   };
   const needPhoto = row.photo_required && !file;
 
@@ -121,6 +120,7 @@ const CheckpointRow: React.FC<{ row: DayCheckpoint; now: Date; isCurrent: boolea
           {t('checkpoints.viewPhoto', 'View photo')}
         </button>
       )}
+      {error && <p role="alert" className="text-foreground">{error}</p>}
       {open && mayRecord && (
         <div className="mt-2 space-y-3 rounded-md border border-border p-3" data-testid="checkpoint-record-panel">
           <input ref={input} type="file" accept="image/*" capture="environment" className="sr-only" data-testid="checkpoint-photo-input"
@@ -133,7 +133,6 @@ const CheckpointRow: React.FC<{ row: DayCheckpoint; now: Date; isCurrent: boolea
             </span>
           </div>
           <TextArea label={t('checkpoints.note', 'Note (optional)')} value={note} onChange={setNote} maxLength={500} />
-          {error && <p role="alert" className="text-foreground">{error}</p>}
           <Button variant="primary" onClick={() => void submit()} loading={record.isPending} disabled={needPhoto}>{t('checkpoints.confirm', 'Record now')}</Button>
         </div>
       )}

@@ -42,7 +42,7 @@ const { projState, tsState, deliverySummaryState, projectMoneyState, budgetPosit
 vi.mock('@/src/hooks/useWaitingForYou', () => ({ useWaitingForYou: () => ({ entries: [], count: 0, countFor: () => 0, pendingKinds: [], failedKinds: [], isPending: false, isError: false, refetch: () => undefined }) }));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/hooks/useCompanies', () => ({
-  useCompanies: () => ({ data: [], isError: false }),
+  useCompanyOptions: () => ({ data: [], isError: false }),
 }));
 vi.mock('@/src/hooks/useDashboard', () => ({
   usePMDashboardProjects: () => ({

@@ -37,7 +37,8 @@ export default function OrgThreeWayMatch() {
 
   const heldCount = useThreeWayMatchHeldCount(canManage && saved?.enabled === true);
   const switchingOff = saved?.enabled === true && !enabled;
-  const held = heldCount.data ?? 0;
+  const held = heldCount.data;
+  const countUnavailable = switchingOff && (heldCount.isPending || heldCount.isError || held === undefined);
   const qtyValue = parseTolerance(quantity);
   const amtValue = parseTolerance(amount);
   const toleranceError = t('procurement:threeWayMatchSettings.toleranceError', 'Enter a percentage from 0 to 100 with at most 2 decimal places.');
@@ -49,7 +50,7 @@ export default function OrgThreeWayMatch() {
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setTried(true);
-    if (qtyValue === null || amtValue === null) return;
+    if (qtyValue === null || amtValue === null || countUnavailable) return;
     save.reset();
     save.mutate({ enabled, quantityTolerancePct: qtyValue, amountTolerancePct: amtValue }, { onSuccess: () => setTried(false) });
   };
@@ -81,13 +82,14 @@ export default function OrgThreeWayMatch() {
                   error={tried && amtValue === null ? toleranceError : undefined}
                   helper={t('procurement:threeWayMatchSettings.amountHelp', 'How far a rate or the bill total may exceed the order.')} />
               </div>
-              {switchingOff && held > 0 && (
+              {switchingOff && (heldCount.isError ? <ListState variant="error" title={t('administration:orgSwitch.loadError', "Couldn't load this setting")} onRetry={() => void heldCount.refetch()} /> : heldCount.isPending ? <ListState variant="loading" rows={1} /> : null)}
+              {switchingOff && held !== undefined && held > 0 && (
                 <p role="status" data-testid="three-way-match-held-notice" className="text-control text-warning-foreground">
                   {t('procurement:threeWayMatchSettings.heldNotice', { count: held, defaultValue_one: '{{count}} bill is held now. Switching the match off releases its hold.', defaultValue_other: '{{count}} bills are held now. Switching the match off releases their holds.' })}
                 </p>
               )}
               {canManage
-                ? <Button type="submit" variant="primary" disabled={!dirty || save.isPending} loading={save.isPending}>{t('procurement:threeWayMatchSettings.save', 'Save')}</Button>
+                ? <Button type="submit" variant="primary" disabled={!dirty || save.isPending || countUnavailable} loading={save.isPending}>{t('procurement:threeWayMatchSettings.save', 'Save')}</Button>
                 : <p className="text-control text-muted-foreground">{t('procurement:gates.onlyAdmin', 'Only an Admin can change this.')}</p>}
               <p role="status" className="min-h-5 text-control text-muted-foreground">
                 {save.isSuccess && !dirty ? t('procurement:threeWayMatchSettings.saved', 'Saved') : ''}

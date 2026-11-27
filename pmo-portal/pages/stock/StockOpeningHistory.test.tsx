@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -126,3 +126,5 @@ describe('StockOpeningHistory (opening-stock-history)', () => {
     expect(screen.getByTestId('opening-confirm')).toBeDisabled();
   });
 });
+
+it("keeps the latest file when an earlier parse finishes late", async () => { const {parseWorkbook} = await import("@/src/lib/import"); let finish!: (value: typeof h.sheet) => void; vi.mocked(parseWorkbook).mockImplementationOnce(() => new Promise(resolve => { finish = resolve; })); renderPage(); const first = new File(["x"], "first.xlsx"); const last = new File(["x"], "last.xlsx"); for (const f of [first,last]) Object.assign(f,{arrayBuffer: async () => new ArrayBuffer(0)}); await userEvent.upload(screen.getByTestId("opening-file"),first); await userEvent.upload(screen.getByTestId("opening-file"),last); await act(async () => finish(h.sheet)); expect(screen.queryByText(/first.xlsx ·/)).toBeNull(); expect(screen.getByText(/last.xlsx ·/)).toBeInTheDocument(); });

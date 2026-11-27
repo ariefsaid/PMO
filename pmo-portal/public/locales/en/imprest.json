@@ -264,7 +264,7 @@
     "help": "Requests not yet ordered or paid. This list only suggests; the plan is yours to edit and save.",
     "empty": "No open purchase requests on this site's project. Project members raise one under Procurement, and it shows here until it is ordered.",
     "startPlan": "Start the plan from these",
-    "noPrices": "You can't see prices on requests, so amounts can't be filled in. Add the lines yourself in the plan.",
+    "noPrices": "Add the lines yourself in the plan.",
     "nothingToStart": "To start a plan, a request needs a purpose and a visible total above zero in {{currency}}.",
     "skipped": "{{count}} request(s) with no purpose, no visible price or another currency are not counted in the plan.",
     "error": "Couldn't load the open purchase requests",

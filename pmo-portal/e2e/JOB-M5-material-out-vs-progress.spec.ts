@@ -1,4 +1,5 @@
 // @e2e-isolation: self-isolated — owns its Project Manager login, contract, work order, contract line, material allowance, acceptance, item and yard; sets the organisation's issued-versus-progress threshold for the run and clears it in finally.
+import { managedProject } from "./support/managedProject";
 // JOB-M5 (acceptance 01-management, TC-M-05): material out matches progress. A work order with 80% of its material issued
 // and 40% progress: the Project Manager opens the project's Work orders tab, opens the work order's stock, and the issued
 // share is shown against the progress share with a warning. (The acceptance script names "Work orders → [Work order] →
@@ -25,10 +26,10 @@ test('JOB-M5 the Project Manager sees the issued share against the progress shar
 
   try {
     const clientId = need('client', await svc.from('companies').insert({ org_id: ORG_ID, name: `${run} client`, type: 'Client' }).select('id').single()).id as string;
-    projectId = need('project', await svc.from('projects').insert({
+    projectId = need('project', await svc.from('projects').insert(managedProject(actor.id, {
       org_id: ORG_ID, name: `${run} contract`, status: 'Ongoing Project', currency: 'USD', client_id: clientId,
       contract_value: 100_000, tax_treatment: 'exclusive', tax_amount: 0,
-    }).select('id').single()).id as string;
+    })).select('id').single()).id as string;
     woId = randomUUID();
     ok('work order', await svc.from('work_orders').insert({
       id: woId, org_id: ORG_ID, project_id: projectId, title: `${run} line`, wo_number: `WO-${run}`, status: 'Issued',

@@ -246,6 +246,7 @@
       "showingOf": "Showing {{count}} of {{total}}"
     },
     "listState": {
+      "readError": "Could not load this information",
       "loading": "Loading…",
       "retry": "Retry",
       "tryAgainSentence": "Try again.",
@@ -1303,7 +1304,6 @@
         "sub": "Something went wrong. Try again.",
         "title": "Couldn't load contacts"
       },
-      "listLabel": "Contacts list",
       "loading": "Loading…",
       "loadingLabel": "Loading contacts",
       "openRow": "Open",

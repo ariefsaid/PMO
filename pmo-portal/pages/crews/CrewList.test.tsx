@@ -19,6 +19,22 @@ vi.mock('@/src/hooks/useCrews', () => ({
 import { CrewList } from './CrewList';
 
 describe('crew master', () => {
+  it('keeps a named role with invalid headcount until corrected before creating the crew', async () => {
+    render(<ToastProvider><CrewList creating onCloseCreate={vi.fn()} onCreate={vi.fn()} /></ToastProvider>);
+    await userEvent.type(screen.getByRole('textbox', { name: 'Code' }), 'CREW');
+    await userEvent.type(screen.getByRole('textbox', { name: 'Name' }), 'Crew name');
+    await userEvent.type(screen.getByLabelText('Crew role'), 'Welder');
+    await userEvent.clear(screen.getByLabelText('Headcount'));
+    await userEvent.type(screen.getByLabelText('Headcount'), '0');
+    await userEvent.click(screen.getByRole('button', { name: 'Create crew' }));
+    expect(h.create).not.toHaveBeenCalled();
+    expect(screen.getByLabelText('Crew role')).toHaveValue('Welder');
+    expect(screen.getByText('Enter a whole headcount above zero.')).toBeInTheDocument();
+    await userEvent.clear(screen.getByLabelText('Headcount'));
+    await userEvent.type(screen.getByLabelText('Headcount'), '2');
+    await userEvent.click(screen.getByRole('button', { name: 'Create crew' }));
+    expect(h.create).toHaveBeenCalledWith(expect.objectContaining({ roles: [{ name: 'Welder', headcount: 2 }] }));
+  });
   beforeEach(() => { h.members = []; h.roles = []; h.workers = []; h.setRole.mockClear(); h.crews = []; h.role = 'Admin'; h.create.mockClear(); h.placeNew.mockClear(); });
   it('#2812 retries a failed people lookup from the picker', async () => {
     h.crews = [{ id: 'crew', code: 'C1', name: 'Crew one', kind: 'own', field_controller_id: null, vendor_company_id: null }];

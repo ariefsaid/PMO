@@ -62,8 +62,10 @@ export function useStockMasterMutations() {
 export function useStockKeeperCandidates() {
   const orgId = useAuth().currentUser?.org_id;
   return useQuery({
-    queryKey: ['stock-keeper-candidates', orgId],
-    queryFn: async () => (await repositories.profile.listOrgProfiles()).filter((p) => p.status === 'active'),
+    queryKey: ['org-profiles', orgId],
+    queryFn: () => repositories.profile.listOrgProfiles(),
+    select: (rows) => rows.filter((p) => p.status === 'active'),
+    staleTime: 5 * 60_000,
     enabled: Boolean(orgId),
   });
 }
@@ -109,16 +111,10 @@ export function useStockDocuments(f: Omit<StockDocumentFilters, 'before' | 'limi
   });
   const count = useQuery({
     queryKey: ['stock-documents-count', orgId, f],
-    queryFn: async () => {
-      try {
-        return await repositories.stock.documents.count(f);
-      } catch {
-        return undefined;
-      }
-    },
+    queryFn: () => repositories.stock.documents.count(f),
     enabled: Boolean(orgId),
   });
-  return { ...pages, total: count.data };
+  return { ...pages, total: count.data, countError: count.isError, retryCount: count.refetch };
 }
 export function useStockDocumentEntries(documentId: string | undefined) {
   const orgId = useAuth().currentUser?.org_id;

@@ -30,6 +30,10 @@ beforeEach(() => {
 });
 
 describe('material request reads', () => {
+  it('does not read the inactive All tab list', () => {
+    renderHook(() => useMaterialRequests({}, false), { wrapper });
+    expect(h.repo.list).not.toHaveBeenCalled();
+  });
   it('FR-MRQ-017 each read calls its repository once the org is known', async () => {
     const f = { workOrderId: 'wo1' };
     renderHook(() => { useMaterialRequests(f); useMaterialRequest('mr1'); useWaitingForMe(); useApprovalChain(); useMaterialRequestCutoff(); useStandIns(); }, { wrapper });

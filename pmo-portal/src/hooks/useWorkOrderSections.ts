@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/src/auth/useAuth';
 import { workOrderSectionRepository as repo, type PlanChange, type Readiness, type SectionInput } from '@/src/lib/repositories/workOrderSections';
+import { invalidateProjectPlanVsActual } from '@/src/hooks/useWorkOrderPlanVsActual';
 import { useOrgQuery } from '@/src/hooks/useOrgQuery';
 
 /** #2576: one work order's sections with their roll-up (one row per section plus the unsectioned remainder). Keys carry org_id. */
@@ -29,7 +30,7 @@ function useInvalidate(workOrderId: string, projectId?: string) {
     qc.invalidateQueries({ queryKey: ['work-order-sections', orgId, workOrderId] }),
     qc.invalidateQueries({ queryKey: ['work-order-sections', orgId, 'events'] }),
     // The work order's plan total reads the same plan lines.
-    projectId ? qc.invalidateQueries({ queryKey: ['work-order-plan-vs-actual', orgId] }) : Promise.resolve(),
+    projectId ? invalidateProjectPlanVsActual(qc, orgId) : Promise.resolve(),
   ]);
 }
 

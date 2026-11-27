@@ -6,6 +6,7 @@
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError } from '@/src/lib/appError';
 import type { SupplyRiskCurrency, SupplyRiskStatus, SupplyRiskSuggestion } from '@/src/lib/supplyRisk';
+import { maskSelection, priceSource } from '@/src/lib/priceReadPath';
 
 export interface ExposedWorkOrderRow {
   kind: 'work_order' | 'project';
@@ -102,8 +103,8 @@ export async function setSupplyRiskStatus(companyId: string, status: SupplyRiskS
 export async function listSupplyRiskWarnings(scope: { projectId?: string; workOrderId?: string }): Promise<SupplyRiskWarning[]> {
   if (!scope.projectId && !scope.workOrderId) return [];
   let q = supabase
-    .from('purchase_orders')
-    .select('work_order_id, procurements!inner(vendor_id, project_id, companies!procurements_vendor_id_fkey!inner(id, name, supply_risk_status))')
+    .from(priceSource('purchase_orders') as 'purchase_orders')
+    .select(maskSelection('work_order_id, procurements!inner(vendor_id, project_id, companies!procurements_vendor_id_fkey!inner(id, name, supply_risk_status))'))
     .in('status', ['Issued', 'Acknowledged'])
     .not('work_order_id', 'is', null)
     .in('procurements.companies.supply_risk_status', ['at_risk', 'inactive']);
@@ -114,7 +115,11 @@ export async function listSupplyRiskWarnings(scope: { projectId?: string; workOr
   if (error) throw new AppError(error.message, error.code);
   const seen = new Set<string>();
   const out: SupplyRiskWarning[] = [];
-  for (const row of data ?? []) {
+  type WarningReadRow = {
+    work_order_id: string | null;
+    procurements: { companies: { id: string; name: string; supply_risk_status: string } | null } | null;
+  };
+  for (const row of (data ?? []) as unknown as WarningReadRow[]) {
     const company = row.procurements?.companies;
     if (!row.work_order_id || !company) continue;
     const key = `${row.work_order_id}|${company.id}`;

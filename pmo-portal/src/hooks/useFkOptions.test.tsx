@@ -6,7 +6,7 @@ import React from 'react';
 // ── The repository seam is mocked; the hooks are the unit under test. ──
 const { repo } = vi.hoisted(() => ({
   repo: {
-    company: { list: vi.fn(), listClients: vi.fn() },
+    company: { listOptions: vi.fn() },
     project: { list: vi.fn() },
   },
 }));
@@ -38,13 +38,13 @@ beforeEach(() => {
 
 describe('useVendorOptions — vendor FK picker', () => {
   it('maps vendor companies into stable ComboboxOptions (id→value, name→label)', async () => {
-    repo.company.list.mockResolvedValue([
+    repo.company.listOptions.mockResolvedValue([
       { id: 'v1', name: 'Apex Supply', type: 'Vendor', archived_at: null },
       { id: 'v2', name: 'Bolt Co', type: 'Vendor', archived_at: null },
     ]);
     const { result } = renderHook(() => useVendorOptions(), { wrapper: wrapper() });
     await waitFor(() => expect(result.current.data).toBeDefined());
-    expect(repo.company.list).toHaveBeenCalledWith({ type: 'Vendor' });
+    expect(repo.company.listOptions).toHaveBeenCalledWith();
     expect(result.current.data).toEqual([
       { value: 'v1', label: 'Apex Supply' },
       { value: 'v2', label: 'Bolt Co' },
@@ -54,14 +54,14 @@ describe('useVendorOptions — vendor FK picker', () => {
   it('is disabled (no fetch) until the org is known', () => {
     orgId = undefined;
     const { result } = renderHook(() => useVendorOptions(), { wrapper: wrapper() });
-    expect(repo.company.list).not.toHaveBeenCalled();
+    expect(repo.company.listOptions).not.toHaveBeenCalled();
     expect(result.current.data).toBeUndefined();
   });
 
   // Every option of the supplier picker is a supplier, so no type tag rides on the row; only a short-name
   // company carries a sub (its legal name, AC-NICK-001).
   it('adds no type tag to supplier options and keeps the legal name of a short-name company as its sub', async () => {
-    repo.company.list.mockResolvedValue([
+    repo.company.listOptions.mockResolvedValue([
       { id: 'v1', name: 'Apex Supply', type: 'Vendor', archived_at: null, short_name: null },
       { id: 'v2', name: 'Bolt Co', type: 'Vendor', archived_at: null, short_name: 'Bolt' },
     ]);
@@ -107,7 +107,7 @@ describe('useProjectOptions — project FK picker (archived-filtered)', () => {
 
 describe('useClientCompanyOptions — client FK picker', () => {
   it('maps client companies into ComboboxOptions with no type tag', async () => {
-    repo.company.listClients.mockResolvedValue([
+    repo.company.listOptions.mockResolvedValue([
       { id: 'c1', name: 'Innovate Corp', type: 'Client', archived_at: null },
     ]);
     const { result } = renderHook(() => useClientCompanyOptions(), { wrapper: wrapper() });
@@ -118,7 +118,7 @@ describe('useClientCompanyOptions — client FK picker', () => {
 
 
 it('company pickers prefer the short name and keep the legal name in searchable option text (references AC-NICK-001)', async () => {
-  repo.company.listClients.mockResolvedValue([{ id: 'c1', name: 'Example Legal Company', short_name: 'Example', type: 'Client' }]);
+  repo.company.listOptions.mockResolvedValue([{ id: 'c1', name: 'Example Legal Company', short_name: 'Example', type: 'Client' }]);
   const { result } = renderHook(() => useClientCompanyOptions(), { wrapper: wrapper() });
   await waitFor(() => expect(result.current.data).toBeDefined());
   expect(result.current.data).toEqual([{ value: 'c1', label: 'Example', sub: 'Example Legal Company' }]);

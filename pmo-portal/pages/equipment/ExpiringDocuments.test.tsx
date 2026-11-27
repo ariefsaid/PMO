@@ -4,10 +4,10 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { formatDay } from '@/src/lib/format';
 
-const h = vi.hoisted(() => ({ q: { data: undefined as unknown, isPending: false, isError: false, refetch: vi.fn() }, mayEdit: true }));
+const h = vi.hoisted(() => ({ q: { data: undefined as unknown, isPending: false, isError: false, refetch: vi.fn() }, subjectError: false, subjectMissing: false, mayEdit: true }));
 vi.mock('@/src/hooks/useDocumentExpiry', () => ({
   useExpiringDocuments: () => h.q,
-  useSubjectDocuments: () => ({ data: [{ id: 'd1', type_id: 't1', number: 'WP-1', issued_on: null, expires_on: '2026-12-20', location_note: null, medical_status: null, is_medical: false, attachment_path: null }] }),
+  useSubjectDocuments: () => ({ isError: h.subjectError, refetch: h.q.refetch, data: h.subjectMissing ? [] : [{ id: 'd1', type_id: 't1', number: 'WP-1', issued_on: null, expires_on: '2026-12-20', location_note: null, medical_status: null, is_medical: false, attachment_path: null }] }),
   useRecordRenewal: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useDocumentTypes: () => ({ data: [{ id: 't1', name: 'Work permit', is_medical: false }] }),
   useExpiryDocumentMutations: () => ({ create: { mutateAsync: vi.fn() }, update: { mutateAsync: vi.fn() }, archive: { mutateAsync: vi.fn() } }),
@@ -26,7 +26,7 @@ import { ToastProvider } from '@/src/components/ui';
 const renderPage = () => render(<MemoryRouter><ToastProvider><ExpiringDocumentsPage /></ToastProvider></MemoryRouter>);
 
 describe('ExpiringDocumentsPage (AC-DEX-006)', () => {
-  beforeEach(() => { h.mayEdit = true; h.q = { data: undefined, isPending: false, isError: false, refetch: vi.fn() }; });
+  beforeEach(() => { h.subjectError = false; h.subjectMissing = false; h.mayEdit = true; h.q = { data: undefined, isPending: false, isError: false, refetch: vi.fn() }; });
 
   it('lists what expires, with days left and where the paper is kept', () => {
     h.q.data = [row(), row({ id: 'd2', subject_name: 'Crane One', type_name: 'Equipment certificate', days_left: -3, number: 'EC-1' })];
@@ -89,3 +89,5 @@ describe('ExpiringDocumentsPage (AC-DEX-006)', () => {
     expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
   });
 });
+
+it.each(["failed", "missing"])("gives feedback for a %s renewal read", async (state) => { h.q.isError = false; h.q.isPending = false; h.mayEdit = true; h.q.data = [row()]; h.subjectError = state === "failed"; h.subjectMissing = true; renderPage(); await userEvent.click(screen.getAllByRole("button", {name: "Renew Work permit of Person One"})[0]); expect(await screen.findByText(state === "failed" ? "Something went wrong" : "Record not found")).toBeInTheDocument(); });

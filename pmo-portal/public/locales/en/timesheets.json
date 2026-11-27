@@ -18,6 +18,7 @@
     "heading": "Team approvals queue",
     "bulkFailedLabel": "These weeks could not be approved",
     "bulkFailedLead": "These weeks could not be approved (separation of duties or stale). They stay selected so you can retry.",
+    "selectTimesheets": "Select timesheets",
     "awaiting": "{{total}} awaiting you",
     "empty": "Nothing awaiting you",
     "emptySub": "Submitted timesheets from your reports will appear here for review.",
@@ -95,7 +96,8 @@
     "week": "Week",
     "projects": "Projects",
     "hours": "Hours",
-    "status": "Status"
+    "status": "Status",
+    "projectsError": "Couldn't load projects"
   },
   "weekHours": {
     "project": "Project",

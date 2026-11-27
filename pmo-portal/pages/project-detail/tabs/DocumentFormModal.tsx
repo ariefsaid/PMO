@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { EntityFormModal, TextField, SelectField, FormSection, FormGrid, useEntityForm, Button, Icon, type SubmitError } from '@/src/components/ui';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { AppError } from '@/src/lib/appError';
 import { categoryDisplay } from '@/src/lib/documentCategories';
 import { useViewableCategories } from '@/src/hooks/useDocumentCategories';
 import type { ProjectDocumentRow, ProjectDocumentInput } from '@/src/lib/db/documents';
@@ -89,12 +90,12 @@ export const DocumentFormModal: React.FC<DocumentFormModalProps> = ({
     requiredFields: isFolder ? ['title'] : ['title', 'category'],
   });
 
-  // The list can arrive after the form opens: pick the starting category then, without marking the form edited.
-  const { reset: resetForm, values: formValues } = form;
+  // Late categories must not reset the baseline of fields the user has already edited.
+  const { setValue, values: formValues } = form;
   const startingCategory = defaultCategoryName(viewable);
   useEffect(() => {
-    if (!isEdit && !isFolder && !formValues.category && startingCategory) resetForm({ ...formValues, category: startingCategory });
-  }, [isEdit, isFolder, formValues, startingCategory, resetForm]);
+    if (!isEdit && !isFolder && !formValues.category && startingCategory) setValue('category', startingCategory);
+  }, [isEdit, isFolder, formValues.category, startingCategory, setValue]);
 
   const categoryOptions = viewable.map((c) => ({ value: c.name, label: categoryDisplay(t, c) }));
   const titleField = form.fieldProps('title');
@@ -133,7 +134,9 @@ export const DocumentFormModal: React.FC<DocumentFormModalProps> = ({
         // `suppressCapture` only: the page's own `onError` classifies this same rejection for the
         // toast and owns the single `save_failed` event (ADR-0067).
         const { headline, detail } = classifyMutationError(err, undefined, { suppressCapture: true });
-        setSaveError({ headline, detail });
+        setSaveError(err instanceof AppError && err.code === 'DOCUMENT_REFILE_PARTIAL'
+          ? { headline: t('projectDetail.documents.form.partialSave', 'Document details saved. The category could not be changed. Retry to finish the move.') }
+          : { headline, detail });
         onError(err);
       }
     });

@@ -77,7 +77,7 @@ vi.mock('@/src/hooks/useContacts', () => ({
   useContactMutations: () => mutations,
 }));
 vi.mock('@/src/hooks/useCompanies', () => ({
-  useCompanies: () => companiesState,
+  useCompanyOptions: () => companiesState,
   useCompany: () => companyRefState,
 }));
 

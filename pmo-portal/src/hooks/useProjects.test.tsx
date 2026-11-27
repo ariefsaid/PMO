@@ -7,7 +7,7 @@ vi.mock('@/src/lib/db/projects', () => ({
   listProjects: vi.fn().mockResolvedValue([{ id: 'p1', name: 'X', client: null, pm: null }]),
 }));
 vi.mock('@/src/auth/useAuth', () => ({
-  useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' }, role: 'Project Manager' }),
+  useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1', role: 'Project Manager' }, role: 'Project Manager' }),
 }));
 
 const { listRecordHistory, milestoneDatesForProjects, repoCreate, repoUpdateHeader, repoList, repoListPicker, repoListNumbers, repoGetWithRefs, listClientCompanies, listProjectManagers } = vi.hoisted(() => ({
@@ -26,8 +26,8 @@ vi.mock('@/src/lib/repositories', () => ({
   repositories: {
     recordHistory: { list: listRecordHistory },
     milestone: { milestoneDatesForProjects },
-    company: { listClients: listClientCompanies },
-    profile: { listProjectManagers },
+    company: { listOptions: listClientCompanies },
+    profile: { listOrgProfiles: listProjectManagers },
     project: {
       list: repoList,
       listPickerOptions: repoListPicker,
@@ -133,6 +133,14 @@ describe('useProjectsMilestoneDates', () => {
 });
 
 describe('useProjectMutations — cache invalidation (AC-EC-003)', () => {
+  it('defaults a project created through the mutation hook to its Project Manager creator', async () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const Wrapper = ({ children }: { children: React.ReactNode }) => <QueryClientProvider client={qc}>{children}</QueryClientProvider>;
+    const { result } = renderHook(() => useProjectMutations(), { wrapper: Wrapper });
+    repoCreate.mockClear();
+    await result.current.create.mutateAsync({ name: 'Own deal', status: 'Leads', client_id: null, end_client_id: null, project_manager_id: null, contract_value: 0, start_date: null, end_date: null });
+    expect(repoCreate).toHaveBeenCalledWith(expect.objectContaining({ project_manager_id: 'u1' }));
+  });
   it('AC-EC-003: a project create invalidates sales-pipeline and lost-deals (plus projects/opportunity)', async () => {
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const spy = vi.spyOn(qc, 'invalidateQueries');

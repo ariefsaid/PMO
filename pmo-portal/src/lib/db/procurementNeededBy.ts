@@ -5,6 +5,7 @@
  */
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError } from '@/src/lib/appError';
+import { priceSource } from '@/src/lib/priceReadPath';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -28,7 +29,7 @@ export async function setPoNeededByRequired(on: boolean): Promise<boolean> {
 
 export async function getProcurementNeededBy(id: string): Promise<string | null> {
   if (!UUID.test(id)) throw new Error('Invalid order id');
-  const { data, error } = await supabase.from('procurements').select('needed_by').eq('id', id).maybeSingle();
+  const { data, error } = await supabase.from(priceSource('procurements') as 'procurements').select('needed_by').eq('id', id).maybeSingle();
   fail(error);
   return (data as { needed_by?: string | null } | null)?.needed_by ?? null;
 }

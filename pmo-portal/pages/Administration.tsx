@@ -38,7 +38,6 @@ import OrgTaxDefault from './admin/OrgTaxDefault';
 import OrgFiscalYearStart from './admin/OrgFiscalYearStart';
 import OrgBuiltInRoles from './admin/OrgBuiltInRoles';
 import OrgHidePrices from './admin/OrgHidePrices';
-import { HIDE_PRICES_SETTING_AVAILABLE } from '@/src/lib/db/hidePrices';
 import SpendApprovers from './admin/SpendApprovers';
 import OrgWithholdingAccount from './admin/OrgWithholdingAccount';
 import OrgVendorTaxAccounts from './admin/OrgVendorTaxAccounts';
@@ -417,7 +416,6 @@ const SelectedAdministrationPanel: React.FC<{
         <div data-testid="administration-panel-clearance" className="min-w-0">
           <SectionName name={label('clearance')} />
           <ModuleGate module="modulePeopleCrews"><Clearance /></ModuleGate>
-          {HIDE_PRICES_SETTING_AVAILABLE && <OrgHidePrices />}
         </div>
       );
     case 'integrations':
@@ -462,6 +460,7 @@ const SelectedAdministrationPanel: React.FC<{
               </div>
             </SettingsGroup>
             <SettingsGroup id="accounting-orders" title={settingsGroupLabel(t, 'accounting-orders')}>
+              <OrgHidePrices />
               <ModuleGate module="modulePurchasingExtras"><OrderJobRolesSection /><PurchaseOrderSettingsSection /></ModuleGate>
               <ModuleGate module="modulePurchasingExtras"><OrgPaymentChannels /></ModuleGate>
               <ModuleGate module="modulePurchasingExtras"><OrgPurchaseLines /></ModuleGate>

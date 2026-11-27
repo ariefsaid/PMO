@@ -30,7 +30,7 @@ vi.mock('@/src/hooks/useEquipment', () => ({
   useUpdateAsset: () => ({ mutateAsync: h.update, isPending: false }),
   useDeleteAsset: () => ({ mutateAsync: h.del, isPending: false }),
 }));
-vi.mock('@/src/hooks/useCompanies', () => ({ useCompanies: () => ({ data: [] }) }));
+vi.mock('@/src/hooks/useCompanies', () => ({ useCompanyOptions: () => ({ data: [] }) }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: h.role as Role, effectiveRole: (h.viewAs ?? h.role) as Role }) }));
 
 import EquipmentAssetsPage from './EquipmentAssets';

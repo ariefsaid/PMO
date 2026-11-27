@@ -24,7 +24,7 @@ vi.mock('@/src/hooks/useOrgTaxDefault', async (orig) => {
 });
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/hooks/useCompanies', () => ({
-  useCompanies: () => ({
+  useCompanyOptions: () => ({
     data: [
       { id: 'c1', name: 'Innovate Corp', type: 'Client' },
       { id: 'c7', name: 'In-House Ops', type: 'Internal' },

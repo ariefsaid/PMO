@@ -1,5 +1,6 @@
 // @e2e-isolation: self-isolated — owns same-prefix synthetic projects; deletes only their generated IDs.
 import { test, expect } from '@playwright/test';
+import { managedProject } from './support/managedProject';
 import { createClient } from '@supabase/supabase-js';
 import { randomUUID } from 'node:crypto';
 import { login } from './helpers';
@@ -12,13 +13,13 @@ test('UIP-003: classify same-prefix records, open them, and retain classificatio
   const url = process.env.SUPABASE_URL;
   if (!key || !url) throw new Error('Local test database configuration is required');
   const admin = createClient(url, key, { auth: { persistSession: false } });
-  const { data: profile, error: profileError } = await admin.from('profiles').select('org_id').eq('role', 'Project Manager').limit(1).single();
+  const { data: profile, error: profileError } = await admin.from('profiles').select('id, org_id').eq('email', 'pm@acme.test').single();
   expect(profileError).toBeNull();
   const ids = Array.from({ length: 4 }, () => randomUUID());
   const location = `West Java ${randomUUID()}`;
   const names = ['Harbor Renewal Programme — Eastern Terminal Infrastructure Delivery', 'Harbor Renewal Programme — Western Terminal Infrastructure Delivery'];
   try {
-    const { error } = await admin.from('projects').insert(ids.map((id, index) => ({
+    const { error } = await admin.from('projects').insert(ids.map((id, index) => managedProject(profile!.id, {
       id, org_id: profile!.org_id, name: names[index % 2], status: index < 2 ? 'Internal Project' : 'Leads',
       location, award_type: 'tender', bidding_entity: 'alone', contract_value: 0,
     })));

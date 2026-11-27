@@ -37,7 +37,8 @@ const MaterialAllowanceModal: React.FC<MaterialAllowanceModalProps> = ({ project
   const pickItem = (id: string) => {
     setItemId(id);
     const found = mine.find((a) => a.itemId === id);
-    if (found) setQty(found.plannedQuantity);
+    setQty(found?.plannedQuantity ?? '');
+    setQtyError(null);
   };
   const fail = (err: unknown) => {
     const { headline, detail } = classifyMutationError(err, undefined, { suppressCapture: true });

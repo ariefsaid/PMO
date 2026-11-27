@@ -54,6 +54,8 @@ const { procDetailState, procMutations } = vi.hoisted(() => ({
 vi.mock('@/src/hooks/useDomainOwnershipMode', async () => await import('@/test/domainOwnershipMock'));
 vi.mock('@/src/hooks/useProcurementItemEligibility', () => ({ useProcurementItemEligibility: () => ({ data: true, isPending: false, isError: false, isFetching: false, refetch: vi.fn() }) }));
 
+vi.mock('@/src/hooks/useErpPurchaseLinks', () => ({ useLinkedErpDocuments: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }) }));
+
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/hooks/useProcurementDetail', () => ({
   useProcurementDetail: () => procDetailState,

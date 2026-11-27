@@ -4,7 +4,7 @@ import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { FileInput } from '@/src/components/ui/FormFields';
 import { FileCell } from '@/src/components/FileCell';
-import { Button, DataTable, RecordSection, SelectField, StatusPill, TextField, useToast, type Column } from '@/src/components/ui';
+import { UnsavedChangesDialog, Button, DataTable, RecordSection, SelectField, StatusPill, TextField, useToast, type Column } from '@/src/components/ui';
 import { formatDay } from '@/src/lib/format';
 import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
@@ -61,6 +61,7 @@ export const MachineStatusSection: React.FC<Props> = ({ rows, allowDate = false,
   const writeCtx = { record: { viewOnly: realRole !== effectiveRole } };
   const timezone = useOrgBusinessTimezone();
   const today = useOrgToday(timezone);
+  const [pendingDate, setPendingDate] = useState<{value: string} | null>(null);
   const [chosenStatusDate, setStatusDate] = useState<string | null>(null);
   const statusDate = chosenStatusDate ?? today;
   const queryDate = statusDate || today;
@@ -185,7 +186,8 @@ export const MachineStatusSection: React.FC<Props> = ({ rows, allowDate = false,
           {t('equipment:availability.saveStatuses', 'Save statuses')}
         </Button>}
       </>}>
-      {allowDate && <div className="px-[var(--panel-inset)] pb-4"><div className="w-44"><DateField label={t('equipment:availability.statusDate', 'Status date')} value={statusDate} onChange={(v) => { setStatusDate(v); reset(); }} /></div></div>}
+      <UnsavedChangesDialog open={pendingDate !== null} onDiscard={() => { if (pendingDate) { setStatusDate(pendingDate.value); reset(); } setPendingDate(null); }} onKeepEditing={() => setPendingDate(null)} />
+      {allowDate && <div className="px-[var(--panel-inset)] pb-4"><div className="w-44"><DateField label={t('equipment:availability.statusDate', 'Status date')} value={statusDate} onChange={(v) => { if (dirty || Object.keys(notes).length || Object.values(files).some(Boolean)) setPendingDate({value: v}); else { setStatusDate(v); reset(); } }} /></div></div>}
       {(latest.isError || proofStates.isError || justBroken.length > 0) && <div className="flex flex-col gap-2 px-[var(--panel-inset)] pb-3">
         {latest.isError && <p role="alert">{t('equipment:availability.latestError', 'Could not load last statuses')}</p>}
         {proofStates.isError && <p role="alert">{t('equipment:availability.proofsError', 'Could not load evidence status')}</p>}

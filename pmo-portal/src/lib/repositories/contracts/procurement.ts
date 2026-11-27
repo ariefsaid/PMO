@@ -118,7 +118,7 @@ export interface ProcurementRepository {
   setEfaktur(invoiceId: string, values: { efakturNumber: string | null; efakturDate: string | null }): Promise<void>;
   // ── CRUD slice (editing paths) ──
   /** Raise a new PR (Draft); requester stamped from the caller's identity. */
-  create(input: NewProcurementInput, requestedById: string): Promise<Tables<'procurements'>>;
+  create(input: NewProcurementInput, requestedById: string): Promise<Pick<Tables<'procurements'>, 'id'>>;
   createWithItems(input: AtomicProcurementInput): Promise<Tables<'procurements'>>;
   /** Edit the PR header (requester while Draft/Rejected; RLS is the authority). */
   updateHeader(id: string, patch: ProcurementHeaderPatch): Promise<void>;

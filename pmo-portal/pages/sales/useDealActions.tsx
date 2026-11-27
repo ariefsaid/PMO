@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { useToast } from '@/src/components/ui';
 import { useAuth } from '@/src/auth/useAuth';
+import { useMayViewProjectMoney } from "@/src/hooks/useProjectMoneyScope";
 import { usePermission } from '@/src/auth/usePermission';
 import { useIsDesktop } from '@/src/components/ui/useIsDesktop';
 import { useOrgToday } from '@/src/hooks/useOrgToday';
@@ -81,7 +82,7 @@ export function useDealActions(project: ProjectWithRefs) {
   const today = useOrgToday();
   const stageLabel = useProjectStatusLabel();
   const canTransition = may('edit', 'project');
-  const canSeeMoney = may('view', 'salesInvoice');
+  const canSeeMoney = useMayViewProjectMoney();
   const { data: pipeline, isPending: pipelinePending, isError: pipelineError, refetch: refetchPipeline } = useSalesPipeline();
 
   const status = project.status as string;

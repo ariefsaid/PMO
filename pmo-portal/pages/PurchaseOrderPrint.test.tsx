@@ -17,6 +17,7 @@ const h = vi.hoisted(() => ({
     refetch: vi.fn(),
   },
   poSettings: {
+    refetch: vi.fn(),
     data: {
       enabled: true,
       signatureBlocks: ['Prepared by', 'Approved by', 'Vendor acceptance'],
@@ -157,7 +158,7 @@ describe('PurchaseOrderPrintPage (#2688)', () => {
     vi.clearAllMocks();
     setOrgTerms({});
     setOrgRoleNames({});
-    h.poSettings = {
+    h.poSettings = { refetch: vi.fn(),
       data: {
         enabled: true,
         signatureBlocks: ['Prepared by', 'Approved by', 'Vendor acceptance'],
@@ -174,10 +175,28 @@ describe('PurchaseOrderPrintPage (#2688)', () => {
     };
   });
 
+  it('retries failed print settings instead of saying printing is disabled', () => {
+    h.poSettings.isError = true;
+    h.poSettings.data.enabled = false;
+    renderPage();
+    expect(screen.queryByTestId('po-disabled-state')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /retry|try again/i }));
+    expect(h.poSettings.refetch).toHaveBeenCalled();
+  });
+  it('shows missing prices and an incomplete order total as unavailable', () => {
+    h.procurement.data = { ...mockProcurementWithPo,
+      items: [mockProcurementWithPo.items[0], { ...mockProcurementWithPo.items[1], rate: null, amount: null }],
+      purchase_orders: [{ ...mockProcurementWithPo.purchase_orders[0], amount: null }],
+    };
+    renderPage();
+    expect(screen.getAllByText('Price not recorded').length).toBeGreaterThan(0);
+    expect(screen.getByText('Total unavailable: some line amounts are missing')).toBeInTheDocument();
+  });
+
   it('AC-TR-010 shows a renamed term in a label and a renamed role on the signature line', () => {
     setOrgTerms({ en: { workOrder: { singular: 'job card', plural: 'job cards' } } });
     setOrgRoleNames({ en: { buyer: 'Purchasing lead' } });
-    h.poSettings = {
+    h.poSettings = { refetch: vi.fn(),
       data: { enabled: true, signatureBlocks: ['Buyer', 'Vendor acceptance'], authorisedCollectors: [] },
       isPending: false,
       isError: false,
@@ -190,7 +209,7 @@ describe('PurchaseOrderPrintPage (#2688)', () => {
   });
 
   it('AC-POP-003 shows disabled state notice when purchase order printing is disabled', () => {
-    h.poSettings = {
+    h.poSettings = { refetch: vi.fn(),
       data: { enabled: false, signatureBlocks: [], authorisedCollectors: [] },
       isPending: false,
       isError: false,
@@ -267,7 +286,7 @@ describe('PurchaseOrderPrintPage (#2688)', () => {
   });
 
   it('AC-POP-006 renders an open collection line when no collectors are configured', () => {
-    h.poSettings = {
+    h.poSettings = { refetch: vi.fn(),
       data: {
         enabled: true,
         signatureBlocks: ['Prepared by', 'Approved by'],

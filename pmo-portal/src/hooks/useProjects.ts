@@ -1,3 +1,5 @@
+import { useAssignableProfiles } from './useTasks';
+import { useCompanyOptions } from './useCompanies';
 import { projectKeys, invalidateProjectProjections } from './projectQueryKeys';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -6,10 +8,9 @@ import {
   type ProjectHeaderInput,
   type SetProjectContractValueInput,
 } from '@/src/lib/db/projects';
-import type { CompanyRow } from '@/src/lib/db/companies';
-import type { ProfileRow } from '@/src/lib/db/profiles';
 import { repositories } from '@/src/lib/repositories';
 import { useAuth } from '@/src/auth/useAuth';
+import { withDefaultProjectManager } from '@/src/lib/projectManagerDefault.mjs';
 import { useStartRecordFolder } from '@/src/hooks/useStartRecordFolder';
 import { synchronizeErpProject } from '@/src/lib/repositories/projectErpSetup';
 
@@ -83,23 +84,11 @@ export function useProjectsMilestoneDates(ids: string[], active = true) {
 }
 
 export function useClientCompanies() {
-  const { currentUser } = useAuth();
-  const orgId = currentUser?.org_id;
-  return useQuery<CompanyRow[]>({
-    queryKey: ['companies', 'client', orgId],
-    queryFn: () => repositories.company.listClients(),
-    enabled: Boolean(orgId),
-  });
+  return useCompanyOptions(undefined, 'Client');
 }
 
 export function useProjectManagers() {
-  const { currentUser } = useAuth();
-  const orgId = currentUser?.org_id;
-  return useQuery<ProfileRow[]>({
-    queryKey: ['profiles', 'pm', orgId],
-    queryFn: () => repositories.profile.listProjectManagers(),
-    enabled: Boolean(orgId),
-  });
+  return useAssignableProfiles({ role: 'Project Manager' });
 }
 
 export interface UpdateProjectHeaderArgs {
@@ -147,7 +136,7 @@ export function useProjectMutations() {
   const startRecordFolder = useStartRecordFolder();
   const create = useMutation({
     mutationFn: async (input: CreateProjectInput) => {
-      const row = await repositories.project.create(input);
+      const row = await repositories.project.create(withDefaultProjectManager(input, currentUser));
       // #1020: link/create the project's SharePoint folder. Fire-and-forget (void, never awaited,
       // failures caught inside): a folder problem can neither delay nor fail the saved project.
       // No usable identifier (code and project number both empty) = nothing to name the folder by: skip silently.

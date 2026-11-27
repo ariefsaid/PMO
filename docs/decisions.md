@@ -4239,3 +4239,8 @@ the owner may revisit it after the client's tests.
 - **DD-R1125-16 A requester for whom prices are hidden enters item and quantity only** (owner ruling, 26 November 2026). The price
   on a purchase request line is an estimate and is optional for every requester; purchasing sets the price. With this settled, the
   hide-prices settings card may be released once its screens pass review (#2789, #2790).
+
+## Director decisions of 27 November 2026
+
+- **DD-R1127-1 A Project Manager who creates a project or deal is its manager unless another is chosen, so they keep its money view.**
+- **DD-R1127-2 A route loads its own sections and repository implementations with the route; other routes remain lazy.** See ADR-0126.

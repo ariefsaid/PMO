@@ -23,7 +23,7 @@ const companiesState = { data: [] as unknown[], isPending: false, isError: false
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('../../components/ProjectStatusControl', () => ({ default: () => null }));
 vi.mock('@/src/hooks/useProjectClassificationOptions', () => ({ useProjectClassificationOptions: () => ({ data: { serviceLines: [], sectors: [] }, isPending: false, isError: false }) }));
-vi.mock('@/src/hooks/useCompanies', () => ({ useCompanies: () => companiesState }));
+vi.mock('@/src/hooks/useCompanies', () => ({ useCompanyOptions: () => companiesState }));
 vi.mock('@/src/hooks/useProjects', () => ({
   useProjects: () => projectsState,
   useClientCompanies: () => clientsState,

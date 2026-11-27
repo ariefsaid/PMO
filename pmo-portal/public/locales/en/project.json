@@ -453,6 +453,7 @@
         "loadFirst": "Load steps from a template",
         "loadEmpty": "Load steps",
         "loadTemplateTerms": "Replace stages with template",
+        "loadTemplateTermsHelp": "Replaces the saved stages immediately. Other changes use Save billing terms.",
         "loadTemplateError": "The template could not be loaded.",
         "name": "Step name",
         "newName": "New step",
@@ -1159,7 +1160,10 @@
       "folders": {
         "none": "No Microsoft folder is linked to this project."
       },
-      "headingFolders": "Project folders"
+      "headingFolders": "Project folders",
+      "form": {
+        "partialSave": "Document details saved. The category could not be changed. Retry to finish the move."
+      }
     },
     "procurement": {
       "erpCard": {
@@ -1221,6 +1225,7 @@
         "all": "All"
       },
       "scopeAriaLabel": "Task scope",
+      "filters": "Filters",
       "filter": {
         "status": "Filter by status",
         "allStatuses": "All statuses",
@@ -1265,6 +1270,7 @@
       "statusMix": "Tasks by status",
       "statusMixOther": "Other",
       "taskGroups": {
+        "loadFailed": "Could not load task groups",
         "title": "Task groups",
         "count_one": "{{count}} group",
         "count_other": "{{count}} groups",
@@ -1304,6 +1310,8 @@
         "noPhase": "No phase"
       },
       "move": {
+        "partial": "{{moved}} moved. Still in the original group: {{names}}. Choose Move again to retry only these tasks.",
+        "finishRetry": "Retry the unfinished move with its original destination first.",
         "title": "Move {{name}}",
         "submit": "Move",
         "parent": "Under task",

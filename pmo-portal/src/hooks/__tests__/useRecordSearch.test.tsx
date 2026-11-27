@@ -58,7 +58,7 @@ const { stateCC } = vi.hoisted(() => ({
 vi.mock('@/src/hooks/useProjects', () => ({ useProjects: () => state.projects }));
 vi.mock('@/src/hooks/useProcurements', () => ({ useProcurements: () => state.procurements }));
 vi.mock('@/src/hooks/useDashboard', () => ({ useSalesPipeline: () => state.pipeline }));
-vi.mock('@/src/hooks/useCompanies', () => ({ useCompanies: () => stateCC.companies }));
+vi.mock('@/src/hooks/useCompanies', () => ({ useCompanyOptions: () => stateCC.companies }));
 vi.mock('@/src/hooks/useContacts', () => ({ useContacts: () => stateCC.contacts }));
 vi.mock('@/src/hooks/useIncidents', () => ({ useIncidents: () => stateCC.incidents }));
 
@@ -74,6 +74,29 @@ beforeEach(() => {
   stateCC.companies = { data: undefined, isPending: false, isError: false };
   stateCC.contacts = { data: undefined, isPending: false, isError: false };
   stateCC.incidents = { data: undefined, isPending: false, isError: false };
+});
+
+it('AC-SHELL-IDLE-001: indexes no cached rows while closed and reads the latest rows on reopen', () => {
+  const readName = vi.fn(() => 'Cached project');
+  const row = { id: 'p1', get name() { return readName(); } };
+  state.projects.data = [row];
+  const { result, rerender } = renderHook(({ enabled }) => useRecordSearch(navigate, { enabled }), {
+    initialProps: { enabled: false }, wrapper: wrapAdmin,
+  });
+  expect(readName).toHaveBeenCalledTimes(0);
+  expect(result.current.records).toEqual([]);
+  rerender({ enabled: true });
+  expect(result.current.records[0].title).toBe('Cached project');
+  result.current.records[0].run();
+  expect(navigate).toHaveBeenCalledWith('/projects/p1');
+  rerender({ enabled: false });
+  readName.mockClear();
+  state.projects.data = [{ id: 'p2', get name() { return readName(); } }];
+  rerender({ enabled: false });
+  expect(readName).toHaveBeenCalledTimes(0);
+  expect(result.current.records).toEqual([]);
+  rerender({ enabled: true });
+  expect(result.current.records[0].id).toBe('projects:p2');
 });
 
 describe('useRecordSearch — index of the 3 cached lists', () => {

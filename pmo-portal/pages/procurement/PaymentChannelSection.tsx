@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button, Card, CardHead, CardPad, FieldError, SelectField } from '@/src/components/ui';
+import { Button, Card, CardHead, CardPad, FieldError, ListState, SelectField } from '@/src/components/ui';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import {
   usePaymentChannelList, usePaymentChannelMutations, usePaymentChannelsOn, useRequestPaymentChannel,
@@ -23,6 +23,7 @@ const ChannelForm: React.FC<{ procurementId: string; currentId: string; inline?:
     .filter((c) => !c.archived || c.id === currentId)
     .map((c) => ({ value: c.id, label: c.archived ? `${c.name} (${t('procurement:paymentChannel.archivedTag', 'Archived')})` : c.name }))];
   const error = setOnRequest.isError ? classifyMutationError(setOnRequest.error) : null;
+  if (list.isError) return <ListState variant="error" quiet title={t('procurement:paymentChannel.listLoadError', 'Could not load payment channels.')} onRetry={() => void list.refetch()} />;
   if (list.isPending) return null;
   if (options.length === 1) {
     return <p className="text-control text-muted-foreground" data-testid="payment-channel-none">{t('procurement:paymentChannel.noneYet', 'No payment channels yet. An Admin adds them under Payment channels in Accounting setup.')}</p>;
@@ -59,7 +60,9 @@ export const PaymentChannelSection: React.FC<Props> = ({ procurementId, canSet, 
   const { t } = useTranslation();
   const { on } = usePaymentChannelsOn();
   const current = useRequestPaymentChannel(procurementId, on);
-  if (!on || !current.data) return null;
+  if (!on) return null;
+  if (current.isError) return <ListState variant="error" quiet title={t('procurement:paymentChannel.currentLoadError', 'Could not load this payment channel.')} onRetry={() => void current.refetch()} />;
+  if (!current.data) return null;
   const currentId = current.data.channelId ?? '';
   const value = canSet
     ? <ChannelForm key={currentId} procurementId={procurementId} currentId={currentId} inline={asDetailRow} />

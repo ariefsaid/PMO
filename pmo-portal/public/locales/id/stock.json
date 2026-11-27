@@ -270,7 +270,8 @@
       "noMatch": "Tidak ada dokumen yang cocok",
       "noMatchSub": "Hapus filter untuk melihat lebih banyak."
     },
-    "loadMoreFailed": "Gagal memuat dokumen berikutnya"
+    "loadMoreFailed": "Gagal memuat dokumen berikutnya",
+    "countUnavailable": "Jumlah dokumen tidak tersedia"
   },
   "detail": {
     "title": "Dokumen",

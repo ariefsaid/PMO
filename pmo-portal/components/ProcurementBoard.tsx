@@ -1,3 +1,4 @@
+import { useMaySeePrices } from '@/src/hooks/useHidePrices';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import React from 'react';
 import { Kanban, KanbanCard, KanbanColumn } from '@/src/components/ui';
@@ -59,8 +60,9 @@ const PrCard: React.FC<{
   selected: boolean;
   role: ProcurementListRole;
   reason?: string;
+  maySeePrices: boolean;
   onActivate: () => void;
-}> = ({ pr, selected, role, reason, onActivate }) => {
+}> = ({ pr, selected, role, reason, maySeePrices, onActivate }) => {
   const { t } = useTranslation('procurementList');
   const figure = figureForListRow(pr, role);
   const amount = figure.unknown || figure.amount === null ? '—' : formatCurrency(figure.amount, pr.currency);
@@ -79,7 +81,7 @@ const PrCard: React.FC<{
           {pr.code || pr.pr_number}
         </div>
       )}
-      <span
+      {maySeePrices && <span
         title={tooltip}
         aria-label={`${amount} ${amountKind}. ${tooltip}`}
         tabIndex={0}
@@ -87,7 +89,7 @@ const PrCard: React.FC<{
       >
         <span className="text-[15px] font-semibold tabular">{amount}</span>
         <span className="text-sm text-muted-foreground">{amountKind}</span>
-      </span>
+      </span>}
       {reason && <div className="mt-2 text-sm font-medium text-warning-foreground">{reason}</div>}
       <div className="mt-2.5 flex items-start gap-2 border-t border-border/70 pt-2">
         <Initial name={pr.requested_by?.full_name} />
@@ -114,6 +116,7 @@ const ProcurementBoard: React.FC<ProcurementBoardProps> = ({
   homeCurrency,
 }) => {
   const { t } = useTranslation('procurementList');
+  const maySeePrices = useMaySeePrices();
   const byStage = new Map<BoardStageKey, ProcurementWithRefs[]>(BOARD_STAGES.map(({ key }) => [key, []]));
   for (const procurement of procurements) {
     const stage = BOARD_STAGES.find(({ statuses }) => statuses.includes(procurement.status));
@@ -136,7 +139,7 @@ const ProcurementBoard: React.FC<ProcurementBoardProps> = ({
               title={stageTitle}
               dotColor={key === 'paid' ? 'hsl(var(--success))' : 'hsl(var(--mark-neutral))'}
               count={items.length}
-              totals={<MoneyTotalLines totals={totals} tooltip={tooltip} testId={`prstage-${key}-totals`} className="items-end" zeroCurrency={homeCurrency} />}
+              totals={maySeePrices && <MoneyTotalLines totals={totals} tooltip={tooltip} testId={`prstage-${key}-totals`} className="items-end" zeroCurrency={homeCurrency} />}
               emptyMessage={t('board.empty', { stage: stageTitle, defaultValue: `No procurements at ${stageTitle}` })}
             >
               {items.map((procurement) => (
@@ -145,6 +148,7 @@ const ProcurementBoard: React.FC<ProcurementBoardProps> = ({
                   pr={procurement}
                   selected={procurement.id === selectedId}
                   role={viewerRole}
+                  maySeePrices={maySeePrices}
                   reason={needsYouReasons?.get(procurement.id)?.text}
                   onActivate={() => onOpen(procurement)}
                 />

@@ -124,3 +124,14 @@ describe('ProjectEquipmentPanel (FR-EQU-071, FR-EQU-051)', () => {
     }
   });
 });
+
+it("retries failed allocations while retaining equipment usage", async () => {
+ h.role = "Project Manager"; h.totals = ok({ rows: [total()], truncated: false });
+ const refetch = vi.fn(); h.allocations = { data: undefined, isPending: false, isError: true, refetch };
+ const view = renderPanel();
+ expect(screen.getByText("Loader 1")).toBeInTheDocument();
+ screen.getByRole("button", { name: "Retry" }).click(); expect(refetch).toHaveBeenCalled();
+ h.allocations = ok({ rows: [alloc()], truncated: false });
+ view.rerender(<MemoryRouter><ProjectEquipmentPanel projectId="p1" currency="IDR" /></MemoryRouter>);
+ expect(screen.getByText(/600/)).toBeInTheDocument();
+});

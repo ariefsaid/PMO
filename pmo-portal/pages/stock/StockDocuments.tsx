@@ -135,6 +135,7 @@ const StockDocuments: React.FC = () => {
       )}
     >
       <StockTabs />
+      {q.countError && <ListState variant="error" title={t("stock:documents.countUnavailable", "Document count unavailable")} onRetry={() => void q.retryCount()} />}
       <StockFilters>
           <SelectField label={t('documents.filters.kind')} hideLabel value={kind} onChange={setKind}
             options={KINDS.map((k) => ({ value: k, label: t(`kinds.${k}`) }))} placeholder={t('documents.filters.allKinds')} />

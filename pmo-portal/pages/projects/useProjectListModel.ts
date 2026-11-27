@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import type { TFunction } from 'i18next';
 import type { Role } from '@/src/auth/AuthContext';
 import { useProjects, useClientCompanies, useProjectManagers, useProjectsMilestoneDates } from '@/src/hooks/useProjects';
-import { useCompanies } from '@/src/hooks/useCompanies';
+import { useCompanyOptions } from '@/src/hooks/useCompanies';
 import { useMyTasks } from '@/src/hooks/useMyTasks';
 import { useProjectsDeliverySummary } from '@/src/hooks/useProjectsDelivery';
 import { useProjectsMoneyCollection } from '@/src/hooks/useProjectsMoneyCollection';
@@ -67,8 +67,8 @@ export function useProjectListModel(effectiveRole: Role | null, currentUser: { i
   const { data, isPending, isError, refetch } = useProjects();
   const clientCompaniesResult = useClientCompanies();
   // #758: the end-customer filter lists ALL the org's companies (not just Client-type), so it
-  // uses the broad useCompanies() cache.
-  const companiesResult = useCompanies();
+  // uses the shared narrow company-options cache.
+  const companiesResult = useCompanyOptions();
   const projectManagersResult = useProjectManagers();
   // Stable array references so the option-list/import useMemos (which list them as deps)
   // don't recompute every render when a query is still resolving to `undefined`.

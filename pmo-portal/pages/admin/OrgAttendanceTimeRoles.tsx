@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { usePermission } from '@/src/auth/usePermission';
 import { BUILT_IN_ROLES } from '@/src/auth/builtInRoles';
@@ -6,6 +6,7 @@ import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { useAttendanceTimeRoles, useSaveAttendanceTimeRoles } from '@/src/hooks/useAttendanceSecondRecords';
 import { useBuiltInRoleName } from '@/src/hooks/useOrgRoleNames';
 import { Button, FieldError, ListState, useToast } from '@/src/components/ui';
+import { useRemoteStringDraft } from '@/src/hooks/useRemoteStringDraft';
 import { RoleChecklist } from '@/src/components/admin/RoleChecklist';
 
 /**
@@ -31,11 +32,12 @@ export default function OrgAttendanceTimeRoles() {
   const canManage = usePermission()('manage', 'orgAccounting');
   const query = useAttendanceTimeRoles();
   const save = useSaveAttendanceTimeRoles();
-  const [second, setSecond] = useState<string[]>([]);
-  const [decider, setDecider] = useState<string[]>([]);
-  useEffect(() => {
-    if (query.data) { setSecond(query.data.secondRecordRoles); setDecider(query.data.deciderRoles); }
-  }, [query.data]);
+  const remoteDraft = useRemoteStringDraft({ remote: JSON.stringify(query.data ?? { secondRecordRoles: [], deciderRoles: [] }), isSuccess: query.isSuccess });
+  const roles: { secondRecordRoles: string[]; deciderRoles: string[] } = remoteDraft.draft ? JSON.parse(remoteDraft.draft) : { secondRecordRoles: [], deciderRoles: [] };
+  const second = roles.secondRecordRoles;
+  const decider = roles.deciderRoles;
+  const setSecond = (value: string[]) => remoteDraft.setDraft(JSON.stringify({ ...roles, secondRecordRoles: value }));
+  const setDecider = (value: string[]) => remoteDraft.setDraft(JSON.stringify({ ...roles, deciderRoles: value }));
   const dirty = !!query.data && (!sameRoles(second, query.data.secondRecordRoles) || !sameRoles(decider, query.data.deciderRoles));
   const saveError = save.isError ? classifyMutationError(save.error) : null;
   return (
@@ -47,13 +49,14 @@ export default function OrgAttendanceTimeRoles() {
           : query.isPending ? <ListState variant="loading" rows={1} />
           : (
             <>
+              {remoteDraft.remoteChanged && <div role="status"><p>{t('common:uxs11.downPaymentRemoteChanged', 'The saved item changed. Your edit is kept; reload the saved value to discard it.')}</p><Button variant="outline" size="sm" onClick={remoteDraft.reload}>{t('common:uxs11.reloadSaved', 'Reload saved values')}</Button></div>}
               <RoleGroup legend={t('admin.attendanceRoles.secondLabel', 'May enter a second record')} helper={t('admin.attendanceRoles.secondHelper', 'An Admin, Executive or Project Manager always may.')}
                 value={second} onChange={setSecond} disabled={!canManage || save.isPending} />
               <RoleGroup legend={t('admin.attendanceRoles.deciderLabel', 'Decides which hours stand')} helper={t('admin.attendanceRoles.deciderHelper', "Leave empty to use today's approvers (Admin, Executive, Project Manager). Nobody decides hours they recorded.")}
                 value={decider} onChange={setDecider} disabled={!canManage || save.isPending} />
               {canManage ? (
                 <Button variant="primary" disabled={!dirty || save.isPending}
-                  onClick={() => { save.reset(); save.mutate({ secondRecordRoles: second, deciderRoles: decider }, { onSuccess: () => toast(t('admin.attendanceRoles.saved', 'Time record roles saved'), 'success') }); }}>
+                  onClick={() => { save.reset(); save.mutate({ secondRecordRoles: second, deciderRoles: decider }, { onSuccess: () => { remoteDraft.acceptSaved(JSON.stringify(roles)); toast(t('admin.attendanceRoles.saved', 'Time record roles saved'), 'success'); } }); }}>
                   {t('admin.attendanceRoles.save', 'Save')}
                 </Button>
               ) : <p className="text-control text-muted-foreground">{t('admin.attendanceRoles.adminOnly', 'Only an Admin can change this.')}</p>}

@@ -141,7 +141,7 @@ const TimelineWithReadableOrders: React.FC<TimelineWithOrdersProps & { records: 
 };
 
 const ProcurementDetails: React.FC = () => {
-  const { t } = useTranslation(['common', 'waitingList', 'walkMoney']);
+  const { t } = useTranslation(['common', 'waitingList', 'walkMoney', 'procurement']);
   const { procurementId, tab: tabParam } = useParams<{ procurementId: string; tab?: string }>();
   // Active tab from the URL :tab param (deep-linkable, role-invariant default Overview).
   const tab = tabFromParam(tabParam);
@@ -740,7 +740,7 @@ const ProcurementDetails: React.FC = () => {
   // them (tinted, first in the band, with the decision facts and note); for anyone else it follows the stage strip.
   const requestStage = stageForStatus(p.status) === 'Request';
   // The same visibility the panel applies to itself, so the money block leaves the total out only where the panel shows it.
-  const showsBudgetImpact = Boolean(p.project_id) && PANEL_VISIBLE_STATUSES.includes(p.status) && may('view', 'procurement');
+  const showsBudgetImpact = maySeePrices && p.total_value != null && Boolean(p.project_id) && PANEL_VISIBLE_STATUSES.includes(p.status) && may('view', 'procurement');
   const decisionAside = decidesHere ? (
     <div className="flex flex-col gap-4">
       {decisionLine.length > 0 && <p data-testid="sod-ready-hint" className="flex items-start gap-2 text-control text-foreground">
@@ -756,7 +756,7 @@ const ProcurementDetails: React.FC = () => {
       )}
     </div>
   ) : null;
-  const budgetImpact = requestStage && p.project_id ? <DecisionSupportPanel
+  const budgetImpact = maySeePrices && p.total_value != null && requestStage && p.project_id ? <DecisionSupportPanel
     bare
     aside={decisionAside}
     projectId={p.project_id}
@@ -767,6 +767,9 @@ const ProcurementDetails: React.FC = () => {
     status={p.status}
     currency={p.currency}
   /> : null;
+
+  if (linkedErpQuery.isError) return <ListState variant="error" title={t('procurement:linkedDocuments.error', "Couldn't load linked accounting documents")} onRetry={() => void linkedErpQuery.refetch()} />;
+  if (linkedErpQuery.isPending) return <ListState variant="loading" rows={4} />;
 
   if (inspectionOnly) return <FigureScope><RecordStack>
     <BackBar label={t('procurementDetail.backToProcurement', 'Procurement')} onBack={goBack} />
@@ -901,7 +904,7 @@ const ProcurementDetails: React.FC = () => {
         className="pt-4 md:pt-6"
       >
         {tab === 'timeline' && <RecordStack>
-          <TimelineWithOrders focusedRecordId={location.hash.startsWith("#cost-") ? location.hash.slice(6) : undefined} procurement={p} ledgerRows={ledgerRows} linkedDocuments={linkedDocs} isEngineer={isEngineer} canWriteFiles={canManageFiles} uploadedById={currentUserId} onFullHistory={() => setHistoryOpen((open) => !open)} />
+          <TimelineWithOrders focusedRecordId={location.hash.startsWith("#cost-") ? location.hash.slice(6) : undefined} procurement={p} ledgerRows={ledgerRows} linkedDocuments={linkedDocs} isEngineer={isEngineer} canWriteFiles={canManageFiles} canWriteRequestFiles={!readOnlyDecision && isRequester} uploadedById={currentUserId} onFullHistory={() => setHistoryOpen((open) => !open)} />
           {primaryPo && (
             <RecordSection data-testid="procurement-po-print" title={t('procurement:purchaseOrderPrint.section', 'Purchase order')}>
               {poPrintEnabled
@@ -963,7 +966,7 @@ const ProcurementDetails: React.FC = () => {
               vendorId={p.vendor_id}
               itemsNet={itemsNetTotal(p.items)}
               gates={gates}
-            /> : <TimelineWithOrders focusedRecordId={location.hash.startsWith("#cost-") ? location.hash.slice(6) : undefined} procurement={p} ledgerRows={ledgerRows} linkedDocuments={linkedDocs} isEngineer canWriteFiles={canManageFiles} uploadedById={currentUserId} onFullHistory={() => { setHistoryOpen(true); setTab('timeline'); }} />}
+            /> : <TimelineWithOrders focusedRecordId={location.hash.startsWith("#cost-") ? location.hash.slice(6) : undefined} procurement={p} ledgerRows={ledgerRows} linkedDocuments={linkedDocs} isEngineer canWriteFiles={canManageFiles} canWriteRequestFiles={!readOnlyDecision && isRequester} uploadedById={currentUserId} onFullHistory={() => { setHistoryOpen(true); setTab('timeline'); }} />}
             {vendorPickerOpen && canSetVendor && (
               <div role="dialog" aria-label={t('bupot.setVendor', 'Set supplier')} className="panel-card flex flex-wrap items-end gap-3 p-[var(--panel-inset)]">
                 <Combobox

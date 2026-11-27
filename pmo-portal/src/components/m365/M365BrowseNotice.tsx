@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
-import { Button, GateNotice } from '@/src/components/ui';
+import { Button } from '@/src/components/ui/Button';
+import { GateNotice } from '@/src/components/ui/GateNotice';
 import { initiateM365Connect, keepsFolderPermission, type ConnectionStatus } from '@/src/lib/m365/connectClient';
 import { knownM365ErrorReason } from '@/src/lib/m365/errorCopy';
 

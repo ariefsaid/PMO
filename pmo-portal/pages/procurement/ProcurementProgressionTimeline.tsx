@@ -82,7 +82,7 @@ export const ProcurementProgressionTimeline: React.FC<ProcurementProgressionTime
   return (
     <div className={className}>
       <ol
-        aria-label="Progression history"
+        aria-label={t('progression.ariaLabel', 'Progression history')}
         className="relative flex flex-col"
       >
         {visible.map((ev, i) => {

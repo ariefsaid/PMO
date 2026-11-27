@@ -4,9 +4,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ToastProvider } from '@/src/components/ui';
 
 /** AC-SCWO-013 (#2732) — the claim detail shows the work order and discipline and lets a permitted person correct them. */
-const h = vi.hoisted(() => ({ set: vi.fn() }));
-vi.mock('@/src/hooks/useWorkOrders', () => ({ useProjectWorkOrders: () => ({ data: [{ id: 'wo-1', wo_number: 'WO-001', title: 'Pipe rack', status: 'Issued' }] }) }));
-vi.mock('@/src/hooks/useWorkOrderCosts', () => ({ useCostDisciplines: () => ({ data: [{ id: 'disc-1', code: 'CIV', name: 'Civil' }] }) }));
+const h = vi.hoisted(() => ({ set: vi.fn(), error: false, retry: vi.fn() }));
+vi.mock('@/src/hooks/useWorkOrders', () => ({ useProjectWorkOrders: () => ({ isError: h.error, refetch: h.retry, data: [{ id: 'wo-1', wo_number: 'WO-001', title: 'Pipe rack', status: 'Issued' }] }) }));
+vi.mock('@/src/hooks/useWorkOrderCosts', () => ({ useCostDisciplines: () => ({ isError: h.error, refetch: h.retry, data: [{ id: 'disc-1', code: 'CIV', name: 'Civil' }] }) }));
 vi.mock('@/src/components/workOrders/CostAttributionFields', () => ({
   CostAttributionFields: ({ onChange }: { onChange: (v: { workOrderId: string | null; disciplineId: string | null }) => void }) => (
     <button type="button" onClick={() => onChange({ workOrderId: null, disciplineId: 'disc-1' })}>pick</button>
@@ -24,7 +24,7 @@ const claim = { id: 'c1', kind: 'claim', project_id: 'p1', work_order_id: 'wo-1'
 const renderCard = (canEdit: boolean, c = claim) => render(<QueryClientProvider client={new QueryClient()}><ToastProvider><ExpenseAttributionCard claim={c} canEdit={canEdit} /></ToastProvider></QueryClientProvider>);
 
 describe('AC-SCWO-013 claim detail work order and discipline', () => {
-  beforeEach(() => { vi.clearAllMocks(); h.set.mockResolvedValue(1); });
+  beforeEach(() => { h.error = false; vi.clearAllMocks(); h.set.mockResolvedValue(1); });
 
   it('shows the work order and says "No discipline" when none is set', () => {
     renderCard(false);
@@ -55,3 +55,5 @@ describe('AC-SCWO-013 claim detail work order and discipline', () => {
     expect(canAttributeExpenseClaim('Engineer', 'u2', { claimant_id: 'u1', status: 'Draft' })).toBe(false);
   });
 });
+
+it("offers retry for failed attribution lookups", () => { h.error = true; renderCard(false, {...claim, discipline_id: "disc-1"}); expect(screen.getAllByRole("button", {name: /retry/i})).toHaveLength(2); });

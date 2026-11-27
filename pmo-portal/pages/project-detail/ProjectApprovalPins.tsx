@@ -14,7 +14,7 @@ import { useApprovalChain, useMaterialRequestMutations, useStepPins } from '@/sr
 import { useLabels, useRefusalText } from '../materialRequests/useMaterialRequestText';
 import { holdsJobRole } from '@/src/auth/builtInRoles';
 import { useBuiltInRoleName } from '@/src/hooks/useOrgRoleNames';
-import type { UserRow } from '@/src/lib/db/adminUsers';
+import type { ProfileRow as UserRow } from '@/src/lib/db/profiles';
 import type { Role } from '@/src/auth/AuthContext';
 
 /** Who can decide a step: its built-in role through the same rule as the database (holds_job_role), else its access level. */
@@ -38,9 +38,9 @@ export function ProjectApprovalPins({ projectId, managerId }: { projectId: strin
   const [error, setError] = useState<string | null>(null);
 
   const title = <h4 className="text-sm font-medium text-muted-foreground">{t('projectDetail.approvalPins.title', 'Approver by step')}</h4>;
-  if (chain.isPending || pins.isPending) return <div>{title}<ListState variant="loading" rows={1} /></div>;
-  if (chain.isError || pins.isError) {
-    return <div>{title}<ListState variant="error" title={t('projectDetail.approvalPins.loadFailed', 'Approval steps could not be loaded')} onRetry={() => { void chain.refetch(); void pins.refetch(); }} retryLabel={t('projectDetail.approvalPins.retry', 'Retry')} /></div>;
+  if (chain.isPending || pins.isPending || users.isPending) return <div>{title}<ListState variant="loading" rows={1} /></div>;
+  if (chain.isError || pins.isError || users.isError) {
+    return <div>{title}<ListState variant="error" title={t('projectDetail.approvalPins.loadFailed', 'Approval steps could not be loaded')} onRetry={() => { void chain.refetch(); void pins.refetch(); void users.refetch(); }} retryLabel={t('projectDetail.approvalPins.retry', 'Retry')} /></div>;
   }
   const steps = chain.data ?? [];
   // Nothing to pin until the Admin has set a chain. Everyone else sees the pins read-only.
