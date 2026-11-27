@@ -80,6 +80,19 @@ const contracts = [
   { domain: 'odoo', module: './odoo', exported: 'odooRepository' },
   { domain: 'reports', module: './reporting', exported: 'reportsRepository' },
 ];
+
+// Boot-critical contracts registered as statically imported implementations, NOT lazy
+// forwarders: the boot path reads them as soon as the session is known, so they must be in
+// the initial bundle instead of deferring to a dynamic import. `orgDefaults` is kept out of
+// the lazy `admin` chunk for exactly that reason (see ./orgDefaults). They are deliberately
+// excluded from the doMock instrumentation and the laziness `it.each` below — a static
+// object cannot satisfy "loads its module lazily" — and their forwarding/behavior is proven
+// by their own tests (orgDefaults.test.tsx, composition.test.ts). This list exists so the
+// inventory assertion still accounts for every key on the public seam: nothing may appear
+// on `repositories` silently.
+const staticContracts = [
+  { domain: 'orgDefaults', module: './orgDefaults', exported: 'orgDefaultsRepository' },
+];
 type Tree = Record<string, unknown>;
 const loads = new Map<string, number>();
 const implementations = new Map<string, Tree>();
@@ -121,10 +134,12 @@ beforeAll(async () => {
     });
   }
   repositories = (await import('./index')).repositories as unknown as Tree;
-  expect(Object.keys(repositories).sort()).toEqual(contracts.map((contract) => contract.domain).sort());
-  // Merely importing/spreading the API must not execute a domain loader.
+  const inventory = [...contracts, ...staticContracts];
+  expect(Object.keys(repositories).sort()).toEqual(inventory.map((contract) => contract.domain).sort());
+  // Merely importing/spreading the API must not execute a domain loader (lazy domains — the
+  // statically registered boot contracts in staticContracts are exempt by design).
   expect(loads.size).toBe(0);
-  expect(Object.keys({ ...repositories })).toHaveLength(contracts.length);
+  expect(Object.keys({ ...repositories })).toHaveLength(inventory.length);
 });
 
 it.each(contracts)('$domain forwards every real method, preserves results/errors, and loads its module once', async (contract) => {
