@@ -6,12 +6,12 @@ import { Button, Checkbox, ConfirmDialog, DateField, ListState, ReasonDialog, Re
 import { usePermission } from '@/src/auth/usePermission';
 import { useAuth } from '@/src/auth/useAuth';
 import {
-  useInspectionCosts, useInspectionFiles, useInspectionMutations, useWorkOrderInspections,
+  useInspectionCosts, useInspectionFilesBatch, useInspectionMutations, useWorkOrderInspections,
 } from '@/src/hooks/useThirdPartyInspections';
 import {
   INSPECTION_FILE_ALLOWED_MIME, INSPECTION_FILE_MAX_COUNT, inspectionFileRefusal, isInspectionBlocking,
   isInspectionComplete, isInspectionOverdue,
-  type InspectionCostRow, type InspectionGate, type InspectionResult, type InspectionListRow,
+  type InspectionCostRow, type InspectionGate, type InspectionResult, type InspectionListRow, type InspectionFileRow,
 } from '@/src/lib/db/thirdPartyInspections';
 import { repositories } from '@/src/lib/repositories';
 import { useRefusalText } from '@/src/lib/refusals';
@@ -20,16 +20,15 @@ import { formatDateOnly, formatTableMoney } from '@/src/lib/format';
 
 const RESULTS: InspectionResult[] = ['pass', 'fail', 'conditional'];
 
-interface CardProps { inspection: InspectionListRow; costs: InspectionCostRow[]; workOrderId: string; today: string }
+interface CardProps { inspection: InspectionListRow; costs: InspectionCostRow[]; workOrderId: string; today: string; liveFiles: InspectionFileRow[] }
 
 /** One inspection: its state, its real cost beside the estimate, and the one next step the viewer may take. */
-const InspectionCard: React.FC<CardProps> = ({ inspection: i, costs, workOrderId, today }) => {
+const InspectionCard: React.FC<CardProps> = ({ inspection: i, costs, workOrderId, today, liveFiles }) => {
   const { t } = useTranslation('workOrders');
   const refusal = useRefusalText();
   const can = usePermission();
   const { currentUser } = useAuth();
   const m = useInspectionMutations(workOrderId);
-  const files = useInspectionFiles(i.status === 'executed' || i.status === 'reported' ? i.id : null);
   const [err, setErr] = useState<string | null>(null);
   const [reason, setReason] = useState<'waive' | 'cancel' | null>(null);
   const [confirmRaise, setConfirmRaise] = useState(false);
@@ -47,7 +46,6 @@ const InspectionCard: React.FC<CardProps> = ({ inspection: i, costs, workOrderId
   const mayOrder = useMayOrderPurchases();
   const mayOpenPurchase = can('view', 'procurement') || mayOrder;
   const mayAttach = can('create', 'thirdPartyInspection'); // the same roles; a reported inspection still takes a new file (FR-TPI-015)
-  const liveFiles = files.data ?? [];
   const fail = (e: unknown) => { const r = refusal(e, { context: { suppressCapture: true } }); setErr(r.detail || r.headline); };
   const run = (p: Promise<unknown>) => { setErr(null); p.catch(fail); };
 
@@ -188,6 +186,13 @@ export const InspectionsSection: React.FC<Props> = ({ workOrderId }) => {
   const refusal = useRefusalText();
   const can = usePermission();
   const list = useWorkOrderInspections(workOrderId);
+  const files = useInspectionFilesBatch((list.data ?? []).filter(i => i.status === 'executed' || i.status === 'reported').map(i => i.id));
+  const filesByInspection = new Map<string, InspectionFileRow[]>();
+  for (const file of files.data ?? []) {
+    const group = filesByInspection.get(file.inspection_id) ?? [];
+    group.push(file);
+    filesByInspection.set(file.inspection_id, group);
+  }
   const costs = useInspectionCosts(workOrderId);
   const m = useInspectionMutations(workOrderId);
   const today = useOrgToday();
@@ -266,6 +271,7 @@ export const InspectionsSection: React.FC<Props> = ({ workOrderId }) => {
         : <ul className="divide-y divide-border" data-testid="wo-inspections">
             {rows.map((r) => (
               <InspectionCard key={r.id} inspection={r} workOrderId={workOrderId} today={today}
+                liveFiles={filesByInspection.get(r.id) ?? []}
                 costs={(costs.data ?? []).filter((c) => c.inspection_id === r.id)} />
             ))}
           </ul>}

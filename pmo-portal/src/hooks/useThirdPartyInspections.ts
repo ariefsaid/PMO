@@ -15,8 +15,9 @@ export function useInspectionCosts(workOrderId: string | null | undefined) {
   return useOrgQuery<InspectionCostRow[]>(['third-party-inspection-costs', workOrderId], () => repositories.thirdPartyInspection.costs(workOrderId as string), { enabled: Boolean(workOrderId) });
 }
 
-export function useInspectionFiles(inspectionId: string | null | undefined) {
-  return useOrgQuery<InspectionFileRow[]>(['third-party-inspection-files', inspectionId], () => repositories.thirdPartyInspection.listFiles(inspectionId as string), { enabled: Boolean(inspectionId) });
+export function useInspectionFilesBatch(inspectionIds: readonly string[]) {
+  const ids = [...new Set(inspectionIds)].sort();
+  return useOrgQuery<InspectionFileRow[]>(['third-party-inspection-files', 'batch', ids], () => repositories.thirdPartyInspection.listFilesBatch(ids), { enabled: ids.length > 0 });
 }
 
 export function useInspectionMutations(workOrderId: string) {
@@ -39,7 +40,7 @@ export function useInspectionMutations(workOrderId: string) {
     addFile: useMutation({
       mutationFn: (v: { inspection: Pick<InspectionRow, 'id' | 'org_id'>; file: File; liveCount: number }) =>
         repo.addFile(v.inspection, v.file, v.liveCount),
-      onSuccess: (_d, v) => void qc.invalidateQueries({ queryKey: ['third-party-inspection-files', orgId, v.inspection.id] }),
+      onSuccess: () => void qc.invalidateQueries({ queryKey: ['third-party-inspection-files', orgId] }),
     }),
   };
 }

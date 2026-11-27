@@ -14,7 +14,7 @@ export const thirdPartyInspectionRepository: ThirdPartyInspectionRepository = {
   recordReport: (id, result) => wrap(() => dal.recordInspectionReport(id, result)),
   waive: (id, reason) => wrap(() => dal.waiveInspection(id, reason)),
   cancel: (id, reason) => wrap(() => dal.cancelInspection(id, reason)),
-  listFiles: (id) => wrap(() => dal.listInspectionFiles(id)),
+  listFilesBatch: (ids) => wrap(() => dal.listInspectionFilesBatch(ids)),
   addFile: (inspection, file, liveCount) => wrap(() => dal.addInspectionFile(inspection, file, liveCount)),
   fileUrl: (path) => wrap(() => dal.getInspectionFileUrl(path)),
 };

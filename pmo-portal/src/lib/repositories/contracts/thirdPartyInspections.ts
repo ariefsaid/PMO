@@ -19,7 +19,7 @@ export interface ThirdPartyInspectionRepository {
   recordReport(id: string, result: InspectionResult): Promise<void>;
   waive(id: string, reason: string): Promise<void>;
   cancel(id: string, reason: string): Promise<void>;
-  listFiles(inspectionId: string): Promise<InspectionFileRow[]>;
+  listFilesBatch(inspectionIds: readonly string[]): Promise<InspectionFileRow[]>;
   addFile(inspection: Pick<InspectionRow, 'id' | 'org_id'>, file: File, liveCount: number): Promise<InspectionFileRow>;
   fileUrl(path: string): Promise<string>;
 }

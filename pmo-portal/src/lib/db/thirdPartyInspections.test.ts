@@ -32,7 +32,7 @@ vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: h.from, rpc: h.r
 import {
   addInspectionFile, buildInspectionFilePath, cancelInspection, createInspection, getInspectionCosts,
   getInspectionFileUrl, getInspectionPrerequisites, inspectionFileRefusal, isInspectionBlocking, isInspectionComplete,
-  isInspectionOverdue, listInspectionFiles, listWorkOrderInspections, raiseInspectionPurchase, recordInspectionExecution,
+  isInspectionOverdue, listInspectionFilesBatch, listWorkOrderInspections, raiseInspectionPurchase, recordInspectionExecution,
   recordInspectionInvitation, recordInspectionReport, waiveInspection,
 } from './thirdPartyInspections';
 import { AppError } from '@/src/lib/appError';
@@ -180,13 +180,25 @@ describe('report files', () => {
     expect(buildInspectionFilePath('o1', 'i1', 'f1', 'weld report.pdf').split('/').slice(0, 3)).toEqual(['o1', 'i1', 'f1']);
   });
 
-  it('listInspectionFiles reads the live files, newest first, capped at the maximum count', async () => {
+  it('listInspectionFilesBatch reads the live files, newest first, capped at the maximum count', async () => {
     h.push({ data: [{ id: 'f1', file_path: 'p' }], error: null });
-    await expect(listInspectionFiles('i1')).resolves.toEqual([{ id: 'f1', file_path: 'p' }]);
+    await expect(listInspectionFilesBatch(['i1'])).resolves.toEqual([{ id: 'f1', file_path: 'p' }]);
     expect(h.calls.from).toEqual(['third_party_inspection_files']);
-    expect(h.calls.eq).toContainEqual(['inspection_id', 'i1']);
+    expect(h.calls.in).toContainEqual(['inspection_id', ['i1']]);
     expect(h.calls.is).toContainEqual(['archived_at', null]);
-    expect(h.calls.limit).toContainEqual(10);
+    expect(h.calls.order).toContainEqual(['created_at', { ascending: false }]);
+  });
+
+  it('reads 30 inspections in one file query, preserving each inspection file cap', async () => {
+    const ids = Array.from({ length: 30 }, (_, n) => `i${n}`);
+    const rows = ids.flatMap(inspection_id => Array.from({ length: 11 }, (_, n) => ({ id: `${inspection_id}-${n}`, inspection_id })));
+    h.push({ data: rows, error: null });
+    const files = await listInspectionFilesBatch(ids);
+    expect(h.calls.from).toEqual(['third_party_inspection_files']);
+    expect(h.calls.in).toContainEqual(['inspection_id', ids]);
+    expect(h.calls.is).toContainEqual(['archived_at', null]);
+    expect(files).toHaveLength(300);
+    expect(files.filter(f => f.inspection_id === 'i0').map(f => f.id)).toEqual(Array.from({ length: 10 }, (_, n) => `i0-${n}`));
   });
 
   it('addInspectionFile refuses before upload when the count/size/type gate says so', async () => {
