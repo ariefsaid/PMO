@@ -8,7 +8,7 @@ const h = vi.hoisted(() => ({
 }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { org_id: 'org-1' } }) }));
 vi.mock('@/src/lib/repositories/equipmentVendorResponse', () => ({ equipmentVendorResponseRepository: h }));
-vi.mock('./useCompanies', () => ({ useCompanies: () => ({ data: [{ id: 'v1', name: 'Vendor One' }, { id: 'v2', name: 'Other' }] }) }));
+vi.mock('./useCompanies', () => ({ useCompanyOptions: () => ({ data: [{ id: 'v1', name: 'Vendor One' }, { id: 'v2', name: 'Other' }] }) }));
 import { formatDuration, useBreakdowns, useClearVendorResponse, useRecordVendorResponse, useVendorNames, useVendorResponseReady } from './useVendorResponse';
 import { AuthContext } from '@/src/auth/AuthContext';
 

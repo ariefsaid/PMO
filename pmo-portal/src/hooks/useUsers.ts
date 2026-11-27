@@ -1,26 +1,13 @@
+import { useAssignableProfiles } from './useTasks';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { repositories } from '@/src/lib/repositories';
-import type { UserRow, UserRole, InviteUserInput, SetUserStatusInput, UserManagerChoice } from '@/src/lib/db/adminUsers';
+import type { UserRole, InviteUserInput, SetUserStatusInput, UserManagerChoice } from '@/src/lib/db/adminUsers';
 import type { UserDirectoryPage } from '@/src/lib/db/adminUsers';
 import { useAuth } from '@/src/auth/useAuth';
 
-/**
- * Org-scoped Administration › Users list over the repository seam (ADR-0017).
- * queryKey includes org_id so the cache is tenant-scoped (FR-QRY). RLS
- * (profiles_select) scopes the rows; org_id is never sent.
- *
- * This is the WHOLE-list read and stays the source for pickers (project manager, claimant,
- * approver, equipment operator) and for the manager picker. The directory itself reads a server
- * page through `useUsersPage` below.
- */
+/** Whole-organisation picker compatibility hook over the shared narrow profile cache. */
 export function useUsers(opts?: { enabled?: boolean }) {
-  const { currentUser } = useAuth();
-  const orgId = currentUser?.org_id;
-  return useQuery<UserRow[]>({
-    queryKey: ['users', orgId],
-    queryFn: () => repositories.profile.listUsers(),
-    enabled: Boolean(orgId) && opts?.enabled !== false,
-  });
+  return useAssignableProfiles(opts);
 }
 
 /**
@@ -100,11 +87,8 @@ export interface AssignManagerArgs {
 /**
  * Admin user-management mutations over the repository seam: change a role, assign a manager,
  * invite a new user (FR-INV-004), and disable/re-enable a user (FR-INV-002/003, AC-INV-003/004).
- * Each invalidates the `['users', …]` query family on success so the directory refetches, and
- * (HKA-019) also invalidates the org-profile and project-manager picker families — the task
- * assignee picker (`['org-profiles', …]`) and the PM picker (`['profiles', 'pm', …]`) cache their
- * own profile lists with a five-minute stale window, so a role/manager/status change that only
- * busted `['users']` left those pickers serving stale people. Errors propagate as `AppError`
+ * Each invalidates the users directory and shared organisation-profile lookup after success,
+ * so assignee, manager and name views all see the write. Errors propagate as AppError
  * (code preserved — Postgres codes like `42501`/`P0001`, or the admin-invite-user edge fn's
  * `DUPLICATE_EMAIL`/`INVITE_UNAUTHORIZED`/etc.) for the caller to classify via
  * `classifyMutationError`.
@@ -114,7 +98,6 @@ export function useUserMutations() {
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ['users'] });
     qc.invalidateQueries({ queryKey: ['org-profiles'] });
-    qc.invalidateQueries({ queryKey: ['profiles', 'pm'] });
   };
 
   const updateRole = useMutation({

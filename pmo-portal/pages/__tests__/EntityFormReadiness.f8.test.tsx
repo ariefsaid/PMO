@@ -47,7 +47,7 @@ const { companiesState, createMut } = vi.hoisted(() => ({
   createMut: { mutateAsync: vi.fn().mockResolvedValue(undefined), isPending: false },
 }));
 vi.mock('@/src/hooks/useCompanies', () => ({
-  useCompanies: () => companiesState,
+  useCompanyOptions: () => companiesState,
   // #1989: the directory reads one server page + a total + an on-demand export read.
   useCompaniesPage: () => ({
     data: { rows: companiesState.data, total: companiesState.data.length },

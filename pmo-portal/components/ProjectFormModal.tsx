@@ -27,7 +27,7 @@ import {
 } from '@/src/components/ui';
 import { useClientCompanies, useProjectManagers } from '@/src/hooks/useProjects';
 import { useProjectNumberProposal } from '@/src/hooks/useProjectNumberProposal';
-import { useCompanies } from '@/src/hooks/useCompanies';
+import { useCompanyOptions } from '@/src/hooks/useCompanies';
 import {
   currencySymbol,
   formatMoneyInputValue,
@@ -214,8 +214,8 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
   const { data: clients = [], isError: clientsError } = useClientCompanies();
   const { data: managers = [], isError: pmError } = useProjectManagers();
   // #758: the end customer can be ANY of the org's companies (not just Client-type), so it uses
-  // the broad useCompanies() cache rather than useClientCompanies().
-  const { data: allCompanies = [], isError: endCustomersError } = useCompanies();
+  // the shared company-options cache, including every company type.
+  const { data: allCompanies = [], isError: endCustomersError } = useCompanyOptions();
 
   const form = useEntityForm<FormValues>({
     initialValues: {

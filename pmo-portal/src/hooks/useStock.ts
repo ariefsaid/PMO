@@ -62,8 +62,10 @@ export function useStockMasterMutations() {
 export function useStockKeeperCandidates() {
   const orgId = useAuth().currentUser?.org_id;
   return useQuery({
-    queryKey: ['stock-keeper-candidates', orgId],
-    queryFn: async () => (await repositories.profile.listOrgProfiles()).filter((p) => p.status === 'active'),
+    queryKey: ['org-profiles', orgId],
+    queryFn: () => repositories.profile.listOrgProfiles(),
+    select: (rows) => rows.filter((p) => p.status === 'active'),
+    staleTime: 5 * 60_000,
     enabled: Boolean(orgId),
   });
 }

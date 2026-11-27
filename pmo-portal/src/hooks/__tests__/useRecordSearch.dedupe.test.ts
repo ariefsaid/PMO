@@ -30,7 +30,7 @@ vi.mock('@/src/hooks/useProcurements', () => ({ useProcurements: () => state.pro
 vi.mock('@/src/hooks/useDashboard', () => ({ useSalesPipeline: () => state.pipeline }));
 // CW-7: the index now reads master-data caches too; stub them empty for the dedupe scope.
 vi.mock('@/src/hooks/useCompanies', () => ({
-  useCompanies: () => ({ data: [], isPending: false, isError: false }),
+  useCompanyOptions: () => ({ data: [], isPending: false, isError: false }),
 }));
 vi.mock('@/src/hooks/useContacts', () => ({
   useContacts: () => ({ data: [], isPending: false, isError: false }),

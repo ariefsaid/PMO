@@ -96,7 +96,7 @@ const { companiesState } = vi.hoisted(() => ({
   companiesState: { data: [] as { id: string; name: string; type: string }[], isError: false },
 }));
 vi.mock('@/src/hooks/useCompanies', () => ({
-  useCompanies: () => companiesState,
+  useCompanyOptions: () => companiesState,
 }));
 vi.mock('@/src/hooks/useProjectNumberProposal', () => ({
   useProjectNumberProposal: () => ({ status: 'success', number: 'PMO-TEST-0001', error: null }),

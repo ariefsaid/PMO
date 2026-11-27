@@ -50,7 +50,7 @@ vi.mock('@/src/hooks/useProjects', () => ({
   useProjectManagers: () => ({ data: [] }),
 }));
 vi.mock('@/src/hooks/useCompanies', () => ({
-  useCompanies: () => ({ data: [{ id: '75800000-0000-0000-0000-0000000000a1', name: 'Asset Owner PT', type: 'Client' }], isError: false }),
+  useCompanyOptions: () => ({ data: [{ id: '75800000-0000-0000-0000-0000000000a1', name: 'Asset Owner PT', type: 'Client' }], isError: false }),
 }));
 
 const renderPipeline = () =>

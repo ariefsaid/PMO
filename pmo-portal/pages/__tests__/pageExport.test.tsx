@@ -39,7 +39,7 @@ vi.mock('@/src/auth/useAuth', () => ({
 
 // ── Companies mocks ──────────────────────────────────────────────────────────
 vi.mock('@/src/hooks/useCompanies', () => ({
-  useCompanies: () => ({
+  useCompanyOptions: () => ({
     data: [{ id: '1', name: 'Acme', type: 'Client' }],
     isPending: false,
     isError: false,

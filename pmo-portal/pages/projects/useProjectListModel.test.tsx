@@ -13,7 +13,7 @@ vi.mock('@/src/hooks/useProjects', () => ({
   useClientCompanies: () => ({ data: [] }), useProjectManagers: () => ({ data: [] }),
   useProjectsMilestoneDates: () => ({ data: [], isPending: false, isError: false }),
 }));
-vi.mock('@/src/hooks/useCompanies', () => ({ useCompanies: () => ({ data: [] }) }));
+vi.mock('@/src/hooks/useCompanies', () => ({ useCompanyOptions: () => ({ data: [] }) }));
 vi.mock('@/src/hooks/useMyTasks', () => ({ useMyTasks: () => ({ data: state.tasks, isPending: state.tasksPending, isError: false }) }));
 vi.mock('@/src/hooks/useProjectsDelivery', () => ({ useProjectsDeliverySummary: () => ({ data: {}, isPending: false, isError: false }) }));
 vi.mock('@/src/hooks/useProjectsMoneyCollection', () => ({ useProjectsMoneyCollection: () => ({ data: state.money, isPending: state.pending, isError: state.error }) }));
