@@ -7,6 +7,7 @@ import { supabase } from '@/src/lib/supabase/client';
 import { nullableArg } from './nullableArg';
 import { toAppError } from '@/src/lib/appError';
 import { fetchAllPages } from '@/src/lib/pagedRead';
+import { readOrgColumnsStrict } from './orgSettingsBatch';
 
 export type DsrStockItems = 'all' | 'consumables';
 export type DsrStockState = 'posted' | 'partial' | 'flagged' | 'out_of_scope';
@@ -39,7 +40,7 @@ interface DsrStockStatusRpc {
 /** The organisation's setting; a read that fails counts as off, so a screen never shows the feature by accident. */
 export async function getDsrStockSettings(): Promise<DsrStockSettings> {
   try {
-    const { data, error } = await supabase.from('organizations').select('dsr_stock_issue, dsr_stock_issue_items').limit(1).maybeSingle();
+    const { data, error } = await readOrgColumnsStrict(['dsr_stock_issue', 'dsr_stock_issue_items']);
     if (error || !data) return OFF;
     return { enabled: data.dsr_stock_issue === true, items: data.dsr_stock_issue_items === 'consumables' ? 'consumables' : 'all' };
   } catch {
