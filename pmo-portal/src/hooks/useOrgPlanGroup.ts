@@ -1,8 +1,9 @@
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { repositories } from '@/src/lib/repositories';
 import { useAuth } from '@/src/auth/useAuth';
-import { trackOrgGroupPlan } from '@/src/lib/analytics';
+import { trackOrgGroupPlan, getAnalyticsConfig } from '@/src/lib/analytics';
+import { getConsentState } from '@/src/lib/analytics/client';
 import { SERVER_SESSION_QUERY_OPTIONS } from '@/src/lib/queryPolicies';
 import { orgPlanGroupQueryKey } from '@/src/hooks/useOrgFeatures';
 import type { OrgPlan } from '@/src/lib/db/orgPlan';
@@ -29,13 +30,16 @@ export { ORG_GROUP_TYPE } from '@/src/lib/analytics';
 export function useOrgPlanGroup(): void {
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id ?? null;
+  // The plan read only feeds the consent-gated group call, so it is skipped when analytics is
+  // disabled, Do Not Track is set, or this browser opted out.
+  const analyticsLive = useMemo(() => getConsentState(getAnalyticsConfig()) === 'active', []);
   const query = useQuery<OrgPlan | null>({
     // Own key: this reader returns an `OrgPlan` OBJECT, while the Operator console's
     // `useOrgPlan` returns the assigned plan id STRING. Sharing a key made each reader install a
     // value the other could not read.
     queryKey: orgPlanGroupQueryKey(orgId),
     queryFn: () => repositories.orgFeature.currentPlan(),
-    enabled: Boolean(orgId),
+    enabled: Boolean(orgId) && analyticsLive,
     // Bounded freshness: a plan assigned from the Operator console in another session reaches this
     // tab within minutes; `invalidateFeatureState` still refreshes it immediately in the writer's own.
     ...SERVER_SESSION_QUERY_OPTIONS,
