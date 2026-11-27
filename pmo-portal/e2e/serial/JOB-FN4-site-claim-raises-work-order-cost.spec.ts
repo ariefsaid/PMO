@@ -59,6 +59,7 @@ test('JOB-FN4 an approved one-million site claim raises its work order and disci
     await page.getByRole('button', { name: 'Save draft' }).click();
     await expect(page).toHaveURL(/\/expenses\/[0-9a-f-]{36}$/, { timeout: 20_000 });
     const claimUrl = page.url();
+    const claimId = new URL(claimUrl).pathname.split('/').pop()!;
     await page.getByRole('button', { name: 'Submit for approval' }).click();
     await expect(page.getByTestId('expense-status')).toHaveAttribute('data-status', 'Submitted', { timeout: 20_000 });
 
@@ -74,7 +75,13 @@ test('JOB-FN4 an approved one-million site claim raises its work order and disci
     await openWorkOrderArea(page, 'cost');
     const group = page.getByTestId('cost-group-expense_claim');
     await expect(group).toBeVisible({ timeout: 20_000 });
-    await expect(page.getByTestId('cost-total-expense_claim')).toContainText(/1[.,]000[.,]000/);
+    const claim = need('approved claim amount', await svc.from('expense_claims').select('amount, work_order_id, status').eq('id', claimId).single());
+    expect(claim.work_order_id).toBe(workOrderId);
+    expect(claim.status).toBe('Approved');
+    expect(Number(claim.amount)).toBe(1_000_000);
+    const screenTotal = page.getByTestId('cost-total-expense_claim');
+    await expect(screenTotal).toContainText(/1[.,]000[.,]000/);
+    expect(Number((await screenTotal.innerText()).replace(/[^\d]/g, ''))).toBe(Number(claim.amount));
     const discipline = page.getByTestId(`cost-discipline-expense_claim-${disciplineId}`);
     await expect(discipline).toBeVisible();
     await expect(discipline).toContainText(/1[.,]000[.,]000/);

@@ -3,6 +3,8 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+vi.mock('@/src/lib/procurement/mainAction', { spy: true });
+
 const h = vi.hoisted(() => ({
   navigate: vi.fn(),
   data: [
@@ -35,4 +37,18 @@ describe('JOB-PU23 New vendor bill from the payables list', () => {
     expect(h.navigate).toHaveBeenCalledWith('/procurement/p-ordered/timeline?record=invoice', expect.anything());
     expect(onClose).toHaveBeenCalled();
   });
+});
+
+it('uses the shared procurement billing rule to filter the picker', async () => {
+  const user = userEvent.setup();
+  const eligibility = await import('@/src/lib/procurement/mainAction');
+  const canRecordBill = vi.spyOn(eligibility, 'canRecordBillAtStatus').mockImplementation((status) => status === 'Draft');
+  try {
+    render(<MemoryRouter><NewVendorBillDialog onClose={vi.fn()} /></MemoryRouter>);
+    await user.click(await screen.findByRole('combobox', { name: /Purchase/ }));
+    expect(await screen.findByRole('option', { name: /PR-002/ })).toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: /PR-001/ })).toBeNull();
+  } finally {
+    canRecordBill.mockRestore();
+  }
 });

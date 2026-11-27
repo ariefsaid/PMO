@@ -75,4 +75,13 @@ describe('work order money reads', () => {
     const result = await listWorkOrderCostMoney([line('expense_claim', 'claim1')]);
     expect(result.expense_claim).toEqual({ claim1: { amount: 1000000, currency: 'IDR' } });
   });
+  it('#2891 carries each project-priced cost kind into the work order list', async () => {
+    const sources = ['equipment_usage', 'stock_document', 'timesheet_entry', 'attendance_day', 'expense_claim'] as const;
+    const amounts = [100, 200, 300, 400, 1000000];
+    fetchRpc.mockResolvedValue({ data: sources.map((source, i) => ({ source, record_id: source, amount: String(amounts[i]), currency: 'IDR' })), error: null });
+    const result = await listWorkOrderCostMoney(sources.map((source) => line(source, source)));
+    expect(sources.map((source) => result[source]?.[source]?.amount)).toEqual(amounts);
+    expect(sources.reduce((total, source) => total + (result[source]?.[source]?.amount ?? 0), 0)).toBe(1001000);
+  });
+
 });

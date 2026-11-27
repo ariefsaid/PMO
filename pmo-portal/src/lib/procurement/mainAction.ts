@@ -19,6 +19,15 @@ export const canSource = (role: string) => can('create', 'quotation', { realRole
 export const RECEIPT_ROLES = new Set(['Project Manager', 'Admin']); // requester also allowed — handled below
 export const INVOICE_PAY_ROLES = new Set(['Finance', 'Admin']);
 
+/** Purchase stages offered by the supplier-bill picker. The capture RPC validates the write. */
+const BILLABLE_STATUSES: ReadonlySet<string> = new Set([
+  'Approved', 'Quote Selected', 'Ordered', 'Received', 'Vendor Invoiced',
+]);
+
+export function canRecordBillAtStatus(status: string): boolean {
+  return BILLABLE_STATUSES.has(status);
+}
+
 export type ActionVariant = 'primary' | 'success' | 'destructive' | 'outline';
 export interface ProcurementAction { to: ProcurementStatus; label: string; variant: ActionVariant }
 
@@ -115,7 +124,8 @@ export function allowedActions(
   }
 
   // FR-PFE-005 payment-first: a recorded (scheduled) payment can be paid from an earlier step. Same role and SoD rule as above.
-  if (hasPaymentRecord && ['Draft', 'Approved', 'Quote Selected', 'Ordered', 'Received'].includes(status)
+  const canPayBeforeInvoice = status === 'Draft' || (status !== 'Vendor Invoiced' && canRecordBillAtStatus(status));
+  if (hasPaymentRecord && canPayBeforeInvoice
       && INVOICE_PAY_ROLES.has(role) && !isApprover && hasValue) {
     actions.push({ to: 'Paid', label: t('procurementDetail.action.markAsPaid', 'Mark as Paid'), variant: 'primary' });
   }

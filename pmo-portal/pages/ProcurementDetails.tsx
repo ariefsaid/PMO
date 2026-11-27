@@ -97,6 +97,7 @@ import { stageForStatus } from '@/src/lib/procurement/stage';
 import {
   allowedActions,
   canApproveReject,
+  canRecordBillAtStatus,
   canSource,
   INVOICE_PAY_ROLES,
   RECEIPT_ROLES,
@@ -496,6 +497,7 @@ const ProcurementDetails: React.FC = () => {
   }));
   // Line items: requester OR PM/Finance/Admin while Draft (matches the 0015 RLS).
   const ownershipReady = ownership.mode === 'pmo' || ownership.mode === 'external';
+  const canEditLineAttribution = !readOnlyDecision && (isRequester || may('edit', 'procItem'));
   const canEditItems = !readOnlyDecision && (ownershipReady && isDraft && (isRequester || may('edit', 'procItem')));
   const casePushInFlight = ownership.mode === 'external' && (
     mutations.pendingPush?.status === 'pushing' || recordMutations.pendingPush?.status === 'pushing'
@@ -562,7 +564,7 @@ const ProcurementDetails: React.FC = () => {
   ) : null;
   // C3: the one line saying why "Mark as Paid" is absent — only to someone who would otherwise be offered it.
   const paidNeedsValue = !hasValue && INVOICE_PAY_ROLES.has(role) && !isApprover
-    && ['Draft', 'Approved', 'Quote Selected', 'Ordered', 'Received', 'Vendor Invoiced'].includes(p.status)
+    && (p.status === 'Draft' || canRecordBillAtStatus(p.status))
     && ((p.payments?.length ?? 0) > 0 || p.status === 'Vendor Invoiced');
   const gateMsg = sodGateMessage(p, role, isRequester, t)
     ?? (paidNeedsValue ? t('procurement:detail.paidNeedsValue', 'Add a line item or a document with an amount before marking this paid.') : null);
@@ -914,8 +916,9 @@ const ProcurementDetails: React.FC = () => {
           {/* One table for when and for what each line is needed (category, needed-by, work order), under the money table. */}
           <LinePlanPanel procurementId={p.id} items={p.items} projectId={p.project_id} requestWorkOrderId={p.work_order_id}
             planningEditable={canEditItems && canEditItemValues}
-            neededByEditable={!readOnlyDecision && ['Draft', 'Requested', 'Approved', 'Vendor Quoted', 'Quote Selected'].includes(p.status) && (isRequester || realRole === 'Admin' || realRole === 'Executive' || realRole === 'Finance' || realRole === 'Project Manager')}
-            workOrdersEditable={!readOnlyDecision && (isRequester || realRole === 'Admin' || realRole === 'Executive' || realRole === 'Finance' || realRole === 'Project Manager')} /></RecordStack>}
+            neededByEditable={canEditLineAttribution && ['Draft', 'Requested', 'Approved', 'Vendor Quoted', 'Quote Selected'].includes(p.status)}
+            workOrdersEditable={canEditLineAttribution} /></RecordStack>}
+
         {/* ░░ Documents tab — Slice 2: ProcurementLedger (the single case ledger).
             All 7 record types, chronological, one row each. Filter chips: All /
             Financial / Has file. Capture affordance at bottom (LedgerCaptureRow).
