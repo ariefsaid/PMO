@@ -5,7 +5,7 @@
 -- (`-- mut:material_reconciliation_closed`) and the closed-order acceptance assertions go red.
 begin;
 create extension if not exists pgtap;
-select plan(10);
+select plan(11);
 
 insert into organizations (id, name, default_currency, default_timezone) values
   ('30120000-0000-0000-0000-00000000010a', 'OMC Org', 'IDR', 'Asia/Jakarta');
@@ -15,11 +15,12 @@ insert into profiles (id, org_id, full_name, email, role, status) values
   ('30120000-0000-0000-0000-0000000001a1', '30120000-0000-0000-0000-00000000010a', 'OMC Admin', 'omc-admin@example.com', 'Admin', 'active');
 insert into projects (id, org_id, name, status, currency, contract_value, tax_treatment, tax_amount) values
   ('30120000-0000-0000-0000-0000000001c1', '30120000-0000-0000-0000-00000000010a', 'OMC Site', 'Ongoing Project', 'IDR', 100000, 'exclusive', 0);
--- 401 stays Issued (the unchanged baseline), 402 is Closed (reconciliation still records), 403 is Cancelled (frozen).
+-- All three start Issued: sections are created on an open order, then 402 is Closed (reconciliation
+-- still records) and 403 is Cancelled (frozen), as the fixture writer.
 insert into work_orders (id, org_id, project_id, title, status, order_value, tax_treatment, tax_amount, client_po_number) values
-  ('30120000-0000-0000-0000-000000001401', '30120000-0000-0000-0000-00000000010a', '30120000-0000-0000-0000-0000000001c1', 'OMC issued',    'Issued',    10000, 'exclusive', 0, null),
-  ('30120000-0000-0000-0000-000000001402', '30120000-0000-0000-0000-00000000010a', '30120000-0000-0000-0000-0000000001c1', 'OMC closed',    'Closed',    10000, 'exclusive', 0, 'OM-2793'),
-  ('30120000-0000-0000-0000-000000001403', '30120000-0000-0000-0000-00000000010a', '30120000-0000-0000-0000-0000000001c1', 'OMC cancelled', 'Cancelled', 10000, 'exclusive', 0, null);
+  ('30120000-0000-0000-0000-000000001401', '30120000-0000-0000-0000-00000000010a', '30120000-0000-0000-0000-0000000001c1', 'OMC issued',    'Issued', 10000, 'exclusive', 0, null),
+  ('30120000-0000-0000-0000-000000001402', '30120000-0000-0000-0000-00000000010a', '30120000-0000-0000-0000-0000000001c1', 'OMC closed',    'Issued', 10000, 'exclusive', 0, 'OM-2793'),
+  ('30120000-0000-0000-0000-000000001403', '30120000-0000-0000-0000-00000000010a', '30120000-0000-0000-0000-0000000001c1', 'OMC cancelled', 'Issued', 10000, 'exclusive', 0, null);
 insert into stock_units (id, org_id, code, name) values
   ('30120000-0000-0000-0000-000000001301', '30120000-0000-0000-0000-00000000010a', 'M', 'Metre');
 insert into stock_items (id, org_id, code, name, unit_id) values
@@ -29,6 +30,8 @@ insert into work_order_sections (id, org_id, project_id, work_order_id, code, na
   ('30120000-0000-0000-0000-000000002001', '30120000-0000-0000-0000-00000000010a', '30120000-0000-0000-0000-0000000001c1', '30120000-0000-0000-0000-000000001401', 'N', 'North'),
   ('30120000-0000-0000-0000-000000002002', '30120000-0000-0000-0000-00000000010a', '30120000-0000-0000-0000-0000000001c1', '30120000-0000-0000-0000-000000001402', 'S', 'South'),
   ('30120000-0000-0000-0000-000000002003', '30120000-0000-0000-0000-00000000010a', '30120000-0000-0000-0000-0000000001c1', '30120000-0000-0000-0000-000000001403', 'X', 'Cancelled');
+update work_orders set status='Closed' where id='30120000-0000-0000-0000-000000001402';
+update work_orders set status='Cancelled' where id='30120000-0000-0000-0000-000000001403';
 
 create function pg_temp.act_as(p_uid uuid) returns void language sql as $$
   select set_config('request.jwt.claims', json_build_object('sub', p_uid, 'role', 'authenticated')::text, true);
@@ -76,11 +79,19 @@ select throws_ok($$select om_material_set_reconciliation('30120000-0000-0000-000
   (select id from owner_material_reconciliation_steps where org_id='30120000-0000-0000-0000-00000000010a' and archived_at is null and position=2))$$,
   'P0001', 'Section is frozen', 'AC-WOR-002 a cancelled work order takes no reconciliation');
 
--- 5. Every other material write stays refused while Closed.
-select throws_ok($$insert into work_order_section_material_plan(org_id, work_order_id, section_id, item_id, quantity)
-  values ('30120000-0000-0000-0000-00000000010a', '30120000-0000-0000-0000-000000001402',
-          '30120000-0000-0000-0000-000000002002', '30120000-0000-0000-0000-000000001311', 1)$$,
-  '23514', null, 'AC-WOR-002 a closed work order takes no material allocation');
+-- 5. Every other material write stays refused while Closed. The client-reachable ones: the section
+--    material plan (1173 grants authenticated insert; the org stamp trigger supplies org_id), the
+--    material-request path (the refusal the issue itself cites), and the owner-material import.
+select throws_ok($$insert into work_order_section_material_plan(work_order_id, section_id, item_id, quantity)
+  values ('30120000-0000-0000-0000-000000001402', '30120000-0000-0000-0000-000000002002',
+          '30120000-0000-0000-0000-000000001311', 1)$$,
+  '23514', 'WOS_STATUS: a closed work order takes no allocation changes',
+  'AC-WOR-002 a closed work order takes no material allocation');
+select throws_ok($$select mrq_save_draft(null,
+  jsonb_build_object('work_order_id','30120000-0000-0000-0000-000000001402','needed_by','2026-12-01'),
+  jsonb_build_array(jsonb_build_object('item_id','30120000-0000-0000-0000-000000001311','quantity','1')))$$,
+  'P0001', 'MRQ_WORK_ORDER: the work order is closed or cancelled',
+  'AC-WOR-002 a closed work order takes no new material request');
 
 insert into results values('closed-import', om_material_import('omc-closed', 2, pg_temp.closed_payload(), true));
 select is((select v->'results'->0->>'reason_code' from results where k='closed-import'),
