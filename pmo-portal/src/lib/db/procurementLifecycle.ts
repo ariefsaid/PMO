@@ -211,10 +211,13 @@ export async function getProcurementDetail(id: string): Promise<ProcurementDetai
     .eq('id', id)
     .single();
   if (error) throwRpc(error);
-  const [withRoute] = await attachApprovalRoutes([data as unknown as ProcurementDetail]);
-  const detail = await attachPaymentCeiling(withRoute);
-  detail.planPurchaseContext = await getPlanPurchaseSubmitContext(id);
-  return detail;
+  const base = data as unknown as ProcurementDetail;
+  const [[withRoute], withCeiling, planPurchaseContext] = await Promise.all([
+    attachApprovalRoutes([base]),
+    attachPaymentCeiling(base),
+    getPlanPurchaseSubmitContext(id),
+  ]);
+  return { ...withRoute, ...withCeiling, planPurchaseContext };
 }
 
 // ---------------------------------------------------------------------------

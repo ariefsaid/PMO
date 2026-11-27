@@ -5,13 +5,16 @@ import { MemoryRouter } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
 
 const h = vi.hoisted(() => ({
+  headers: vi.fn(),
+  detail: vi.fn(),
   waiting: [{ requestId: 'r2', stepPosition: 2, role: 'Finance', label: 'Billable change', actingFor: null, submittedAt: '2026-11-19T08:00:00Z' }] as unknown[],
 }));
 const row = (id: string, number: string) => ({ id, number, workOrderId: 'w', projectId: 'p', toWarehouseId: null, neededBy: '2026-11-25', note: null, status: 'pending', round: 1,
   createdBy: 'u', createdAt: '2026-11-19T07:00:00Z', submittedAt: '2026-11-19T07:30:00Z', transferDocumentId: null, transferCancelled: false });
 
 vi.mock('@/src/hooks/useMaterialRequests', () => ({
-  useMaterialRequest: (id?: string) => ({ data: id === 'r99' ? row('r99', 'MRQ-0099') : undefined }),
+  useMaterialRequest: (id?: string) => { h.detail(id); return ({ data: id === 'r99' ? row('r99', 'MRQ-0099') : undefined }); },
+  useMaterialRequestHeaders: (ids: string[]) => { h.headers(ids); return { data: ids.map(id => ({ ...row(id, id === 'r99' ? 'MRQ-0099' : 'MRQ-0002'), workOrder: { wo_number: 'WO-0042', title: 'Slab pour' } })) }; },
   useWaitingForMe: () => ({ data: h.waiting, isPending: false, isError: false, refetch: vi.fn() }),
   useMaterialRequests: () => ({ data: { rows: [row('r1', 'MRQ-0001'), row('r2', 'MRQ-0002')], nextCursor: null }, isPending: false, isError: false, refetch: vi.fn() }),
 }));
@@ -24,6 +27,14 @@ import MaterialRequestsPage from './MaterialRequests';
 const renderPage = (url = '/material-requests') => render(<MemoryRouter initialEntries={[url]}><ToastProvider><MaterialRequestsPage /></ToastProvider></MemoryRouter>);
 
 describe('material requests list', () => {
+  it('batches 60 waiting headers without request detail reads', () => {
+    h.headers.mockClear(); h.detail.mockClear();
+    h.waiting = Array.from({ length: 60 }, (_, n) => ({ requestId: `r${n}`, stepPosition: 1, label: `Step ${n}` }));
+    renderPage();
+    expect(h.headers).toHaveBeenCalledWith(Array.from({ length: 60 }, (_, n) => `r${n}`));
+    expect(h.detail).not.toHaveBeenCalled();
+    h.waiting = [{ requestId: 'r2', stepPosition: 2, label: 'Billable change' }];
+  });
   it('AC-MRQ-013 "Waiting for me" lists only the caller\'s open steps', () => {
     renderPage();
     const table = screen.getByRole('table');

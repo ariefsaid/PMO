@@ -3,18 +3,11 @@ import { Link, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { Button, Card, DataTable, Icon, ListPage, ListState, SelectField, useUrlFilters, type Column } from '@/src/components/ui';
 import { CanWrite } from '@/src/auth/usePermission';
-import { useMaterialRequest, useMaterialRequests, useWaitingForMe } from '@/src/hooks/useMaterialRequests';
+import { useMaterialRequestHeaders, useMaterialRequests, useWaitingForMe } from '@/src/hooks/useMaterialRequests';
 import type { MaterialRequestRow, MaterialRequestStatus, WaitingStep } from '@/src/lib/repositories/materialRequests';
 import { formatDay } from '@/src/lib/format';
 import { RequestStatusPill, RequestWorkOrder } from './materialRequests/shared';
 import { useLabels } from './materialRequests/useMaterialRequestText';
-
-/** A waiting step's request: from the loaded list page when present, else fetched (the queue is oldest-first, the list newest-first and bounded). */
-const WaitingRequest: React.FC<{ id: string; known?: MaterialRequestRow; render: (r: MaterialRequestRow) => React.ReactNode }> = ({ id, known, render }) => {
-  const fetched = useMaterialRequest(known ? undefined : id).data;
-  const r = known ?? fetched;
-  return <>{r ? render(r) : '…'}</>;
-};
 
 const STATUSES: MaterialRequestStatus[] = ['draft', 'pending', 'approved', 'fulfilled', 'rejected', 'cancelled'];
 
@@ -27,21 +20,28 @@ const MaterialRequestsPage: React.FC = () => {
   const view = values.view === 'all' ? 'all' : 'waiting';
   const status = STATUSES.find((s) => s === values.status);
   const waiting = useWaitingForMe();
-  const list = useMaterialRequests({ statuses: status ? [status] : undefined });
+  const list = useMaterialRequests({ statuses: status ? [status] : undefined }, view === 'all');
   const waitingIds = useMemo(() => new Set((waiting.data ?? []).map((w) => w.requestId)), [waiting.data]);
   const setView = useCallback((v: 'waiting' | 'all') => setFilters({ view: v === 'all' ? 'all' : '', status: '' }), [setFilters]);
-  const queue = useMaterialRequests({});
-  const requestOf = (id: string): MaterialRequestRow | undefined => queue.data?.rows.find((r) => r.id === id);
+  const headers = useMaterialRequestHeaders([...waitingIds]);
+  const headerById = new Map((headers.data ?? []).map(r => [r.id, r]));
+  const requestOf = (id: string) => headerById.get(id);
 
   const waitingColumns: Column<WaitingStep>[] = [
     { key: 'number', header: t('list.columns.number', 'Request'), rowHeader: true,
-      cell: (w) => <WaitingRequest id={w.requestId} known={requestOf(w.requestId)} render={(r) => <span className="font-semibold">{r.number}</span>} /> },
+      cell: (w) => <span className="font-semibold">{requestOf(w.requestId)?.number ?? '…'}</span> },
     { key: 'step', header: t('list.columns.step', 'Your step'), cell: (w) => <>
       {t('list.stepOf', 'Step {{n}}: {{label}}', { n: w.stepPosition, label: w.label })}
       {w.actingFor && <span className="ml-2 text-muted-foreground">{t('list.standingIn', 'standing in')}</span>}</> },
     { key: 'workOrder', header: t('list.columns.workOrder', 'Work order'),
-      cell: (w) => <WaitingRequest id={w.requestId} known={requestOf(w.requestId)} render={(r) => <RequestWorkOrder workOrderId={r.workOrderId} projectId={r.projectId} />} /> },
-    { key: 'needed', header: t('list.columns.neededBy', 'Needed by'), cell: (w) => <WaitingRequest id={w.requestId} known={requestOf(w.requestId)} render={(r) => formatDay(r.neededBy)} /> },
+      cell: (w) => {
+        const r = requestOf(w.requestId);
+        return r ? <RequestWorkOrder workOrderId={r.workOrderId} projectId={r.projectId} workOrder={r.workOrder} /> : '…';
+      } },
+    { key: 'needed', header: t('list.columns.neededBy', 'Needed by'), cell: (w) => {
+      const r = requestOf(w.requestId);
+      return r ? formatDay(r.neededBy) : '…';
+    } },
     { key: 'sent', header: t('list.columns.submitted', 'Sent'), cell: (w) => formatDay(w.submittedAt) },
   ];
   const columns: Column<MaterialRequestRow>[] = [
