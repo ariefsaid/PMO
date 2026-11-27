@@ -27,6 +27,8 @@ const NewCrewModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const vendors = useVendorOptions();
   const disciplines = useCostDisciplines();
   const [roles, setRoles] = useState<RoleDraft[]>([{ name: '', headcount: '1' }]);
+  const [rolesTried, setRolesTried] = useState(false);
+  const invalidHeadcount = (r: RoleDraft) => Boolean(r.name.trim()) && (!Number.isInteger(Number(r.headcount)) || Number(r.headcount) <= 0);
   const [submitError, setSubmitError] = useState<SubmitError | null>(null);
   const form = useEntityForm({
     initialValues: { code: '', name: '', kind: 'own', controller: '', vendor: '', discipline: '' },
@@ -39,6 +41,8 @@ const NewCrewModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const loadVendors = useCallback(async () => vendors.data ?? [], [vendors.data]);
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
+    setRolesTried(true);
+    if (roles.some(invalidHeadcount)) return;
     setSubmitError(null);
     void form.handleSubmit(async (v) => {
       const cleanRoles = roles
@@ -87,6 +91,7 @@ const NewCrewModal: React.FC<{ onClose: () => void }> = ({ onClose }) => {
             <TextField label={t('crews:roleName', 'Crew role')} hideLabel={i > 0} value={r.name}
               onChange={(v) => setRoles((rs) => rs.map((x, j) => (j === i ? { ...x, name: v } : x)))} />
             <TextField label={t('crews:headcount', 'Headcount')} hideLabel={i > 0} value={r.headcount} inputMode="numeric"
+              error={rolesTried && invalidHeadcount(r) ? t('crews:headcountInvalid', 'Enter a whole headcount above zero.') : undefined}
               onChange={(v) => setRoles((rs) => rs.map((x, j) => (j === i ? { ...x, headcount: v } : x)))} />
           </div>
         ))}
