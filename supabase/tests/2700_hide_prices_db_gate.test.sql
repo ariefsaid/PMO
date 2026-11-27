@@ -13,7 +13,7 @@
 --   drop the price test from the order-roles guard (2701) ...................... AC-HPG-040
 --   drop the order-roles test from set_hide_prices_enabled (2701) .............. AC-HPG-039
 begin;
-select plan(41);
+select plan(45);
 
 insert into organizations (id, name, built_in_roles_enabled) values
   ('27000000-0000-0000-0000-000000000001', 'HPG Org A', true),
@@ -331,5 +331,13 @@ select throws_ok($$ select po_set_order_job_roles('{storekeeper}') $$, '23514', 
   'AC-HPG-040 while prices are hidden, a role without the price right is not named to order');
 reset role;
 
+update profiles set built_in_role = 'site_supervisor' where id = '27000000-0000-0000-0000-0000000000e1';
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"27000000-0000-0000-0000-0000000000e1","role":"authenticated"}';
+select lives_ok($$select needed_by from procurements_masked where id = '27000000-0000-0000-0000-000000000102'$$, 'AC-HPG-042 requester reads own needed-by date');
+select lives_ok($$insert into purchase_request_files (purchase_request_id, title, uploaded_by_id) values ('27000000-0000-0000-0000-000000000131', 'Request evidence', '27000000-0000-0000-0000-0000000000e1')$$, 'AC-HPG-043 requester attaches own request evidence');
+select is((select count(*) from procurements_masked where org_id = '27000000-0000-0000-0000-000000000002'), 0::bigint, 'AC-HPG-044 requester sees no other organisation requests');
+select throws_ok($$insert into purchase_request_files (purchase_request_id, title, uploaded_by_id) values ('27000000-0000-0000-0000-000000000134', 'Request evidence', '27000000-0000-0000-0000-0000000000e1')$$, '42501', null, 'AC-HPG-045 requester cannot attach to another organisation');
+reset role;
 select * from finish();
 rollback;

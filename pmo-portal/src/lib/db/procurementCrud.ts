@@ -143,7 +143,7 @@ export async function createProcurementWithItems(input: AtomicProcurementInput):
       ...(input.header.disciplineId ? { discipline_id: input.header.disciplineId } : {}),
     },
     p_items: input.lines.map((line) => ({
-      id: line.id, name: line.name, quantity: line.quantity, rate: line.rate,
+      id: line.id, name: line.name, quantity: line.quantity, rate: line.rate ?? 0,
       description: line.description ?? null,
       ...(line.stockItemId ? { stock_item_id: line.stockItemId } : {}),
     })),

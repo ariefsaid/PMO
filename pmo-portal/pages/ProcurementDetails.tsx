@@ -899,7 +899,7 @@ const ProcurementDetails: React.FC = () => {
         className="pt-4 md:pt-6"
       >
         {tab === 'timeline' && <RecordStack>
-          <TimelineWithOrders focusedRecordId={location.hash.startsWith("#cost-") ? location.hash.slice(6) : undefined} procurement={p} ledgerRows={ledgerRows} linkedDocuments={linkedDocs} isEngineer={isEngineer} canWriteFiles={canManageFiles} uploadedById={currentUserId} onFullHistory={() => setHistoryOpen((open) => !open)} />
+          <TimelineWithOrders focusedRecordId={location.hash.startsWith("#cost-") ? location.hash.slice(6) : undefined} procurement={p} ledgerRows={ledgerRows} linkedDocuments={linkedDocs} isEngineer={isEngineer} canWriteFiles={canManageFiles} canWriteRequestFiles={!readOnlyDecision && isRequester} uploadedById={currentUserId} onFullHistory={() => setHistoryOpen((open) => !open)} />
           {primaryPo && (
             <RecordSection data-testid="procurement-po-print" title={t('procurement:purchaseOrderPrint.section', 'Purchase order')}>
               {poPrintEnabled
@@ -960,7 +960,7 @@ const ProcurementDetails: React.FC = () => {
               vendorId={p.vendor_id}
               itemsNet={itemsNetTotal(p.items)}
               gates={gates}
-            /> : <TimelineWithOrders focusedRecordId={location.hash.startsWith("#cost-") ? location.hash.slice(6) : undefined} procurement={p} ledgerRows={ledgerRows} linkedDocuments={linkedDocs} isEngineer canWriteFiles={canManageFiles} uploadedById={currentUserId} onFullHistory={() => { setHistoryOpen(true); setTab('timeline'); }} />}
+            /> : <TimelineWithOrders focusedRecordId={location.hash.startsWith("#cost-") ? location.hash.slice(6) : undefined} procurement={p} ledgerRows={ledgerRows} linkedDocuments={linkedDocs} isEngineer canWriteFiles={canManageFiles} canWriteRequestFiles={!readOnlyDecision && isRequester} uploadedById={currentUserId} onFullHistory={() => { setHistoryOpen(true); setTab('timeline'); }} />}
             {vendorPickerOpen && canSetVendor && (
               <div role="dialog" aria-label={t('bupot.setVendor', 'Set supplier')} className="panel-card flex flex-wrap items-end gap-3 p-[var(--panel-inset)]">
                 <Combobox

@@ -4,7 +4,7 @@ import { hidePricesRepository } from '@/src/lib/repositories/hidePrices';
 import { useAuth } from '@/src/auth/useAuth';
 import { arePricesHidden, isHidePricesActive, setHidePricesActive, setPricesHidden, subscribeHidePrices } from '@/src/lib/priceReadPath';
 
-/** #2699: the organisation setting. Off until an Admin turns it on; unreadable reads as off. */
+/** #2699: the organisation setting; only a confirmed off answer selects ordinary reads. */
 export const HIDE_PRICES_ENABLED_KEY = 'org-hide-prices-enabled';
 export const MAY_SEE_PRICES_KEY = 'may-see-prices';
 
@@ -36,16 +36,16 @@ export function usePriceVisibilitySync(): void {
     staleTime: 5 * 60_000,
     retry: false,
   });
-  const active = enabled.data === true;
+  const active = enabled.data !== false;
   useEffect(() => {
     if (isHidePricesActive() !== active) { setHidePricesActive(active);
       void qc.invalidateQueries({ predicate: (q) => q.queryKey[0] !== HIDE_PRICES_ENABLED_KEY && q.queryKey[0] !== MAY_SEE_PRICES_KEY });
     }
   }, [orgId, active, qc]);
-  useEffect(() => { setPricesHidden(active && may.data === false); }, [active, may.data]);
+  useEffect(() => { setPricesHidden(active && may.data !== true); }, [active, may.data]);
 }
 
-/** Should price columns, fields and totals be drawn? True while the setting is off or still unknown; false only when the server says no.
+/** Should price columns, fields and totals be drawn? The server confirms either the setting is off or the caller may see prices.
  *  Reads a store set by `usePriceVisibilitySync`, so it needs no provider (screens and their tests render without one). */
 export function useMaySeePrices(): boolean {
   return !useSyncExternalStore(subscribeHidePrices, arePricesHidden, () => false);

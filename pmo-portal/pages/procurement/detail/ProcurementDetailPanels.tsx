@@ -360,13 +360,14 @@ export interface ProcurementTimelineProps {
   linkedDocuments: readonly ErpPurchaseRow[];
   isEngineer: boolean;
   canWriteFiles: boolean;
+  canWriteRequestFiles?: boolean;
   uploadedById: string | null;
   onFullHistory: () => void;
   focusedRecordId?: string;
   workOrderLinks?: Record<string, { id: string; label: string }>;
 }
 
-export const ProcurementTimeline: React.FC<ProcurementTimelineProps> = ({ procurement, ledgerRows, linkedDocuments, isEngineer, canWriteFiles, uploadedById, onFullHistory, focusedRecordId, workOrderLinks = {} }) => {
+export const ProcurementTimeline: React.FC<ProcurementTimelineProps> = ({ procurement, ledgerRows, linkedDocuments, isEngineer, canWriteFiles, canWriteRequestFiles = false, uploadedById, onFullHistory, focusedRecordId, workOrderLinks = {} }) => {
   const { t } = useTranslation('procurementRecord');
   const maySeePrices = useMaySeePrices(); // #2699
   const [filter, setFilter] = useState<'all' | 'financial' | 'has-file'>('all');
@@ -495,7 +496,7 @@ export const ProcurementTimeline: React.FC<ProcurementTimelineProps> = ({ procur
                       {(() => {
                         const phase = phaseByType[entry.ledger.type];
                         const files = filesBatch.data?.[procurementFileParentKey(phase, entry.ledger.recordId)];
-                        return <ProcurementFilesSubsection phase={phase} parentId={entry.ledger.recordId} procurementId={procurement.id} canWrite={canWriteFiles} uploadedById={uploadedById} files={files ?? []} loading={files === undefined && !filesBatch.isError} failed={files === null || (files === undefined && filesBatch.isError)} />;
+                        return <ProcurementFilesSubsection phase={phase} parentId={entry.ledger.recordId} procurementId={procurement.id} canWrite={canWriteFiles || (phase === 'purchase_request' && canWriteRequestFiles)} canRemove={canWriteFiles} uploadedById={uploadedById} files={files ?? []} loading={files === undefined && !filesBatch.isError} failed={files === null || (files === undefined && filesBatch.isError)} />;
                       })()}
                     </>}
                   </div>

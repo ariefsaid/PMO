@@ -13,6 +13,12 @@ const requestPrice = /12[.,]000/;
 const requestLine = 'Bahan pengikat';
 
 type Locale = 'en' | 'id';
+test.use({ actionTimeout: 20_000 });
+
+async function expectNoPriceFigures(page: Page) {
+  await expect(page.getByRole('main').getByText(/(?:Rp|US\$|\$|IDR|USD)\s*[\d.,]+/)).toHaveCount(0);
+  await expect(page.getByRole('columnheader', { name: /Unit price|Line total/i })).toHaveCount(0);
+}
 
 async function pinLocale(page: Page, getLocale: () => Locale) {
   await page.route('**/rest/v1/profiles?*', async (route) => {
@@ -66,6 +72,7 @@ test('Admin hides purchase and stock prices from a requester while a procurement
   let purchase: Awaited<ReturnType<typeof createProcurementFixture>> | undefined;
   let requesterDraft: Awaited<ReturnType<typeof createProcurementFixture>> | undefined;
   let purchaseRequestId: string | undefined;
+  let authoredRequestId: string | undefined;
   let projectId: string | undefined;
   let item: Awaited<ReturnType<typeof makeItem>> | undefined;
   let warehouse: Awaited<ReturnType<typeof makeWarehouse>> | undefined;
@@ -73,7 +80,6 @@ test('Admin hides purchase and stock prices from a requester while a procurement
   let adminLocale: Locale = 'en';
   let requesterLocale: Locale = 'en';
   let neededByRuleWasOn = false;
-  let neededByVisible = false;
 
   try {
     ok('start with setting off', await admin.rpc('set_hide_prices_enabled', { p_enabled: false }));
@@ -122,16 +128,17 @@ test('Admin hides purchase and stock prices from a requester while a procurement
         const itemDescriptionLabel = locale === 'id' ? 'Deskripsi item baru' : 'New item description';
         const itemDescription = requesterPage.getByLabel(itemDescriptionLabel);
         await expect(itemDescription).toBeVisible();
-        await expect(requesterPage.getByRole('alert').filter({ hasText: /load this order|memuat tanggal kebutuhan/i })).toBeVisible({ timeout: 20_000 });
+        await expect(requesterPage.getByRole('alert').filter({ hasText: /load this order|memuat tanggal kebutuhan/i })).not.toBeVisible({ timeout: 20_000 });
         if (width === 390) await itemDescription.scrollIntoViewIfNeeded();
         if (locale === 'en') {
           const orderDate = requesterPage.getByLabel('Order needed by');
+          const shownDate = requesterPage.getByTestId('order-needed-by-value');
+          await expect(orderDate.or(shownDate)).toBeVisible({ timeout: 20_000 });
           if (await orderDate.count()) {
-            neededByVisible = (await orderDate.inputValue()) === '2026-12-31';
+            const expectedDate = await orderDate.getAttribute('type') === 'date' ? '2026-12-31' : '31 Dec 2026';
+            await expect(orderDate).toHaveValue(expectedDate);
           } else {
-            const shownDate = requesterPage.getByTestId('order-needed-by-value');
-            const dateText = await shownDate.count() ? await shownDate.textContent() : null;
-            neededByVisible = Boolean(dateText?.includes('31') && dateText.includes('2026'));
+            await expect(shownDate).toHaveText('31 Dec 2026');
           }
         }
         await expect(requesterPage.getByLabel(/new item unit price|unit price|harga satuan/i)).toHaveCount(0, { timeout: 10_000 });
@@ -161,23 +168,30 @@ test('Admin hides purchase and stock prices from a requester while a procurement
     // Exercise the requester's own authoring job once after the screenshot matrix is captured.
     requesterLocale = 'en';
     await requesterPage.reload();
-    await requesterPage.goto(`/procurement/${requesterDraft.id}/items`);
+    await requesterPage.goto('/procurement/new');
+    await requesterPage.getByLabel(/title/i).fill(`Request evidence ${suffix}`);
     await requesterPage.getByLabel('New item description').fill('Sarung tangan kerja');
     await requesterPage.getByLabel('New item quantity').fill('2');
     await requesterPage.getByRole('button', { name: /add line item/i }).click();
-    let lineSaveError = '';
-    try {
-      await expect(requesterPage.getByText('Sarung tangan kerja', { exact: true })).toBeVisible({ timeout: 8_000 });
-    } catch {
-      lineSaveError = await requesterPage.getByRole('alert').allInnerTexts().then((texts) => texts.join(' ')).catch(() => 'line did not appear after save');
-    }
-    await requesterPage.goto(`/procurement/${requesterDraft.id}/timeline`);
-    const attachInput = requesterPage.getByLabel('Attach a file to this record');
-    const attachInputCount = await attachInput.count();
-    if (attachInputCount) {
-      await attachInput.setInputFiles({ name: 'requester-proof.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4 requester proof') });
-      await expect(requesterPage.getByText('requester-proof.pdf', { exact: true })).toBeVisible({ timeout: 20_000 });
-    }
+    await expect(requesterPage.getByLabel(/new item unit price/i)).toHaveCount(0);
+    await expectNoPriceFigures(requesterPage);
+    await requesterPage.getByRole('button', { name: 'Save draft', exact: true }).click();
+    await expect(requesterPage).toHaveURL(/\/procurement\/[0-9a-f-]{36}/);
+    authoredRequestId = requesterPage.url().match(/\/procurement\/([0-9a-f-]{36})/)?.[1];
+    if (!authoredRequestId) throw new Error('The request was not created');
+    await requesterPage.getByRole('tab', { name: /^Line items/ }).click();
+    await expect(requesterPage.getByText('Sarung tangan kerja', { exact: true })).toBeVisible({ timeout: 20_000 });
+    await expectNoPriceFigures(requesterPage);
+    await requesterPage.getByRole('button', { name: 'Submit for approval', exact: true }).click();
+    await expect(requesterPage.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Requested');
+    await requesterPage.goto(`/procurement/${authoredRequestId}/timeline`);
+    const attachInput = requesterPage.getByLabel('Attach a file', { exact: true });
+    await requesterPage.getByTestId('procurement-timeline-row').filter({ has: attachInput }).locator('summary').click();
+    await attachInput.setInputFiles({ name: 'requester-proof.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4 requester proof') });
+    await expect(requesterPage.getByTestId('procurement-timeline').getByText('requester-proof.pdf', { exact: true })).toBeVisible({ timeout: 20_000 });
+    await expectNoPriceFigures(requesterPage);
+    await expect(requesterPage.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Requested');
+    await expectNoPriceFigures(requesterPage);
     for (const locale of ['en', 'id'] as const) {
       adminLocale = locale;
       await adminPage.reload();
@@ -186,10 +200,14 @@ test('Admin hides purchase and stock prices from a requester while a procurement
       await expect(card.getByRole('button')).toHaveCount(1);
       for (const width of [1440, 1024, 390]) {
         await adminPage.setViewportSize({ width, height: width === 390 ? 844 : 1000 });
-        await card.scrollIntoViewIfNeeded();
+        await card.evaluate((element) => element.scrollIntoView({ block: 'center' }));
         await capture(adminPage, 'administration-settings', locale);
       }
     }
+    await signIn(purchaserPage, 'finance@acme.test');
+    await purchaserPage.goto(`/procurement/${authoredRequestId}`);
+    await expect(purchaserPage.getByRole('heading', { name: new RegExp(`Request evidence ${suffix}`) }).first()).toBeVisible({ timeout: 20_000 });
+    await expect(purchaserPage.getByText('Requested', { exact: true })).toBeVisible();
     await purchaser.signIn(purchaserPage);
     await purchaserPage.goto(`/procurement/${purchase.id}/items`);
     await expect(purchaserPage.getByText(requestPrice).first()).toBeVisible({ timeout: 20_000 });
@@ -197,7 +215,6 @@ test('Admin hides purchase and stock prices from a requester while a procurement
     await expect(purchaserPage.getByText(stockPrice).first()).toBeVisible({ timeout: 20_000 });
     await purchaserPage.goto(receiptUrl);
     await expect(purchaserPage.getByText(stockPrice).first()).toBeVisible({ timeout: 20_000 });
-    expect({ neededByVisible, lineSaveError, attachInputCount }, 'the requester must see their needed-by date, save an item, and attach a file to their own request').toEqual({ neededByVisible: true, lineSaveError: '', attachInputCount: 1 });
   } finally {
     ok('turn price hiding off for restoration', await admin.rpc('set_hide_prices_enabled', { p_enabled: false }));
     ok('restore built-in roles setting', await admin.rpc('set_built_in_roles_enabled', { p_enabled: previousRolesSwitch.data === true }));
@@ -217,6 +234,15 @@ test('Admin hides purchase and stock prices from a requester while a procurement
       if (files.data?.length) await service.storage.from('procurement-files').remove(files.data.flatMap((file) => file.file_path ? [file.file_path] : []));
     }
     await requesterDraft?.cleanup();
+    if (authoredRequestId) {
+      const records = await service.from('purchase_requests').select('id').eq('procurement_id', authoredRequestId);
+      for (const record of records.data ?? []) {
+        const files = await service.from('purchase_request_files').select('file_path').eq('purchase_request_id', record.id);
+        const paths = (files.data ?? []).flatMap((file) => file.file_path ? [file.file_path] : []);
+        if (paths.length) ok('remove authored evidence', await service.storage.from('procurement-files').remove(paths));
+      }
+      ok('remove authored request', await service.from('procurements').delete().eq('id', authoredRequestId));
+    }
     if (projectId) ok('remove the project', await service.from('projects').delete().eq('id', projectId));
     await requester?.cleanup();
     await purchaser?.cleanup();
