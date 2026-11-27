@@ -3,7 +3,7 @@
 -- Org a1: b1 fin1 (claims), b2 fin2 (raises), b4 pm (manager of c1 and c2).
 begin;
 create extension if not exists pgtap;
-select plan(34);
+select plan(36);
 
 insert into organizations (id, name, default_currency, default_timezone) values
   ('27830000-0000-0000-0000-0000000000a1', 'BIS Org A', 'IDR', 'UTC');
@@ -106,6 +106,14 @@ select lives_ok($q$select complete_billing_stage(pg_temp.stage('A', 2), current_
 select lives_ok($q$select complete_billing_stage(pg_temp.stage('A', 3), current_date)$q$, 'AC-BIS-004 a later step completes after the invoice');
 select is(pg_temp.detail($q$select update_claim_billing_step(pg_temp.stage('A', 4), '{"invoice_step":true}'::jsonb)$q$), '55000 claim-invoiced',
   'AC-BIS-004 the invoice step of an invoiced claim cannot move');
+
+-- ═══ AC-BIS-001: the one-per-list rule holds in the table itself, not only in the functions ═══════════
+select pg_temp.as_job();
+select is(split_part(pg_temp.detail($q$update claim_billing_stages set invoice_step = true where id = pg_temp.stage('A', 3)$q$), ' ', 1), '23505',
+  'AC-BIS-001 a second invoice step on a claim is refused by the table');
+select pg_temp.as_user('b1');
+select is(split_part(pg_temp.detail($q$select set_billing_stage_template('27830000-0000-0000-0000-0000000000c2', '[{"name":"a","invoice_step":"true"},{"name":"b","invoice_step":"true"}]'::jsonb)$q$), ' ', 1), '23505',
+  'AC-BIS-001 two invoice steps sent as text are still refused (by the table)');
 
 -- ═══ AC-BIS-005: a list with no invoice step keeps the full gate ═════════════════════════════════
 select lives_ok($q$select set_billing_stage_template('27830000-0000-0000-0000-0000000000c2', '[{"name":"S1"},{"name":"S2"}]'::jsonb)$q$, 'project 2 gets an unmarked list');

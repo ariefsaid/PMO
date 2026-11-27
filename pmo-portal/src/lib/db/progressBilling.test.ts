@@ -182,7 +182,24 @@ describe('#2624 listProjectClaims carries each claim\'s open billing stages', ()
     ];
     const rows = await listProjectClaims('p1');
     expect(rows.map((r) => [r.id, r.open_stage_count])).toEqual([['k1', 2], ['k2', 0], ['k3', 0]]);
-    expect(h.chain.select.mock.calls[0][0]).toContain('stages:claim_billing_stages(completed_on)');
+    expect(h.chain.select.mock.calls[0][0]).toContain('stages:claim_billing_stages(position,completed_on,skipped_on,invoice_step)');
     expect(rows[0]).not.toHaveProperty('stages');
+  });
+
+  it('AC-BIS-003 with an invoice step, only the open steps before it count; a skipped step is done (mirrors billing_stages_open)', async () => {
+    h.result.data = [
+      { id: 'k1', lines: [], evidence: [], stages: [
+        { position: 1, completed_on: '2026-10-02', skipped_on: null, invoice_step: false },
+        { position: 2, completed_on: null, skipped_on: null, invoice_step: true },
+        { position: 3, completed_on: null, skipped_on: null, invoice_step: false }] },
+      { id: 'k2', lines: [], evidence: [], stages: [
+        { position: 1, completed_on: null, skipped_on: null, invoice_step: false },
+        { position: 2, completed_on: null, skipped_on: null, invoice_step: true }] },
+      { id: 'k3', lines: [], evidence: [], stages: [
+        { position: 1, completed_on: null, skipped_on: '2026-10-02', invoice_step: false },
+        { position: 2, completed_on: null, skipped_on: null, invoice_step: false }] },
+    ];
+    const rows = await listProjectClaims('p1');
+    expect(rows.map((r) => [r.id, r.open_stage_count])).toEqual([['k1', 0], ['k2', 1], ['k3', 1]]);
   });
 });
