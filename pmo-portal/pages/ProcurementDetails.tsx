@@ -44,6 +44,7 @@ import { useVendorOptions } from '@/src/hooks/useFkOptions';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { usePermission } from '@/src/auth/usePermission';
 import RentalCheckHistory from './equipment/RentalCheckHistory';
+import { useSavedRentalChecks } from '@/src/hooks/useEquipmentAvailability';
 import RentalPanel from '@/src/components/procurement/RentalPanel';
 import { mayDecideRoutedApproval, approvalRouteNote } from '@/src/lib/procurement/approvalRoute';
 import { waitingForText } from '@/src/lib/approvals/waitingFor';
@@ -149,6 +150,9 @@ const ProcurementDetails: React.FC = () => {
   // effectiveRole) so the buttons shown match what the RPC will actually honor.
   const { realRole, effectiveRole } = useEffectiveRole();
   const may = usePermission();
+  // The warning needs only the route id. Start it beside the purchase read,
+  // rather than waiting for the purchase and its invoice sections to render.
+  useSavedRentalChecks(undefined, may('transition', 'equipmentAvailability') ? procurementId : undefined);
   const mayReadAllCases = usePurchaseCaseRead();
   // roles-that-decide FR-RTD-009: the database gate says whether this person orders by built-in role (view-as never widens it).
   const mayOrderByRole = useMayOrderPurchases() && realRole === effectiveRole;
