@@ -2,6 +2,7 @@ import React, { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { EntityFormModal, type SubmitError } from '@/src/components/ui/EntityFormModal';
 import { Button } from '@/src/components/ui/Button';
+import { ListState } from '@/src/components/ui';
 import { Checkbox } from '@/src/components/ui/Checkbox';
 import { SelectField, TextArea, TextField } from '@/src/components/ui/FormFields';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
@@ -159,6 +160,8 @@ const BillingStepTemplatesModalBody: React.FC<{ onClose: () => void }> = ({ onCl
     {(templates.data?.length ?? 0) > 0 && <p className="text-sm text-muted-foreground">{t('projectDetail.billing.templates.help', "A template is a list of steps your team uses. Load one onto a project or a claim; it is copied, so later edits to a template change nothing already made.")}</p>}
     {templates.isError && <p className="mt-2 text-sm text-muted-foreground" role="status">{t('projectDetail.billing.templates.loadError', 'The templates could not be loaded.')}</p>}
     {error && <p role="alert" className="mt-2 text-sm text-destructive">{error}</p>}
+    {defaults.query.isPending && <ListState variant="loading" rows={1} />}
+    {defaults.query.isError && <ListState variant="error" title={t('projectDetail.billing.templates.loadError', 'The templates could not be loaded.')} onRetry={() => void defaults.query.refetch()} />}
     {!templates.isPending && !templates.isError && (templates.data?.length ?? 0) === 0 && <p className="mt-3 text-sm text-muted-foreground">{t('projectDetail.billing.templates.empty', 'No templates yet.')}</p>}
     <ul className="mt-3 divide-y divide-border">
       {(templates.data ?? []).map((tpl) => <li key={tpl.id} className="flex flex-wrap items-center justify-between gap-2 py-3">
@@ -173,10 +176,10 @@ const BillingStepTemplatesModalBody: React.FC<{ onClose: () => void }> = ({ onCl
           {defaults.query.data === tpl.id
             ? <>
                 <span className="text-sm font-medium" data-testid="default-step-template">{t('projectDetail.billing.templates.isDefault', 'Used for new work orders')}</span>
-                <Button type="button" variant="outline" size="sm" disabled={defaults.set.isPending} aria-label={t('projectDetail.billing.templates.clearDefaultNamed', 'Stop using {{name}} for new work orders', { name: tpl.name })}
+                <Button type="button" variant="outline" size="sm" disabled={defaults.set.isPending || defaults.query.isPending || defaults.query.isError} aria-label={t('projectDetail.billing.templates.clearDefaultNamed', 'Stop using {{name}} for new work orders', { name: tpl.name })}
                   onClick={() => { setError(null); defaults.set.mutateAsync(null).catch((e: unknown) => setError(line(e))); }}>{t('projectDetail.billing.templates.clearDefault', 'Stop using')}</Button>
               </>
-            : <Button type="button" variant="outline" size="sm" disabled={defaults.set.isPending} aria-label={t('projectDetail.billing.templates.useDefaultNamed', 'Use {{name}} for new work orders', { name: tpl.name })}
+            : <Button type="button" variant="outline" size="sm" disabled={defaults.set.isPending || defaults.query.isPending || defaults.query.isError} aria-label={t('projectDetail.billing.templates.useDefaultNamed', 'Use {{name}} for new work orders', { name: tpl.name })}
                 onClick={() => { setError(null); defaults.set.mutateAsync(tpl.id).catch((e: unknown) => setError(line(e))); }}>{t('projectDetail.billing.templates.useDefault', 'Use for new work orders')}</Button>}
           <Button type="button" variant="outline" size="sm" aria-label={t('projectDetail.billing.templates.editNamed', 'Edit {{name}}', { name: tpl.name })} onClick={() => setEditing(tpl)}>{t('projectDetail.billing.templates.edit', 'Edit')}</Button>
           <Button type="button" variant="outline" size="sm" aria-label={t('projectDetail.billing.templates.archiveNamed', 'Archive {{name}}', { name: tpl.name })}

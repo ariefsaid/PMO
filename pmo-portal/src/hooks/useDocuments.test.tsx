@@ -4,7 +4,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 
 // The hooks consume the repository seam (ADR-0017), not the DAL directly.
-const { document } = vi.hoisted(() => ({
+const { document, refile } = vi.hoisted(() => ({
+  refile: vi.fn(),
   document: {
     list: vi.fn(),
     get: vi.fn(),
@@ -17,7 +18,7 @@ const { document } = vi.hoisted(() => ({
     createRevision: vi.fn(),
   },
 }));
-vi.mock('@/src/lib/repositories', () => ({ repositories: { document } }));
+vi.mock('@/src/lib/repositories', () => ({ repositories: { document, documentCategory: { refileLineage: refile } } }));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'author-1', org_id: 'org-1' }, role: 'Admin' }),
 }));
@@ -65,6 +66,18 @@ describe('useDocuments', () => {
 });
 
 describe('useDocumentMutations', () => {
+  it('refreshes committed metadata and reports a partial save when refiling fails', async () => {
+    const client = freshClient();
+    const invalidate = vi.spyOn(client, 'invalidateQueries');
+    refile.mockRejectedValueOnce(new Error('Connection lost'));
+    const { result } = renderHook(() => useDocumentMutations('p1'), { wrapper: wrap(client) });
+    const input = { title: 'Updated', category: 'Drawing', code: '', revision: '', doc_date: '' };
+    await act(async () => {
+      await expect(result.current.update.mutateAsync({ id: 'd1', input, refileTo: 'cat-other' })).rejects.toMatchObject({ code: 'DOCUMENT_REFILE_PARTIAL' });
+    });
+    expect(document.update).toHaveBeenCalledWith('d1', input);
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['project-documents', 'org-1', 'p1'] });
+  });
   it('AC-DOC-003: create stamps the CURRENT USER id as author_id and invalidates the org-scoped register', async () => {
     const client = freshClient();
     const invalidate = vi.spyOn(client, 'invalidateQueries');

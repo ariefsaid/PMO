@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { AuthContext } from '@/src/auth/AuthContext';
 import { useWorkOrderSteps } from '@/src/hooks/useBillingSteps';
 import { stepStatus } from '@/src/lib/workOrderBillingSteps';
+import { ListState } from '@/src/components/ui';
 
 /**
  * The claim's link to its work order's billing steps (billing-steps.spec.md FR-WBS-009): the list lives on the work order and is not
@@ -14,6 +15,8 @@ import { stepStatus } from '@/src/lib/workOrderBillingSteps';
 const Body: React.FC<{ workOrderId: string }> = ({ workOrderId }) => {
   const { t } = useTranslation('billingSteps');
   const query = useWorkOrderSteps(workOrderId);
+  if (query.isError) return <ListState variant="error" title={t('loadError', "Couldn't load the billing steps")} onRetry={() => void query.refetch()} />;
+  if (query.isPending) return <ListState variant="loading" rows={2} />;
   const steps = query.data ?? [];
   if (steps.length === 0) return null;
   const done = steps.filter((s) => stepStatus(s) === 'done' || stepStatus(s) === 'skipped').length;

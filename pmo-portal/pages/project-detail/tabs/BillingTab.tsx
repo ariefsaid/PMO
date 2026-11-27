@@ -255,8 +255,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
   const attachEvidence = async (documentId: string) => {
     if (!evidenceFor) return;
     await mutations.attachEvidence.mutateAsync({ claimId: evidenceFor, documentId });
-    toast(t('projectDetail.billing.claims.toast.evidenceAttached', 'Evidence attached'), undefined, 'success');
-    setEvidenceFor(null);
+
   };
   const runRaise = async () => {
     if (!raiseFor || !clientId) return;

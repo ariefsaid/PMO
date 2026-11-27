@@ -36,14 +36,14 @@ const DisciplineProfit: React.FC<Props> = ({ projectId }) => {
 
   if (!on) return null;
   const title = t('profit.title', 'Profit per discipline');
-  const failed = pva.isError || revenue.isError;
-  if (pva.isPending || revenue.isPending || failed || !pva.data || revenue.data === undefined) {
+  const failed = pva.isError || revenue.isError || disciplines.isError;
+  if (pva.isPending || revenue.isPending || disciplines.isPending || failed || !pva.data || revenue.data === undefined) {
     return (
       <Card className="min-w-0" data-testid="discipline-profit">
         <CardHead level={2} className="text-base">{title}</CardHead>
         <CardPad className="pt-0">
           {failed
-            ? <ListState variant="error" title={t('profit.loadError', 'Couldn\'t load profit per discipline')} retryLabel={t('profit.retry', 'Try again')} onRetry={() => { void pva.refetch(); void revenue.refetch(); }} />
+            ? <ListState variant="error" title={t('profit.loadError', 'Couldn\'t load profit per discipline')} retryLabel={t('profit.retry', 'Try again')} onRetry={() => { void pva.refetch(); void revenue.refetch(); void disciplines.refetch(); }} />
             : <ListState variant="loading" rows={3} />}
         </CardPad>
       </Card>

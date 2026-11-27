@@ -581,6 +581,28 @@ describe('DocumentsTab — RBAC affordance gating (AC-DOC-007)', () => {
 });
 
 describe('DocumentsTab — create / edit metadata form (AC-DOC-003 / AC-DOC-004)', () => {
+  it('explains a partial document save and lets the user retry the category move', async () => {
+    mutations.update.mutateAsync.mockRejectedValueOnce(new AppError('Partial save', 'DOCUMENT_REFILE_PARTIAL')).mockResolvedValue(undefined);
+    renderTab('Admin');
+    await userEvent.click(within(screen.getByText('Site Plan').closest('tr')!).getByRole('button', { name: /Row actions/i }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: /Edit/i }));
+    await userEvent.selectOptions(within(screen.getByRole('dialog')).getByLabelText(/^Category/i), 'Specification');
+    await userEvent.click(screen.getByRole('button', { name: /^Save document$/i }));
+    expect(await screen.findByText('Document details saved. The category could not be changed. Retry to finish the move.')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /^Save document$/i }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+  });
+  it('asks to discard a typed title when document categories arrive later', async () => {
+    categoryState.offered = [];
+    renderTab('Admin');
+    await chooseAddOption(userEvent, 'Upload a document');
+    await userEvent.type(screen.getByLabelText(/^Title/i), 'Draft');
+    categoryState.offered = [{ id: 'cat-report', name: 'Report', is_system: true, sort_order: 0, archived_at: null, roles: [] }];
+    await userEvent.type(screen.getByLabelText(/^Title/i), 'x');
+    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancel' }));
+    expect(screen.getByRole('alertdialog')).toHaveTextContent('Discard');
+    categoryState.offered = null;
+  });
   it('AC-DOC-003: Add document opens the modal; a blank required title keeps submit disabled (F8 readiness)', async () => {
     renderTab('Admin');
     await chooseAddOption(userEvent, 'Upload a document');
