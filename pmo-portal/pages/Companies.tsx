@@ -81,9 +81,9 @@ const Companies: React.FC = () => {
   // #1989 (the Master-data pattern): the directory reads ONE server page with the type filter and
   // search applied SERVER-side, plus the exact matching total. The whole directory is no longer
   // loaded to filter it in the browser.
-  const directory = useCompaniesPage({ type: filter, search, page, pageSize: PAGE_SIZE });
+  const directory = useCompaniesPage({ type: filter, search: workingSet.q, page, pageSize: PAGE_SIZE });
   const { openRecord } = useListReturn({ list: 'companies', contentReady: !directory.isPending && !directory.isError });
-  const unfiltered = filter === 'All' && !search.trim();
+  const unfiltered = filter === 'All' && !workingSet.q.trim();
   // "Showing X of Y" keeps its meaning on a filtered view: Y is the whole directory, read as one
   // head count only while a filter/search is active (unfiltered, X IS Y — one request, not two).
   const totalCount = useCompaniesTotal({ enabled: !unfiltered });
@@ -93,7 +93,7 @@ const Companies: React.FC = () => {
 
   // A committed filter/search change (typing pause, a tab switch, or a Back-restore of the URL
   // working set) makes the old page number meaningless — always land on page 1.
-  useEffect(() => { setPage(1); }, [filter, search]);
+  useEffect(() => { setPage(1); }, [filter, workingSet.q]);
 
   // Out-of-range correction (the AdminUsers ruling): a deletion or a narrowing filter can leave
   // `page` past the last page — an empty page-N is corrected down instead of shown as truth.

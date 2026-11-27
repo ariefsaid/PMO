@@ -224,7 +224,8 @@
     "metricAssetsCount": "Machines: {{count}}",
     "files": "Files",
     "noDownDays": "No down days in this period",
-    "statusCol": "Status"
+    "statusCol": "Status",
+    "loadedScope": "{{count}} machines from the loaded equipment pages. Load the next equipment page to find more machines."
   },
   "basis": {
     "actual_cost": "Actual cost by usage",
@@ -340,7 +341,8 @@
     "kindPerson": "Person",
     "kindEquipment": "Equipment",
     "groupExpired": "Expired",
-    "groupDue": "Due in 30 days"
+    "groupDue": "Due in 30 days",
+    "recordNotFound": "Record not found"
   },
   "nav": {
     "assets": "Assets",
@@ -546,7 +548,8 @@
     "hour": "Hour (00–23)",
     "minute": "Minute",
     "breakdownFrom": "Breakdown from",
-    "responseTime": "Response time"
+    "responseTime": "Response time",
+    "loadedScope": "{{count}} rented machines from the loaded equipment pages; other machines are excluded."
   },
   "home": {
     "newEquipment": "New equipment",

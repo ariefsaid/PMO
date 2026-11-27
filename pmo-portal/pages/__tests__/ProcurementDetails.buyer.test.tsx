@@ -1,3 +1,4 @@
+vi.mock('@/src/hooks/useErpPurchaseLinks', () => ({ useLinkedErpDocuments: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }) }));
 import { render as rtlRender, fireEvent, screen, waitFor } from '@testing-library/react';
 import { QueryClientTestProvider } from '@/test/QueryClientTestProvider';
 // C11: the follow-up task button mounts with its host page now, so every render here runs

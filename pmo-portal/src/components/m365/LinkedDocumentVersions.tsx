@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
-import { Button, EntityFormModal, ListState } from '@/src/components/ui';
+import { Button } from '@/src/components/ui/Button';
+import { EntityFormModal } from '@/src/components/ui/EntityFormModal';
+import { ListState } from '@/src/components/ui/ListState';
 import { buttonClasses } from '@/src/components/ui/buttonClasses';
 import { getItem, listVersions, type GraphReadRequest, type GraphVersion } from '@/src/lib/m365/graphClient';
 import { buildVersionHistoryUrl, toReferenceInput, type MicrosoftReference } from '@/src/lib/m365/reference';

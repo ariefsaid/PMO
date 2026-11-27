@@ -1,4 +1,5 @@
 // @e2e-isolation: self-isolated — creates its own uniquely-named project, Active budget, project-approver row and expense claim each run, and deletes them afterwards; touches no shared seed row.
+import { managedProject } from "./support/managedProject";
 /**
  * AC-EXP-070 — expense claims (#775): the one cross-stack journey. A field Engineer files a Special-expenses claim on
  * a budgeted project; the project's named approver (the PM seed user) approves it from the record; Finance pays it;
@@ -30,7 +31,7 @@ test.beforeEach(async () => {
   if (!key) throw new Error('AC-EXP-070 needs SUPABASE_SERVICE_ROLE_KEY — run it via scripts/e2e-local.sh, which exports it');
   admin = createClient(SUPABASE_URL, key, { auth: { persistSession: false } });
   tag = `EXP-070 ${Date.now()}`;
-  const project = await admin.from('projects').insert({ org_id: ORG_ID, name: tag, status: 'Ongoing Project' }).select('id').single();
+  const project = await admin.from('projects').insert(managedProject(PM_ID, { org_id: ORG_ID, name: tag, status: 'Ongoing Project' })).select('id').single();
   if (project.error) throw new Error(`AC-EXP-070 fixture project: ${project.error.message}`);
   projectId = project.data.id;
   // budget_line_items_draft_guard: lines land only on a Draft version — Draft → line → Active.

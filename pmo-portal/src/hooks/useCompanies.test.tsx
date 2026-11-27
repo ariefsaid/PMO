@@ -8,6 +8,7 @@ const { company, project } = vi.hoisted(() => ({
   project: { listByClient: vi.fn().mockResolvedValue([]) },
   company: {
     list: vi.fn(),
+    listOptions: vi.fn(),
     get: vi.fn(),
     create: vi.fn(),
     update: vi.fn(),
@@ -20,7 +21,7 @@ vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' }, role: 'Admin' }),
 }));
 
-import { useCompanies, useCompany, useCompanyMutations, useProjectsByClient } from './useCompanies';
+import { useCompanyOptions, useCompanies, useCompany, useCompanyMutations, useProjectsByClient } from './useCompanies';
 import { clearOwnershipCache, setTaskOwnership } from '@/src/lib/adapterSeam/ownershipCache';
 
 const wrap = (client: QueryClient) =>
@@ -232,4 +233,22 @@ it('#2888 a company update invalidates the record history', async () => {
   const { result } = renderHook(() => useCompanyMutations(), { wrapper: wrap(client) });
   await act(async () => { await result.current.update.mutateAsync({ id: 'c1', input: { name: 'Example Legal Company', type: 'Client', short_name: 'Example' } }); });
   expect(invalidate).toHaveBeenCalledWith({ queryKey: ['record-history', 'org-1'] });
+});
+
+
+it('AC-PERF-2975: name and type-filtered company views share one read across mounts', async () => {
+  company.listOptions.mockResolvedValue([
+    { id: 'client', name: 'Client', short_name: null, type: 'Client' },
+    { id: 'vendor', name: 'Vendor', short_name: null, type: 'Vendor' },
+  ]);
+  const client = freshClient();
+  const first = renderHook(() => ({ all: useCompanyOptions(), clients: useCompanyOptions(undefined, 'Client') }), { wrapper: wrap(client) });
+  await waitFor(() => expect(first.result.current.clients.isSuccess).toBe(true));
+  expect(first.result.current.all.data).toHaveLength(2);
+  expect(first.result.current.clients.data?.map((row) => row.id)).toEqual(['client']);
+  first.unmount();
+  const second = renderHook(() => useCompanyOptions(undefined, 'Vendor'), { wrapper: wrap(client) });
+  await waitFor(() => expect(second.result.current.isSuccess).toBe(true));
+  expect(second.result.current.data?.map((row) => row.id)).toEqual(['vendor']);
+  expect(company.listOptions).toHaveBeenCalledTimes(1);
 });

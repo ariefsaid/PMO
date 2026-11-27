@@ -199,6 +199,8 @@ export default function ProcurementCreate() {
   const leaveLabel = saveNeedsAttention ? t('unsaved.leave', 'Leave') : undefined;
   const stayLabel = saveNeedsAttention ? t('unsaved.stay', 'Stay') : undefined;
   const dirty = saving || attempt !== null || (
+    (attributionTouched.current && (attribution.workOrderId !== soleWorkOrder || attribution.disciplineId !== null)) ||
+    lines.some((line) => Boolean(planning[line.id]?.categoryId || planning[line.id]?.neededBy || lineWorkOrders[line.id]?.workOrderId || lineWorkOrders[line.id]?.disciplineId)) ||
     title !== initialTitle || supplierId !== null || budgetCategory !== '' || purchaseType.id !== '' || subcontract || lines.length > initialLineCount || addRowEdited || selectedProject !== projectId
   );
   const holdLeave = useCallback((leave: () => void) => setPendingLeave(() => leave), []);

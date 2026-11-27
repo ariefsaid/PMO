@@ -39,6 +39,13 @@ const overdueInvoice: ErpPurchaseRow = {
 };
 
 describe('procurement record panels', () => {
+  it.each([[1, 1], [1, 0], [0, 1]])('counts %i invoices and %i payments under their own labels', (invoices, payments) => {
+    render(<ProcurementStageTracker procurement={{ ...procurement, status: 'Vendor Invoiced', receipts: [], invoices: Array.from({ length: invoices }, () => ({ amount: 100 })), payments: Array.from({ length: payments }, () => ({ amount: 100 })) } as unknown as ProcurementDetail} linkedDocuments={[]} />);
+    const pay = screen.getByText('Pay').closest('li')!;
+    if (invoices) expect(pay).toHaveTextContent('1 invoice');
+    if (payments) expect(pay).toHaveTextContent('1 payment');
+    expect(pay).not.toHaveTextContent('2 invoices');
+  });
   it('a reader who cannot read payments sees the pay stage as paid from the purchase status, with no count or amount', () => {
     const paid = { ...procurement, status: 'Paid', receipts: [{ id: 'r1', status: 'Complete' }] } as unknown as ProcurementDetail;
     render(<ProcurementStageTracker procurement={paid} linkedDocuments={[]} isEngineer />);

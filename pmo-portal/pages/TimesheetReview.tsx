@@ -154,7 +154,9 @@ const TimesheetReviewPage: React.FC = () => {
             wrapperClassName="w-full sm:w-40"
             fullWidth
           />
+          {projectsQuery.isError && <ListState quiet variant="error" title={t('timesheets:review.projectsError')} onRetry={() => void projectsQuery.refetch()} />}
           <SelectField
+            disabled={projectsQuery.isPending || projectsQuery.isError}
             id="ts-review-project"
             compact
             label={t('timesheets:review.project', 'Project')}

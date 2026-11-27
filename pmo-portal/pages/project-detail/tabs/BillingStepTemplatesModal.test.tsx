@@ -13,6 +13,7 @@ const h = vi.hoisted(() => ({
   save: { mutateAsync: vi.fn(), isPending: false },
   archive: { mutateAsync: vi.fn(), isPending: false },
   defaultId: null as string | null,
+  defaultState: { isPending: false, isError: false, refetch: vi.fn() },
   realRole: 'Admin' as string,
   setDefault: { mutateAsync: vi.fn().mockResolvedValue(undefined), isPending: false },
 }));
@@ -20,7 +21,7 @@ vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole
 vi.mock('@/src/hooks/useBillingSteps', () => ({
   useStepTemplates: () => h.templates,
   useStepTemplateMutations: () => ({ save: h.save, archive: h.archive }),
-  useDefaultStepTemplate: () => ({ query: { data: h.defaultId }, set: h.setDefault }),
+  useDefaultStepTemplate: () => ({ query: { data: h.defaultId, ...h.defaultState }, set: h.setDefault }),
 }));
 vi.mock('@/src/hooks/useRoleOptions', () => ({
   useRoleOptions: () => ({
@@ -53,6 +54,21 @@ beforeEach(() => {
 });
 
 describe('BillingStepTemplatesModal', () => {
+  it('disables default changes while pending and offers retry after a failed default read', async () => {
+    h.templates.data = [template()];
+    h.defaultState.isPending = true;
+    const view = render(<ToastProvider><BillingStepTemplatesModal onClose={vi.fn()} /></ToastProvider>);
+    expect(screen.getByRole('button', { name: 'Use Progress claim for new work orders' })).toBeDisabled();
+    h.defaultState.isPending = false;
+    h.defaultState.isError = true;
+    view.rerender(<ToastProvider><BillingStepTemplatesModal onClose={vi.fn()} /></ToastProvider>);
+    await userEvent.click(screen.getByRole('button', { name: /try again|retry/i }));
+    expect(h.defaultState.refetch).toHaveBeenCalled();
+    h.defaultState.isError = false;
+    h.defaultId = 't1';
+    view.rerender(<ToastProvider><BillingStepTemplatesModal onClose={vi.fn()} /></ToastProvider>);
+    expect(screen.getByText('Used for new work orders')).toBeInTheDocument();
+  });
   it('AC-WQE-006 Admin marks a template step for claim evidence', async () => {
     const user = userEvent.setup(); view();
     await user.click(screen.getByRole('button', { name: 'New template' }));

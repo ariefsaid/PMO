@@ -96,7 +96,8 @@
     "week": "Week",
     "projects": "Projects",
     "hours": "Hours",
-    "status": "Status"
+    "status": "Status",
+    "projectsError": "Couldn't load projects"
   },
   "weekHours": {
     "project": "Project",

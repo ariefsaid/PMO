@@ -22,7 +22,7 @@ const { master, profile, project, reports, tags, company } = vi.hoisted(() => ({
   profile: { listOrgProfiles: vi.fn() },
   project: { listIdentity: vi.fn() },
   reports: { onHand: vi.fn() },
-  company: { list: vi.fn() },
+  company: { listOptions: vi.fn() },
 }));
 vi.mock('@/src/lib/repositories/stockSiteWork', () => ({ stockSiteWorkRepository: { tags } }));
 vi.mock('@/src/lib/repositories', () => ({ repositories: { stock: { master, reports }, profile, project, company } }));
@@ -52,7 +52,7 @@ beforeEach(() => {
   profile.listOrgProfiles.mockResolvedValue([]);
   project.listIdentity.mockResolvedValue([{ id: 'pr1', name: 'Tower A' }]);
   reports.onHand.mockResolvedValue([]);
-  company.list.mockResolvedValue([{ id: 'c1', name: 'Coating Co', type: 'Vendor' }, { id: 'c2', name: 'Pipe Supply', type: 'Vendor' }]);
+  company.listOptions.mockResolvedValue([{ id: 'c1', name: 'Coating Co', type: 'Vendor' }, { id: 'c2', name: 'Pipe Supply', type: 'Vendor' }]);
 });
 
 const renderPage = () => {

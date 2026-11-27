@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastProvider } from '@/src/components/ui';
@@ -84,4 +84,14 @@ describe('AC-RTD-015 who can order purchases', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Save' }));
     expect(await screen.findByText(/before naming roles that can order/)).toBeInTheDocument();
   });
+});
+
+it('keeps unsaved role choices when saved roles change and offers reload', async () => {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(<QueryClientProvider client={qc}><ToastProvider><OrderJobRolesSection /></ToastProvider></QueryClientProvider>);
+  await screen.findByText(/No built-in role is named/); await userEvent.selectOptions(screen.getByLabelText('Add a built-in role'), 'buyer'); await userEvent.click(screen.getByRole('button', { name: 'Add' }));
+  act(() => qc.setQueryData(['order-job-roles', 'org-test'], ['project_control_manager']));
+  expect(await screen.findByRole('button', { name: /Reload saved/ })).toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+  expect(h.set).toHaveBeenCalledWith(['buyer']);
 });

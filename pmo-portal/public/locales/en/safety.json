@@ -81,7 +81,8 @@
     "stillNeeded": "Still needed: {{parts}}",
     "title": "Safety day",
     "version": "Version {{n}}",
-    "workOrder": "Work order"
+    "workOrder": "Work order",
+    "invalidWallTime": "This time does not exist in the organisation timezone"
   },
   "officer": {
     "add": "Add entry",

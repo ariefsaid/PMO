@@ -9,10 +9,14 @@ import { createBrowserRouter } from 'react-router';
 import { RouterProvider } from 'react-router/dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
+import userEvent from '@testing-library/user-event';
 import { AuthContext, type AuthContextValue } from '@/src/auth/AuthContext';
 import ProcurementCreate from './ProcurementCreate';
 
+vi.unmock('@/src/components/workOrders/CostAttributionFields');
+
 const mocks = vi.hoisted(() => ({
+  planningOn: false,
   createRequest: vi.fn(),
   createAtomic: vi.fn(),
   createItem: vi.fn(),
@@ -23,6 +27,13 @@ const mocks = vi.hoisted(() => ({
   projectQuery: { data: [{ value: 'p1', label: 'Project One' }], isPending: false, isError: false, refetch: vi.fn() },
   vendorQuery: { data: [{ value: 'v1', label: 'Supplier One', sub: 'Vendor' }], isPending: false, isError: false, refetch: vi.fn() },
 }));
+
+vi.mock('@/src/hooks/usePurchaseLinePlanning', () => ({
+  useLinePlanningEnabled: () => mocks.planningOn,
+  useLineCategories: () => ({ data: [{ id: 'cat', name: 'Materials' }] }),
+}));
+vi.mock('@/src/hooks/useWorkOrders', () => ({ useProjectWorkOrders: () => ({ data: [{ id: 'wo-only', title: 'Only order', status: 'Issued' }], isLoading: false, isError: false }) }));
+vi.mock('@/src/hooks/useWorkOrderCosts', () => ({ useCostDisciplines: () => ({ data: [{ id: 'disc', name: 'Civil', code: 'CIV' }], isLoading: false, isError: false }) }));
 
 vi.mock('@/src/auth/usePermission', async () => {
   const { can } = await vi.importActual<typeof import('@/src/auth/policy')>('@/src/auth/policy');
@@ -105,6 +116,7 @@ const dialog = () => screen.queryByRole('alertdialog', { name: 'Discard your cha
 describe.each(cases)('AC-STK-035 pre-filled form, $name', ({ url }) => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.planningOn = false;
     mocks.realRole = 'Engineer';
   });
   afterEach(cleanup);
@@ -121,6 +133,30 @@ describe.each(cases)('AC-STK-035 pre-filled form, $name', ({ url }) => {
     fireEvent.click(screen.getByRole('button', { name: /^back to stock$/i }));
     await waitFor(() => expect(window.location.pathname).toBe('/stock/reorder'));
     expect(dialog()).toBeNull();
+  });
+
+  if (url.includes('lineRate')) {
+    it.each(['Line category', 'Needed by', 'Discipline for Pipe'])('Back protects a prefilled line after editing only %s', async (field) => {
+      mocks.planningOn = true;
+      await renderAt(url);
+      const input = field === 'Needed by' ? screen.getByRole('textbox', { name: field }) : screen.getByLabelText(field);
+      fireEvent.change(input, { target: { value: field === 'Line category' ? 'cat' : field === 'Needed by' ? '2026-12-31' : 'disc' } });
+      fireEvent.blur(input);
+      fireEvent.click(screen.getByRole('button', { name: /^back to stock$/i }));
+      await waitFor(() => expect(dialog()).toBeInTheDocument());
+      fireEvent.click(screen.getByRole('button', { name: /^keep editing$/i }));
+      expect(input).toHaveValue(field === 'Line category' ? 'cat' : field === 'Needed by' ? '31 Dec 2026' : 'disc');
+    });
+  }
+
+  it('Back after editing only attribution asks and Stay retains the choice', async () => {
+    await renderAt(url);
+    await userEvent.click(screen.getByRole('combobox', { name: 'Discipline' }));
+    await userEvent.click(await screen.findByText('Civil', { selector: 'span[title="Civil"]' }));
+    fireEvent.click(screen.getByRole('button', { name: /^back to stock$/i }));
+    await waitFor(() => expect(dialog()).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: /^keep editing$/i }));
+    expect(screen.getByRole('combobox', { name: 'Discipline' })).toHaveTextContent('Civil');
   });
 
   it('Cancel after editing the title asks before discarding', async () => {

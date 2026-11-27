@@ -413,7 +413,8 @@ const ProcurementPage: React.FC = () => {
       {!isEngineer && <div><dt className="font-semibold">{t('help.invoiceAge.term', 'Invoice age')}</dt><dd>{t('help.invoiceAge.text', 'Days since the oldest unpaid supplier invoice was dated, or recorded when it has no date.')}</dd></div>}
     </dl>
   );
-  const ready = !isPending && !isError && data !== undefined;
+  const linkedReady = isEngineer || (!linkedDocuments.isPending && !linkedDocuments.isError && linkedDocuments.data !== undefined);
+  const ready = !isPending && !isError && data !== undefined && (tab === 'orphans' || linkedReady);
   const isDesktop = useIsDesktop();
   const routeViewOptions: Array<{ value: ProcurementRouteView; label: string; icon: 'table' | 'cols' | 'grid' }> = useMemo(() => [
     { value: 'table', label: t('view.table', 'Table'), icon: 'table' },
@@ -452,10 +453,10 @@ const ProcurementPage: React.FC = () => {
   const needsYouMoney = useMemo(() => tabMoney(totalsByCurrency(needsYouRows.map(({ row }) => row), realRole as ProcurementListRole, 'needs-you', new Map(needsYouRows.map(({ row, result }) => [row.id, result.reason]))), home), [needsYouRows, realRole, home]);
   const orphanMoney = useMemo(() => (canViewOrphans ? tabMoney(orphanTotals(orphanRows), home) : ''), [canViewOrphans, orphanRows, home]);
   const tabs: Array<{ key: ProcurementTab; label: string; count: number; money: string }> = useMemo(() => [
-    { key: 'needs-you', label: t('tab.needsYou', 'Needs you'), count: needsYouRows.length, money: maySeePrices ? needsYouMoney : '' },
+    { key: 'needs-you', label: t('tab.needsYou', 'Needs you'), count: needsYouRows.length, money: maySeePrices && linkedReady ? needsYouMoney : '' },
     { key: 'all', label: t('tab.all', 'All'), count: all.length, money: '' },
     ...(canSeeOrphans ? [{ key: 'orphans' as const, label: t('tab.orphans', 'Not in a procurement'), count: orphanRows.length, money: maySeePrices ? orphanMoney : '' }] : []),
-  ], [all.length, canSeeOrphans, maySeePrices, needsYouMoney, needsYouRows.length, orphanMoney, orphanRows.length, t]);
+  ], [all.length, canSeeOrphans, linkedReady, maySeePrices, needsYouMoney, needsYouRows.length, orphanMoney, orphanRows.length, t]);
 
   return (
     // L6: the All tab carries the total, so the title has no second count.
@@ -514,6 +515,8 @@ const ProcurementPage: React.FC = () => {
         )}
 
         <div id={tabPanelId('procurement-list-tabs', tab)} role="tabpanel" aria-labelledby={tabId('procurement-list-tabs', tab)}>
+          {tab !== 'orphans' && !isEngineer && linkedDocuments.isError && <ListState variant="error" title={tProcurement('linkedDocuments.error', "Couldn't load linked accounting documents")} onRetry={() => void linkedDocuments.refetch()} />}
+          {tab !== 'orphans' && !isEngineer && linkedDocuments.isPending && <ListState variant="loading" rows={4} />}
           {isPending && <div className="rounded-lg border border-border bg-card"><ListState variant="loading" shape="table" columns={6} rows={6} /></div>}
 
           {(isError || (!isPending && !data)) && (

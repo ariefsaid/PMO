@@ -15,7 +15,7 @@ import idProcurement from '@/public/locales/id/procurement.json';
 
 const h = vi.hoisted(() => ({
   position: { data: undefined as unknown, isPending: false, isError: false, refetch: vi.fn() },
-  draft: { data: [] as unknown[], isPending: false },
+  draft: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
   acceptances: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
   exceptions: { data: [] as unknown[], isError: false },
   docs: [] as unknown[],
@@ -77,7 +77,7 @@ function renderSection(open?: DocumentViewerApi['open'], readOnly = false) {
 
 beforeEach(() => {
   h.position = { data: TWO, isPending: false, isError: false, refetch: vi.fn() };
-  h.draft = { data: [], isPending: false };
+  h.draft = { data: [], isPending: false, isError: false, refetch: vi.fn() };
   h.acceptances = { data: [], isPending: false, isError: false, refetch: vi.fn() };
   h.exceptions = { data: [], isError: false };
   h.docs = [];
@@ -88,6 +88,22 @@ beforeEach(() => {
 });
 
 describe('SubcontractLinesSection', () => {
+  it('protects draft lines while their read is unavailable and retries before replacing them', async () => {
+    h.position.data = [];
+    h.draft.isError = true;
+    const view = renderSection();
+    expect(screen.getByRole('button', { name: 'Set BoQ lines' })).toBeDisabled();
+    await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(h.draft.refetch).toHaveBeenCalled();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    h.draft.isError = false;
+    h.draft.data = [{ boq_item_id: 'e1', quantity: 7 }];
+    view.unmount();
+    renderSection();
+    expect(screen.getByTestId('subcontract-draft-lines')).toHaveTextContent('1 draft');
+    await userEvent.click(screen.getByRole('button', { name: 'Set BoQ lines' }));
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+  });
   it('JOB-PU4-READ a historical decider reads subcontract quantities without recording acceptance or variations', () => {
     renderSection(undefined, true);
     expect(screen.getByText('L1')).toBeInTheDocument();
@@ -140,7 +156,7 @@ describe('SubcontractLinesSection', () => {
   it('FR-SCA-002 draft lines show an Issue button that asks for confirmation before issuing', async () => {
     const user = userEvent.setup();
     h.position = { data: [], isPending: false, isError: false, refetch: vi.fn() };
-    h.draft = { data: [{ boq_item_id: 'e1', quantity: 10, rate: 5, unit: 'm' }], isPending: false };
+    h.draft = { data: [{ boq_item_id: 'e1', quantity: 10, rate: 5, unit: 'm' }], isPending: false, isError: false, refetch: vi.fn() };
     renderSection();
     await user.click(await screen.findByRole('button', { name: /^issue lines$/i }));
     expect(h.issue).not.toHaveBeenCalled();

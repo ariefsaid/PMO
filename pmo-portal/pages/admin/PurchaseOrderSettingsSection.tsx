@@ -76,7 +76,7 @@ export default function PurchaseOrderSettingsSection() {
     setError(null);
     try {
       await mutations.setSettings.mutateAsync({
-        enabled: true,
+        enabled: query.data!.enabled,
         signatureBlocks,
         authorisedCollectors,
       });

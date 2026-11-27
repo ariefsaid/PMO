@@ -25,6 +25,8 @@ const milestoneState = {
   refetch: vi.fn(),
 };
 const removeSpy = vi.fn().mockResolvedValue(undefined);
+const viewport = vi.hoisted(() => ({ desktop: true }));
+vi.mock('@/src/components/ui/useIsDesktop', () => ({ useIsDesktop: () => viewport.desktop }));
 const milestoneMutations = {
   create: { mutateAsync: vi.fn(), isPending: false },
   update: { mutateAsync: vi.fn(), isPending: false },
@@ -56,6 +58,16 @@ const render$ = () =>
   );
 
 describe('MilestoneStrip delete confirm', () => {
+  it('lets a project manager delete a phase on a phone while keeping linked tasks', async () => {
+    viewport.desktop = false;
+    render$();
+    fireEvent.click(screen.getByRole('button', { name: 'Delete phase Engineering design' }));
+    expect(screen.getByRole('alertdialog')).toHaveTextContent('they are not deleted');
+    fireEvent.click(screen.getByRole('button', { name: 'Delete phase' }));
+    await waitFor(() => expect(removeSpy).toHaveBeenCalledWith('m1'));
+    expect(milestoneMutations.setTaskMilestone.mutateAsync).not.toHaveBeenCalled();
+    viewport.desktop = true;
+  });
   beforeEach(() => {
     vi.clearAllMocks();
     removeSpy.mockResolvedValue(undefined);

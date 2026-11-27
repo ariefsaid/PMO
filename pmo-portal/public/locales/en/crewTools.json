@@ -80,5 +80,6 @@
   "settingsTitle": "Equipment coordinator",
   "usable": "Usable",
   "usableNow": "{{usable}} usable now",
-  "writtenOffHelp": "The crew now holds {{qty}} fewer."
+  "writtenOffHelp": "The crew now holds {{qty}} fewer.",
+  "settingsError": "Could not load coordinator settings"
 }

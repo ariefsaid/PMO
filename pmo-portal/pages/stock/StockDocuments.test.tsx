@@ -118,3 +118,5 @@ describe('StockDocuments (AC-STK-032)', () => {
     expect(await screen.findByText('ISS-51')).toBeInTheDocument();
   });
 });
+
+it("keeps documents visible and offers retry when their count fails", async () => { documents.count.mockRejectedValueOnce(new Error("offline")); renderPage(); expect(await screen.findByRole("button", {name: /retry/i})).toBeInTheDocument(); expect(await screen.findByText("ISS-1")).toBeInTheDocument(); });

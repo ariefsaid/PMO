@@ -15,7 +15,7 @@ export interface FigureLines {
  * the organisation's currency is the figure and every other currency sits on a line of its own ("+ USD 5.3K"),
  * never summed. `weighted` is null when a stage's forecast is not reported (unknown, never a zero).
  */
-export function pipelineFigures(m: SalesModel): { open: FigureLines; weighted: FigureLines | null } {
+export function pipelineFigures(m: SalesModel): { open: FigureLines | null; weighted: FigureLines | null } {
   const { funnel } = m;
   const home = funnel.effectiveCurrency;
   const lines = (totals: Array<{ currency: string; amount: number }>): FigureLines => ({
@@ -28,7 +28,7 @@ export function pipelineFigures(m: SalesModel): { open: FigureLines; weighted: F
       weighted: lines(funnel.byCurrency.map((c) => ({ currency: c.currency, amount: c.weighted }))),
     };
   }
-  const open = lines([{ currency: home, amount: funnel.stageProjections.reduce((s, p) => s + p.totalValue, 0) }]);
+  const open = funnel.stageProjections.some((p) => p.stage ? p.stage.total_value == null : p.unavailable) ? null : lines([{ currency: home, amount: funnel.stageProjections.reduce((s, p) => s + p.totalValue, 0) }]);
   return {
     open,
     weighted: funnel.totalWeighted === null ? null : lines([{ currency: home, amount: funnel.totalWeighted }]),

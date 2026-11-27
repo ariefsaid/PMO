@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastProvider } from '@/src/components/ui';
@@ -115,4 +115,15 @@ describe('Administration › Validate daily site reports (AC-DRVR-004..006)', ()
     expect(await screen.findByRole('heading', { name: 'Validasi laporan harian lokasi' })).toBeInTheDocument();
     expect(screen.queryByText('Validate daily site reports')).toBeNull();
   });
+});
+
+it('keeps unsaved role choices when saved roles change and offers reload', async () => {
+  h.realRole = 'Admin'; h.effectiveRole = 'Admin'; h.builtInOn = true; h.get.mockResolvedValue([]); h.set.mockClear();
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(<QueryClientProvider client={qc}><ToastProvider><DailyReportValidateRoles /></ToastProvider></QueryClientProvider>);
+  await userEvent.click(await screen.findByRole('button', { name: 'Choose roles' })); await userEvent.click(screen.getByRole('checkbox', { name: 'Field Superintendent' }));
+  act(() => qc.setQueryData(['daily-report-validate-roles', 'org-1'], ['project_control_manager']));
+  expect(await screen.findByRole('button', { name: /Reload saved/ })).toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+  expect(h.set).toHaveBeenCalledWith(['site_supervisor']);
 });

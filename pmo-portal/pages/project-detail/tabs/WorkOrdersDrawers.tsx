@@ -56,7 +56,7 @@ export const WorkOrderLineDrawer: React.FC<{
   const may = usePermission();
   const fact = contractLines?.find((line) => line.boqItemId === selected.allocation.boqItemId);
   const split = fact?.allocations ?? [];
-  const history = (acceptancesByWo.get(selected.order.id) ?? []).flatMap((acceptance) => acceptance.lines
+  const history = (acceptancesByWo.get(selected.order.id) ?? []).filter((acceptance) => acceptance.status === 'Confirmed').flatMap((acceptance) => acceptance.lines
     .filter((line) => line.boq_item_id === selected.allocation.boqItemId)
     .map((line) => ({ acceptance, quantity: Number(line.quantity) })));
   return <Drawer open width="lg" title={selected.item?.description ?? selected.allocation.boqItemId}

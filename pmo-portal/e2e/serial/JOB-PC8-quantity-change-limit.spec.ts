@@ -27,7 +27,7 @@ test('JOB-PC8 a project control manager raises, revises and submits a quantity c
     priorLimit = need('organisation', await svc.from('organizations').select('quantity_change_limit').eq('id', ORG_ID).single()).quantity_change_limit as number | null;
     ok('limit', await svc.from('organizations').update({ quantity_change_limit: 3 }).eq('id', ORG_ID));
 
-    const fx = await projectWithWorkOrders(svc, run, ['Excavation']);
+    const fx = await projectWithWorkOrders(svc, run, ['Excavation'], { managerId: pm.id });
     projectId = fx.projectId;
     woId = fx.workOrders[0].id;
     const wo = fx.workOrders[0];

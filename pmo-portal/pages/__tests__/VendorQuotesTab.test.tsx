@@ -120,6 +120,18 @@ const defaultProps = {
   vendorMap: testVendorMap,
 };
 
+it.each(['USD', 'IDR'])('compares prices only against a selected quote in the same currency (%s)', (currency) => {
+  render(<VendorQuotesTab {...defaultProps} quotations={[selectedQuote, { ...unselectedQuote, currency }]} selectedId={selectedQuote.id} />);
+  if (currency === 'USD') {
+    expect(screen.getByText(/vs chosen/)).toHaveTextContent('+');
+    expect(screen.getByText(/vs chosen/)).toHaveTextContent('9.5%');
+  } else {
+    expect(screen.queryByText(/vs chosen/)).not.toBeInTheDocument();
+    expect(screen.getByText(/IDR/)).toBeInTheDocument();
+    expect(screen.getByText('Difference unavailable: different currencies.')).toBeInTheDocument();
+  }
+});
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 async function confirmInDialog(label: string | RegExp) {
   const dialog = await screen.findByRole('dialog').catch(() => screen.findByRole('alertdialog'));

@@ -275,7 +275,7 @@ const WorkOrdersTabInner: React.FC<WorkOrdersTabProps> = ({ projectId, currency,
   const [evidenceFor, setEvidenceFor] = useState<string | null>(null);
   const [raiseFor, setRaiseFor] = useState<{ claim: ProgressClaimWithInvoice; idempotencyKey: string } | null>(null);
   const [withdrawClaimFor, setWithdrawClaimFor] = useState<ProgressClaimWithInvoice | null>(null);
-  const claimScopeReady = !lines.isPending && !lines.isError;
+  const claimScopeReady = !lines.isPending && !lines.isError && !boq.isPending && !boq.isError && !claimsQuery.isPending && !claimsQuery.isError;
   // No ERP owns revenue: a claim is made, evidenced, withdrawn and invoiced in PMO by whoever may raise a customer invoice.
   const nativeBilling = revenueMode === 'native' && revenueRouteReady && may('create', 'salesInvoice');
   const canBill = may('create', 'progressClaim') && (erp.connected || nativeBilling) && Boolean(clientId) && claimScopeReady && Boolean(summary);
@@ -450,13 +450,7 @@ const WorkOrdersTabInner: React.FC<WorkOrdersTabProps> = ({ projectId, currency,
 
   const attachEvidence = async (documentId: string) => {
     if (!evidenceFor) return;
-    try {
-      await billingMutations.attachEvidence.mutateAsync({ claimId: evidenceFor, documentId });
-      toast(t('projectDetail.billing.claims.toast.evidenceAttached', 'Evidence attached'), undefined, 'success');
-      setEvidenceFor(null);
-    } catch (err) {
-      failClaim(err);
-    }
+    await billingMutations.attachEvidence.mutateAsync({ claimId: evidenceFor, documentId });
   };
 
   // A time-and-materials claim is invoiced from its own section, so the native raise covers the other claim kinds.
@@ -870,6 +864,10 @@ const WorkOrdersTabInner: React.FC<WorkOrdersTabProps> = ({ projectId, currency,
           return [...new Set(claimRows.filter((claim) => claim.id !== current.id && claim.work_order_id === current.work_order_id)
             .flatMap((claim) => claim.evidence.map((evidence) => evidence.document_id)))];
         })()}
+        claimSources={[boq, projectBilling, lines, claimsQuery].map((query, index) => ({
+          name: [t("projectDetail.billing.sources.boq", "contract lines"), t("projectDetail.billing.sources.billing", "billing figures"), t("projectDetail.billing.sources.allocations", "order allocations"), t("projectDetail.billing.sources.claims", "billing claims")][index],
+          pending: query.isPending, error: query.isError, retry: () => { void query.refetch(); },
+        }))}
         linesSources={[
           { query: boq, name: t('projectDetail.billing.sources.boq', 'contract lines') },
           { query: projectBilling, name: t('projectDetail.billing.sources.billing', 'billing figures') },

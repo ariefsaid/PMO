@@ -124,3 +124,15 @@ describe('SupplyRiskCard (AC-VSR-015, FR-VSR-009/010)', () => {
     expect(h.suggestion).not.toHaveBeenCalled();
   });
 });
+
+it('shows a retryable exposure error rather than no open orders', async () => {
+  h.exposure.mockRejectedValue(new Error('offline'));
+  renderCard();
+  expect(await screen.findByRole('button', { name: /Retry/i })).toBeInTheDocument();
+  expect(screen.queryByText('No work order has an open order from this supplier.')).not.toBeInTheDocument();
+});
+it('shows no open orders only after a successful empty exposure read', async () => {
+  h.exposure.mockResolvedValue([]);
+  renderCard();
+  expect(await screen.findByText('No work order has an open order from this supplier.')).toBeInTheDocument();
+});

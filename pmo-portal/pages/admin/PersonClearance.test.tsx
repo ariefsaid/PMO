@@ -179,3 +179,11 @@ describe('AC-CLR-009 the Clearance section', () => {
     expect(await screen.findByText(/load the people/)).toBeInTheDocument();
   });
 });
+
+it.each(['pending', 'failed'])('does not assert not-cleared while the summary is %s', async (state) => {
+  h.checklist.mockResolvedValue([row({})]);
+  h.summary.mockImplementation(() => state === 'pending' ? new Promise(() => {}) : Promise.reject(new Error('offline')));
+  renderAt(<PersonClearance />);
+  await screen.findByText('Test Person');
+  expect(screen.queryByText('Not cleared')).not.toBeInTheDocument();
+});

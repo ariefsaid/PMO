@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { act, render, screen, within, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, within, waitFor } from '@testing-library/react';
 import { toast as sonnerToast } from 'sonner';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, useLocation } from 'react-router';
@@ -172,6 +172,17 @@ describe('Companies index — rows + filters (AC-CO-001)', () => {
     // …and renders exactly the rows that read returns (the searched-out type stays out).
     await waitFor(() => expect(screen.queryByText('Cascade Port Authority')).not.toBeInTheDocument());
     expect(screen.getByText('Steelforge Fabrication')).toBeInTheDocument();
+  });
+
+  it('keeps all ten intermediate search terms out of the server query', async () => {
+    renderPage();
+    const input = screen.getByLabelText(/Search companies/i);
+    for (let i = 1; i <= 10; i++) {
+      fireEvent.change(input, { target: { value: 'abcdefghij'.slice(0, i) } });
+      expect(h.lastInput).toMatchObject({ search: '' });
+    }
+    expect(input).toHaveValue('abcdefghij');
+    await waitFor(() => expect(h.lastInput).toMatchObject({ search: 'abcdefghij' }));
   });
 
   it('AC-CO-001: search filters rows by name — the committed term goes to the server', async () => {
@@ -584,10 +595,12 @@ describe('company short names', () => {
     expect(screen.getByText(seed[1].name)).toBeInTheDocument();
     const search = screen.getByLabelText(/Search companies/i);
     await userEvent.type(search, 'cascade');
+    await waitFor(() => expect(h.lastInput).toMatchObject({ search: 'cascade' }));
     expect(screen.getByText('Example')).toBeInTheDocument();
-    expect(screen.queryByText(seed[1].name)).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByText(seed[1].name)).not.toBeInTheDocument());
     await userEvent.clear(search);
     await userEvent.type(search, 'example');
+    await waitFor(() => expect(h.lastInput).toMatchObject({ search: 'example' }));
     expect(screen.getByText('Example')).toBeInTheDocument();
   });
 

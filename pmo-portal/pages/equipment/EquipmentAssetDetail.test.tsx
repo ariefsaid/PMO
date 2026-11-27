@@ -33,7 +33,7 @@ vi.mock('@/src/hooks/useProjects', () => ({
   useProjects: () => ({ data: [{ id: 'pj1', name: 'EQU P1', short_name: null, currency: 'IDR' }, { id: 'pj2', name: 'EQU P2', short_name: null, currency: 'IDR' }] }),
 }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: h.role as Role, effectiveRole: (h.viewAs ?? h.role) as Role }) }));
-vi.mock('@/src/hooks/useCompanies', () => ({ useCompanies: () => ({ data: [] }) }));
+vi.mock('@/src/hooks/useCompanies', () => ({ useCompanyOptions: () => ({ data: [] }) }));
 vi.mock('@/src/hooks/useEquipmentAvailability', () => ({
   useEndRentalTerm: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useRentalTerms: () => ({ mutateAsync: vi.fn() }), useRentalTermHistory: () => ({ data: [] }),

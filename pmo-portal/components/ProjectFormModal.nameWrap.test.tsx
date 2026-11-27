@@ -8,7 +8,7 @@ vi.mock('@/src/hooks/useProjectClassificationOptions', () => ({ useProjectClassi
 vi.mock('@/src/hooks/useProjectNumberProposal', () => ({ useProjectNumberProposal: () => ({ status: 'success', number: 'PMO-TEST-1339', error: null }) }));
 vi.mock('@/src/hooks/useOrgTaxDefault', () => ({ useOrgTaxDefault: () => undefined, useTaxTreatmentPreselect: () => undefined }));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
-vi.mock('@/src/hooks/useCompanies', () => ({ useCompanies: () => ({ data: [{ id: 'c1', name: 'Client Legal', type: 'Client' }], isError: false }) }));
+vi.mock('@/src/hooks/useCompanies', () => ({ useCompanyOptions: () => ({ data: [{ id: 'c1', name: 'Client Legal', type: 'Client' }], isError: false }) }));
 vi.mock('@/src/hooks/useProjects', () => ({
   useClientCompanies: () => ({ data: [{ id: 'c1', name: 'Client Legal', type: 'Client' }], isError: false }),
   useProjectManagers: () => ({ data: [], isError: false }),

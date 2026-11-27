@@ -1,6 +1,6 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, within, fireEvent } from '@testing-library/react';
 import { rollupProject, type CostAmountLine, type PvaWorkOrder } from '@/src/lib/workOrderPlanVsActual';
 
 /**
@@ -12,6 +12,7 @@ const h = vi.hoisted(() => ({
   setting: { data: true } as Record<string, unknown>, pva: {} as Record<string, unknown>, eb: {} as Record<string, unknown>,
   revenue: {} as Record<string, unknown>, role: 'Finance' as string, asked: [] as boolean[],
   askedPva: [] as boolean[], askedRevenue: [] as boolean[], askedDisciplines: [] as boolean[],
+  lookupError: false, retryLookup: vi.fn(),
 }));
 vi.mock('@/src/hooks/useOrgSwitch', () => ({ useOrgSwitch: () => h.setting }));
 vi.mock('@/src/hooks/useDisciplineProfit', () => ({
@@ -19,7 +20,7 @@ vi.mock('@/src/hooks/useDisciplineProfit', () => ({
 }));
 vi.mock('@/src/hooks/useEarnedBilled', () => ({ useWorkOrderEarnedBilled: (_p: string, enabled: boolean) => { h.asked.push(enabled); return h.eb; } }));
 vi.mock('@/src/hooks/useWorkOrderPlanVsActual', () => ({ useProjectPlanVsActual: (_p: string, enabled: boolean) => { h.askedPva.push(enabled); return h.pva; } }));
-vi.mock('@/src/hooks/useWorkOrderCosts', () => ({ useCostDisciplines: (enabled: boolean = true) => { h.askedDisciplines.push(enabled); return { data: [{ id: 'civ', code: 'CIV', name: 'Civil' }] }; } }));
+vi.mock('@/src/hooks/useWorkOrderCosts', () => ({ useCostDisciplines: (enabled: boolean = true) => { h.askedDisciplines.push(enabled); return { isError: h.lookupError, refetch: h.retryLookup, data: [{ id: 'civ', code: 'CIV', name: 'Civil' }] }; } }));
 vi.mock('@/src/auth/usePermission', async () => {
   const { can } = await import('@/src/auth/policy');
   return { usePermission: () => (action: never, entity: never) => can(action, entity, { realRole: h.role as never }) };
@@ -60,6 +61,16 @@ const expectAsked = (expected: boolean[]) => {
 };
 
 describe('EarnedBilledProfit', () => {
+  it('offers retry when discipline names fail and restores names after retry', () => {
+    setData([ebRow()], [rev('validated_progress', 'civ', '100.00')]);
+    h.lookupError = true;
+    const view = render(<EarnedBilledProfit projectId="p1" />);
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(h.retryLookup).toHaveBeenCalled();
+    h.lookupError = false;
+    view.rerender(<EarnedBilledProfit projectId="p1" />);
+    expect(screen.getByText('Civil')).toBeInTheDocument();
+  });
   it('AC-EBR-011 shows earned beside billed, the gap and the margin on each basis, with a project total', () => {
     setData([ebRow()], [rev('validated_progress', 'civ', '100.00'), rev('billed_claims', 'civ', '70.00'), rev('billed_unitemised', null, '10.00')]);
     render(<EarnedBilledProfit projectId="p1" />);

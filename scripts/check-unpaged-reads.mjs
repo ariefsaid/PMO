@@ -102,7 +102,6 @@ const ALLOWLIST = {
   'pmo-portal/src/lib/db/procurementFiles.ts :: payment_files #1': 'bounded: attachments of one parent record',
   'pmo-portal/src/lib/db/procurementFiles.ts :: procurement_invoice_files #1': 'bounded: attachments of one parent record',
   'pmo-portal/src/lib/db/profiles.ts :: profiles #1': 'bounded: org members (users), well under 1000; revisit past ~1000 users',
-  'pmo-portal/src/lib/db/profiles.ts :: profiles #2': 'bounded: org members (users), well under 1000; revisit past ~1000 users',
   'pmo-portal/src/lib/db/progressBilling.ts :: sales_invoices #1': 'bounded: .in(id) over claims capped at CLAIM_LIST_LIMIT (500)',
   'pmo-portal/src/lib/db/projectStageEntries.ts :: project_stage_entries #1': 'bounded: stage history of one project',
   'pmo-portal/src/lib/db/projectTransitions.ts :: pipeline_stage_config #1': 'bounded: one row per pipeline stage',

@@ -158,3 +158,12 @@ describe('PurchaseOrderSettingsSection (#2688)', () => {
     });
   });
 });
+
+it('preserves disabled printing when an Admin saves a signature block', async () => {
+  h.getSettings.mockResolvedValue({ ...DEFAULT_SETTINGS, enabled: false });
+  renderComponent();
+  await userEvent.type(await screen.findByLabelText(/new signature block/i), 'Checked by');
+  await userEvent.click(screen.getByRole('button', { name: /add block/i }));
+  await userEvent.click(screen.getByRole('button', { name: /save changes/i }));
+  expect(h.setSettings).toHaveBeenCalledWith(false, expect.any(Array), expect.any(Array));
+});

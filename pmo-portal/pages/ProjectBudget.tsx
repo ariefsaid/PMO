@@ -1228,7 +1228,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
           <dl className="grid grid-cols-2 gap-3 text-sm">
             {[
               [t('projectDetail.budget.budgetBeforeTax', 'Budget'), formatBudget(selectedCategory.budget), t('projectDetail.budget.budgetSource', 'Source: selected budget version line items before tax, grouped by category.')],
-              [t('projectDetail.budget.spent', 'Spent'), canSeeActuals ? formatAmount(selectedCategory.spent) : '—', actualSource],
+              [t('projectDetail.budget.spent', 'Spent'), canSeeActuals ? formatSpent(selectedCategory.spent) : '—', actualSource],
               [t('projectDetail.budget.committed', 'Committed'), canSeeCommitments ? formatAmount(selectedCategory.committed) : '—', t('projectDetail.budget.committedSource', 'Source: ordered, received, supplier-invoiced and paid procurement totals in the project currency, including those with no budget category.')],
               [t('projectDetail.budget.leftAfterSpending', 'Left after spending'), formatAmount(selectedCategory.left), categoryLeftFormula],
             ].map(([label, value, source]) => <div key={label}><dt className="text-muted-foreground">{label}</dt><dd className="mt-1 font-semibold tabular-nums"><Tooltip content={source}><span tabIndex={0}>{value}</span></Tooltip></dd></div>)}

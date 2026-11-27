@@ -1,11 +1,15 @@
+import { fetchAllPages } from '@/src/lib/pagedRead';
 import { supabase } from '@/src/lib/supabase/client';
 import type { Tables } from '@/src/lib/supabase/database.types';
 
-export type ProfileRow = Tables<'profiles'>;
+export type ProfileRow = Pick<Tables<'profiles'>,
+  'id' | 'full_name' | 'email' | 'role' | 'built_in_role' | 'status' | 'org_id' | 'manager_id'>;
+
+export const PROFILE_LOOKUP_COLUMNS = 'id,full_name,email,role,built_in_role,status,org_id,manager_id';
 
 /** Profiles eligible for the PM filter (role = 'Project Manager'; OD-2). RLS scopes org. */
 export async function listProjectManagers(): Promise<ProfileRow[]> {
-  const { data, error } = await supabase.from('profiles').select('*').eq('role', 'Project Manager');
+  const { data, error } = await supabase.from('profiles').select(PROFILE_LOOKUP_COLUMNS).eq('role', 'Project Manager');
   if (error) throw new Error(error.message);
   return data ?? [];
 }
@@ -16,7 +20,7 @@ export async function listProjectManagers(): Promise<ProfileRow[]> {
  * stable, scannable picker. Any member can be assigned a task, so this is unfiltered by role.
  */
 export async function listOrgProfiles(): Promise<ProfileRow[]> {
-  const { data, error } = await supabase.from('profiles').select('*').order('full_name');
-  if (error) throw new Error(error.message);
-  return data ?? [];
+  return fetchAllPages<ProfileRow>((from, to) =>
+    supabase.from('profiles').select(PROFILE_LOOKUP_COLUMNS).order('full_name').order('id').range(from, to),
+  );
 }

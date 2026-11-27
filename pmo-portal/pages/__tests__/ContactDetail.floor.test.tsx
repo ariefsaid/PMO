@@ -75,7 +75,7 @@ vi.mock('@/src/hooks/useContacts', () => ({
 }));
 
 vi.mock('@/src/hooks/useCompanies', () => ({
-  useCompanies: () => h.companies,
+  useCompanyOptions: () => h.companies,
   useCompany: () => ({ data: undefined, isPending: false, isError: true }),
 }));
 

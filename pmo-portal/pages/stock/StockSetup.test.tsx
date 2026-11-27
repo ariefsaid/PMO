@@ -426,3 +426,5 @@ describe("the location's recorded cover (#2694)", () => {
     await waitFor(() => expect(master.createWarehouse).toHaveBeenCalledWith(expect.objectContaining({ coverValue: '1000' })));
   });
 });
+
+it.each(["Admin", "Executive", "Project Manager", "Finance"] as const)("does not tell current writer %s that setup is read only", async (role) => { renderPage(role); await screen.findByText("Bag"); expect(screen.queryByText(/You can view stock setup/)).toBeNull(); });

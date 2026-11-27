@@ -300,7 +300,7 @@ const VersionHistory: React.FC<{ line: QcrLine; currency: string }> = ({ line, c
   return (
     <div>
       <Button variant="ghost" onClick={() => setOpen((o) => !o)} aria-expanded={open}>{t('lines.history', 'Version history')}</Button>
-      {open && (versions.isPending ? <ListState variant="loading" rows={2} /> : rows.length === 0 ? <p className="text-muted-foreground">{t('lines.noHistory', 'No versions')}</p> : (
+      {open && (versions.isError ? <ListState variant="error" title={t("common:ui.errorBoundary.title", "Something went wrong")} onRetry={() => void versions.refetch()} /> : versions.isPending ? <ListState variant="loading" rows={2} /> : rows.length === 0 ? <p className="text-muted-foreground">{t('lines.noHistory', 'No versions')}</p> : (
         <ol className="mt-1 space-y-1" data-testid="qcr-versions">
           {rows.map((v) => (
             <li key={v.version_no} className="flex flex-wrap gap-x-3 text-foreground">

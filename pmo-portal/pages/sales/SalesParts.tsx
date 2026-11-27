@@ -114,7 +114,7 @@ export const PhoneFigures: React.FC<{ m: SalesModel }> = ({ m, m: { t } }) => {
           variant="bare"
           tiles={[
             { label: t('sales:options.weightedForecast', 'Weighted forecast'), value: pf.weighted === null ? null : view(pf.weighted), exactValue: pf.weighted?.exact[0], unavailableReason: pf.weighted === null ? unavailable : undefined },
-            { label: t('sales:options.openValue', 'Open value'), value: view(pf.open), exactValue: pf.open.exact[0],
+            { label: t('sales:options.openValue', 'Open value'), value: pf.open === null ? null : view(pf.open), exactValue: pf.open?.exact[0], unavailableReason: pf.open === null ? unavailable : undefined,
               sub: t('sales:options.openCount', '{{n}} open projects', { n: m.openProjects.length }) },
           ]}
         />

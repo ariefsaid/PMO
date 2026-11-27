@@ -1,0 +1,21 @@
+import { expect, it, vi } from 'vitest';
+const h = vi.hoisted(() => ({ route: vi.fn(), ceiling: vi.fn(), plan: vi.fn(), single: vi.fn() }));
+vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: () => ({ select: () => ({ eq: () => ({ single: h.single }) }) }) } }));
+vi.mock('./approvalRoutes', () => ({ attachApprovalRoutes: h.route }));
+vi.mock('./procurementPaymentCeiling', () => ({ attachPaymentCeiling: h.ceiling }));
+vi.mock('./equipmentPlans', () => ({ getPlanPurchaseSubmitContext: h.plan }));
+import { getProcurementDetail } from './procurementLifecycle';
+it('starts independent purchase enrichments together and preserves their fields', async () => {
+  const base = { id: 'purchase', status: 'Requested' };
+  h.single.mockResolvedValue({ data: base, error: null });
+  let release!: (rows: unknown[]) => void;
+  h.route.mockReturnValue(new Promise(resolve => { release = resolve; }));
+  h.ceiling.mockResolvedValue({ ...base, paymentCeiling: null });
+  h.plan.mockResolvedValue({ linked: true });
+  const result = getProcurementDetail('purchase');
+  await vi.waitFor(() => expect(h.route).toHaveBeenCalledTimes(1));
+  expect(h.ceiling).toHaveBeenCalledTimes(1);
+  expect(h.plan).toHaveBeenCalledTimes(1);
+  release([{ ...base, approvalRoute: { route: 'budget' } }]);
+  await expect(result).resolves.toEqual({ ...base, approvalRoute: { route: 'budget' }, paymentCeiling: null, planPurchaseContext: { linked: true } });
+});

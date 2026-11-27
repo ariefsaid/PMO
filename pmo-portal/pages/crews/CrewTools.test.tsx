@@ -7,6 +7,7 @@ const h = vi.hoisted(() => ({
   report: vi.fn().mockResolvedValue('r1'), close: vi.fn().mockResolvedValue(undefined), correct: vi.fn().mockResolvedValue(undefined),
   allow: { report: true, manage: true, close: true, configure: false } as Record<string, boolean>,
   lines: [] as unknown[], reports: [] as unknown[],
+  settings: {} as Record<string, unknown>, saveSettings: vi.fn(), retrySettings: vi.fn(),
 }));
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => (action: string) => h.allow[action] === true }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: 'Engineer', effectiveRole: 'Engineer' }) }));
@@ -18,12 +19,12 @@ vi.mock('@/src/hooks/useCrews', () => ({
 vi.mock('@/src/hooks/useCrewTools', () => ({
   useToolLines: () => ({ data: h.lines, isPending: false, isError: false }),
   useOpenToolReports: () => ({ data: h.reports, isPending: false, isError: false }),
-  useToolSettings: () => ({ data: null }),
+  useToolSettings: () => h.settings,
   useToolMayManage: () => false,
   useToolMutations: () => ({
     report: { mutateAsync: h.report, isPending: false }, close: { mutateAsync: h.close, isPending: false },
     correct: { mutateAsync: h.correct, isPending: false }, addLine: { mutateAsync: vi.fn(), isPending: false },
-    updateLine: { mutateAsync: vi.fn(), isPending: false }, setSettings: { mutateAsync: vi.fn(), isPending: false },
+    updateLine: { mutateAsync: vi.fn(), isPending: false }, setSettings: { mutateAsync: h.saveSettings, isPending: false },
   }),
 }));
 import { CrewTools } from './CrewTools';
@@ -32,6 +33,19 @@ const hammer = { id: 'l1', crew_id: 'c1', name: 'Hammer', code: null, serial: nu
   damaged_qty: 1, lost_qty: 2, usable_qty: 3 };
 
 describe('crew tools screen', () => {
+  it('cannot overwrite settings after a failed read and can save after retry succeeds', async () => {
+    h.allow.configure = true;
+    h.settings = { isError: true, isSuccess: false, refetch: h.retrySettings };
+    const view = render(<ToastProvider><CrewTools /></ToastProvider>);
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+    await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(h.retrySettings).toHaveBeenCalled();
+    expect(h.saveSettings).not.toHaveBeenCalled();
+    h.settings = { isError: false, isSuccess: true, data: { coordinator_id: 'u1', task_due_days: 7 } };
+    view.rerender(<ToastProvider><CrewTools /></ToastProvider>);
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(h.saveSettings).toHaveBeenCalledWith({ coordinatorId: 'u1', dueDays: 7 }));
+  });
   beforeEach(() => {
     h.report.mockClear(); h.close.mockClear(); h.correct.mockClear();
     h.allow = { report: true, manage: true, close: true, configure: false };

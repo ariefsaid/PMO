@@ -30,14 +30,19 @@ describe('pipelineFigures (#2199)', () => {
       [stage('Leads', 3, 0, 0)],
       [deal('Leads', 'USD', 5300), deal('Leads', 'IDR', 2_000_000_000, 0.25)],
     ));
-    expect(norm(f.open.lines)).toEqual(['$5.3K', '+ IDR 2B']);
-    expect(norm(f.open.exact)).toEqual(['$5,300', '+ IDR 2,000,000,000']);
+    expect(norm(f.open!.lines)).toEqual(['$5.3K', '+ IDR 2B']);
+    expect(norm(f.open!.exact)).toEqual(['$5,300', '+ IDR 2,000,000,000']);
     expect(norm(f.weighted!.lines)).toEqual(['$2.65K', '+ IDR 500M']);
   });
 
   it('an unreported stage forecast makes the weighted figure unknown, not zero', () => {
     const f = pipelineFigures(model([stage('Leads', 1, 100, null)], [deal('Leads', 'USD', 100)]));
     expect(f.weighted).toBeNull();
-    expect(norm(f.open.lines)).toEqual(['$100']);
+    expect(norm(f.open!.lines)).toEqual(['$100']);
   });
+});
+
+it.each([undefined, null])("open value is unavailable when an occupied stage total is %s", (total) => {
+ const stages = total === undefined ? [] : [stage("Leads", 1, total as unknown as number, 50)];
+ expect(pipelineFigures(model(stages, [deal("Leads", "USD", 100)])).open).toBeNull();
 });

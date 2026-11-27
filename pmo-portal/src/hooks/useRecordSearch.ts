@@ -9,7 +9,7 @@ import type { PaletteItem } from '@/src/components/shell/CommandPalette';
 import { useProjects } from '@/src/hooks/useProjects';
 import { useProcurements } from '@/src/hooks/useProcurements';
 import { useSalesPipeline } from '@/src/hooks/useDashboard';
-import { useCompanies } from '@/src/hooks/useCompanies';
+import { useCompanyOptions } from '@/src/hooks/useCompanies';
 import { useContacts } from '@/src/hooks/useContacts';
 import { useIncidents } from '@/src/hooks/useIncidents';
 import { useOptionalRealRole } from '@/src/auth/impersonation';
@@ -75,11 +75,12 @@ export function useRecordSearch(
   const pipeline = useSalesPipeline({ enabled: enabled && mayViewPipeline });
   // CW-7: index master data (Companies + Contacts) too — searching a company/contact name
   // returned nothing before. Both are already-cached, RLS-scoped lists; reads only the cache.
-  const companies = useCompanies(undefined, { enabled: enabled && mayViewCompanies });
+  const companies = useCompanyOptions({ enabled: enabled && mayViewCompanies });
   const contacts = useContacts({ enabled: enabled && mayViewContacts });
   const incidents = useIncidents(undefined, { enabled: enabled && incidentsEnabled });
 
   const records = useMemo<PaletteItem[]>(() => {
+    if (!enabled) return [];
     const out: PaletteItem[] = [];
 
     for (const p of projects.data ?? []) {
@@ -202,6 +203,7 @@ export function useRecordSearch(
 
     return out;
   }, [
+    enabled,
     projects.data,
     pipeline.data,
     procurements.data,

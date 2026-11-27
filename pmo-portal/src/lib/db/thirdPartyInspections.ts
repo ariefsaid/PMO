@@ -5,6 +5,7 @@ import { sanitizeFilename } from '@/src/lib/storageKey';
 import { SIGNED_URL_EXPIRY_SECONDS } from '@/src/lib/fileConstants';
 import type { Tables } from '@/src/lib/supabase/database.types';
 import { nullableArg } from './nullableArg';
+import { fetchAllPages } from '@/src/lib/pagedRead';
 
 /**
  * Third-party inspections (#2580, migrations 1130-1134). One row per external test of a work order. Every write is an RPC
@@ -156,17 +157,23 @@ export function buildInspectionFilePath(orgId: string, inspectionId: string, fil
   return `${orgId}/${inspectionId}/${fileId}/${sanitizeFilename(filename)}`;
 }
 
-/** Live report files of an inspection, newest first. */
-export async function listInspectionFiles(inspectionId: string): Promise<InspectionFileRow[]> {
-  const { data, error } = await supabase
-    .from('third_party_inspection_files')
-    .select('*')
-    .eq('inspection_id', inspectionId)
-    .is('archived_at', null)
-    .order('created_at', { ascending: false })
-    .limit(INSPECTION_FILE_MAX_COUNT);
-  if (error) throw new AppError(error.message, error.code);
-  return (data ?? []) as InspectionFileRow[];
+/** Live files for a section, newest first within each inspection, with the same per-inspection cap. */
+export async function listInspectionFilesBatch(inspectionIds: readonly string[]): Promise<InspectionFileRow[]> {
+  const ids = [...new Set(inspectionIds)];
+  const out: InspectionFileRow[] = [];
+  const counts = new Map<string, number>();
+  for (let i = 0; i < ids.length; i += 100) {
+    const rows = await fetchAllPages<InspectionFileRow>((from, to) => supabase
+      .from('third_party_inspection_files').select('*')
+      .in('inspection_id', ids.slice(i, i + 100)).is('archived_at', null)
+      .order('created_at', { ascending: false }).order('id', { ascending: false }).range(from, to));
+    for (const row of rows) {
+      const count = counts.get(row.inspection_id) ?? 0;
+      if (count < INSPECTION_FILE_MAX_COUNT) out.push(row);
+      counts.set(row.inspection_id, count + 1);
+    }
+  }
+  return out;
 }
 
 /** Upload the object, then record it. The org segment comes from the inspection row, never from the caller. */

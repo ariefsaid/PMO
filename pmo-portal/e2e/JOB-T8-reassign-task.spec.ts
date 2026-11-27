@@ -27,7 +27,7 @@ test('JOB-T8 reassigning a task moves it from one My tasks to the other', async 
   const from = await roleJobUser(admin, 'site_supervisor', runId('t8a'));
   const to = await roleJobUser(admin, 'site_supervisor', toName);
   people.push(manager, from, to);
-  projectId = await ownProject(admin, `JOB-T8 project ${sfx}`);
+  projectId = await ownProject(admin, `JOB-T8 project ${sfx}`, manager.id);
   ok('task', await admin.from('tasks').insert({ org_id: ORG_ID, project_id: projectId, name, status: 'In Progress', assignee_id: from.id }));
 
   // A starts the day with the task.

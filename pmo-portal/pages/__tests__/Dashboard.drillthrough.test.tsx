@@ -107,7 +107,7 @@ vi.mock('@/src/hooks/useErpSnapshots', () => ({
   useArAgingSnapshot: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
 }));
 vi.mock('@/src/hooks/useCompanies', () => ({
-  useCompanies: () => ({ data: [], isPending: false, isError: false }),
+  useCompanyOptions: () => ({ data: [], isPending: false, isError: false }),
 }));
 vi.mock('@/src/hooks/useCompanyCollections', () => ({
   useCompanyCollections: () => ({ customerLinks: new Map() }),

@@ -213,10 +213,13 @@ export async function getProcurementDetail(id: string): Promise<ProcurementDetai
     .single();
   if (error) throwRpc(error);
   const row = data as unknown as ProcurementDetail;
-  const [withRoute] = await attachApprovalRoutes([{ ...row, quotations: pricesHidden ? [] : row.quotations ?? [] }]);
-  const detail = await attachPaymentCeiling(withRoute);
-  detail.planPurchaseContext = await getPlanPurchaseSubmitContext(id);
-  return detail;
+  const base = { ...row, quotations: pricesHidden ? [] : row.quotations ?? [] };
+  const [[withRoute], withCeiling, planPurchaseContext] = await Promise.all([
+    attachApprovalRoutes([base]),
+    attachPaymentCeiling(base),
+    getPlanPurchaseSubmitContext(id),
+  ]);
+  return { ...withRoute, ...withCeiling, planPurchaseContext };
 }
 
 // ---------------------------------------------------------------------------

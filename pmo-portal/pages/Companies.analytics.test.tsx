@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { act, render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
 import type { Role } from '@/src/auth/AuthContext';
@@ -60,7 +60,7 @@ vi.mock('@/src/hooks/useCompanies', () => ({
 
 vi.mock('react-router', async (importOriginal) => {
   const actual = await importOriginal<typeof import('react-router')>();
-  return { ...actual, useNavigate: () => navigateMock };
+  return actual;
 });
 
 let realRole: Role = 'Admin';
@@ -133,7 +133,8 @@ describe('Companies: search_used fires (debounced) at the reference-template sea
     renderPage();
     const input = screen.getByLabelText('Search companies');
     fireEvent.change(input, { target: { value: 'cascade' } });
-    vi.advanceTimersByTime(500);
+    act(() => vi.advanceTimersByTime(300));
+    act(() => vi.advanceTimersByTime(200));
     expect(analytics.trackSearchUsed).toHaveBeenCalledWith('companies-list', 1, 'companies');
   });
 });

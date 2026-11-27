@@ -1,11 +1,11 @@
+import { useDebouncedUrlFilters } from '@/src/hooks/useDebouncedUrlFilters';
 import { projectDisplayName, sortProjectOptions } from '@/src/lib/projectDisplayName';
-import React, { useCallback, useDeferredValue, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   ListPage,
   SearchMini,
   Combobox,
-  useUrlFilters,
   ListState,
   DataTable,
   ConfirmDialog,
@@ -47,15 +47,14 @@ const Meetings: React.FC = () => {
   const currentUserId = currentUser?.id ?? null;
   const { toast } = useToast();
 
-  const { values, setFilter, clear } = useUrlFilters(['q', 'project', 'archived']);
+  const { values, setFilter, clear, search: searchInput, setSearch } = useDebouncedUrlFilters(['q', 'project', 'archived']);
   const projectFilter = values.project;
   const showArchived = values.archived === '1';
   const search = values.q;
-  const deferredSearch = useDeferredValue(search);
 
   const { data, total: exactTotal, isPartial, isPending, isError, isPlaceholderData, hasNextPage, isFetchingNextPage, fetchNextPage, refetch } = useMeetingsPages({
     projectId: !projectFilter || projectFilter === 'All' ? undefined : projectFilter,
-    search: deferredSearch.trim() || undefined,
+    search: search.trim() || undefined,
     includeArchived: showArchived,
   });
   const unfiltered = useMeetingsPages({ includeArchived: showArchived });
@@ -114,7 +113,7 @@ const Meetings: React.FC = () => {
     [projectPickerOptions],
   );
   const hasActiveFilters = Boolean(
-    search.trim() || (projectFilter && projectFilter !== 'All') || showArchived,
+    searchInput.trim() || (projectFilter && projectFilter !== 'All') || showArchived,
   );
 
   const handleFilterChange = (key: string, value: string) => {
@@ -312,8 +311,8 @@ const Meetings: React.FC = () => {
           <SearchMini
             aria-label={t('meetings.search.ariaLabel', 'Search meetings')}
             placeholder={t('meetings.search.placeholder', 'Search notes and titles…')}
-            value={search}
-            onChange={(event) => setFilter('q', event.currentTarget.value)}
+            value={searchInput}
+            onChange={(event) => setSearch(event.currentTarget.value)}
             containerClassName="max-sm:basis-full max-sm:w-full max-sm:min-w-0 sm:ml-auto"
           />
         )

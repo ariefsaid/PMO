@@ -4,6 +4,7 @@ import { Button, FieldError, ListState, TextField, useToast } from '@/src/compon
 import { usePermission } from '@/src/auth/usePermission';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { useSetWorkInHandCapacity, useWorkInHandCapacity } from '@/src/hooks/useWorkInHand';
+import { parseMoneyInputAtScale, moneyInputErrorKind } from '@/src/lib/format';
 import { monthlyCapacityIssue } from '@/src/lib/db/workInHand';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 
@@ -34,12 +35,14 @@ const OrgWorkInHandCapacity: React.FC = () => {
   if (!canManage) return null;
 
   const trimmed = shown.trim();
-  const draftIssue = trimmed === '' ? null : monthlyCapacityIssue(trimmed);
-  const parsedValue: number | null | 'invalid' = trimmed === '' ? null : (draftIssue === null ? Number(trimmed) : 'invalid');
+  const parsedValue = trimmed === '' ? null : (parseMoneyInputAtScale(trimmed, 2) ?? 'invalid');
 
   const submit = async (raw: string | null) => {
     setError(null);
-    const issue = monthlyCapacityIssue(raw);
+    const clean = raw?.trim() ?? '';
+    const nextValue = clean === '' ? null : parseMoneyInputAtScale(clean, 2);
+    const kind = moneyInputErrorKind(clean, 2);
+    const issue = kind === 'precision' ? 'precision' : clean !== '' && nextValue === null ? 'invalid' : monthlyCapacityIssue(nextValue);
     if (issue === 'invalid') {
       setError(t('capacitySetting.invalid', 'Enter a valid amount.'));
       return;
@@ -52,8 +55,6 @@ const OrgWorkInHandCapacity: React.FC = () => {
       setError(t('capacitySetting.precision', 'Give monthly capacity at most two decimals.'));
       return;
     }
-    const clean = raw === null ? '' : raw.trim();
-    const nextValue = clean === '' ? null : Number(clean);
     try {
       await mutation.mutateAsync(nextValue);
       toast(t('capacitySetting.saved', 'Monthly work capacity saved'), undefined, 'success');

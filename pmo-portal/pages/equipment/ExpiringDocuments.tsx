@@ -12,9 +12,12 @@ import RecordRenewalAction from './RecordRenewalAction';
 
 /** Loads the whole record of the expiring document, then opens the renew form on it. */
 const RenewDocument: React.FC<{ row: ExpiringDocumentRow; onClose: () => void }> = ({ row, onClose }) => {
+  const { t } = useTranslation();
   const docs = useSubjectDocuments(row.subject_kind, row.subject_id);
   const doc = (docs.data ?? []).find((d) => d.id === row.id);
-  if (!doc) return null;
+  if (docs.isError) return <ListState variant="error" title={t("common:ui.errorBoundary.title", "Something went wrong")} onRetry={() => void docs.refetch()} />;
+  if (docs.isPending) return <ListState variant="loading" />;
+  if (!doc) return <ListState variant="empty" title={t("equipment:expiry.recordNotFound", "Record not found")} />;
   return <ExpiryDocumentForm kind={row.subject_kind} subjectId={row.subject_id} doc={doc} renew onClose={onClose} />;
 };
 

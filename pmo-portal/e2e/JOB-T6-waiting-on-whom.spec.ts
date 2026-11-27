@@ -22,7 +22,7 @@ test('JOB-T6 a waiting task shows the task it waits on and that task\'s owner', 
   const manager = await roleJobUser(admin, 'project_manager', runId('t6pm'));
   const owner = await roleJobUser(admin, 'site_supervisor', ownerName);
   people.push(manager, owner);
-  projectId = await ownProject(admin, `JOB-T6 project ${sfx}`);
+  projectId = await ownProject(admin, `JOB-T6 project ${sfx}`, manager.id);
 
   const upstream = need('upstream task', await admin.from('tasks').insert({
     org_id: ORG_ID, project_id: projectId, name: `Install pump ${sfx}`, status: 'In Progress', assignee_id: owner.id,

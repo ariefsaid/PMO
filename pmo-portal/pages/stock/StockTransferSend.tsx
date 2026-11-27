@@ -1,7 +1,8 @@
 import React, { useMemo, useRef, useState } from 'react';
+import { useUnsavedChangesGuard } from "@/src/hooks/useUnsavedChangesGuard";
 import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Button, ConfirmDialog, FormActions, FormGrid, FormSection, ListState, PageHeader, SelectField, TextField, MobileActionBar, useToast } from '@/src/components/ui';
+import { Button, UnsavedChangesDialog, ConfirmDialog, FormActions, FormGrid, FormSection, ListState, PageHeader, SelectField, TextField, MobileActionBar, useToast } from '@/src/components/ui';
 import { FormErrorStrip } from '@/src/components/ui/FormFields';
 import { ItemPicker } from '@/src/components/stock/ItemPicker';
 import { useStockErrorText } from '@/src/components/stock/useStockErrorText';
@@ -40,6 +41,10 @@ const StockTransferSend: React.FC = () => {
   const [lines, setLines] = useState<LineState[]>([{ key: 1, itemId: null, quantity: '' }]);
   const [error, setError] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [pendingLeave, setPendingLeave] = useState<{leave: () => void; stay: () => void} | null>(null);
+  const [saved, setSaved] = useState(false);
+  const dirty = !saved && Boolean(from || to || receiver || note || lines.some((l) => l.itemId || l.quantity));
+  const guardLeave = useUnsavedChangesGuard({dirty, guardHistory: true, onBlocked: (leave, stay) => setPendingLeave({leave, stay})});
   const [busy, setBusy] = useState(false);
   // FR-SKD-005: one guard before the consequential post, naming the items, their quantities and both locations.
   const [confirming, setConfirming] = useState(false);
@@ -95,6 +100,7 @@ const StockTransferSend: React.FC = () => {
       const id = await stockTransfersRepository.send({ fromWarehouseId: from, toWarehouseId: to, toUserId: receiver || null, note, lines: lines.map((l) => ({ itemId: l.itemId!, quantity: normalizeDecimal(l.quantity) })) }, requestId.current);
       await refresh();
       toast(t('transfers.sentToast'), '', 'success');
+      setSaved(true);
       navigate(`/stock/transfers/${id}`);
     } catch (err) { setError(errorText(err)); } finally { setBusy(false); }
   };
@@ -130,9 +136,10 @@ const StockTransferSend: React.FC = () => {
           <TextField label={t('form.note')} value={note} onChange={setNote} />
         </FormSection>
         <MobileActionBar className="fixed inset-x-0 bottom-[var(--phone-nav-height)] z-20 border-t border-border bg-card p-3 md:static md:border-0 md:bg-transparent md:p-0">
-          <FormActions submitLabel={t('transfers.send')} cancelLabel={t('actions.cancel')} onCancel={() => navigate('/stock/transfers')} loading={busy} />
+          <FormActions submitLabel={t('transfers.send')} cancelLabel={t('actions.cancel')} onCancel={() => guardLeave(() => navigate('/stock/transfers'))} loading={busy} />
         </MobileActionBar>
       </form>
+      <UnsavedChangesDialog open={pendingLeave !== null} onDiscard={() => { const p = pendingLeave; setPendingLeave(null); p?.leave(); }} onKeepEditing={() => { const p = pendingLeave; setPendingLeave(null); p?.stay(); }} />
       <ConfirmDialog
         open={confirming}
         title={t('transfers.sendConfirm.title', 'Send this transfer?')}

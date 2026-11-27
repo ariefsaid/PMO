@@ -20,7 +20,7 @@ import { BackBar } from '@/src/components/shell';
 import { usePermission } from '@/src/auth/usePermission';
 import { useListReturn } from '@/src/hooks/useListReturn';
 import { useContact, useContactMutations } from '@/src/hooks/useContacts';
-import { useCompanies, useCompany } from '@/src/hooks/useCompanies';
+import { useCompanyOptions, useCompany } from '@/src/hooks/useCompanies';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { useAgentContextPublisher } from '@/src/lib/agent/context/useAgentContext';
 import { ContactActivityPanel } from './contact/ContactActivityPanel';
@@ -48,7 +48,7 @@ const ContactDetail: React.FC = () => {
   const query = useContact(contactId);
   // PGA02-004: the company directory backs this page's company field and the edit form's company
   // select — its loading/error state is consumed, not discarded.
-  const { data: companyData, isPending: companiesPending, isError: companiesError, refetch: refetchCompanies } = useCompanies();
+  const { data: companyData, isPending: companiesPending, isError: companiesError, refetch: refetchCompanies } = useCompanyOptions();
   const { update, archive } = useContactMutations();
 
   const [editOpen, setEditOpen] = useState(false);
@@ -337,7 +337,7 @@ const Field: React.FC<{ label: string; value: React.ReactNode }> = ({ label, val
  */
 const CompanyNameRefValue: React.FC<{ companyId: string }> = ({ companyId }) => {
   const { t } = useTranslation();
-  const { data: companyData, isPending: companiesPending, isError: companiesError, refetch: refetchCompanies } = useCompanies();
+  const { data: companyData, isPending: companiesPending, isError: companiesError, refetch: refetchCompanies } = useCompanyOptions();
 
   if (companiesPending) {
     return (

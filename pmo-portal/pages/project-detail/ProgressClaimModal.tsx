@@ -202,13 +202,13 @@ const ProgressClaimModal: React.FC<ProgressClaimModalProps> = ({
     ])));
 
   useEffect(() => {
-    if (!initialWorkOrderId || !initialScope || initialPrefillApplied.current) return;
+    if (!initialWorkOrderId || !initialScope || initialPrefillApplied.current || sources.some((source) => source.pending || source.error)) return;
     initialPrefillApplied.current = true;
-    setQuantities(Object.fromEntries(Object.entries(prefill).map(([id, quantity]) => {
+    setQuantities((entered) => ({ ...Object.fromEntries(Object.entries(prefill).map(([id, quantity]) => {
       const line = boqItems.find((item) => item.id === id);
       return [id, line?.earning_basis === 'lump_sum' ? fractionToPercentInput(quantity) : formatMoneyInputValue(quantity)];
-    })));
-  }, [boqItems, initialScope, initialWorkOrderId, prefill]);
+    })), ...entered }));
+  }, [boqItems, initialScope, initialWorkOrderId, prefill, sources]);
 
   return (
     <EntityFormModal
@@ -229,6 +229,7 @@ const ProgressClaimModal: React.FC<ProgressClaimModalProps> = ({
       <div>
         <FormGrid className="sm:[grid-template-columns:1fr]">
           <SelectField id="claim-kind" label={t('projectDetail.billing.claimForm.kind', 'Claim type')} value={kind}
+            disabled={sources.some((source) => source.pending || source.error)}
             onChange={(value) => { setKind(value as Kind); setErrors({}); }} options={kindOptions} />
           {kind === 'progress' && (
             <SelectField id="claim-scope" label={t('projectDetail.billing.claimForm.scope', 'Bills')} value={scope}

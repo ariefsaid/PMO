@@ -26,8 +26,8 @@ export type ProcurementWithRefs = ProcurementRow & {
   purchase_requests?: Pick<Tables<'purchase_requests'>, 'amount' | 'date' | 'created_at' | 'external_ref'>[];
   purchase_orders?: Pick<Tables<'purchase_orders'>, 'amount' | 'date' | 'created_at' | 'external_ref'>[];
   receipts?: Pick<Tables<'procurement_receipts'>, 'receipt_date' | 'created_at'>[];
-  procurement_invoices?: (Pick<Tables<'procurement_invoices'>, 'amount' | 'invoice_date' | 'created_at' | 'erp_outstanding_amount' | 'external_ref'> & { voided_at?: string | null })[];
-  payments?: Pick<Tables<'payments'>, 'amount' | 'date' | 'created_at' | 'status'>[];
+  procurement_invoices?: (Pick<Tables<'procurement_invoices'>, 'amount' | 'invoice_date' | 'created_at' | 'erp_outstanding_amount' | 'external_ref'> & { id?: string; currency?: string | null; voided_at?: string | null })[];
+  payments?: (Pick<Tables<'payments'>, 'amount' | 'date' | 'created_at' | 'status'> & { invoice_id?: string | null; currency?: string | null })[];
 };
 
 /** Every non-empty external reference on a case's PR / PO / vendor-invoice records, in that order. */
@@ -50,8 +50,8 @@ const PROCUREMENT_LIST_DETAILS = [
   'purchase_requests(amount,date,created_at,external_ref)',
   'purchase_orders(amount,date,created_at,external_ref)',
   'receipts:procurement_receipts(receipt_date,created_at)',
-  'procurement_invoices(amount,invoice_date,created_at,erp_outstanding_amount,external_ref,voided_at)',
-  'payments(amount,date,created_at,status)',
+  'procurement_invoices(id,currency,amount,invoice_date,created_at,erp_outstanding_amount,external_ref,voided_at)',
+  'payments(invoice_id,currency,amount,date,created_at,status)',
 ].join(', ');
 
 /** Procurement index select: references for search plus the shared list's money/stage inputs.

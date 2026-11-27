@@ -45,3 +45,10 @@ describe('StageDateDialog (#1638)', () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 });
+
+it("warns before discarding a changed skipped stage", async () => {
+ render(<StageDateDialog title="Add stage" initialDate="2026-10-12" stageOptions={["Leads", "Quotation Submitted"]} onConfirm={vi.fn()} onClose={vi.fn()} />);
+ await userEvent.selectOptions(screen.getByLabelText("Stage"), "Quotation Submitted");
+ await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+ expect(await screen.findByText(/Discard your changes/i)).toBeInTheDocument();
+});

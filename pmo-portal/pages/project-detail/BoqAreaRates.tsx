@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Button, TextField, useToast } from '@/src/components/ui';
@@ -39,13 +39,17 @@ const BoqAreaRates: React.FC<Props> = ({ boqItemId, catalogueItemId }) => {
   const live = (areas.data ?? []).filter((a) => !a.archived_at);
   const key = ['boq-area-rates', orgId, boqItemId] as const;
   const rates = useQuery({ queryKey: key, queryFn: () => workOrderListRepository.areaRates(boqItemId), enabled: allowed && live.length > 0 });
+  const dirty = useRef(new Set<string>());
   const save = useMutation({
     mutationFn: (v: { areaId: string; rate: string | null }) => workOrderListRepository.setAreaRate(boqItemId, v.areaId, v.rate),
-    onSuccess: () => qc.invalidateQueries({ queryKey: key }),
+    onSuccess: (_, variables) => { dirty.current.delete(variables.areaId); return qc.invalidateQueries({ queryKey: key }); },
   });
   const [draft, setDraft] = useState<Record<string, string>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
-  useEffect(() => { setDraft(Object.fromEntries((rates.data ?? []).map((r) => [r.areaId, exactAreaRate(r.rate)]))); }, [rates.data]);
+  useEffect(() => { setDraft((previous) => ({
+    ...Object.fromEntries((rates.data ?? []).map((r) => [r.areaId, exactAreaRate(r.rate)])),
+    ...Object.fromEntries([...dirty.current].map((id) => [id, previous[id] ?? ''])),
+  })); }, [rates.data]);
   if (!allowed || live.length === 0) return null;
 
   const run = async (areaId: string, name: string) => {
@@ -72,7 +76,7 @@ const BoqAreaRates: React.FC<Props> = ({ boqItemId, catalogueItemId }) => {
           <li key={a.id} className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-x-4 gap-y-2 py-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
             <span className="col-span-2 min-w-0 break-words text-foreground sm:col-span-1 sm:pt-2">{a.name}{a.description ? <span className="block text-muted-foreground">{a.description}</span> : null}</span>
             <TextField hideLabel label={t('projectDetail.billing.areaRates.rate', 'Rate for {{name}}', { name: a.name })} inputMode="decimal" value={draft[a.id] ?? ''}
-              onChange={(v) => setDraft((d) => ({ ...d, [a.id]: v }))} error={errors[a.id]} disabled={save.isPending} />
+              onChange={(v) => { dirty.current.add(a.id); setDraft((d) => ({ ...d, [a.id]: v })); }} error={errors[a.id]} disabled={save.isPending} />
             <Button variant="outline" size="sm" onClick={() => void run(a.id, a.name)} disabled={save.isPending}>{t('projectDetail.billing.areaRates.save', 'Save')}</Button>
           </li>
         ))}

@@ -114,6 +114,12 @@ export const ProcurementStageTracker: React.FC<ProcurementStageTrackerProps> = (
                 ? t('stage.paid', 'Paid')
                 : count > 0
                 ? (() => {
+                    if (stage.key === 'pay') {
+                      return [
+                        invoices.length > 0 ? `${invoices.length} ${invoices.length === 1 ? t('stage.invoice', 'invoice') : t('stage.invoices', 'invoices')}` : null,
+                        payments.length > 0 ? `${payments.length} ${payments.length === 1 ? t('stage.payment', 'payment') : t('stage.payments', 'payments')}` : null,
+                      ].filter(Boolean).join(' · ');
+                    }
                     const document = stage.key === 'request'
                       ? count === 1 ? t('stage.purchaseRequest', 'purchase request') : t('stage.purchaseRequests', 'purchase requests')
                       : stage.key === 'order'

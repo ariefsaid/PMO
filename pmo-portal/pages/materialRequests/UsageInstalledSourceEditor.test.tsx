@@ -3,16 +3,29 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ToastProvider } from '@/src/components/ui';
 
-const h = vi.hoisted(() => ({ set: vi.fn(), refetch: vi.fn().mockResolvedValue(undefined), source: 'site_reports' }));
+const h = vi.hoisted(() => ({ set: vi.fn(), refetch: vi.fn().mockResolvedValue(undefined), source: 'site_reports', isError: false }));
 vi.mock('@/src/lib/repositories/materialRequests', async (orig) => {
   const real = await orig<typeof import('@/src/lib/repositories/materialRequests')>();
   return { ...real, materialRequestRepository: { ...real.materialRequestRepository, setUsageInstalledSource: h.set } };
 });
-vi.mock('@/src/hooks/useMaterialRequests', () => ({ useUsageInstalledSource: () => ({ data: h.source, refetch: h.refetch }) }));
+vi.mock('@/src/hooks/useMaterialRequests', () => ({ useUsageInstalledSource: () => ({ data: h.source, isError: h.isError, refetch: h.refetch }) }));
 
 import { UsageInstalledSourceEditor } from './UsageInstalledSourceEditor';
 
 describe('AC-UW-010 what counts as installed', () => {
+  it('blocks replacing an unavailable source and offers retry before editing', async () => {
+    h.isError = true;
+    const { rerender } = render(<ToastProvider><UsageInstalledSourceEditor /></ToastProvider>);
+    expect(screen.getByRole('button', { name: 'Save source' })).toBeDisabled();
+    expect(screen.getByLabelText('Installed material comes from')).toBeDisabled();
+    await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(h.refetch).toHaveBeenCalled();
+    h.isError = false;
+    h.source = 'stock_issues';
+    rerender(<ToastProvider><UsageInstalledSourceEditor /></ToastProvider>);
+    expect(screen.getByLabelText('Installed material comes from')).toHaveValue('stock_issues');
+    expect(screen.getByLabelText('Installed material comes from')).toBeEnabled();
+  });
   it('shows validated site reports by default and saves the other choice', async () => {
     h.source = 'site_reports';
     h.set.mockResolvedValue(undefined);

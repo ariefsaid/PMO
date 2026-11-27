@@ -72,7 +72,7 @@ const proj = (id: string, name: string, contract_value: number, currency: string
   tax_treatment: 'exclusive',
 });
 vi.mock('@/src/hooks/useCompanies', () => ({
-  useCompanies: () => ({ data: [], isError: false }),
+  useCompanyOptions: () => ({ data: [], isError: false }),
 }));
 vi.mock('@/src/hooks/useProjects', () => ({
   useProject: () => ({ data: null }),

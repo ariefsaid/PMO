@@ -33,6 +33,7 @@ export const IssueClosingReportSettings: React.FC = () => {
   const [newName, setNewName] = useState('');
   const [newTypes, setNewTypes] = useState('');
   const [editingGroup, setEditingGroup] = useState<IssueDepartmentGroup | null>(null);
+  const [editingTypes, setEditingTypes] = useState('');
   const [error, setError] = useState<string>();
 
   if (!canManage) return null;
@@ -80,7 +81,7 @@ export const IssueClosingReportSettings: React.FC = () => {
       await saveGroup.mutateAsync({
         id: editingGroup.id,
         name: editingGroup.name.trim(),
-        issue_types: editingGroup.issue_types,
+        issue_types: editingTypes.split(',').map((s) => s.trim()).filter(Boolean),
       });
       setEditingGroup(null);
       toast(t('issueClosingReport.groupSaved', 'Department group saved'), undefined, 'success');
@@ -114,7 +115,7 @@ export const IssueClosingReportSettings: React.FC = () => {
       </div>
 
       <div className="max-w-sm">
-        <SelectField
+        {settingsQuery.isError ? <ListState variant="error" title={t('administration:orgSwitch.loadError', "Couldn't load this setting")} onRetry={() => void settingsQuery.refetch()} /> : settingsQuery.isPending ? <ListState variant="loading" rows={1} /> : <SelectField
           id="admin-report-grouping-mode"
           label={t('issueClosingReport.groupingMode', 'Default grouping')}
           value={settings?.grouping_mode ?? 'type'}
@@ -124,7 +125,7 @@ export const IssueClosingReportSettings: React.FC = () => {
             { value: 'department_groups', label: t('issueClosingReport.modeDepartmentGroups', 'By custom department groups') },
           ]}
           disabled={updateSettings.isPending}
-        />
+        />}
       </div>
 
       {/* Department Groups Editor */}
@@ -140,7 +141,7 @@ export const IssueClosingReportSettings: React.FC = () => {
 
         {error && <FieldError id="dept-group-error">{error}</FieldError>}
 
-        {groupsQuery.isPending ? (
+        {groupsQuery.isError ? <ListState variant="error" title={t('administration:orgSwitch.loadError', "Couldn't load this setting")} onRetry={() => void groupsQuery.refetch()} /> : groupsQuery.isPending ? (
           <ListState variant="loading" rows={3} />
         ) : (groupsQuery.data ?? []).length === 0 ? (
           <p className="text-control text-muted-foreground italic">
@@ -160,13 +161,8 @@ export const IssueClosingReportSettings: React.FC = () => {
                       />
                       <TextField
                         label={t('issueClosingReport.issueTypes', 'Issue types (comma-separated)')}
-                        value={editingGroup.issue_types.join(', ')}
-                        onChange={(raw) =>
-                          setEditingGroup({
-                            ...editingGroup,
-                            issue_types: raw.split(',').map((s) => s.trim()).filter(Boolean),
-                          })
-                        }
+                        value={editingTypes}
+                        onChange={setEditingTypes}
                       />
                     </div>
                     <div className="flex items-center gap-2">
@@ -193,7 +189,7 @@ export const IssueClosingReportSettings: React.FC = () => {
                         type="button"
                         variant="outline"
                         size="sm"
-                        onClick={() => setEditingGroup(grp)}
+                        onClick={() => { setEditingGroup(grp); setEditingTypes(grp.issue_types.join(', ')); }}
                       >
                         <Icon name="pencil" />
                         {t('issueClosingReport.edit', 'Edit')}

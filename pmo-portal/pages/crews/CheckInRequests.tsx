@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button, Card, CardHead, DataTable, FieldError, ReasonDialog, useToast, type Column } from '@/src/components/ui';
+import { Button, Card, CardHead, DataTable, FieldError, ListState, ReasonDialog, useToast, type Column } from '@/src/components/ui';
 import { useCheckInRequests, useDecideCheckIn } from '@/src/hooks/usePhoneCheckIn';
 import type { CheckInRequest } from '@/src/lib/repositories/phoneCheckIn';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
@@ -19,6 +19,7 @@ export const CheckInRequests: React.FC = () => {
   const [rejecting, setRejecting] = useState<CheckInRequest | null>(null);
   const [error, setError] = useState<string | null>(null);
   const rows = requests.data ?? [];
+  if (requests.isError) return <ListState variant="error" title={t('common:ui.listState.readError')} onRetry={() => void requests.refetch()} />;
   if (rows.length === 0) return null;
 
   const outcome = (o: CheckInRequest['outcome']) => o === 'not_rostered' ? t('crews:checkIn.outcomeNotRostered', 'Not on the roster today')

@@ -15,7 +15,7 @@ vi.mock('@/src/hooks/useDashboard', () => ({
     isPending: false, isError: false,
   }),
 }));
-vi.mock('@/src/hooks/useCompanies', () => ({ useCompanies: () => ({ data: [], isPending: false, isError: false }) }));
+vi.mock('@/src/hooks/useCompanies', () => ({ useCompanyOptions: () => ({ data: [], isPending: false, isError: false }) }));
 vi.mock('@/src/hooks/useContacts', () => ({ useContacts: () => ({ data: [], isPending: false, isError: false }) }));
 vi.mock('@/src/hooks/useIncidents', () => ({ useIncidents: () => ({ data: [], isPending: false, isError: false }) }));
 

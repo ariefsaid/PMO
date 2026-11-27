@@ -393,6 +393,13 @@ describe('SalesInvoices — deep link (#787)', () => {
     expect(table).toContain('ACC-SINV-2026-00002');
   });
 
+  it('retries the failed by-id invoice and opens the recovered record', async () => {
+    hoisted.getInvoice.mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce({ ...SEED_INVOICES[0], id: 'inv-unlisted' });
+    renderAt('/sales-invoices/inv-unlisted');
+    await userEvent.click(await screen.findByRole('button', { name: /retry|try again/i }));
+    await waitFor(() => expect(hoisted.getInvoice).toHaveBeenCalledTimes(2));
+    expect(await screen.findByTestId('record-label')).toHaveTextContent('ACC-SINV-2026-00001');
+  });
   it('UXS-014 directly addresses an unnumbered draft by its customer and does not offer its author self-approval', () => {
     salesInvoicesState.data[0] = {
       ...salesInvoicesState.data[0],

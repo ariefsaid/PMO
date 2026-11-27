@@ -59,6 +59,7 @@ export interface ClientRequisitionEvent extends CsrEvent {
 
 /** One rollup row (csr_work_order_rollup) as the screen reads it, plus the requisition status it belongs to. */
 export interface ClientRequisitionLineRow extends CsrLine {
+  workOrderLineId?: string | null;
   requisitionNumber: string;
   requisitionStatus: ClientRequisitionStatus;
   itemCode: string;
@@ -111,10 +112,15 @@ export async function getWorkOrderClientMaterial(workOrderId: string): Promise<W
       .limit(EVENT_LIMIT),
   ]);
   for (const r of [rollup, events, pickups]) if (r.error) fail(r.error);
+  const allocations = await supabase.from('client_requisition_lines')
+    .select('id, work_order_line_id').in('requisition_id', ids).limit(LINE_LIMIT);
+  if (allocations.error) fail(allocations.error);
+  const allocationByLine = new Map((allocations.data ?? []).map((l) => [l.id, l.work_order_line_id]));
   return {
     requisitions,
     lines: (rollup.data ?? []).slice(0, LINE_LIMIT).map((l): ClientRequisitionLineRow => ({
       id: l.line_id, requisitionId: l.requisition_id, requisitionNumber: l.requisition_number,
+      workOrderLineId: allocationByLine.get(l.line_id) ?? null,
       requisitionStatus: l.requisition_status as ClientRequisitionStatus, itemId: l.stock_item_id, itemCode: l.item_code,
       itemName: l.item_name, unit: l.unit_code, takeoffQuantity: num(l.takeoff_quantity), requestedQuantity: num(l.requested_quantity),
     })),

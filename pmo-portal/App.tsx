@@ -30,11 +30,6 @@ import { ImpersonationBanner } from '@/src/auth/ImpersonationBanner';
 import { useAuth } from '@/src/auth/useAuth';
 import { useOperatorMembership } from '@/src/auth/useIsOperator';
 import LoginPage from '@/src/auth/LoginPage';
-import TermsPage from './pages/Terms';
-import PrivacyPage from './pages/Privacy';
-import ResetPasswordPage from '@/src/auth/ResetPasswordPage';
-import UpdatePasswordPage from '@/src/auth/UpdatePasswordPage';
-import OAuthConsentPage from '@/src/auth/OAuthConsentPage';
 import {
   AppShell,
   Rail,
@@ -59,7 +54,9 @@ import { useDemoEligibility } from '@/src/hooks/useDemoEligibility';
 import { useBuiltInRoleKey, usePermission } from '@/src/auth/usePermission';
 import { roleHasCapability } from '@/src/auth/builtInRoles';
 import { UserRole } from './types';
-import { AccessDenied, ToastProvider, TOOLTIP_OPEN_DELAY_MS } from '@/src/components/ui';
+import { AccessDenied } from '@/src/components/ui/AccessDenied';
+import { ToastProvider } from '@/src/components/ui/Toast';
+import { TOOLTIP_OPEN_DELAY_MS } from '@/src/components/ui/Tooltip';
 import { Tooltip as BaseTooltip } from '@base-ui/react/tooltip';
 import { EnvBadge } from '@/src/components/EnvBadge';
 import { ErrorBoundary } from '@/src/components/ErrorBoundary';
@@ -97,7 +94,17 @@ import { usePriceVisibilitySync } from '@/src/hooks/useHidePrices';
 // ── Lazy route chunks (lazyWithPreload: each carries an idempotent preload() —
 //    #1834 fires it on nav-link hover/focus/pointerdown and on route entry, so
 //    the chunk downloads in parallel with the route's data instead of after it) ─
-const ExecutiveDashboard = lazyWithPreload(() => import('./pages/ExecutiveDashboard'));
+const TermsPage = lazyWithPreload(() => import('./pages/Terms'));
+const PrivacyPage = lazyWithPreload(() => import('./pages/Privacy'));
+const ResetPasswordPage = lazyWithPreload(() => import('@/src/auth/ResetPasswordPage'));
+const UpdatePasswordPage = lazyWithPreload(() => import('@/src/auth/UpdatePasswordPage'));
+const OAuthConsentPage = lazyWithPreload(() => import('@/src/auth/OAuthConsentPage'));
+const ExecutiveDashboard = lazyWithPreload(() => {
+  // Start the actionable billing read's module with the dashboard, rather than after its first paint.
+  // The query owns failures; this optional warmup never holds the home screen behind an import error.
+  void import('@/src/lib/repositories/billingStages').catch(() => undefined);
+  return import('./pages/ExecutiveDashboard');
+});
 const Projects = lazyWithPreload(() => import('./pages/Projects'));
 const ProjectNew = lazyWithPreload(() => import('./pages/ProjectNew'));
 const ProjectDetail = lazyWithPreload(() => import('./pages/project-detail/ProjectDetail'));
@@ -206,7 +213,7 @@ interface PreloadableRouteChunk {
 const PROJECT_TAB_CHUNKS_BY_PATH: Record<string, PreloadableRouteChunk[]> = Object.fromEntries(
   Object.entries(PROJECT_TAB_CHUNKS).map(([area, chunks]) => [
     `/projects/:projectId/${area}`,
-    [ProjectDetail, ProjectSCurve, ...(chunks ?? [])],
+    [ProjectDetail, ...(chunks ?? [])],
   ]),
 );
 
@@ -222,8 +229,8 @@ const PROJECT_TAB_CHUNKS_BY_PATH: Record<string, PreloadableRouteChunk[]> = Obje
  *  - rail nav links on hover, focus and pointerdown (the `onPreloadHref` prop).
  *
  * Late IN-PAGE chunks ride along: the meeting routes include the MinutesEditor
- * chunk and the project routes include the overview's ProjectSCurve (+ a
- * deep-linked tab's chunks), so a data response never gates a second download.
+ * chunk; project overview routes include ProjectSCurve, while named tabs include
+ * only their own chunks, so a data response never gates a second download.
  */
 /**
  * #2097 — the namespaces a destination's FIRST PAINT needs, loaded by `preloadForPath` in parallel
@@ -298,7 +305,8 @@ const PRELOAD_RULES: PreloadRule[] = [
       chunks,
       namespaces: PROJECT_TAB_NAMESPACES[path.split('/').pop() ?? ''] ?? ['project'],
     })),
-  { path: '/projects/:projectId/:tab', chunks: [ProjectDetail, ProjectSCurve], namespaces: ['project', 'supplyRisk', 'workOrders', 'status'] },
+  { path: '/projects/:projectId/overview', chunks: [ProjectDetail, ProjectSCurve], namespaces: ['project'] },
+  { path: '/projects/:projectId/:tab', chunks: [ProjectDetail], namespaces: ['project', 'supplyRisk', 'workOrders', 'status'] },
   { path: '/projects/:projectId', chunks: [ProjectDetail, ProjectSCurve], namespaces: ['project'] },
   { path: '/sales', chunks: [SalesPipeline], namespaces: ['sales'] },
   // /sales/:id redirects to /projects/:projectId — start that download now.

@@ -45,9 +45,10 @@ const seed = [
 const refs = vi.hoisted(() => ({ project: { data: [{ value: 'old-p', label: 'Old project' }], isPending: false, isError: false, refetch: vi.fn() }, vendor: { data: [{ value: 'old-v', label: 'Old supplier' }], isPending: false, isError: false, refetch: vi.fn() } }));
 vi.mock('@/src/components/import/ImportWizard', () => ({ ImportWizard: ({ descriptor }: { descriptor: { toInput: (cells: Record<string, string>) => { projectId: string; vendorId: string } } }) => <output data-testid="bulk-refs">{JSON.stringify(descriptor.toInput({ title: 'X', projectId: 'Fresh project', vendorId: 'Fresh supplier' }))}</output> }));
 vi.mock('@/src/components/import/procurementCycle/ProcurementCycleImportWizard', () => ({ ProcurementCycleImportWizard: ({ projectLookup, vendorLookup }: { projectLookup: (s: string) => { id: string }; vendorLookup: (s: string) => { id: string } }) => <output data-testid="cycle-refs">{projectLookup('Fresh project').id}/{vendorLookup('Fresh supplier').id}</output> }));
+const linkedState = vi.hoisted(() => ({ data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() }));
 const procState = { data: seed as unknown[], isPending: false, isError: false, refetch: vi.fn() };
 vi.mock('@/src/hooks/useErpPurchases', () => ({
-  useErpPurchases: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+  useErpPurchases: () => linkedState,
   useErpOrphans: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
 }));
 vi.mock('@/src/hooks/useErpPurchaseLinks', () => ({ useLinkErpDocuments: () => ({ mutateAsync: vi.fn(), isPending: false }) }));
@@ -108,6 +109,7 @@ const renderPageInLocale = (locale: 'en' | 'id', initialPath = '/procurement') =
 
 describe('Procurement index — IA-3 (real data)', () => {
   beforeEach(() => {
+    linkedState.data = []; linkedState.isPending = false; linkedState.isError = false;
     effRole.value = 'Project Manager';
     refs.project.isPending = false; refs.project.isError = false; refs.project.data = [{ value: 'old-p', label: 'Old project' }];
     refs.vendor.isPending = false; refs.vendor.isError = false;
@@ -119,6 +121,22 @@ describe('Procurement index — IA-3 (real data)', () => {
     sessionStorage.clear();
   });
 
+  it.each(['pending', 'failed'])('withholds incomplete procurement figures while accounting documents are %s', async (state) => {
+    linkedState.isPending = state === 'pending'; linkedState.isError = state === 'failed';
+    renderPage();
+    expect(screen.queryByText('Workstations & AV')).not.toBeInTheDocument();
+    if (state === 'failed') {
+      await userEvent.click(screen.getByRole('button', { name: /retry|try again/i }));
+      expect(linkedState.refetch).toHaveBeenCalled();
+    } else expect(screen.getByTestId('liststate-loading')).toBeInTheDocument();
+  });
+  it('shows the linked invoice amount after accounting documents are available', () => {
+    linkedState.data = [{ procurementId: 'pc1', doctype: 'Purchase Invoice', grandTotal: 62000, outstanding: 62000 }];
+    renderPage('/procurement?tab=all');
+    const row = screen.getByRole('row', { name: /Workstations & AV/ });
+    expect(row).toHaveTextContent(/62,000/);
+    expect(row).not.toHaveTextContent(/150,000/);
+  });
   it.each(['Import procurements', 'Import cycle data'])('%s refreshes both references and uses returned options, retrying returned errors', async (entry) => {
     const user = userEvent.setup();
     refs.project.refetch.mockResolvedValueOnce({ isError: true, error: new Error('offline') });

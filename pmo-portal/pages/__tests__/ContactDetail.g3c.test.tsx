@@ -55,7 +55,7 @@ vi.mock('@/src/hooks/useContacts', () => ({
   useContactMutations: () => mutations,
 }));
 vi.mock('@/src/hooks/useCompanies', () => ({
-  useCompanies: () => companiesState,
+  useCompanyOptions: () => companiesState,
 }));
 
 let realRole: Role = 'Admin';
