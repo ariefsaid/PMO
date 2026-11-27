@@ -2,6 +2,7 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useTerms } from '@/src/lib/i18n/terms';
 import { useStockItems } from '@/src/hooks/useStock';
+import { ListState } from '@/src/components/ui';
 import { useSectionMaterialCheck } from '@/src/hooks/useWorkOrderSectionMaterials';
 
 interface Props {
@@ -22,7 +23,8 @@ export const SectionMaterialCheck: React.FC<Props> = ({ workOrderId, sections })
   const check = useSectionMaterialCheck(workOrderId);
   const items = useStockItems();
   const rows = check.data ?? [];
-  if (check.isPending || check.isError || rows.length === 0) return null;
+  if (check.isError) return <ListState variant="error" title={t('common:readError')} onRetry={() => void check.refetch()} />;
+  if (check.isPending || rows.length === 0) return null;
   const itemName = (id: string) => items.data?.find((i) => i.id === id)?.name ?? '—';
   const codeOf = (id: string | null) => (id === null ? t('remainder', 'Not in a {{section}}', { section: terms.section.toLowerCase() }) : sections.find((s) => s.id === id)?.code ?? '—');
   const num = (v: number | null) => (v === null ? '—' : String(v));
