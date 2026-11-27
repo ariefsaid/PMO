@@ -6,7 +6,7 @@ const PROJECT = 'p-1';
 const h = vi.hoisted(() => ({
   chain: { data: undefined as unknown, isPending: false, isError: false, refetch: vi.fn() },
   pins: { data: undefined as unknown, isPending: false, isError: false, refetch: vi.fn() },
-  users: { data: undefined as unknown },
+  users: { data: undefined as unknown, isPending: false, isError: false, refetch: vi.fn() },
   setPin: { mutateAsync: vi.fn(), isPending: false },
   toast: vi.fn(),
   role: { realRole: 'Project Manager' as string, effectiveRole: 'Project Manager' as string },
@@ -24,6 +24,8 @@ import { ProjectApprovalPins } from './ProjectApprovalPins';
 const mount = (managerId: string | null = 'u-pm') => render(<ProjectApprovalPins projectId={PROJECT} managerId={managerId} />);
 
 beforeEach(() => {
+  h.users.isPending = false;
+  h.users.isError = false;
   vi.clearAllMocks();
   h.chain.data = [{ id: 's1', position: 1, role: 'Engineer', label: 'Plan check' }, { id: 's3', position: 3, role: 'Finance', label: 'Stock' }];
   h.pins.data = [];
@@ -34,6 +36,23 @@ beforeEach(() => {
   h.role = { realRole: 'Project Manager', effectiveRole: 'Project Manager' };
   h.me = { id: 'u-pm' };
   h.setPin.mutateAsync.mockResolvedValue(undefined);
+});
+it('waits for the approver directory and retries before judging a saved pin', async () => {
+  h.pins.data = [{ position: 3, role: 'Finance', approverId: 'u6' }];
+  h.users.data = undefined;
+  h.users.isPending = true;
+  const view = mount();
+  expect(screen.queryByText(/can no longer decide/)).not.toBeInTheDocument();
+  h.users.isPending = false;
+  h.users.isError = true;
+  view.rerender(<ProjectApprovalPins projectId={PROJECT} managerId="u-pm" />);
+  fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+  expect(h.users.refetch).toHaveBeenCalled();
+  expect(screen.queryByText(/can no longer decide/)).not.toBeInTheDocument();
+  h.users.isError = false;
+  h.users.data = [{ id: 'u6', full_name: 'Fin Two', role: 'Finance', status: 'active' }];
+  view.rerender(<ProjectApprovalPins projectId={PROJECT} managerId="u-pm" />);
+  expect(screen.getByLabelText('Step 3: Stock')).toHaveValue('u6');
 });
 afterEach(cleanup);
 

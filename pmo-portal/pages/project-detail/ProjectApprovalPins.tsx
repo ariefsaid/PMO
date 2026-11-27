@@ -38,9 +38,9 @@ export function ProjectApprovalPins({ projectId, managerId }: { projectId: strin
   const [error, setError] = useState<string | null>(null);
 
   const title = <h4 className="text-sm font-medium text-muted-foreground">{t('projectDetail.approvalPins.title', 'Approver by step')}</h4>;
-  if (chain.isPending || pins.isPending) return <div>{title}<ListState variant="loading" rows={1} /></div>;
-  if (chain.isError || pins.isError) {
-    return <div>{title}<ListState variant="error" title={t('projectDetail.approvalPins.loadFailed', 'Approval steps could not be loaded')} onRetry={() => { void chain.refetch(); void pins.refetch(); }} retryLabel={t('projectDetail.approvalPins.retry', 'Retry')} /></div>;
+  if (chain.isPending || pins.isPending || users.isPending) return <div>{title}<ListState variant="loading" rows={1} /></div>;
+  if (chain.isError || pins.isError || users.isError) {
+    return <div>{title}<ListState variant="error" title={t('projectDetail.approvalPins.loadFailed', 'Approval steps could not be loaded')} onRetry={() => { void chain.refetch(); void pins.refetch(); void users.refetch(); }} retryLabel={t('projectDetail.approvalPins.retry', 'Retry')} /></div>;
   }
   const steps = chain.data ?? [];
   // Nothing to pin until the Admin has set a chain. Everyone else sees the pins read-only.
