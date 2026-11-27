@@ -5,7 +5,7 @@
 -- (`-- mut:material_reconciliation_closed`) and the closed-order acceptance assertions go red.
 begin;
 create extension if not exists pgtap;
-select plan(10);
+select plan(11);
 
 insert into organizations (id, name, default_currency, default_timezone) values
   ('30120000-0000-0000-0000-00000000010a', 'OMC Org', 'IDR', 'Asia/Jakarta');
@@ -79,8 +79,14 @@ select throws_ok($$select om_material_set_reconciliation('30120000-0000-0000-000
   (select id from owner_material_reconciliation_steps where org_id='30120000-0000-0000-0000-00000000010a' and archived_at is null and position=2))$$,
   'P0001', 'Section is frozen', 'AC-WOR-002 a cancelled work order takes no reconciliation');
 
--- 5. Every other material write stays refused while Closed: the client-reachable ones are the
---    material-request path (the refusal the issue itself cites) and the owner-material import.
+-- 5. Every other material write stays refused while Closed. The client-reachable ones: the section
+--    material plan (1173 grants authenticated insert; the org stamp trigger supplies org_id), the
+--    material-request path (the refusal the issue itself cites), and the owner-material import.
+select throws_ok($$insert into work_order_section_material_plan(work_order_id, section_id, item_id, quantity)
+  values ('30120000-0000-0000-0000-000000001402', '30120000-0000-0000-0000-000000002002',
+          '30120000-0000-0000-0000-000000001311', 1)$$,
+  '23514', 'WOS_STATUS: a closed work order takes no allocation changes',
+  'AC-WOR-002 a closed work order takes no material allocation');
 select throws_ok($$select mrq_save_draft(null,
   jsonb_build_object('work_order_id','30120000-0000-0000-0000-000000001402','needed_by','2026-12-01'),
   jsonb_build_array(jsonb_build_object('item_id','30120000-0000-0000-0000-000000001311','quantity','1')))$$,
