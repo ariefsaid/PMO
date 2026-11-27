@@ -36,17 +36,19 @@ export interface ProjectPlanVsActual {
 }
 
 function isRefused(err: unknown): boolean {
-  return (err as { code?: unknown } | null)?.code === '42501';
+  const code = (err as { code?: unknown } | null)?.code;
+  return typeof code === 'string' && /^[0-9A-Z]{5}$/.test(code);
 }
 
 async function load(projectId: string): Promise<ProjectPlanVsActual> {
+  let unavailableProject = false;
   const [orders, billing, money, projectFinances] = await Promise.all([
     listProjectWorkOrders(projectId),
     // Revenue is the shipped per-work-order billing read; when it cannot be read, revenue is unknown, never zero.
     listWorkOrderBilling(projectId).catch((): WorkOrderBillingRow[] | null => null),
-    // FR-WPVA-013: a role that cannot read work-order money gets "restricted", never a zero or a partial sum.
+    // FR-WPVA-013: canonical database refusals produce the restricted state.
     listProjectCostAmounts(projectId).then((lines): CostAmountLine[] | null => lines, (err) => {
-      if (isRefused(err)) return null;
+      if (isRefused(err)) { unavailableProject = (err as { code?: string }).code === 'P0002'; return null; }
       throw err;
     }),
     getProjectFinances(projectId).catch(() => null),
@@ -54,7 +56,7 @@ async function load(projectId: string): Promise<ProjectPlanVsActual> {
   const restricted = money === null;
   const [plans, split] = restricted ? [[], null] : await Promise.all([listProjectPlanLines(projectId), getSharedSplit(projectId)]);
 
-  return assemble(orders, billing, money, plans, split, projectFinances?.invoices ?? null);
+  return assemble(unavailableProject ? [] : orders, unavailableProject ? null : billing, money, plans, split, unavailableProject ? null : projectFinances?.invoices ?? null);
 }
 
 function assemble(
@@ -120,7 +122,8 @@ async function loadMany(ids: readonly string[]): Promise<Record<string, ProjectP
       const finances = optional(() => parseProjectFinances(read('finances'), id));
       const plans = money === null ? [] : parsePlanRows(read('plans'));
       const split = money === null ? null : parseSplitRows(read('split'));
-      result[id] = assemble(orders, billing, money, plans, split, finances?.invoices ?? null);
+      const unavailableProject = sources?.money?.error?.code === 'P0002';
+      result[id] = assemble(unavailableProject ? [] : orders, unavailableProject ? null : billing, money, plans, split, unavailableProject ? null : finances?.invoices ?? null);
     } catch (err) { result[id] = err instanceof Error ? err : new Error(String(err)); }
   }
   return result;

@@ -1,19 +1,30 @@
 -- Batch transport for the existing plan-versus-actual readers; figures remain in rollupProject.
--- Rollback: rollback/2771_management_pack_sources_down.sql
+-- Rollback: rollback/2779_management_pack_sources_down.sql
 begin;
 create function public.project_plan_actual_sources(p_project_ids uuid[])
 returns table(project_id uuid, sources jsonb)
 language plpgsql stable security invoker set search_path = public, pg_temp as $$
 declare
   v_id uuid;
+  v_ids uuid[];
+  v_missing boolean;
   v_source text;
   v_data jsonb;
   v_sources jsonb;
   v_restricted boolean;
 begin
-  foreach v_id in array p_project_ids loop
+  if cardinality(p_project_ids) > 10000 then
+    raise exception 'project selection exceeds 10000 entries' using errcode = '22023';
+  end if;
+  select coalesce(array_agg(distinct x order by x), '{}'::uuid[]) into v_ids
+    from unnest(coalesce(p_project_ids, '{}'::uuid[])) x where x is not null;
+  if cardinality(v_ids) > 2048 then
+    raise exception 'project selection exceeds 2048 projects' using errcode = '22023';
+  end if;
+  foreach v_id in array v_ids loop
     v_sources := '{}'::jsonb;
     v_restricted := false;
+    v_missing := false;
     foreach v_source in array array['orders','billing','money','finances','plans','split'] loop
       if v_restricted and v_source in ('plans','split') then
         v_sources := v_sources || jsonb_build_object(v_source, jsonb_build_object('data', '[]'::jsonb));
@@ -46,9 +57,16 @@ begin
       exception when others then
         v_sources := v_sources || jsonb_build_object(v_source,
           jsonb_build_object('error', jsonb_build_object('code', sqlstate, 'message', sqlerrm)));
-        if v_source = 'money' and sqlstate = '42501' then v_restricted := true; end if;
+        if v_source = 'money' then
+          v_restricted := true;
+          v_missing := sqlstate = 'P0002';
+        end if;
       end;
     end loop;
+    if v_missing then
+      v_sources := v_sources || jsonb_build_object('orders', jsonb_build_object('data', '[]'::jsonb),
+        'billing', jsonb_build_object('data', '[]'::jsonb));
+    end if;
     project_id := v_id;
     sources := v_sources;
     return next;

@@ -136,7 +136,7 @@ begin
     ('Engineer','e1'),('Light','e2'),('Other organisation','c1')) a(label,suffix) loop
     perform set_config('request.jwt.claims',json_build_object('sub','27510000-0000-0000-0000-0000000000'||actor.suffix,'role','authenticated')::text,true);
     foreach pid in array array['27510000-0000-0000-0000-0000000000d1'::uuid,'27510000-0000-0000-0000-0000000000d2'::uuid,'27510000-0000-0000-0000-0000000000ff'::uuid] loop
-      insert into q9_baseline values(actor.label,('27510000-0000-0000-0000-0000000000'||actor.suffix)::uuid,pid,pg_temp.single_money(pid),pg_temp.single_finances(pid), jsonb_build_object('orders',pg_temp.single_structure(pid,'orders'),'billing',pg_temp.single_structure(pid,'billing'),'plans',pg_temp.single_structure(pid,'plans'),'split',pg_temp.single_structure(pid,'split')));
+      insert into q9_baseline values(actor.label,('27510000-0000-0000-0000-0000000000'||actor.suffix)::uuid,pid,pg_temp.single_money(pid),pg_temp.single_finances(pid), jsonb_build_object('orders',case when pg_temp.single_money(pid)->'error'->>'code'='P0002' then jsonb_build_object('data','[]'::jsonb) else pg_temp.single_structure(pid,'orders') end,'billing',case when pg_temp.single_money(pid)->'error'->>'code'='P0002' then jsonb_build_object('data','[]'::jsonb) else pg_temp.single_structure(pid,'billing') end,'plans',case when pg_temp.single_money(pid) ? 'error' then jsonb_build_object('data','[]'::jsonb) else pg_temp.single_structure(pid,'plans') end,'split',case when pg_temp.single_money(pid) ? 'error' then jsonb_build_object('data','[]'::jsonb) else pg_temp.single_structure(pid,'split') end));
     end loop;
   end loop;
 end $$;
@@ -152,12 +152,21 @@ begin
     return query select is(b->q.project::text->'money',q.money,'AC-Q9-002 '||q.who||' money equality '||q.project::text) from q9_baseline q where q.who=actor.who;
     return query select is(b->q.project::text->'orders',q.structure->'orders','AC-Q9-015 '||q.who||' orders equality '||q.project::text) from q9_baseline q where q.who=actor.who;
     return query select is(b->q.project::text->'billing',q.structure->'billing','AC-Q9-016 '||q.who||' billing equality '||q.project::text) from q9_baseline q where q.who=actor.who;
-    return query select is(b->q.project::text->'plans',case when q.money->'error'->>'code'='42501' then jsonb_build_object('data','[]'::jsonb) else q.structure->'plans' end,'AC-Q9-017 '||q.who||' plan equality '||q.project::text) from q9_baseline q where q.who=actor.who;
-    return query select is(b->q.project::text->'split',case when q.money->'error'->>'code'='42501' then jsonb_build_object('data','[]'::jsonb) else q.structure->'split' end,'AC-Q9-018 '||q.who||' split equality '||q.project::text) from q9_baseline q where q.who=actor.who;
+    return query select is(b->q.project::text->'plans',case when q.money ? 'error' then jsonb_build_object('data','[]'::jsonb) else q.structure->'plans' end,'AC-Q9-017 '||q.who||' plan equality '||q.project::text) from q9_baseline q where q.who=actor.who;
+    return query select is(b->q.project::text->'split',case when q.money ? 'error' then jsonb_build_object('data','[]'::jsonb) else q.structure->'split' end,'AC-Q9-018 '||q.who||' split equality '||q.project::text) from q9_baseline q where q.who=actor.who;
     return query select is(b->q.project::text->'finances',q.finances,'AC-Q9-003 '||q.who||' finance equality '||q.project::text) from q9_baseline q where q.who=actor.who;
   end loop;
 end $$;
 select * from pg_temp.prove_batch();
+select set_config('request.jwt.claims','{"sub":"27510000-0000-0000-0000-0000000000a3","role":"authenticated"}',true);
+select is(public.get_projects_plan_actual_sources(array['27510000-0000-0000-0000-0000000000d2'::uuid])->'27510000-0000-0000-0000-0000000000d2'->'plans',jsonb_build_object('data','[]'::jsonb),'AC-Q9-020 project plan outcome');
+select is(public.get_projects_plan_actual_sources(array['27510000-0000-0000-0000-0000000000d2'::uuid])->'27510000-0000-0000-0000-0000000000d2'->'split',jsonb_build_object('data','[]'::jsonb),'AC-Q9-021 project allocation outcome');
+select is(public.get_projects_plan_actual_sources(array['27510000-0000-0000-0000-0000000000d2'::uuid])->'27510000-0000-0000-0000-0000000000d2',public.get_projects_plan_actual_sources(array['27510000-0000-0000-0000-0000000000ff'::uuid])->'27510000-0000-0000-0000-0000000000ff','AC-Q9-022 project selection outcomes');
+select is(public.get_projects_plan_actual_sources(null),'{}'::jsonb,'AC-Q9-023 empty selection');
+select is(public.get_projects_plan_actual_sources(array[null::uuid]),'{}'::jsonb,'AC-Q9-024 empty entry');
+select is((select count(*) from public.project_plan_actual_sources(array[null::uuid,'27510000-0000-0000-0000-0000000000d1'::uuid,'27510000-0000-0000-0000-0000000000d1'::uuid])),1::bigint,'AC-Q9-025 repeated selection');
+select throws_ok($q$ select public.get_projects_plan_actual_sources(array(select ('27710000-0000-0000-0000-'||lpad(i::text,12,'0'))::uuid from generate_series(1,2049) i)) $q$,'22023','project selection exceeds 2048 projects','AC-Q9-026 selection limit');
+
 select set_config('request.jwt.claims','{"sub":"27510000-0000-0000-0000-0000000000a1","role":"authenticated"}',true);
 select ok((public.get_projects_plan_actual_sources(array['27510000-0000-0000-0000-0000000000d2'::uuid])->'27510000-0000-0000-0000-0000000000d2'->'orders'->'data') @> '[{"id":"27510000-0000-0000-0000-000000000401"}]'::jsonb,'AC-Q9-014 populated order source remains readable');
 select is((select count(*) from jsonb_object_keys(public.get_projects_plan_actual_sources(

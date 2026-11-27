@@ -239,7 +239,7 @@ it('AC-Q9-007: a refused source remains restricted without blanking another proj
   const result = await workOrderFinanceRepository.projectsPlanVsActual(Object.keys(payload));
   expect(result.good).toMatchObject({ rollup: { restricted: false } });
   expect(result.restricted).toMatchObject({ rollup: { restricted: true }, plans: [], split: null });
-  expect(result.broken).toBeInstanceOf(Error);
+  expect(result.broken).toMatchObject({ rollup: { restricted: true }, plans: [], split: null });
 });
 
 it('AC-Q9-008: the batch figures equal the existing single-project fixture', async () => {
@@ -255,4 +255,14 @@ it('AC-Q9-009: one failed billing source stays unknown beside another successful
   const batch = await workOrderFinanceRepository.projectsPlanVsActual(['good', 'unknown']);
   expect(batch.good).toMatchObject({ workOrders: [expect.objectContaining({ revenue: '1000.00' }), expect.anything()] });
   expect(batch.unknown).toMatchObject({ workOrders: [expect.objectContaining({ revenue: null }), expect.objectContaining({ revenue: null })], rollup: { restricted: false } });
+});
+
+it.each(['P0002','42501','P0001','XX000'])('AC-Q9-028 project source outcome %s', async (code) => {
+  h.queue.push({ data: null, error: { message: 'unavailable', code } });
+  const single = await workOrderFinanceRepository.projectPlanVsActual('p1');
+  expect(single).toMatchObject({ rollup: { restricted: true }, plans: [], split: null });
+  expect(h.calls.from).not.toContain('work_order_plan_lines');
+  h.queue.push({ data: { p1: { ...sources(), money: { error: { message: 'unavailable', code } } } }, error: null });
+  const batch = await workOrderFinanceRepository.projectsPlanVsActual(['p1']);
+  expect(batch.p1).toEqual(single);
 });
