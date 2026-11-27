@@ -32,6 +32,17 @@ export function useCrewRoles(crewId: string | null) {
   return useOrgQuery(['crew-roles', crewId], () => crewRepository.roles(crewId as string), { enabled: Boolean(crewId) });
 }
 
+/** The placements in force on one day, for "who is in a crew that day". */
+export function useCrewPlacementsOn(date: string, enabled = true) {
+  return useOrgQuery(['crew-members', 'on', date], () => crewRepository.placementsOn(date), { enabled });
+}
+
+/** The named live people only (the key holds the sorted ids, so equal sets share one read). */
+export function useCrewWorkersByIds(ids: readonly string[], enabled = true) {
+  const sorted = [...new Set(ids)].sort();
+  return useOrgQuery(['crew-workers', 'by-ids', sorted.join(',')], () => crewRepository.workersByIds(sorted), { enabled: enabled && sorted.length > 0 });
+}
+
 export function useCrewWorkers() {
   return useOrgQuery(['crew-workers'], () => crewRepository.workers());
 }

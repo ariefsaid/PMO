@@ -14,6 +14,7 @@ const h = vi.hoisted(() => ({
   roster: { data: undefined as unknown, isPending: false, isError: false, refetch: vi.fn() },
   day: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
   awaiting: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
+  workerReads: [] as Array<{ ids: string[]; enabled: boolean }>, placementReads: [] as Array<{ date: string; enabled: boolean }>,
   record: vi.fn(), upload: vi.fn(), generate: vi.fn(), decide: vi.fn(), clear: vi.fn(),
 }));
 vi.mock('@/src/hooks/useCrews', () => ({
@@ -21,14 +22,20 @@ vi.mock('@/src/hooks/useCrews', () => ({
   useAttendanceDay: () => h.day,
   useAwaitingAttendance: () => h.awaiting,
   useManagedPeople: () => ({ data: h.reports }),
-  useCrewWorkers: () => ({ data: [
-    { id: 'v1', display_name: 'Vendor One' }, { id: 'v2', display_name: 'Ended Placement' }, { id: 'v3', display_name: 'No Placement' }, { id: 'w2', display_name: 'Budi' },
-  ], isPending: false }),
-  useAllCrewMembers: () => ({ data: [
-    { id: 'm1', crew_id: 'c9', worker_id: 'v1', valid_from: '2026-01-01', valid_to: null },
-    { id: 'm2', crew_id: 'c9', worker_id: 'v2', valid_from: '2026-01-01', valid_to: '2026-11-01' },
-    { id: 'm3', crew_id: 'c1', worker_id: 'w2', valid_from: '2026-01-01', valid_to: null },
-  ], isPending: false }),
+  useCrewWorkersByIds: (ids: string[], enabled = true) => {
+    h.workerReads.push({ ids: [...ids], enabled });
+    return { data: [
+      { id: 'v1', display_name: 'Vendor One' }, { id: 'v2', display_name: 'Ended Placement' }, { id: 'v3', display_name: 'No Placement' }, { id: 'w2', display_name: 'Budi' },
+    ].filter((w) => ids.includes(w.id)), isPending: false };
+  },
+  useCrewPlacementsOn: (date: string, enabled = true) => {
+    h.placementReads.push({ date, enabled });
+    return { data: [
+      { id: 'm1', crew_id: 'c9', worker_id: 'v1', valid_from: '2026-01-01', valid_to: null },
+      { id: 'm2', crew_id: 'c9', worker_id: 'v2', valid_from: '2026-01-01', valid_to: '2026-11-01' },
+      { id: 'm3', crew_id: 'c1', worker_id: 'w2', valid_from: '2026-01-01', valid_to: null },
+    ].filter((m) => m.valid_from <= date && (m.valid_to === null || m.valid_to >= date)), isPending: false };
+  },
   useCrewWorkOrders: () => ({ data: [{ id: 'wo1', wo_number: 'WO-1', title: 'Pipe rack' }], isLoading: false, isError: false, refetch: vi.fn() }),
   useAttendanceMutations: () => ({
     record: { mutateAsync: h.record }, uploadPhoto: { mutateAsync: h.upload },
@@ -60,6 +67,7 @@ describe('attendance tick screen (#2528)', () => {
   beforeEach(() => {
     h.role = 'Engineer';
     h.uid = 'fc1';
+    h.workerReads = []; h.placementReads = [];
     h.reports = [];
     h.roster = {
       data: [{
@@ -342,6 +350,15 @@ describe('attendance tick screen (#2528)', () => {
     expect(rows).toHaveLength(7);
     expect(rows[6]).toMatchObject({ worker_id: 'v1', status: 'present', hours: 8, followed_crew_id: 'c1' });
     expect(rows.slice(0, 6).some((r: Record<string, unknown>) => 'followed_crew_id' in r)).toBe(false);
+  });
+
+  it('#1128 the screen reads the placements of the chosen day and the names of those people only', async () => {
+    renderAt();
+    await screen.findByRole('combobox', { name: /Add someone from another crew/ });
+    expect(h.placementReads.every((r) => r.date === '2026-11-18' && r.enabled)).toBe(true);
+    // The ended placement and the unplaced person are never asked for.
+    const asked = new Set(h.workerReads.filter((r) => r.enabled).flatMap((r) => r.ids));
+    expect([...asked].sort()).toEqual(['v1', 'w2']);
   });
 
   it('AC-FOL-008 a recorded follow shows where the person came from and is not sent as a new follow', async () => {

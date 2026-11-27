@@ -11,7 +11,7 @@ import { useReleaseHolds } from '@/src/hooks/useMedicalRelease';
 import type { ReleaseState } from '@/src/lib/repositories/medicalRelease';
 import { useAuth } from '@/src/auth/useAuth';
 import {
-  useAllCrewMembers, useAttendanceDay, useAttendanceMutations, useAwaitingAttendance, useCrewWorkers, useManagedPeople, useWorkOrderRoster,
+  useAttendanceDay, useAttendanceMutations, useAwaitingAttendance, useCrewPlacementsOn, useCrewWorkersByIds, useManagedPeople, useWorkOrderRoster,
 } from '@/src/hooks/useCrews';
 import type { AttendanceDayRow, RosterCrew, RosterMember } from '@/src/lib/repositories/crews';
 import { addFollower, buildTickRows, initialTickState, isoWeekStart, type TickError, type TickState, type TickStatus } from '@/src/lib/attendanceTick';
@@ -34,8 +34,11 @@ export const TickForm: React.FC<{ crew: RosterCrew; workOrderId: string; date: s
   const { toast } = useToast();
   const { record, uploadPhoto, generateWeek, clearFollow } = useAttendanceMutations();
   const [undoing, setUndoing] = useState<RosterMember | null>(null);
-  const workers = useCrewWorkers();
-  const placements = useAllCrewMembers();
+  // Only the placements in force that day, and only those people's names (not every person and every placement).
+  const placements = useCrewPlacementsOn(date, canRecord);
+  const placedIds = useMemo(() => [...new Set((placements.data ?? []).map((m) => m.worker_id))], [placements.data]);
+  const workers = useCrewWorkersByIds(placedIds, canRecord);
+  const peopleLoading = canRecord && (placements.isPending || (placedIds.length > 0 && workers.isPending));
   const [state, setState] = useState<TickState>(() => initialTickState(
     crew.members.map((m) => ({ worker_id: m.worker_id, off_rotation: Boolean(m.off_rotation), reported_absent: Boolean(m.reported_absent) })),
     held.filter((h) => crew.members.some((m) => m.worker_id === h.worker_id)),
@@ -70,12 +73,10 @@ export const TickForm: React.FC<{ crew: RosterCrew; workOrderId: string; date: s
   // Active people placed in a crew that day, other than this crew's own members and anyone already listed or recorded today.
   const showOvertime = rows.some((member) => state.people[member.worker_id]?.status === 'present');
   const addable = useMemo(() => {
-    const placed = new Set((placements.data ?? [])
-      .filter((m) => m.valid_from <= date && (m.valid_to === null || m.valid_to >= date)).map((m) => m.worker_id));
     const recorded = new Set(held.map((h) => h.worker_id));
-    return (workers.data ?? []).filter((w) => placed.has(w.id) && !state.people[w.id] && !recorded.has(w.id))
+    return (workers.data ?? []).filter((w) => !state.people[w.id] && !recorded.has(w.id))
       .map((w) => ({ value: w.id, label: w.display_name }));
-  }, [workers.data, placements.data, held, state.people, date]);
+  }, [workers.data, held, state.people]);
   const follow = (id: string) => {
     if (!id) return;
     setDirty(true);
@@ -262,7 +263,7 @@ export const TickForm: React.FC<{ crew: RosterCrew; workOrderId: string; date: s
               <div className="w-full sm:max-w-sm">
                 <Combobox key={addable.length} id="attendance-add-follower" label={t('crews:addFollower', 'Add someone from another crew')} value={null}
                   loadOptions={async () => addable} onChange={(v) => follow(v)} disabled={busy}
-                  statusOverride={workers.isPending || placements.isPending ? 'loading' : undefined}
+                  statusOverride={peopleLoading ? 'loading' : undefined}
                   placeholder={t('crews:addFollowerPlaceholder', 'Choose a person')}
                   helper={addable.length === 0 ? t('crews:addFollowerNone', 'Nobody else is placed in a crew today.') : t('crews:addFollowerHint', 'For someone who joined this crew today without a loan. Their hours are recorded here.')}
                   noun={t('crews:personNoun', 'person')} nounPlural={t('crews:personNounPlural', 'people')} />
@@ -292,7 +293,6 @@ const AwaitingApproval: React.FC = () => {
   const { toast } = useToast();
   const viewerId = useAuth().currentUser?.id ?? null;
   const awaiting = useAwaitingAttendance(true);
-  const workers = useCrewWorkers();
   const { decideWeek } = useAttendanceMutations();
   const [returning, setReturning] = useState<AwaitingWeek | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
@@ -310,7 +310,9 @@ const AwaitingApproval: React.FC = () => {
     }
     return [...byKey.values()].sort((a, b) => a.weekStart.localeCompare(b.weekStart));
   }, [awaiting.data, viewerId]);
-  const nameOf = (id: string) => workers.data?.find((w) => w.id === id)?.display_name ?? '—';
+  const workers = useCrewWorkersByIds(useMemo(() => weeks.map((w) => w.workerId), [weeks]));
+  const names = useMemo(() => new Map((workers.data ?? []).map((w) => [w.id, w.display_name])), [workers.data]);
+  const nameOf = (id: string) => names.get(id) ?? '—';
   const decide = async (w: AwaitingWeek, decision: 'approve' | 'reject', reason: string | null) => {
     setProblem(null);
     try {
