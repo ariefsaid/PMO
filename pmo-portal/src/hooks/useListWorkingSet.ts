@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router';
+import { useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { UNSAFE_DataRouterContext, useLocation, useNavigate } from 'react-router';
 import {
   materializeSessionView,
   parseListWorkingSet,
@@ -59,6 +59,7 @@ export function useListWorkingSet<K extends ListName>(
 } {
   const location = useLocation();
   const navigate = useNavigate();
+  const dataRouter = useContext(UNSAFE_DataRouterContext)?.router;
 
   const { sessionView, projectsDefaultFilter, defaultsReady = true } = options;
 
@@ -74,8 +75,11 @@ export function useListWorkingSet<K extends ListName>(
     // Equality guard: once the URL already carries the materialized view (or needs nothing), this
     // is a no-op, so the replace happens at most once and never loops.
     if (location.search === targetSearch) return;
+    // A lazy destination can leave this list mounted during the navigation transition.
+    // Its late view materialization must not replace the destination with the old list.
+    if (dataRouter && dataRouter.state.location.pathname !== location.pathname) return;
     navigate(`${location.pathname}${targetSearch}`, { replace: true, state: location.state });
-  }, [location.pathname, location.search, location.state, targetSearch, navigate]);
+  }, [location.pathname, location.search, location.state, targetSearch, navigate, dataRouter]);
 
   // The router commits a location change as a transition, and typing can keep pre-empting it. Build
   // each write on the latest one this hook made, not the last committed render, or a filter picked
