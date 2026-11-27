@@ -152,6 +152,8 @@ select ok(
                        -- AMENDED BY 0765 (#1507 S6): the journal list EXCLUDES a move mirrored as a document, and the link column
                        -- reads nothing from it. Neither feeds actuals (erp_journal_cost_lines feeds the commitment via procurement_ledger_held, listed above).
                        'erp_journal_cost_lines','project_erp_journal_lines',
+                       -- AMENDED BY 2797 (#1128): the same journal read for a set of vouchers, internal; it excludes mirrored documents exactly as above.
+                       'erp_journal_cost_lines_for',
                        -- The record-only link guard protects source provenance; it does not feed actuals.
                        'linked_step_state','guard_record_only_erp_link',
                        -- AMENDED BY 0868: step and capture policies read link state, not amounts into actuals.
