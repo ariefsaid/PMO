@@ -394,7 +394,7 @@
         "retentionHeld": "Retensi ditahan: {{amount}} ({{pct}}%)",
         "gate": "Selesaikan semua tahap sebelum menerbitkan invoice.",
         "gateBefore": "Selesaikan tahap sebelum {{stage}} untuk menerbitkan invoice.",
-        "invoiceStep": "Tahap faktur",
+        "invoiceStep": "Tahap invoice",
         "clientSide": "Di sistem klien",
         "age_one": "{{count}} hari",
         "age_other": "{{count}} hari",
@@ -554,7 +554,7 @@
         "targetDays": "Target (hari)",
         "targetInvalid": "Masukkan 1 sampai 365 hari, atau kosongkan.",
         "optionalStage": "Tahap opsional",
-        "invoiceStep": "Faktur dibuat pada tahap ini"
+        "invoiceStep": "Invoice dibuat pada tahap ini"
       },
       "reconciliation": {
         "title": "Rekonsiliasi penagihan",
