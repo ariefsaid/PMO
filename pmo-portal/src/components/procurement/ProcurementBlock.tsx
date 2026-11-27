@@ -129,8 +129,8 @@ export const ProcurementList: React.FC<ProcurementListProps> = ({ label, rows, c
   </section>
 );
 
-/** Rows drawn at a time on the company-wide list (a window over the whole set, not a server page). */
-const COMPANY_LIST_WINDOW = 50;
+/** Rows per page on the company-wide list (pages over the whole set read in the browser, not a server page). */
+export const COMPANY_LIST_PAGE_SIZE = 50;
 
 type DecisionTarget = 'Approved' | 'Rejected' | 'Cancelled';
 type PendingDecision = { rows: ProcurementWithRefs[]; target: DecisionTarget };
@@ -429,12 +429,29 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
     });
   }, [rows, selectedStage, categoryFilter, ownerFilter, deferredSearch, sort, categoryLabel, derivationFor]);
 
-  // The company list draws 50 rows at a time; search, sort, select-all and the stage band still read the whole set.
-  // A change of filter, search or sort starts again at the first 50.
-  const [drawn, setDrawn] = useState(COMPANY_LIST_WINDOW);
-  React.useEffect(() => { setDrawn(COMPANY_LIST_WINDOW); }, [selectedStage, categoryFilter, ownerFilter, deferredSearch, sort, rowFilter, rowOrder]);
-  const windowed = !projectId && filteredRows.length > drawn;
-  const drawnRows = useMemo(() => (windowed ? filteredRows.slice(0, drawn) : filteredRows), [windowed, filteredRows, drawn]);
+  // The company list is numbered pages of 50 over the whole set (screen rule 11): the page lives in the address
+  // (`?page=`, replaced like `stage` and `open`, absent on page 1). Search, sort, select-all and the stage band
+  // still read the whole set. Any other filter or sort change starts again at page 1.
+  const pageCount = Math.max(1, Math.ceil(filteredRows.length / COMPANY_LIST_PAGE_SIZE));
+  const requestedPage = Math.floor(Number(searchParams.get('page'))) || 1;
+  const page = Math.min(Math.max(1, requestedPage), pageCount);
+  const setPage = useCallback((next: number) => {
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current);
+      if (next > 1) params.set('page', String(next)); else params.delete('page');
+      return params;
+    }, { replace: true });
+  }, [setSearchParams]);
+  const viewKey = [...searchParams.entries()].filter(([key]) => key !== 'page' && key !== 'open').map(([key, value]) => `${key}=${value}`).join('&')
+    + `|${categoryFilter}|${ownerFilter}|${deferredSearch}|${sort?.key}:${sort?.dir}`;
+  const lastViewKey = React.useRef(viewKey);
+  React.useEffect(() => {
+    if (lastViewKey.current === viewKey) return;
+    lastViewKey.current = viewKey;
+    if (searchParams.has('page')) setPage(1);
+  }, [viewKey, searchParams, setPage]);
+  const paged = !projectId && filteredRows.length > COMPANY_LIST_PAGE_SIZE;
+  const pageRows = useMemo(() => (paged ? filteredRows.slice((page - 1) * COMPANY_LIST_PAGE_SIZE, page * COMPANY_LIST_PAGE_SIZE) : filteredRows), [paged, filteredRows, page]);
 
   const selectedRows = rows.filter((row) => selectedIds.has(row.id));
   const visibleIds = filteredRows.map((row) => row.id);
@@ -445,8 +462,8 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
   // The header checkbox acts on the rows the table was handed; with a window that is 50 of the matching set, so a
   // multi-row change (select all / clear all) is widened to every matching row, as it was before the window.
   const onSelectionChange = (next: Set<string>) => {
-    if (!windowed) return setSelectedIds(next);
-    const drawnIds = drawnRows.map((row) => row.id);
+    if (!paged) return setSelectedIds(next);
+    const drawnIds = pageRows.map((row) => row.id);
     const added = drawnIds.filter((id) => next.has(id) && !selectedIds.has(id));
     const removed = drawnIds.filter((id) => !next.has(id) && selectedIds.has(id));
     if (added.length > 1) return setSelectedIds(new Set([...next, ...visibleIds]));
@@ -913,11 +930,9 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
 
       <ProcurementList
         label={heading}
-        rows={drawnRows}
-        total={windowed ? filteredRows.length : undefined}
-        hasMore={windowed}
-        onLoadMore={() => setDrawn((n) => n + COMPANY_LIST_WINDOW)}
-        loadMoreLabel={t('procurement.showMore', 'Show more')}
+        rows={pageRows}
+        total={paged ? filteredRows.length : undefined}
+        pagination={paged ? { page, pageSize: COMPANY_LIST_PAGE_SIZE, onPageChange: setPage } : undefined}
         columns={columns}
         embedded={false}
         bareEmpty={!hasUnfilteredRows}
@@ -1029,7 +1044,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
                 }}
                 onClear={() => { setSearch(''); setCategoryFilter(''); setOwnerFilter(''); setSelectedStage(null); }}
                 shown={filteredRows.length}
-                total={rows.length}
+                total={paged ? undefined : rows.length}
               />
               {canCreate && showCreate && (
                 <Button size="sm" onClick={() => navigate(projectId ? `/procurement/new?project=${encodeURIComponent(projectId)}` : '/procurement/new')}>

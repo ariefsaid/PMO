@@ -337,7 +337,6 @@
       "title": "No procurement yet.",
       "scopeNote": "Purchases recorded only in the accounting system are not listed here."
     },
-    "showMore": "Show more",
     "inStage": "In stage",
     "inStageDays_one": "{{count}} day",
     "inStageDays_other": "{{count}} days",

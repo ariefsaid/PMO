@@ -3,7 +3,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, useLocation } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
 import { ProcurementBlock } from '@/src/components/procurement/ProcurementBlock';
 
@@ -28,36 +28,55 @@ vi.mock('@/src/hooks/useProjectPosition', () => ({ useBudgetPosition: () => ({ r
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: 'Finance', effectiveRole: 'Finance' }) }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u-1', org_id: 'org-1' }, role: 'Finance' }) }));
 
-const renderBlock = () => render(
+const Where = () => <output data-testid="where">{useLocation().search}</output>;
+const renderBlock = (url = '/procurement') => render(
   <QueryClientProvider client={new QueryClient()}>
-    <MemoryRouter><ToastProvider><ProcurementBlock showCreate={false} /></ToastProvider></MemoryRouter>
+    <MemoryRouter initialEntries={[url]}><ToastProvider><ProcurementBlock showCreate={false} /><Where /></ToastProvider></MemoryRouter>
   </QueryClientProvider>,
 );
 const openButtons = () => screen.getAllByRole('button', { name: /^Open Purchase PR-/ });
+const next = () => userEvent.click(screen.getByRole('button', { name: 'Next page' }));
 
-describe('ProcurementBlock company list is shown 50 rows at a time over the whole set', () => {
-  it('draws the first 50 newest rows and says how many there are', () => {
+describe('ProcurementBlock company list is numbered pages of 50 over the whole set', () => {
+  it('draws the first 50 newest rows with one count line', () => {
     renderBlock();
     expect(openButtons()).toHaveLength(50);
-    expect(screen.getByText(/Showing 50 of 120/)).toBeInTheDocument();
+    expect(screen.getAllByText(/Showing/)).toHaveLength(1);
+    expect(screen.getByText('Showing 1–50 of 120')).toBeInTheDocument();
   });
-  it('Show more adds the next 50, then the rest', async () => {
+  it('Next goes to page 2, the address carries it, and Previous returns to page 1 without it', async () => {
     renderBlock();
-    await userEvent.click(screen.getByRole('button', { name: /show more/i }));
-    expect(openButtons()).toHaveLength(100);
-    await userEvent.click(screen.getByRole('button', { name: /show more/i }));
-    expect(openButtons()).toHaveLength(120);
-    expect(screen.queryByRole('button', { name: /show more/i })).not.toBeInTheDocument();
+    await next();
+    expect(screen.getByText('Showing 51–100 of 120')).toBeInTheDocument();
+    expect(screen.getByTestId('where')).toHaveTextContent('page=2');
+    await userEvent.click(screen.getByRole('button', { name: 'Previous page' }));
+    expect(screen.getByTestId('where')).not.toHaveTextContent('page=');
   });
-  it('Buyer finds a purchase by number that lies beyond the first 50', async () => {
-    renderBlock();
-    expect(screen.queryByRole('button', { name: 'Open Purchase PR-110' })).not.toBeInTheDocument();
-    await userEvent.type(screen.getByRole('searchbox'), 'PR-110');
+  it('a shared link to page 3 opens page 3', () => {
+    renderBlock('/procurement?page=3');
+    expect(screen.getByText('Showing 101–120 of 120')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Open Purchase PR-110' })).toBeInTheDocument();
   });
-  it('select all selects every matching row, not only the 50 drawn', async () => {
+  it('Buyer finds a purchase by number on page 3 by paging', async () => {
+    renderBlock();
+    expect(screen.queryByRole('button', { name: 'Open Purchase PR-110' })).not.toBeInTheDocument();
+    await next(); await next();
+    expect(screen.getByRole('button', { name: 'Open Purchase PR-110' })).toBeInTheDocument();
+  });
+  it('Buyer finds a purchase by number that lies on page 3 by search, and a search starts again at page 1', async () => {
+    renderBlock('/procurement?page=2');
+    await userEvent.type(screen.getByRole('searchbox'), 'PR-110');
+    expect(screen.getByRole('button', { name: 'Open Purchase PR-110' })).toBeInTheDocument();
+    expect(screen.getByTestId('where')).not.toHaveTextContent('page=');
+  });
+  it('select all selects every matching row, not only the 50 on the page', async () => {
     renderBlock();
     await userEvent.click(screen.getByRole('checkbox', { name: /select all/i }));
     expect(screen.getByText(/120 selected/i)).toBeInTheDocument();
+  });
+  it('?open= opens a row that lies on another page', () => {
+    renderBlock('/procurement?open=110');
+    expect(screen.getAllByText('Purchase PR-110').length).toBeGreaterThan(0);
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
   });
 });
