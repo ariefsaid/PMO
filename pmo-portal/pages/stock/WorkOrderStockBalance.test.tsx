@@ -1,9 +1,13 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { render as rtlRender, screen, within } from '@testing-library/react';
+import type { ReactElement } from 'react';
+import { QueryClientTestProvider } from '@/test/QueryClientTestProvider';
 import { MemoryRouter } from 'react-router';
 
 const h = vi.hoisted(() => ({ data: [] as unknown[], isLoading: false, isError: false, ownership: 'pmo', synced: true, wo: false }));
-vi.mock('@/src/hooks/useOrgSwitch', () => ({ useOrgSwitch: () => ({ data: h.wo }) }));
+vi.mock('@/src/hooks/useOrgSwitch', () => ({ useOrgSwitch: () => ({ data: h.wo }), useModuleOn: () => false }));
+
+const render = (ui: ReactElement) => rtlRender(ui, { wrapper: QueryClientTestProvider });
 vi.mock('@/src/hooks/useStockSiteWork', () => ({ useWorkOrderStockBalance: () => ({ data: h.data, isLoading: h.isLoading, isError: h.isError, refetch: vi.fn() }) }));
 vi.mock('@/src/lib/adapterSeam/ownershipCache', () => ({ routeDomainWrite: () => h.ownership, isOwnershipCacheSynced: () => h.synced, subscribeOwnershipCache: () => () => {} }));
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (k: string) => k, i18n: { language: 'en' } }) }));

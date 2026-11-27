@@ -10,7 +10,6 @@ import { PrimaryCell } from '@/src/components/ui/DataTableShared';
 import type { WorkOrderStockRow } from '@/src/lib/db/stockSiteWork';
 import { formatQuantity, formatStockValue } from '@/src/lib/stockFormat';
 import { isOwnershipCacheSynced, routeDomainWrite, subscribeOwnershipCache } from '@/src/lib/adapterSeam/ownershipCache';
-import { ReservationsSlot } from '@/src/components/stock/ReservationsSlot';
 import { WorkOrderReservations } from '@/src/components/stock/WorkOrderReservations';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import { WorkOrderMaterialProgressBanner } from './WorkOrderMaterialProgressBanner';
@@ -81,7 +80,7 @@ export const WorkOrderStockBalance: React.FC<{ workOrderId: string; currency: st
           mobileCardTitle={(r) => <PrimaryCell title={r.itemName} secondary={r.tagName ?? undefined} />} mobileCardDetails={cardDetails} />
       )}
       {woTransfers && rows.length > 0 && <p className="px-[var(--table-cell-inset)] text-control"><Link to="/stock/work-order-transfer" className="inline-flex min-h-9 items-center font-medium text-primary-text underline underline-offset-4">{t('workOrderTransfer.entry')}</Link></p>}
-      <ReservationsSlot><WorkOrderReservations workOrderId={workOrderId} /></ReservationsSlot>
+      <WorkOrderReservations workOrderId={workOrderId} />
     </section>
   );
 };

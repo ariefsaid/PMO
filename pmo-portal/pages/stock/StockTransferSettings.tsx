@@ -8,7 +8,6 @@ import { useStockTags } from '@/src/hooks/useStockSiteWork';
 import { useTransferRefresh, useTransferSettings } from '@/src/hooks/useStockTransfers';
 import { stockTransfersRepository as repo, type ProofRule } from '@/src/lib/repositories/stockTransfers';
 import { useQueryClient } from '@tanstack/react-query';
-import { ReservationsSlot } from '@/src/components/stock/ReservationsSlot';
 import { ReservationSettings } from '@/src/components/stock/ReservationSettings';
 import { DsrStockIssueSetting } from '@/src/components/stock/DsrStockIssueSetting';
 
@@ -38,7 +37,7 @@ export const StockTransferSettings: React.FC = () => {
       <Button variant="outline" aria-expanded={open} onClick={() => setOpen(!open)}>{t('transferSettings.manage')}</Button>
       {open && (
         <section className="mt-2 space-y-4 rounded-lg border border-border p-4" aria-label={t('transferSettings.manage')}>
-          <ReservationsSlot><ReservationSettings /><DsrStockIssueSetting /></ReservationsSlot>
+          <ReservationSettings /><DsrStockIssueSetting />
           {(tags.data ?? []).length > 0 && (
             <div className="space-y-2">
               <h3 className="text-sm font-semibold">{t('transferSettings.proofPerTag')}</h3>

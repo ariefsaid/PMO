@@ -1,5 +1,4 @@
 import React, { useContext, useEffect, useState } from 'react';
-import { QueryClientContext } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { AuthContext } from '@/src/auth/AuthContext';
 import { useEffectiveRole } from '@/src/auth/impersonation';
@@ -47,9 +46,8 @@ const LiveCount: React.FC<{ badge: boolean }> = ({ badge }) => {
 };
 
 export const ApprovalsNavCount: React.FC<{ badge?: boolean }> = ({ badge = false }) => {
-  const queryClient = useContext(QueryClientContext);
   const auth = useContext(AuthContext);
-  // A bare render (no data layer, no signed-in person) has nothing to count.
-  if (!queryClient || !auth?.currentUser || !auth.role) return null;
+  // A bare render (no signed-in person) has nothing to count.
+  if (!auth?.currentUser || !auth.role) return null;
   return <LiveCount badge={badge} />;
 };
