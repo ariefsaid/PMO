@@ -21,6 +21,13 @@ alter table public.companies
   add column address text,
   add column payment_terms_days int;
 
+-- The record-change history catalogue (0260) captures a fixed column set per table: the three
+-- new columns join `captured` so a vendor edit's before/after shows them (the int renders as
+-- the 0260 `number` kind).
+update public.record_history_config
+  set captured = captured || '{"vendor_code":"text","address":"text","payment_terms_days":"number"}'::jsonb
+  where table_name = 'companies';
+
 comment on column public.companies.vendor_code is
   '#3025: the buyer''s own vendor/supplier code for the record, kept in PMO natively (not the ERP mirror).';
 comment on column public.companies.address is

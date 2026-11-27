@@ -36,8 +36,8 @@ const wrap = (ui: React.ReactNode) =>
 
 const renderEdit = (company: CompanyRow, onUpdate = vi.fn().mockResolvedValue(undefined)) => {
   const onError = vi.fn();
-  wrap(<CompanyFormModal company={company} ownership="pmo" onClose={vi.fn()} onUpdate={onUpdate} onError={onError} />);
-  return { onUpdate, onError };
+  const view = wrap(<CompanyFormModal company={company} ownership="pmo" onClose={vi.fn()} onUpdate={onUpdate} onError={onError} />);
+  return { unmount: view.unmount, onUpdate, onError };
 };
 
 beforeEach(() => {

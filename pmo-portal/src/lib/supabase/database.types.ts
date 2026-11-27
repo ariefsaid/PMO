@@ -3438,6 +3438,7 @@ export type Database = {
           vendor_code?: string | null
         }
         Update: {
+          address?: string | null
           archived_at?: string | null
           client_number_segment?: string | null
           created_at?: string
