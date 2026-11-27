@@ -26894,6 +26894,8 @@ export type Database = {
           work_order_id: string
         }
         Insert: {
+          skipped_source_rows?: number
+          skipped_reason_codes?: string[]
           archived_at?: string | null
           code: string
           created_at?: string
@@ -26915,6 +26917,8 @@ export type Database = {
           work_order_id: string
         }
         Update: {
+          skipped_source_rows?: number
+          skipped_reason_codes?: string[]
           archived_at?: string | null
           code?: string
           created_at?: string
@@ -40328,6 +40332,7 @@ export type Database = {
           p_work_order_id?: string
         }
         Returns: {
+          partial_section_count: number
           closing_pct: string
           issued_pct: string
           number: string
