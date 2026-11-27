@@ -130,7 +130,7 @@ export const ClientMaterialSection: React.FC<Props> = ({ workOrderId, projectId,
   const draftInitial = (r: ClientRequisitionRow): { clientReference: string; lines: RequisitionDraftLine[] } => ({
     clientReference: r.clientReference ?? '',
     lines: data.lines.filter((l) => l.requisitionId === r.id).map((l) => ({
-      stockItemId: l.itemId, takeoff: l.takeoffQuantity, requested: l.requestedQuantity === l.takeoffQuantity ? '' : l.requestedQuantity, allocationId: '',
+      stockItemId: l.itemId, takeoff: l.takeoffQuantity, requested: l.requestedQuantity === l.takeoffQuantity ? '' : l.requestedQuantity, allocationId: l.workOrderLineId ?? '',
     })),
   });
 

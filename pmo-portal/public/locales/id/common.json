@@ -5022,5 +5022,6 @@
     "title": "Halaman tidak ditemukan",
     "body": "Halaman yang Anda cari tidak ada atau sudah dipindahkan.",
     "back": "Kembali ke Dasbor"
-  }
+  },
+  "readError": "Informasi ini tidak dapat dimuat"
 }

@@ -5,6 +5,7 @@ import { formatNumberExact, formatTableMoney } from '@/src/lib/format';
 import { useProjectIdleCost } from '@/src/hooks/useIdleCost';
 import { totalIdleAmount } from '@/src/lib/db/idleCost';
 import { sumDecimal } from '@/src/lib/exactDecimal';
+import { ListState } from '@/src/components/ui';
 
 /**
  * Idle time of one work order by idle reason (#2673, FR-IHC-006): hours and cost of recorded idle time at the work
@@ -21,6 +22,7 @@ export const IdleCostBlock: React.FC<Props> = ({ projectId, ...rest }) => {
 const IdleCostRows: React.FC<Props & { projectId: string }> = ({ projectId, workOrderId, testId }) => {
   const { t } = useTranslation('workOrderPva');
   const q = useProjectIdleCost(projectId);
+  if (q.isError) return <ListState variant="error" title={t('common:readError')} onRetry={() => void q.refetch()} />;
   const rows = (q.data ?? []).filter((r) => r.workOrderId === workOrderId);
   if (rows.length === 0) return null;
   const money = (v: string | null, cur: string) => (v === null ? t('idle.noRate', 'No rate') : formatTableMoney(v, cur) ?? v);

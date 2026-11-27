@@ -449,5 +449,6 @@
   "workOrders": "Perintah kerja",
   "week": "Minggu",
   "decision": "Keputusan",
-  "presentOf": "{{present}} dari {{total}} hadir"
+  "presentOf": "{{present}} dari {{total}} hadir",
+  "headcountInvalid": "Masukkan jumlah orang berupa bilangan bulat di atas nol."
 }

@@ -449,5 +449,6 @@
   "workOrders": "Work orders",
   "week": "Week",
   "decision": "Decision",
-  "presentOf": "{{present}} of {{total}} present"
+  "presentOf": "{{present}} of {{total}} present",
+  "headcountInvalid": "Enter a whole headcount above zero."
 }

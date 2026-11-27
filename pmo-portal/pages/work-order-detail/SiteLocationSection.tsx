@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { RecordSection, SelectField } from '@/src/components/ui';
+import { ListState, RecordSection, SelectField } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { useDsrStockMutations, useDsrStockSettings, useSiteLocations, useWorkOrderSiteLocation } from '@/src/hooks/useDsrStockIssue';
 
@@ -21,7 +21,9 @@ export const SiteLocationSection: React.FC<{ workOrderId: string; projectId: str
   useEffect(() => {
     if (ready && hash === '#site-location') anchor.current?.scrollIntoView?.({ block: 'center' });
   }, [ready, hash]);
-  if (!on || current.data === undefined) return null;
+  if (!on) return null;
+  if (current.isError || options.isError) return <RecordSection title={t('siteLocation.title', 'Site location')}><ListState variant="error" title={t('common:readError')} onRetry={() => { if (current.isError) void current.refetch(); if (options.isError) void options.refetch(); }} /></RecordSection>;
+  if (current.data === undefined) return null;
   const canEdit = may('create', 'workOrder');
   const name = (options.data ?? []).find((o) => o.id === current.data)?.name;
   return (

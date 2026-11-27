@@ -11,6 +11,7 @@ import { act } from '@testing-library/react';
  * list (add/archive), and each refused write surfaced through the LV_ error mapper. */
 const h = vi.hoisted(() => ({
   isAdmin: true,
+  typesError: false, retryTypes: vi.fn(),
   settings: { enabled: true, approver_role: 'Finance' } as { enabled: boolean; approver_role: string | null } | undefined,
   types: [{ id: 'lt1', name: 'Annual leave', archived_at: null }, { id: 'lt2', name: 'Sick leave', archived_at: null }] as { id: string; name: string; archived_at: string | null }[],
   save: { mutateAsync: vi.fn(), isPending: false },
@@ -21,13 +22,26 @@ vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => h.isAdmi
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: 'Admin', effectiveRole: 'Admin' }) }));
 vi.mock('@/src/hooks/useLeave', () => ({
   useLeaveSettings: () => ({ data: h.settings }),
-  useLeaveTypes: () => ({ data: h.types }),
+  useLeaveTypes: () => ({ data: h.typesError ? undefined : h.types, isError: h.typesError, refetch: h.retryTypes }),
   useLeaveSettingsMutations: () => ({ save: h.save, createType: h.createType, archiveType: h.archiveType }),
 }));
 
 import LeaveSettingsPage from './LeaveSettings';
 
 const view = () => render(<MemoryRouter><ToastProvider><LeaveSettingsPage /></ToastProvider></MemoryRouter>);
+
+it('retries a failed leave type list before displaying empty guidance', async () => {
+  h.typesError = true;
+  try {
+    const mounted = view();
+    expect(screen.queryByText(/No leave types yet/)).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /retry|try again/i }));
+    expect(h.retryTypes).toHaveBeenCalled();
+    h.typesError = false;
+    mounted.rerender(<MemoryRouter><ToastProvider><LeaveSettingsPage /></ToastProvider></MemoryRouter>);
+    expect(screen.getByText('Annual leave')).toBeInTheDocument();
+  } finally { h.typesError = false; }
+});
 
 beforeEach(() => {
   act(() => { sonnerToast.dismiss(); }); // Sonner's store replays still-active toasts into the next Toaster — clear them.

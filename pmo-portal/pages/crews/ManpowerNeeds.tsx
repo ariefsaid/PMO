@@ -179,7 +179,7 @@ export const ManpowerNeeds: React.FC = () => {
   const rows = needs.data ?? [];
   const readFailed = progress.isError || linksQ.isError;
   const retryReads = () => { if (progress.isError) void progress.refetch(); if (linksQ.isError) void linksQ.refetch(); };
-  const fig = (n: ManpowerNeedRow) => figuresOf(n, progressBy.get(n.id), readFailed);
+  const fig = (n: ManpowerNeedRow) => figuresOf(n, progressBy.get(n.id), readFailed || progress.isPending || linksQ.isPending);
   const anyHidden = !readFailed && rows.some((n) => fig(n).hidden);
   const openNeed = rows.find((n) => n.id === values.need) ?? null;
   const columns: Column<ManpowerNeedRow>[] = [

@@ -88,7 +88,9 @@ describe('getWorkOrderClientMaterial', () => {
     h.queue.push({ data: [{ line_id: 'l1', requisition_id: 'r1', requisition_number: 'CSR-1', requisition_status: 'open', stock_item_id: 'i1', item_code: 'CEM', item_name: 'Cement', unit_code: 'BAG', takeoff_quantity: 100, requested_quantity: 100 }], error: null });
     h.queue.push({ data: [{ id: 'e1', requisition_id: 'r1', line_id: 'l1', kind: 'reserved', quantity: 60, client_reference: 'CL-1', event_on: '2026-11-20', reason: null, recorded_by: 'u2', created_at: 't' }], error: null });
     h.queue.push({ data: [{ id: 'p1', requisition_id: 'r1', line_id: 'l1', quantity: 50, picked_up_on: '2026-11-20', collector: null, paper_reference: null, warehouse_id: 'w1', stock_document_id: 'd1' }], error: null });
+    h.queue.push({ data: [{ id: 'l1', work_order_line_id: 'contract-line' }], error: null });
     const r = await dal.getWorkOrderClientMaterial('wo1');
+    expect(r.lines[0].workOrderLineId).toBe('contract-line');
     expect(r.requisitions[0]).toMatchObject({ id: 'r1', status: 'open', clientReference: 'CL' });
     expect(r.lines[0]).toMatchObject({ id: 'l1', itemName: 'Cement', unit: 'BAG', takeoffQuantity: '100', requestedQuantity: '100', requisitionStatus: 'open' });
     expect(r.events[0]).toMatchObject({ kind: 'reserved', quantity: '60', lineId: 'l1' });

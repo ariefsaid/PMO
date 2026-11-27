@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import React from 'react';
-import { render, screen, within } from '@testing-library/react';
+import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -23,6 +23,7 @@ const h = vi.hoisted(() => ({
   saveAsTemplate: vi.fn(),
   save: vi.fn(),
   checklistEnabled: true,
+  docsError: false, usersError: false, retry: vi.fn(),
 }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: h.role, effectiveRole: h.effectiveRole ?? h.role }) }));
 vi.mock('@/src/hooks/useOrgSwitch', () => ({ useOrgSwitch: () => ({ data: h.checklistEnabled }) }));
@@ -41,14 +42,14 @@ vi.mock('@/src/hooks/useBillingSteps', () => ({
   }),
 }));
 vi.mock('@/src/hooks/useDocuments', () => ({
-  useDocuments: () => ({ data: [{ id: 'd1', title: 'Survey sheet A', status: 'Approved', file_path: 'o/p/d1/f.pdf' }, { id: 'd2', title: 'Draft note', status: 'Draft', file_path: 'x' }], isPending: false, isError: false }),
+  useDocuments: () => ({ data: [{ id: 'd1', title: 'Survey sheet A', status: 'Approved', file_path: 'o/p/d1/f.pdf' }, { id: 'd2', title: 'Draft note', status: 'Draft', file_path: 'x' }], isPending: false, isError: h.docsError, refetch: h.retry }),
 }));
 vi.mock('@/src/hooks/useUsers', () => ({
   useUsers: () => ({ data: [
     { id: 'u1', full_name: 'Dewi Survey', status: 'active', built_in_role: 'quantity_surveyor' },
     { id: 'u2', full_name: 'Field Foreman', status: 'active', built_in_role: 'foreman' },
     { id: 'u3', full_name: 'Gone Person', status: 'inactive', built_in_role: 'engineer' },
-  ] }),
+  ], isError: h.usersError, refetch: h.retry }),
 }));
 vi.mock('@/src/hooks/useOrgRoleNames', () => ({ useBuiltInRoleName: () => (k: string) => `role:${k}` }));
 vi.mock('@/src/lib/refusals', () => ({
@@ -84,6 +85,22 @@ beforeEach(() => {
 });
 
 describe('BillingStepsSection', () => {
+  it.each(['docsError', 'usersError'] as const)('offers retry for %s inside the update drawer', async (key) => {
+    h[key] = true;
+    try {
+      const user = renderIt();
+      await user.click(screen.getByRole('button', { name: 'Update Step two' }));
+      await user.click(within(screen.getByRole('dialog', { name: 'Step two' })).getByRole('button', { name: /retry|try again/i }));
+      expect(h.retry).toHaveBeenCalled();
+      h[key] = false;
+      cleanup();
+      const recovered = renderIt();
+      await recovered.click(screen.getByRole('button', { name: 'Update Step two' }));
+      expect(within(screen.getByRole('dialog', { name: 'Step two' })).queryByRole('button', { name: /retry|try again/i })).not.toBeInTheDocument();
+      const picker = screen.getByLabelText(key === 'docsError' ? 'Document for Pack' : 'Person on this step');
+      expect(within(picker).getByRole('option', { name: key === 'docsError' ? 'Survey sheet A' : 'Dewi Survey' })).toBeInTheDocument();
+    } finally { h[key] = false; }
+  });
   it('#1126 the age of an open step counts to the organisation\'s day, not the browser\'s', () => {
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(new Date('2026-11-25T18:00:00Z'));

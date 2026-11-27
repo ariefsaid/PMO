@@ -20,10 +20,10 @@ import { formatDateOnly, formatTableMoney } from '@/src/lib/format';
 
 const RESULTS: InspectionResult[] = ['pass', 'fail', 'conditional'];
 
-interface CardProps { inspection: InspectionListRow; costs: InspectionCostRow[]; workOrderId: string; today: string }
+interface CardProps { inspection: InspectionListRow; costs: InspectionCostRow[]; costsUnavailable: boolean; workOrderId: string; today: string }
 
 /** One inspection: its state, its real cost beside the estimate, and the one next step the viewer may take. */
-const InspectionCard: React.FC<CardProps> = ({ inspection: i, costs, workOrderId, today }) => {
+const InspectionCard: React.FC<CardProps> = ({ inspection: i, costs, costsUnavailable, workOrderId, today }) => {
   const { t } = useTranslation('workOrders');
   const refusal = useRefusalText();
   const can = usePermission();
@@ -90,7 +90,7 @@ const InspectionCard: React.FC<CardProps> = ({ inspection: i, costs, workOrderId
       </p>
       {i.waiver_reason && <p className="text-control text-muted-foreground">{t('inspections.waiverReason', 'Waiver reason: {{reason}}', { reason: i.waiver_reason })}</p>}
       {i.cancel_reason && <p className="text-control text-muted-foreground">{t('inspections.cancelReason', 'Cancelled: {{reason}}', { reason: i.cancel_reason })}</p>}
-      {i.procurement_id
+      {costsUnavailable ? null : i.procurement_id
         ? <p className="text-control" data-testid="inspection-cost">
             {(() => {
               const text = money.length === 0
@@ -140,7 +140,8 @@ const InspectionCard: React.FC<CardProps> = ({ inspection: i, costs, workOrderId
             onClick={() => run(m.execute.mutateAsync({ id: i.id, on }))}>{t('inspections.recordExecution', 'Record execution')}</Button>
         </div>
       )}
-      {(i.status === 'executed' || i.status === 'reported') && mayAttach && liveFiles.length < INSPECTION_FILE_MAX_COUNT && (
+      {files.isError && <ListState variant="error" title={t('common:readError')} onRetry={() => void files.refetch()} />}
+      {(i.status === 'executed' || i.status === 'reported') && !files.isError && mayAttach && liveFiles.length < INSPECTION_FILE_MAX_COUNT && (
         <div className="flex flex-wrap items-end gap-2">
           <input ref={fileRef} type="file" accept={INSPECTION_FILE_ALLOWED_MIME.join(',')} className="sr-only"
             aria-label={t('inspections.fileInput', 'Report file')} data-testid="inspection-file-input" onChange={onPick} />
@@ -153,7 +154,7 @@ const InspectionCard: React.FC<CardProps> = ({ inspection: i, costs, workOrderId
         <div className="flex flex-wrap items-end gap-2">
           <SelectField label={t('inspections.resultLabel', 'Result')} value={result} onChange={(v) => setResult(v as InspectionResult | '')}
             options={[{ value: '', label: t('inspections.chooseResult', 'Choose a result') }, ...RESULTS.map((r) => ({ value: r, label: t(`inspections.result.${r}`, r) }))]} />
-          <Button variant="primary" type="button" size="sm" disabled={!result || liveFiles.length === 0 || m.report.isPending}
+          <Button variant="primary" type="button" size="sm" disabled={files.isError || !result || liveFiles.length === 0 || m.report.isPending}
             onClick={() => result && run(m.report.mutateAsync({ id: i.id, result }))}>{t('inspections.markReported', 'Mark reported')}</Button>
         </div>
       )}
@@ -261,11 +262,13 @@ export const InspectionsSection: React.FC<Props> = ({ workOrderId }) => {
           {t('inspections.billingOpen', 'Billing is waiting on {{count}} required inspection(s)', { count: blockingBilling })}
         </p>
       )}
+      {costs.isError && <ListState variant="error" title={t('common:readError')} onRetry={() => void costs.refetch()} />}
       {rows.length === 0
         ? <p className="text-control text-muted-foreground">{t('inspections.empty', 'No third-party inspections on this work order yet.')}</p>
         : <ul className="divide-y divide-border" data-testid="wo-inspections">
             {rows.map((r) => (
               <InspectionCard key={r.id} inspection={r} workOrderId={workOrderId} today={today}
+                costsUnavailable={costs.isError}
                 costs={(costs.data ?? []).filter((c) => c.inspection_id === r.id)} />
             ))}
           </ul>}
