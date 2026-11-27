@@ -86,6 +86,7 @@ import { useAssistantHotkey } from '@/src/hooks/useAssistantHotkey';
 import { AgentContextProvider } from '@/src/lib/agent/context/AgentContextProvider';
 import { useAgentContextPublisher } from '@/src/lib/agent/context/useAgentContext';
 import { AccountMenu } from '@/src/components/shell/AccountMenu';
+import { AfterFirstData } from '@/src/components/shell/AfterFirstData';
 import { usePriceVisibilitySync } from '@/src/hooks/useHidePrices';
 
 // ── Lazy route chunks (lazyWithPreload: each carries an idempotent preload() —
@@ -1027,6 +1028,7 @@ export const ShellChrome: React.FC = React.memo(function ShellChrome() {
 
   return (
     <>
+      <AfterFirstData>
       <AppShell
         phoneNav={
           <PhoneNavBar
@@ -1066,6 +1068,7 @@ export const ShellChrome: React.FC = React.memo(function ShellChrome() {
       >
         <AppRoutes />
       </AppShell>
+      </AfterFirstData>
       <SurveyHost />
       {(paletteOpen || paletteSeen) && (
         <Suspense fallback={null}>

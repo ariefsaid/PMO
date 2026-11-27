@@ -184,3 +184,42 @@ describe('#1885 surveys', () => {
     expect(await verdict).toBe(true);
   });
 });
+
+describe('shell start-up: a deferred init fetches the SDK after the first screen, losing no event', () => {
+  it('fetches nothing until startLoad(); events issued meanwhile (first page view included) flush in order after', async () => {
+    client.init(config, { defer: true });
+    client.capture('app_route_viewed', { route: '/first' });
+    client.capture('route_first_data', { route: '/first', duration_ms: 10, temperature: 'cold' });
+    expect(gate.loads).toBe(0);
+    client.startLoad();
+    await vi.waitFor(() => expect(gate.loads).toBe(1));
+    gate.release!();
+    await client.ready();
+    expect(posthog.capture.mock.calls.map((c) => c[0])).toEqual(['app_route_viewed', 'route_first_data']);
+  });
+
+  it('starts by itself at the ceiling when no screen ever reports first data', async () => {
+    vi.useFakeTimers();
+    try {
+      client.init(config, { defer: true });
+      expect(gate.loads).toBe(0);
+      await vi.advanceTimersByTimeAsync(4001);
+      expect(gate.loads).toBe(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('opt-out while deferred: the SDK is never fetched or inited and nothing buffered is sent', async () => {
+    client.init(config, { defer: true });
+    client.capture('app_route_viewed', { route: '/first' });
+    client.optOut();
+    client.startLoad();
+    await Promise.resolve();
+    await Promise.resolve();
+    gate.release!();
+    await client.ready();
+    expect(posthog.init).not.toHaveBeenCalled();
+    expect(posthog.capture).not.toHaveBeenCalled();
+  });
+});

@@ -102,7 +102,7 @@ function renderTree(
 describe('AnalyticsProvider', () => {
   it('AC-PH-002: inits analyticsClient on mount', () => {
     renderTree(makeAuthCtx());
-    expect(analytics.init).toHaveBeenCalledWith(mockConfig);
+    expect(analytics.init).toHaveBeenCalledWith(mockConfig, { defer: true });
   });
 
   it('AC-PH-002: registers environment context on mount (non-demo)', () => {

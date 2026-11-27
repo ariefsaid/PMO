@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { AuthContext } from '@/src/auth/AuthContext';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useWaitingForYou } from '@/src/hooks/useWaitingForYou';
+import { useAfterFirstData } from './afterFirstDataContext';
 
 /**
  * The Approvals badge reads the SAME shared list as the home and the inbox (`useWaitingForYou`), so the three can never
@@ -49,7 +50,9 @@ const LiveCount: React.FC<{ badge: boolean }> = ({ badge }) => {
 export const ApprovalsNavCount: React.FC<{ badge?: boolean }> = ({ badge = false }) => {
   const queryClient = useContext(QueryClientContext);
   const auth = useContext(AuthContext);
+  // The reads behind the number start after the opening screen's data; until then there is no badge (it shows a moment later).
+  const afterFirstData = useAfterFirstData();
   // A bare render (no data layer, no signed-in person) has nothing to count.
-  if (!queryClient || !auth?.currentUser || !auth.role) return null;
+  if (!afterFirstData || !queryClient || !auth?.currentUser || !auth.role) return null;
   return <LiveCount badge={badge} />;
 };

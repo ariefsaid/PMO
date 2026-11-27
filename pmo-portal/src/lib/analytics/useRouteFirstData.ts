@@ -35,6 +35,7 @@ export function useRouteFirstData(): void {
       unsubscribe();
       clearTimeout(idle);
       clearTimeout(cap);
+      safeTrack(() => analyticsClient.startLoad());
       safeTrack(() => analyticsClient.capture('route_first_data', {
         route,
         duration_ms: Math.round(performance.now() - start),
