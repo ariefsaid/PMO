@@ -22,7 +22,8 @@ describe('FinanceAccessDenied (#1459: one gate surface, one access-denied copy)'
 
   it('keeps the Reports surface’s own heading and copy', () => {
     renderDenied('reports');
-    expect(screen.getByRole('heading', { name: "You don't have access to Reports" })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: "You don't have access to Reports" })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: "You don't have access to Reports" })).toBeInTheDocument();
     expect(screen.getByText('Finance reports are available to Finance, Executive and Admin roles.')).toBeInTheDocument();
   });
 });

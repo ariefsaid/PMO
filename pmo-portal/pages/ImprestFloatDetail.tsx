@@ -5,7 +5,7 @@ import React, { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import {
-  Button, ConfirmDialog, DataTable, ListState, ReasonDialog, RecordHeader, RecordSection, RecordStack, StatusPill, TextArea, TextField, useToast, type Column,
+  AccessDenied, Button, ConfirmDialog, DataTable, ListState, ReasonDialog, RecordHeader, RecordSection, RecordStack, StatusPill, TextArea, TextField, useToast, type Column,
 } from '@/src/components/ui';
 import { BackBar } from '@/src/components/shell';
 import { useAuth } from '@/src/auth/useAuth';
@@ -83,9 +83,9 @@ const ImprestFloatDetail: React.FC = () => {
   }
   const flt = floats.data;
   if (!flt) {
-    return <><BackBar label={backLabel} phoneOnly onBack={goBack} />
-      <ListState variant="empty" icon="doc" title={t('imprest:detail.notFound', 'Site cash not found')}
-        sub={t('imprest:detail.notFoundSub', "It doesn't exist, or you don't have access to it.")} /></>;
+    return <AccessDenied variant="notFound" title={t('imprest:detail.notFound', 'Site cash not found')}
+      sub={t('imprest:detail.notFoundSub', "It doesn't exist, or you don't have access to it.")}
+      parent={backLabel} onBack={goBack} />;
   }
   const postingOf = new Map((postings.data?.rows ?? []).map((p) => [p.movementId, p.state]));
   const posting = (id: string) => {
