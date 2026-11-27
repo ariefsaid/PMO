@@ -29,6 +29,7 @@ function describeFormatError(label: string, locale = getNumberLocale()): string 
 interface LineNumMessages {
   required: (label: string) => string;
   positive: (label: string) => string;
+  nonnegative: (label: string) => string;
   format: (label: string) => string;
 }
 function validateLineNum(raw: string, label: string, messages?: LineNumMessages): string | undefined {
@@ -42,10 +43,10 @@ function parseRate(raw: string): number | null {
   const n = parseMoneyInputAtScale(raw, 2);
   return n !== null && n >= 0 ? n : null;
 }
-function validateOptionalRate(raw: string, label: string): string | undefined {
+function validateOptionalRate(raw: string, label: string, messages?: LineNumMessages): string | undefined {
   if (!raw.trim() || parseRate(raw) !== null) return undefined;
-  if (moneyInputErrorKind(raw, 2) === 'format') return describeFormatError(label);
-  return `${label} cannot be negative and must have no more than 2 decimal places.`;
+  if (moneyInputErrorKind(raw, 2) === 'format') return messages?.format(label) ?? describeFormatError(label);
+  return messages?.nonnegative(label) ?? `${label} cannot be negative and must have no more than 2 decimal places.`;
 }
 interface LineItemErrors { name?: string; quantity?: string; rate?: string }
 export type PendingRowCommit =
@@ -160,6 +161,7 @@ export const LineItemsSection = React.forwardRef<LineItemsSectionHandle, LineIte
     const pendingMessages: LineNumMessages = {
       required: (label) => t('lineItems.validation.required', '{{label}} is required.', { label }),
       positive: (label) => t('lineItems.validation.positive', '{{label}} must be greater than 0 with no more than 2 decimal places.', { label }),
+      nonnegative: (label) => t('lineItems.validation.nonnegative', '{{label}} cannot be negative and must have no more than 2 decimal places.', { label }),
       format: (label) => {
         const { decimal, group } = numberSymbols(getNumberLocale());
         const example = formatMoneyInputValue(1234.56, getNumberLocale());
@@ -168,7 +170,7 @@ export const LineItemsSection = React.forwardRef<LineItemsSectionHandle, LineIte
     };
     const nameError = pending.name.trim() ? undefined : t('lineItems.validation.itemRequired', 'Item is required.');
     const quantityError = validateLineNum(pending.quantity, t('lineItems.validation.quantityLabel', 'Quantity'), pendingMessages);
-    const rateError = maySeePrices ? validateOptionalRate(pending.rate, t('lineItems.validation.unitPriceLabel', 'Unit price')) : undefined;
+    const rateError = maySeePrices ? validateOptionalRate(pending.rate, t('lineItems.validation.unitPriceLabel', 'Unit price'), pendingMessages) : undefined;
     const rate = parseRate(pending.rate);
     if (nameError || quantityError || rateError || (maySeePrices && pending.rate.trim() !== '' && rate === null)) {
       setAddErrors({ name: nameError, quantity: quantityError, rate: rateError });

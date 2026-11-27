@@ -247,33 +247,39 @@ const BASE_PROPS = {
   invoices: [] as Parameters<typeof ProcurementLedger>[0]['invoices'],
 };
 
-it('updates an amount cell when price visibility changes while the ledger stays mounted', () => {
+it('hides and restores the amount when price visibility changes while the ledger stays mounted', () => {
   act(() => setPricesHidden(false));
   const view = wrap(<ProcurementLedger {...BASE_PROPS} rows={[SAMPLE_ROWS[0]]} />);
   const table = screen.getByRole('table');
   const amountColumnIndex = Array.from(table.querySelectorAll('thead th')).findIndex((header) => header.getAttribute('data-col-key') === 'amount');
   const row = within(table).getByRole('row', { name: /PAY-2026-0033/ });
-  expect(row.children[amountColumnIndex]?.textContent).not.toBe('—');
+  const visibleAmount = row.children[amountColumnIndex]?.textContent;
+  expect(amountColumnIndex).toBeGreaterThanOrEqual(0);
+  expect(visibleAmount).toMatch(/478,500/);
 
   try {
     act(() => setPricesHidden(true));
-    expect(row.children[amountColumnIndex]?.textContent).toBe('—');
+    expect(within(table).queryByRole('columnheader', { name: /^Amount$/ })).not.toBeInTheDocument();
+    expect(within(table).getByRole('row', { name: /PAY-2026-0033/ })).not.toHaveTextContent(/478,500/);
+    act(() => setPricesHidden(false));
+    expect(within(table).getByRole('columnheader', { name: /^Amount$/ })).toBeInTheDocument();
+    expect(row.children[amountColumnIndex]?.textContent).toBe(visibleAmount);
   } finally {
     view.unmount();
     act(() => setPricesHidden(false));
   }
 });
 
-it('shows only the shared empty marker in each withheld amount cell', () => {
+it('omits the wholly withheld amount column and keeps the document row', () => {
   act(() => setPricesHidden(true));
   try {
     wrap(<ProcurementLedger {...BASE_PROPS} rows={[SAMPLE_ROWS[0]]} />);
     const table = screen.getByRole('table');
-    const amountColumnIndex = Array.from(table.querySelectorAll('thead th')).findIndex((header) => header.getAttribute('data-col-key') === 'amount');
     const row = within(table).getByRole('row', { name: /PAY-2026-0033/ });
 
-    expect(amountColumnIndex).toBeGreaterThanOrEqual(0);
-    expect(row.children[amountColumnIndex]?.textContent).toBe('—');
+    expect(within(table).queryByRole('columnheader', { name: /^Amount$/ })).not.toBeInTheDocument();
+    expect(row).not.toHaveTextContent(/478,500/);
+    expect(within(row).getByText('Cleared')).toBeInTheDocument();
     expect(screen.queryByText('Prices are hidden from requesters.')).not.toBeInTheDocument();
   } finally { act(() => setPricesHidden(false)); }
 });

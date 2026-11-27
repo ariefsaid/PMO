@@ -51,10 +51,14 @@ describe('AC-SEC-233 query_entity — money records by role', () => {
   });
 
   it('AC-SEC-233 an Engineer still reads their purchasing records (purchase orders, receipts)', async () => {
-    for (const entity of ['purchase_orders', 'procurement_receipts', 'procurements']) {
+    for (const [entity, table] of [
+      ['purchase_orders', 'purchase_orders_masked'],
+      ['procurement_receipts', 'procurement_receipts'],
+      ['procurements', 'procurements_masked'],
+    ]) {
       const { ctx, from } = ctxFor('Engineer');
       expect(await queryEntityAction.run({ entity }, ctx)).toEqual({ rowCount: 1, rows: [{ id: 'r1' }] });
-      expect(from).toHaveBeenCalledWith(entity);
+      expect(from).toHaveBeenCalledWith(table);
     }
   });
 });

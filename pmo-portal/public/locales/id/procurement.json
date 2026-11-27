@@ -33,6 +33,7 @@
       "itemRequired": "Nama item wajib diisi.",
       "required": "{{label}} wajib diisi.",
       "positive": "{{label}} harus lebih besar dari 0 dengan maksimal 2 angka desimal.",
+      "nonnegative": "{{label}} tidak boleh negatif dan maksimal 2 angka desimal.",
       "format": "{{label}} harus menggunakan \"{{group}}\" untuk pemisah ribuan dan \"{{decimal}}\" untuk desimal — misalnya {{example}}.",
       "quantityLabel": "Jumlah",
       "unitPriceLabel": "Harga satuan"
