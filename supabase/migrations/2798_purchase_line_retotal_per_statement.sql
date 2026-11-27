@@ -12,6 +12,20 @@
 -- Proven by supabase/tests/2798_purchase_line_retotal_per_statement.test.sql (same sequences run against the old bodies, every stored
 -- total and header work order compared). Reverse: rollback/2798_purchase_line_retotal_per_statement_down.sql.
 
+-- drops: sync_procurement_item_total() | "declare v_id uuid;" | Per-row form replaced by one per-statement pass over the transition table; same rule (2798).
+-- drops: sync_procurement_item_total() | "if tg_op in ('UPDATE','DELETE') then" | Per-row form replaced by one per-statement pass over the transition table; same rule (2798).
+-- drops: sync_procurement_item_total() | "v_id := old.procurement_id;" | Per-row form replaced by one per-statement pass over the transition table; same rule (2798).
+-- drops: sync_procurement_item_total() | "from (select sum(i.amount) as line_total from public.procurement_items i where i.procurement_id = v_id) s" | Per-row form replaced by one per-statement pass over the transition table; same rule (2798).
+-- drops: sync_procurement_item_total() | "where p.id = v_id and p.status in ('Draft','Rejected') and s.line_total is not null;" | Per-row form replaced by one per-statement pass over the transition table; same rule (2798).
+-- drops: sync_procurement_item_total() | "if tg_op in ('INSERT','UPDATE') then" | Per-row form replaced by one per-statement pass over the transition table; same rule (2798).
+-- drops: sync_procurement_item_total() | "v_id := new.procurement_id;" | Per-row form replaced by one per-statement pass over the transition table; same rule (2798).
+-- drops: sync_procurement_item_total() | "update public.procurements p" | Per-row form replaced by one per-statement pass over the transition table; same rule (2798).
+-- drops: sync_procurement_item_total() | "set total_value = s.line_total, updated_at = now()" | Per-row form replaced by one per-statement pass over the transition table; same rule (2798).
+-- drops: sync_procurement_item_total() | "from (select sum(i.amount) as line_total from public.procurement_items i where i.procurement_id = v_id) s" | Per-row form replaced by one per-statement pass over the transition table; same rule (2798).
+-- drops: sync_procurement_item_total() | "where p.id = v_id and p.status in ('Draft','Rejected') and s.line_total is not null;" | Per-row form replaced by one per-statement pass over the transition table; same rule (2798).
+-- drops: sync_procurement_item_total() | "end if;" | Per-row form replaced by one per-statement pass over the transition table; same rule (2798).
+-- drops: sync_procurement_item_total() | "if tg_op = 'DELETE' then return old; end if;" | Per-row form replaced by one per-statement pass over the transition table; same rule (2798).
+-- drops: sync_procurement_item_total() | "return new;" | Per-row form replaced by one per-statement pass over the transition table; same rule (2798).
 create or replace function public.sync_procurement_item_total() returns trigger
   language plpgsql security definer set search_path = public, pg_catalog, pg_temp as $$
 declare v_ids uuid[];
@@ -34,6 +48,16 @@ begin
 end; $$;
 revoke all on function public.sync_procurement_item_total() from public, anon, authenticated;
 
+-- drops: copy_line_work_order_to_header() | "declare" | Per-row form replaced by one per-statement pass over the transition table; same rule (2798).
+-- drops: copy_line_work_order_to_header() | "v_case uuid := case when tg_op = 'DELETE' then old.procurement_id else new.procurement_id end;" | Per-row form replaced by one per-statement pass over the transition table; same rule (2798).
+-- drops: copy_line_work_order_to_header() | "v_lines int; v_named int; v_distinct int; v_wo uuid;" | Per-row form replaced by one per-statement pass over the transition table; same rule (2798).
+-- drops: copy_line_work_order_to_header() | "select count(*), count(i.work_order_id), count(distinct i.work_order_id), min(i.work_order_id::text)::uuid" | Per-row form replaced by one per-statement pass over the transition table; same rule (2798).
+-- drops: copy_line_work_order_to_header() | "into v_lines, v_named, v_distinct, v_wo" | Per-row form replaced by one per-statement pass over the transition table; same rule (2798).
+-- drops: copy_line_work_order_to_header() | "from public.procurement_items i where i.procurement_id = v_case;" | Per-row form replaced by one per-statement pass over the transition table; same rule (2798).
+-- drops: copy_line_work_order_to_header() | "if v_lines > 0 and v_named = v_lines and v_distinct = 1" | Per-row form replaced by one per-statement pass over the transition table; same rule (2798).
+-- drops: copy_line_work_order_to_header() | "and exists (select 1 from public.work_orders w where w.id = v_wo and w.status <> 'Cancelled')" | Per-row form replaced by one per-statement pass over the transition table; same rule (2798).
+-- drops: copy_line_work_order_to_header() | "and exists (select 1 from public.procurements p where p.id = v_case and p.status in ('Draft', 'Rejected')) then" | Per-row form replaced by one per-statement pass over the transition table; same rule (2798).
+-- drops: copy_line_work_order_to_header() | "update public.procurements set work_order_id = v_wo where id = v_case and work_order_id is distinct from v_wo;" | Per-row form replaced by one per-statement pass over the transition table; same rule (2798).
 create or replace function public.copy_line_work_order_to_header() returns trigger
   language plpgsql security definer set search_path = public, pg_temp as $$
 declare v_ids uuid[];
