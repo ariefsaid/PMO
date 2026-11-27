@@ -256,5 +256,27 @@
   "billedTitle": "Billed and margin",
   "byDisciplineTitle": "Cost by discipline",
   "openPage": "Open full page",
-  "otherCurrencyNote": "Some cost is in another currency: figures that would mix currencies are not shown, and that cost is listed apart."
+  "otherCurrencyNote": "Some cost is in another currency: figures that would mix currencies are not shown, and that cost is listed apart.",
+  "leftOut": {
+    "summary_one": "Not yet counted: {{count}} record",
+    "summary_other": "Not yet counted: {{count}} records",
+    "summaryWithTotal_one": "Not yet counted: {{count}} record ({{total}})",
+    "summaryWithTotal_other": "Not yet counted: {{count}} records ({{total}})",
+    "count_one": "{{count}} record",
+    "count_other": "{{count}} records",
+    "countOnly": "Count only",
+    "labourCostOff": "Labour costing is off",
+    "stockCostOff": "Stock issue costing is off",
+    "kind": {
+      "unpaid_bill": "Unpaid supplier bills",
+      "purchase_order": "Ordered, not billed",
+      "goods_receipt": "Received, not billed",
+      "uncounted_stock": "Stock issued, not counted",
+      "unapproved_claim": "Unapproved expense claims",
+      "unapproved_labour": "Unapproved labour",
+      "unrated_labour": "Labour without rate",
+      "unapproved_equipment": "Unapproved equipment usage",
+      "unrated_equipment": "Equipment without hire rate"
+    }
+  }
 }

@@ -1,0 +1,2 @@
+# 2784 (#3026): work-order direct-cost left-out summary (role, project-scope and price-visibility gated).
+work_order_cost_left_out
