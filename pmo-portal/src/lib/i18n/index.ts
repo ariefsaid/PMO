@@ -1,4 +1,4 @@
-import i18next, { type BackendModule, type ReadCallback, type i18n as I18nInstance } from 'i18next';
+import i18next, { type BackendModule, type ResourceKey, type ReadCallback, type i18n as I18nInstance } from 'i18next';
 import { initReactI18next } from 'react-i18next';
 import { applyOrgTerms, getOrgTerms, type TermNumberHints } from './orgTerms';
 import { FALLBACK_LOCALE, isUsableLocaleTag } from '@/src/lib/locale/resolveLocale';
@@ -160,6 +160,15 @@ function catalogueSignal(): AbortSignal {
 }
 
 /**
+ * Versioned per-build address of the catalogues (`/catalogues/<content hash>`, set by the build in
+ * `vite.config.ts`); the unversioned `/locales` where no build defined it (unit tests).
+ */
+export function catalogueBase(): string {
+  const base = (import.meta.env as Record<string, string | undefined>).VITE_CATALOGUE_BASE;
+  return base || '/locales';
+}
+
+/**
  * FR-L10N-043 — lazy per-locale load. i18next requests only the ACTIVE language plus `fallbackLng`,
  * so an `en` session fetches `/locales/en/*.json` and never touches `/locales/id/*.json`.
  * `public/` is copied verbatim by Vite, so catalogues are fetched JSON and never bundled — adding a
@@ -177,8 +186,15 @@ export const catalogueBackend: BackendModule = {
       callback(new Error('Catalogue document departed'), false);
       return;
     }
-    fetch(`/locales/${language}/${namespace}.json`, { signal })
-      .then((res) => (res.ok ? res.json() : Promise.reject(new Error(`HTTP ${res.status}`))))
+    const load = (base: string): Promise<ResourceKey> =>
+      fetch(`${base}/${language}/${namespace}.json`, { signal }).then((res) =>
+        res.ok ? res.json() : Promise.reject(new Error(`HTTP ${res.status}`)),
+      );
+    const base = catalogueBase();
+    // A tab kept open across a release asks for the previous build's versioned address, which the
+    // SPA fallback answers with HTML (invalid JSON) or the host no longer has: retry ONCE on the
+    // unversioned copy, which always holds the current catalogue.
+    (base === '/locales' ? load(base) : load(base).catch(() => load('/locales')))
       .then((data) => callback(null, data))
       .catch((err: unknown) => callback(err instanceof Error ? err : new Error(String(err)), false));
   },
