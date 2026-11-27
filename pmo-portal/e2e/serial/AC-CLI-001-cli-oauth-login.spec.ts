@@ -199,9 +199,21 @@ test('AC-CLI-003: a banned user’s token is refused — writes, reads and refre
   const { error } = await admin.auth.admin.updateUserById(users.banned.id, { ban_duration: '876000h' });
   if (error) throw new Error(error.message);
 
+  // Auth versions differ on checking a ban against an already-issued access token.
+  // Bind the expected refusal to the actual user-check response, never to any error.
+  const token = readCreds(configDir)[SUPABASE_URL].access_token;
+  const identity = await fetch(`${SUPABASE_URL}/auth/v1/user`, { headers: { apikey: ANON_KEY, Authorization: `Bearer ${token}` } });
+  const blockedByAuth = identity.status === 403;
+  if (blockedByAuth) expect((await identity.json() as { error_code: string }).error_code).toBe('user_banned');
+  else expect(identity.status).toBe(200);
   const write = await pmo(configDir, ['create', 'projects', JSON.stringify({ name: `${NAME_PREFIX}${RUN} banned`, status: 'Leads' })]);
   expect(write.code).toBe(1);
-  expect(write.error).toMatchObject({ code: '42501' });
+  // Default-manager resolution calls Auth; if Auth accepts the old token, RLS refuses the write.
+  expect(write.error).toMatchObject({ code: blockedByAuth ? 'user_banned' : '42501' });
+  // Supplying the manager also proves the database refuses a direct write under the same token.
+  const directWrite = await pmo(configDir, ['create', 'projects', JSON.stringify({ name: `${NAME_PREFIX}${RUN} banned`, status: 'Leads', project_manager_id: users.banned.id })]);
+  expect(directWrite.code).toBe(1);
+  expect(directWrite.error).toMatchObject({ code: '42501' });
   const read = await pmo(configDir, ['get', 'companies', '--select', 'id', '--limit', '1']);
   expect(read.json).toEqual([]);
 

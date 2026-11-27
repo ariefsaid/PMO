@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { supabase } from '@/src/lib/supabase/client';
 import { useAuth } from './useAuth';
+import { recoverySession } from './recoverySession';
 import { useServiceMessageText } from './useServiceMessageText';
 import { Button } from '../components/ui/Button';
 import { buttonClasses } from '../components/ui/buttonClasses';
@@ -18,10 +19,8 @@ import type { AuthFailureReason, AuthMethod } from '../lib/analytics';
 // and the invite-acceptance "set first password" step (D-AUTHF-4) — both
 // end in supabase.auth.updateUser({ password }).
 //
-// Recovery/invite-session detection is in-page (M-4: AuthProvider discards
-// the onAuthStateChange event type) and race-free: the URL carrying auth
-// params gates the initial phase; whichever of the PASSWORD_RECOVERY event
-// or getSession() resolving first lands the page in 'active' (design D1).
+// The singleton retains verified recovery provenance while this route loads.
+// URL-bearing navigation and invite sessions also activate the existing form.
 // -----------------------------------------------------------------------
 
 const RECOVERY_PARAMS = [
@@ -79,9 +78,10 @@ const UpdatePasswordPage: React.FC = () => {
     };
     // RequireInviteAccepted redirects an already-signed-in invite_pending user to /update-password
     // via <Navigate>, which carries no recovery URL params. That session is still a valid trigger
-    // for the set-password form, so it's checked alongside hasRecoveryParams (spec-conformance fix).
-    const checkSession = ({ session }: { session: { user?: { user_metadata?: Record<string, unknown> } } | null }) => {
-      if (session?.user?.user_metadata?.invite_pending === true) {
+    // for the set-password form. A recovery event captured before this lazy page mounted
+    // is accepted only for the same session, even after Supabase has cleaned the URL.
+    const checkSession = ({ session }: { session: { access_token?: string; user?: { user_metadata?: Record<string, unknown> } } | null }) => {
+      if (session?.user?.user_metadata?.invite_pending === true || recoverySession.matches(session)) {
         activate();
         return true;
       }
