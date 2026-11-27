@@ -1,3 +1,7 @@
+import { afterEach } from 'vitest';
+import { setActiveOrgTimezone, resetActiveLocale } from '@/src/lib/locale/activeLocale';
+const originalDeviceTimezone = process.env.TZ;
+afterEach(() => { resetActiveLocale(); if (originalDeviceTimezone === undefined) delete process.env.TZ; else process.env.TZ = originalDeviceTimezone; });
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { act } from '@testing-library/react';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
@@ -46,6 +50,8 @@ const talk = (over: Partial<SafetyTalk> = {}): SafetyTalk => ({
 const view = (el: React.ReactElement) => render(<ToastProvider>{el}</ToastProvider>);
 
 beforeEach(() => {
+  // Existing fixtures enter local wall times with the organisation clock aligned to that device.
+  setActiveOrgTimezone(Intl.DateTimeFormat().resolvedOptions().timeZone);
   act(() => { sonnerToast.dismiss(); }); // Sonner's store replays still-active toasts into the next Toaster — clear them.
   Object.values(h.m).forEach((x) => x.mutateAsync.mockReset().mockResolvedValue(undefined));
   h.photoUrl.mockClear();
@@ -326,3 +332,7 @@ describe('OfficerPart', () => {
     expect((await screen.findAllByText('Update failed')).length).toBeGreaterThan(0);
   });
 });
+
+it("records permit wall-clock times in the organisation timezone", async () => { process.env.TZ = "UTC"; setActiveOrgTimezone("Asia/Jakarta"); view(<PermitsPart detail={base} editable />); await userEvent.type(screen.getByLabelText(/^Permit number/), "PTW-zone"); await userEvent.click(screen.getByTestId("safety-permit-add")); await waitFor(() => expect(h.m.savePermit.mutateAsync).toHaveBeenCalledWith(expect.objectContaining({validFrom: "2026-03-10T00:00:00.000Z", validTo: "2026-03-10T10:00:00.000Z"}))); });
+
+it("refuses a permit wall-clock time skipped by daylight saving", async () => { setActiveOrgTimezone("America/New_York"); view(<PermitsPart detail={{...base, day: {...base.day, work_date: "2026-03-08"}}} editable />); await userEvent.type(screen.getByLabelText(/^Permit number/), "DST"); fireEvent.change(screen.getByLabelText(/Valid from/), {target: {value: "02:30"}}); expect(screen.getByTestId("safety-permit-add")).toBeDisabled(); expect(screen.getByText("This time does not exist in the organisation timezone")).toBeInTheDocument(); });

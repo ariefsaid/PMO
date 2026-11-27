@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button, ConfirmDialog, DataTable, EntityFormModal, RecordSection, TextField, useToast, type Column } from '@/src/components/ui';
+import { Button, ListState, ConfirmDialog, DataTable, EntityFormModal, RecordSection, TextField, useToast, type Column } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { formatDuration, useBreakdowns, useClearVendorResponse, useRecordVendorResponse, useVendorNames, useVendorResponseReady } from '@/src/hooks/useVendorResponse';
@@ -72,10 +72,12 @@ const Panel: React.FC<{ assetId: string; today: string }> = ({ assetId, today })
   const duration = (m: number) => formatDuration(t, m);
   const clear = useClearVendorResponse();
   const [editing, setEditing] = useState<BreakdownRow | null>(null);
+  const [removeError, setRemoveError] = useState<string | null>(null);
   const [removing, setRemoving] = useState<BreakdownRow | null>(null);
   const rows = q.data ?? [];
   // Nothing to show until the machine has broken down at least once: an organisation with none sees no change.
-  if (q.isPending || q.isError || rows.length === 0) return null;
+  if (q.isError) return <ListState variant="error" title={t("common:ui.errorBoundary.title", "Something went wrong")} onRetry={() => void q.refetch()} />;
+  if (q.isPending || rows.length === 0) return null;
   const summary = vendorResponseSummary(rows.flatMap((r) => (r.vendor_id ? [{ vendorId: r.vendor_id, responseMinutes: r.response_minutes }] : [])));
   const columns: Column<BreakdownRow>[] = [
     { key: 'from', header: t('equipment:vendorResponse.breakdownFrom', 'Breakdown from'), kind: 'primary', rowHeader: true, cell: (r) => <span className="whitespace-nowrap">{formatDay(r.period_start)}</span> },
@@ -86,7 +88,7 @@ const Panel: React.FC<{ assetId: string; today: string }> = ({ assetId, today })
       cell: (r: BreakdownRow) => <span className="flex justify-end gap-2">
         {r.vendor_id && <Button variant="outline" size="sm" onClick={() => setEditing(r)}>
           {r.responded_at ? t('equipment:vendorResponse.edit', 'Edit') : t('equipment:vendorResponse.record', 'Record response')}</Button>}
-        {r.responded_at && <Button variant="outline" size="sm" onClick={() => setRemoving(r)}>{t('equipment:vendorResponse.remove', 'Remove')}</Button>}
+        {r.responded_at && <Button variant="outline" size="sm" onClick={() => { setRemoveError(null); setRemoving(r); }}>{t('equipment:vendorResponse.remove', 'Remove')}</Button>}
       </span> }] : []),
   ];
   return (
@@ -95,13 +97,13 @@ const Panel: React.FC<{ assetId: string; today: string }> = ({ assetId, today })
         accessibleName={t('equipment:vendorResponse.title', 'Vendor response to breakdowns')} />
       {summary.length > 0 && <div className="border-t border-border"><VendorResponseSummaryTable rows={summary} /></div>}
       {editing && <RecordDialog assetId={assetId} row={editing} onClose={() => setEditing(null)} />}
-      <ConfirmDialog open={removing !== null} title={t('equipment:vendorResponse.removeTitle', 'Remove this response?')}
+      <ConfirmDialog error={removeError} open={removing !== null} title={t('equipment:vendorResponse.removeTitle', 'Remove this response?')}
         description={t('equipment:vendorResponse.removeBody', 'The breakdown goes back to awaiting a response.')}
         confirmLabel={t('equipment:vendorResponse.remove', 'Remove')} tone="destructive" loading={clear.isPending}
         onCancel={() => setRemoving(null)}
         onConfirm={() => { if (!removing) return; void clear.mutateAsync({ assetId, periodStart: removing.period_start })
           .then(() => { toast(t('equipment:vendorResponse.removed', 'Response removed'), undefined, 'success'); setRemoving(null); })
-          .catch(() => setRemoving(null)); }} />
+          .catch((err) => setRemoveError(classifyMutationError(err).headline)); }} />
     </RecordSection>
   );
 };

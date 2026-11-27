@@ -96,16 +96,10 @@ export function useStockDocuments(f: Omit<StockDocumentFilters, 'before' | 'limi
   });
   const count = useQuery({
     queryKey: ['stock-documents-count', orgId, f],
-    queryFn: async () => {
-      try {
-        return await repositories.stock.documents.count(f);
-      } catch {
-        return undefined;
-      }
-    },
+    queryFn: () => repositories.stock.documents.count(f),
     enabled: Boolean(orgId),
   });
-  return { ...pages, total: count.data };
+  return { ...pages, total: count.data, countError: count.isError, retryCount: count.refetch };
 }
 export function useStockDocumentEntries(documentId: string | undefined) {
   const orgId = useAuth().currentUser?.org_id;

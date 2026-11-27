@@ -39,6 +39,7 @@ export const EquipmentCostingForm: React.FC<{
     partyType: current?.match_party_type ?? '', party: current?.match_party ?? '',
     effectiveFrom: monthStart(today), effectiveTo: '',
   });
+  const [initial] = useState(v);
   const set = <K extends keyof typeof v>(k: K, value: (typeof v)[K]) => { setV((s) => ({ ...s, [k]: value })); setRows(null); };
 
   const draft = useMemo<CostingDraft>(() => ({
@@ -86,7 +87,7 @@ export const EquipmentCostingForm: React.FC<{
   return (
     <EntityFormModal open title={t('equipment:costing.changeTitle', 'Change costing for {{asset}}', { asset: asset.name })}
       submitLabel={t('equipment:costing.save', 'Save costing')} onSubmit={(e) => void submit(e)} onClose={onClose} width="lg"
-      loading={saving} dirty={rows !== null || v.account !== (current?.match_account ?? '')} submitDisabled={!ready} submitError={submitError}>
+      loading={saving} dirty={rows !== null || JSON.stringify(v) !== JSON.stringify(initial)} submitDisabled={!ready} submitError={submitError}>
       <FormGrid>
         <fieldset className="col-span-full flex flex-wrap gap-4">
           <legend className="mb-1 text-sm font-medium">{t('equipment:costing.basis', 'Costing basis')}</legend>

@@ -47,6 +47,7 @@ export default function RentalInvoiceCheck({ assets, today, monthFrom, statusLab
   };
   if (!assets.length) return <ListState variant="empty" title={t('equipment:availability.noRentedOnPage', 'No rented equipment on this page')} />;
   return <RecordSection headingId="eav-check-h" title={t('equipment:availability.checkHeading', 'Rental invoice check')}>
+    <p className="mb-3 text-muted-foreground">{t("equipment:availability.loadedScope", "{{count}} machines from the loaded equipment pages. Load the next equipment page to find more machines.", {count: assets.length})}</p>
     {problem && <p role="alert" className="mb-3 text-destructive-text">{problem}</p>}
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
       <SelectField label={t('equipment:availability.rentedAsset', 'Rented machine')} value={asset} onChange={(v) => { clear(); setAsset(v); }} options={[{ value: '', label: t('equipment:availability.choose', 'Choose…') }, ...assets.map((a) => ({ value: a.id, label: `${a.code} ${a.name}` }))]} />

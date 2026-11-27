@@ -39,7 +39,7 @@ const h = vi.hoisted(() => ({
     { can_approve: boolean; reason: string | null; eligible_approver_exists: boolean } | null,
   approvalError: false,
   refetch: vi.fn(),
-  versions: [] as unknown[],
+  versions: [] as unknown[], versionsError: false,
   userId: 'fin2',
   realRole: 'Finance',
   m: Object.fromEntries(['raise', 'updateDraft', 'submit', 'approve', 'returnRequest', 'withdraw', 'recordSent', 'recordDecision', 'uploadFile', 'archiveFile']
@@ -53,7 +53,7 @@ vi.mock('@/src/hooks/useQuantityChanges', () => ({
     isError: enabled && h.approvalError,
     refetch: h.refetch,
   }),
-  useQuantityVersions: () => ({ data: h.versions, isPending: false }),
+  useQuantityVersions: () => ({ data: h.versions, isPending: false, isError: h.versionsError, refetch: h.refetch }),
   useQuantityChangeMutations: () => h.m,
 }));
 vi.mock('@/src/hooks/useProjects', () => ({ useProject: () => ({ data: { id: 'p1', name: 'Pipeline', project_manager_id: 'pm' } }) }));
@@ -88,7 +88,7 @@ const renderPage = (lng: 'en' | 'id' = 'en') => render(
   </I18nextProvider>,
 );
 
-beforeEach(() => {
+beforeEach(() => { h.versionsError = false;
   h.userId = 'fin2'; h.realRole = 'Finance'; h.versions = [];
   h.approval = { can_approve: true, reason: null, eligible_approver_exists: true };
   h.approvalError = false;
@@ -250,3 +250,5 @@ describe('quantity change request record', () => {
     });
   });
 });
+
+it("offers retry when quantity version history cannot be read", async () => { h.detail = make("draft"); h.versionsError = true; renderPage(); await userEvent.click(screen.getByRole("button", {name: "Version history"})); expect(screen.queryByText("No versions")).toBeNull(); expect(screen.getByRole("button", {name: /retry/i})).toBeInTheDocument(); });

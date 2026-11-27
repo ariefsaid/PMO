@@ -260,7 +260,8 @@
       "noMatch": "No documents match",
       "noMatchSub": "Clear a filter to see more."
     },
-    "loadMoreFailed": "Couldn't load more documents"
+    "loadMoreFailed": "Couldn't load more documents",
+    "countUnavailable": "Document count unavailable"
   },
   "detail": {
     "title": "Document",

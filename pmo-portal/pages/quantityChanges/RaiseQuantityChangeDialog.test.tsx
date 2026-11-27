@@ -8,11 +8,11 @@ import { ToastProvider } from '@/src/components/ui';
 
 /** #2578 raise dialog: only over-contract, allocated, unit-rate lines are offered; R is checked before the server is asked (AC-QCR-004/005/006). */
 const h = vi.hoisted(() => ({
-  over: [] as unknown[], budget: { request_count: 0, request_limit: null as number | null },
+  over: [] as unknown[], overError: false, allocationError: false, retry: vi.fn(), budget: { request_count: 0, request_limit: null as number | null },
   raise: { mutateAsync: vi.fn(), isPending: false },
 }));
 vi.mock('@/src/hooks/useQuantityChanges', () => ({
-  useOverContract: () => ({ data: h.over, isPending: false }),
+  useOverContract: () => ({ data: h.over, isPending: false, isError: h.overError, refetch: h.retry }),
   useWorkOrderRequestBudget: () => ({ data: h.budget }),
   useQuantityChangeMutations: () => ({ raise: h.raise }),
 }));
@@ -21,7 +21,7 @@ vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u1'
 vi.mock('@/src/lib/repositories', () => ({
   repositories: {
     workOrder: { list: async () => [] },
-    dailySiteReport: { listContractItems: async () => [{ id: 'l1', boq_item_id: 'b1', item_code: 'EXC', description: 'Excavation', unit: 'm3' }] },
+    dailySiteReport: { listContractItems: async () => { if (h.allocationError) throw new Error("offline"); return [{ id: 'l1', boq_item_id: 'b1', item_code: 'EXC', description: 'Excavation', unit: 'm3' }]; } },
   },
 }));
 
@@ -38,7 +38,7 @@ const renderDialog = (onCreated = vi.fn()) => render(
 );
 
 beforeEach(() => {
-  h.over = [row(), row({ boq_item_id: 'b2', item_code: 'PIPE', over_progress: false }), row({ boq_item_id: 'b3', item_code: 'OPEN', open_request_id: 'q9' })];
+  h.overError = false; h.allocationError = false; h.over = [row(), row({ boq_item_id: 'b2', item_code: 'PIPE', over_progress: false }), row({ boq_item_id: 'b3', item_code: 'OPEN', open_request_id: 'q9' })];
   h.budget = { request_count: 0, request_limit: null };
   h.raise.mutateAsync.mockReset();
 });
@@ -81,3 +81,5 @@ describe('RaiseQuantityChangeDialog', () => {
     expect(screen.getByRole('button', { name: 'Create draft' })).toBeDisabled();
   });
 });
+
+it.each(["allocation", "over"])("offers retry for failed %s read", async (kind) => { h.allocationError = kind === "allocation"; h.overError = kind === "over"; renderDialog(); expect(await screen.findByRole("button", {name: /retry/i})).toBeInTheDocument(); expect(screen.queryByText("No allocated contract line on this work order is over its contract quantity")).toBeNull(); });

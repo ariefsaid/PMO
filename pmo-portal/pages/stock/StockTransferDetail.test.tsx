@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import React from 'react';
@@ -280,3 +280,5 @@ it('AC-SITE-009 an addressed receiver supplies quality even when master items ar
  await userEvent.click(screen.getByRole('button',{name:'Confirm receipt'}));
  await waitFor(()=>expect(h.receive).toHaveBeenCalledWith('t1',[{lineId:'l1',counted:'10.000',accepted:'10.000',rejectReason:'',qualityResult:'pass'}],null));
 });
+
+it("keeps the recall reason open after a failed recall", async () => { h.transfer = transfer({sentBy: "me"}); h.recall.mockRejectedValue(new Error("offline")); renderPage(); await userEvent.click(screen.getByRole("button", {name: "More actions"})); await userEvent.click(screen.getByRole("menuitem", {name: "Recall"})); await userEvent.type(screen.getByRole("textbox", {name: /reason/i}), "Wrong destination"); await userEvent.click(within(screen.getByRole("alertdialog")).getByRole("button", {name: "Recall"})); expect(await screen.findByRole("textbox", {name: /reason/i})).toHaveValue("Wrong destination"); });

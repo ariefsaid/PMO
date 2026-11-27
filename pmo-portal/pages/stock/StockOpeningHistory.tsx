@@ -84,11 +84,12 @@ const StockOpeningHistory: React.FC = () => {
   });
 
   const selectFile = async (f: File) => {
-    setLoaded(null);
+    setLoaded(null); setFile(null);
     const id = ++seq.current;
     requestId.current = crypto.randomUUID();
     try {
       const sheet = await parseWorkbook(await f.arrayBuffer(), STOCK_MOVEMENT_MAX_ROWS);
+      if (id !== seq.current) return;
       const mapping = autoMap(sheet.headers, descriptor.fields);
       const missing = descriptor.fields.find((x) => x.required && mapping[x.key] == null);
       if (missing) { setFile({ id, name: f.name, rows: [], clientErrors: [], problem: t('stock:opening.errors.missingColumn', { column: missing.label }) }); return; }
@@ -99,6 +100,7 @@ const StockOpeningHistory: React.FC = () => {
       const rows = sheet.rows.map((r) => movementRowFromCells(rowToCells(r, descriptor.fields, mapping)));
       setFile({ id, name: f.name, rows, clientErrors, problem: null });
     } catch (err) {
+      if (id !== seq.current) return;
       const tooMany = err instanceof ImportParseError && err.code === 'too_many_rows';
       setFile({ id, name: f.name, rows: [], clientErrors: [], problem: tooMany ? t('stock:opening.errors.tooMany', { max: formatQuantity(String(STOCK_MOVEMENT_MAX_ROWS), loc) }) : t('stock:opening.errors.file') });
     }
