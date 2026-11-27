@@ -84,10 +84,7 @@ export async function archiveStockDocumentFile(id: string, reason: string): Prom
 
 /** Per work order (or, with a project, every bucket incl. unassigned). An empty list is "nothing moved yet", never zero money. */
 export async function getWorkOrderStockBalance(f: { workOrderId?: string; projectId?: string }): Promise<WorkOrderStockRow[]> {
-  const args: Json = {};
-  if (f.workOrderId) args.p_work_order_id = f.workOrderId;
-  if (f.projectId) args.p_project_id = f.projectId;
-  const { data, error } = await supabase.rpc('get_work_order_stock_balance', args as never);
+  const { data, error } = await supabase.rpc('get_work_order_stock_balance', { p_work_order_id: f.workOrderId || undefined, p_project_id: f.projectId || undefined });
   if (error) throw toAppError(error);
   return ((data ?? []) as Json[]).map((r) => {
     const out: Json = {
@@ -113,7 +110,7 @@ export interface MaterialCompletion { rows: MaterialCompletionRow[]; totals: Mat
 
 /** One read for the printable material completion of a work order (1124d). Cost fields arrive only for roles with cost access. */
 export async function getWorkOrderMaterialCompletion(workOrderId: string): Promise<MaterialCompletion> {
-  const { data, error } = await supabase.rpc('get_work_order_material_completion', { p_work_order_id: workOrderId } as never);
+  const { data, error } = await supabase.rpc('get_work_order_material_completion', { p_work_order_id: workOrderId });
   if (error) throw toAppError(error);
   const d = (data ?? {}) as Json;
   return {

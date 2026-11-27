@@ -168,10 +168,7 @@ async function attachOpenCommitments<T extends { id: string }>(rows: T[]): Promi
   if (rows.length === 0) return rows;
   const chunks: string[][] = [];
   for (let i = 0; i < rows.length; i += OPEN_COMMITMENT_CHUNK) chunks.push(rows.slice(i, i + OPEN_COMMITMENT_CHUNK).map((r) => r.id));
-  const results = await Promise.all(chunks.map((p_ids) => supabase.rpc(priceFn('procurement_open_commitments') as never, { p_ids } as never) as unknown as PromiseLike<{
-    data: { procurement_id: string; amount: number | string | null }[] | null;
-    error: { message: string; code?: string } | null;
-  }>));
+  const results = await Promise.all(chunks.map((p_ids) => supabase.rpc(priceFn('procurement_open_commitments') as 'procurement_open_commitments', { p_ids })));
   const byId = new Map<string, number | null>();
   for (const { data, error } of results) {
     if (error) throw new Error(error.message);

@@ -1,4 +1,6 @@
 import { supabase } from '@/src/lib/supabase/client';
+import type { Json } from '@/src/lib/supabase/database.types';
+import { nullableArg } from './nullableArg';
 import { AppError } from '@/src/lib/appError';
 import type { JournalLinePayload } from '@/src/lib/journals/journalBalance';
 
@@ -91,26 +93,25 @@ const LINES_LIMIT = 200;
 const AUTHORS_LIMIT = 500;
 
 const fail = (error: { message: string; code?: string } | null): void => { if (error) throw new AppError(error.message, error.code); };
-const rpc = async (fn: string, args: Record<string, unknown>): Promise<unknown> => {
-  const { data, error } = await supabase.rpc(fn as never, args as never);
-  fail(error as { message: string; code?: string } | null);
+const rpcData = async <T>(call: PromiseLike<{ data: T; error: { message: string; code?: string } | null }>): Promise<T> => {
+  const { data, error } = await call;
+  fail(error);
   return data;
 };
-const table = (name: string) => supabase.from(name as never);
 
 export async function listJournals(from: string, to: string): Promise<JournalListRow[]> {
-  return ((await rpc('list_journals', { p_from: from, p_to: to })) ?? []) as JournalListRow[];
+  return ((await rpcData(supabase.rpc('list_journals', { p_from: from, p_to: to }))) ?? []) as unknown as JournalListRow[];
 }
 
 export async function getJournal(id: string): Promise<JournalDetail | null> {
-  const { data: entry, error } = await table('journal_entries').select('*').eq('id', id).maybeSingle();
+  const { data: entry, error } = await supabase.from('journal_entries').select('*').eq('id', id).maybeSingle();
   fail(error);
   if (!entry) return null;
   const row = entry as unknown as JournalEntryRow;
   const journalIds = row.reverses_journal_id ? [row.id, row.reverses_journal_id] : [row.id];
   const [lines, authors] = await Promise.all([
-    table('journal_entry_lines').select('*').eq('journal_id', row.id).order('line_no', { ascending: true }).limit(LINES_LIMIT),
-    table('journal_entry_authors').select('journal_id, profile_id').in('journal_id', journalIds).limit(AUTHORS_LIMIT),
+    supabase.from('journal_entry_lines').select('*').eq('journal_id', row.id).order('line_no', { ascending: true }).limit(LINES_LIMIT),
+    supabase.from('journal_entry_authors').select('journal_id, profile_id').in('journal_id', journalIds).limit(AUTHORS_LIMIT),
   ]);
   fail(lines.error);
   fail(authors.error);
@@ -126,11 +127,11 @@ export async function getJournal(id: string): Promise<JournalDetail | null> {
 /** The server's own approver rule (`may_approve_journal`) for the signed-in user: the only member of the organisation
  *  may approve their own journal, everyone else only one they did not write. UX only; `approve_journal` re-checks it. */
 export async function mayApproveJournal(id: string): Promise<boolean> {
-  return (await rpc('may_approve_journal', { p_journal_id: id })) === true;
+  return (await rpcData(supabase.rpc('may_approve_journal', { p_journal_id: id }))) === true;
 }
 
 export async function getLedgerSetup(): Promise<JournalLedgerSetup> {
-  const data = (await rpc('journal_ledger_setup', {})) as Partial<JournalLedgerSetup> | null;
+  const data = (await rpcData(supabase.rpc('journal_ledger_setup'))) as Partial<JournalLedgerSetup> | null;
   return {
     tier: data?.tier ?? null,
     desk_journal_id: data?.desk_journal_id ?? null,
@@ -139,11 +140,11 @@ export async function getLedgerSetup(): Promise<JournalLedgerSetup> {
 }
 
 export const saveJournalDraft = async (input: JournalDraftInput): Promise<string> =>
-  (await rpc('save_journal_draft', { p_id: input.id, p_kind: input.kind, p_date: input.date, p_memo: input.memo, p_lines: input.lines })) as string;
-export const submitJournal = async (id: string): Promise<void> => { await rpc('submit_journal', { p_id: id }); };
-export const approveJournal = async (id: string): Promise<void> => { await rpc('approve_journal', { p_id: id }); };
-export const returnJournal = async (id: string, reason: string): Promise<void> => { await rpc('return_journal', { p_id: id, p_reason: reason }); };
+  (await rpcData(supabase.rpc('save_journal_draft', { p_id: nullableArg(input.id), p_kind: input.kind, p_date: input.date, p_memo: nullableArg(input.memo), p_lines: input.lines as unknown as Json }))) as string;
+export const submitJournal = async (id: string): Promise<void> => { await rpcData(supabase.rpc('submit_journal', { p_id: id })); };
+export const approveJournal = async (id: string): Promise<void> => { await rpcData(supabase.rpc('approve_journal', { p_id: id })); };
+export const returnJournal = async (id: string, reason: string): Promise<void> => { await rpcData(supabase.rpc('return_journal', { p_id: id, p_reason: reason })); };
 export const requestJournalReversal = async (originalId: string, date: string, reason: string): Promise<string> =>
-  (await rpc('request_journal_reversal', { p_original: originalId, p_date: date, p_reason: reason })) as string;
+  (await rpcData(supabase.rpc('request_journal_reversal', { p_original: originalId, p_date: date, p_reason: reason }))) as string;
 /** Admin only (owner ruling 4): the mirrored general Odoo journal desk entries post to. */
-export const setDeskJournal = async (journalId: string): Promise<void> => { await rpc('set_desk_journal', { p_journal_id: journalId }); };
+export const setDeskJournal = async (journalId: string): Promise<void> => { await rpcData(supabase.rpc('set_desk_journal', { p_journal_id: journalId })); };

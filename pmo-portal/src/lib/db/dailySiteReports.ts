@@ -1,5 +1,6 @@
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError } from '@/src/lib/appError';
+import type { TablesInsert } from '@/src/lib/supabase/database.types';
 import { fetchAllPages } from '@/src/lib/pagedRead';
 import { sanitizeFilename } from '@/src/lib/storageKey';
 import { SIGNED_URL_EXPIRY_SECONDS } from '@/src/lib/fileConstants';
@@ -96,16 +97,9 @@ export const DSR_PAGE_SIZE = 50;
 export const SITE_REPORT_PHOTOS_BUCKET = 'site-report-photos';
 const HEADER = 'id, org_id, project_id, work_order_id, work_date, status, version, supersedes_id, superseded_at, correction_reason, author_id, submitted_at, validated_by, validated_at, returned_reason, variant_id, start_time, end_time, total_minutes, weather_id, weather_note, note, crew_id, person_id, area_id';
 
-type Err = { message: string; code?: string } | null;
-interface Loose {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the PostgREST builder chain; generated types predate 1004
-  from(table: string): any;
-  rpc(fn: string, args?: Record<string, unknown>): PromiseLike<{ data: unknown; error: Err }>;
-}
-const db = supabase as unknown as Loose;
 const fail = (error: { message: string; code?: string }): never => { throw new AppError(error.message, error.code); };
 
-async function rows<T>(query: PromiseLike<{ data: unknown; error: Err }>): Promise<T[]> {
+async function rows<T>(query: PromiseLike<{ data: unknown; error: { message: string; code?: string } | null }>): Promise<T[]> {
   const { data, error } = await query;
   if (error) fail(error);
   return (data ?? []) as T[];
@@ -113,7 +107,7 @@ async function rows<T>(query: PromiseLike<{ data: unknown; error: Err }>): Promi
 
 /** FR-DSR-021: newest first with id as the stable tie-break, one bounded page (one extra row says "more"). */
 export async function listReports(filter: DsrListFilter, page = 0): Promise<{ rows: DsrReportListRow[]; hasMore: boolean }> {
-  let q = db.from('daily_site_reports')
+  let q = supabase.from('daily_site_reports')
     .select(`${HEADER}, work_orders(title, wo_number), author:profiles!daily_site_reports_author_id_fkey(full_name), crew:crews(name)`).is('archived_at', null);
   if (filter.projectId) q = q.eq('project_id', filter.projectId);
   if (filter.workOrderId) q = q.eq('work_order_id', filter.workOrderId);
@@ -127,7 +121,7 @@ export async function listReports(filter: DsrListFilter, page = 0): Promise<{ ro
   const pageRows = data.slice(0, DSR_PAGE_SIZE);
   const personIds = [...new Set(pageRows.flatMap((r) => r.person_id ? [r.person_id] : []))];
   const people = personIds.length > 0
-    ? await rows<{ id: string; name: string }>(db.from('people_directory').select('id, name').in('id', personIds).limit(DSR_PAGE_SIZE))
+    ? await rows<{ id: string; name: string }>(supabase.from('people_directory').select('id, name').in('id', personIds).limit(DSR_PAGE_SIZE))
     : [];
   const personNames = new Map(people.map((p) => [p.id, p.name]));
   const list = pageRows.map(({ work_orders: wo, author, crew, ...r }) => ({
@@ -138,24 +132,24 @@ export async function listReports(filter: DsrListFilter, page = 0): Promise<{ ro
 }
 
 export async function getReport(id: string): Promise<DsrReportDetail | null> {
-  const { data, error } = await db.from('daily_site_reports')
+  const { data, error } = await supabase.from('daily_site_reports')
     .select(`${HEADER}, work_orders(title, wo_number, currency, order_value)`).eq('id', id).maybeSingle();
   if (error) fail(error);
   if (!data) return null;
   const { work_orders: wo, ...report } = data as DsrReport & { work_orders: { title: string; wo_number: string | null; currency: string; order_value: number } | null };
   const [progress, idle, consumables, photos, events] = await Promise.all([
-    fetchAllPages<DsrProgressLine>((f, t) => db.from('dsr_progress_lines').select('id, position, work_order_line_id, sub_stage, quantity, unit, section_id').eq('report_id', id).order('position').range(f, t)),
-    fetchAllPages<DsrIdlePeriod>((f, t) => db.from('dsr_idle_periods').select('id, position, minutes, reason_id').eq('report_id', id).order('position').range(f, t)),
-    fetchAllPages<DsrConsumable>((f, t) => db.from('dsr_consumables').select('id, position, stock_item_id, quantity, unit, work_order_line_id').eq('report_id', id).order('position').range(f, t)),
-    fetchAllPages<DsrPhoto>((f, t) => db.from('dsr_photos').select('id, kind, file_path, created_at').eq('report_id', id).order('created_at').order('id').range(f, t)),
-    fetchAllPages<DsrEvent>((f, t) => db.from('dsr_events').select('id, action, actor_id, reason, at').eq('report_id', id).order('at').order('id').range(f, t)),
+    fetchAllPages<DsrProgressLine>((f, t) => supabase.from('dsr_progress_lines').select('id, position, work_order_line_id, sub_stage, quantity, unit, section_id').eq('report_id', id).order('position').range(f, t)),
+    fetchAllPages<DsrIdlePeriod>((f, t) => supabase.from('dsr_idle_periods').select('id, position, minutes, reason_id').eq('report_id', id).order('position').range(f, t)),
+    fetchAllPages<DsrConsumable>((f, t) => supabase.from('dsr_consumables').select('id, position, stock_item_id, quantity, unit, work_order_line_id').eq('report_id', id).order('position').range(f, t)),
+    fetchAllPages((f, t) => supabase.from('dsr_photos').select('id, kind, file_path, created_at').eq('report_id', id).order('created_at').order('id').range(f, t)).then((r) => r as DsrPhoto[]),
+    fetchAllPages<DsrEvent>((f, t) => supabase.from('dsr_events').select('id, action, actor_id, reason, at').eq('report_id', id).order('at').order('id').range(f, t)),
   ]);
   const workOrder = wo ? { label: [wo.wo_number, wo.title].filter(Boolean).join(' · '), currency: wo.currency, orderValue: Number(wo.order_value) } : null;
   return { report, workOrder, progress, idle, consumables, photos, events };
 }
 
 async function listOptions(table: 'dsr_idle_reasons' | 'dsr_weather_conditions'): Promise<DsrListOption[]> {
-  return fetchAllPages<DsrListOption>((f, t) => db.from(table).select('id, label').is('archived_at', null).order('label').order('id').range(f, t));
+  return fetchAllPages<DsrListOption>((f, t) => supabase.from(table).select('id, label').is('archived_at', null).order('label').order('id').range(f, t));
 }
 export const listIdleReasons = () => listOptions('dsr_idle_reasons');
 export const listWeatherConditions = () => listOptions('dsr_weather_conditions');
@@ -167,30 +161,31 @@ const listTable = (kind: DsrListKind) => (kind === 'idle' ? 'dsr_idle_reasons' :
 
 /** Every item including archived ones, so an archived item can be restored. */
 export async function listListItems(kind: DsrListKind): Promise<DsrListAdminOption[]> {
-  return fetchAllPages<DsrListAdminOption>((f, t) => db.from(listTable(kind)).select('id, label, archived_at').order('label').order('id').range(f, t));
+  return fetchAllPages<DsrListAdminOption>((f, t) => supabase.from(listTable(kind)).select('id, label, archived_at').order('label').order('id').range(f, t));
 }
 export async function addListItem(kind: DsrListKind, label: string): Promise<void> {
-  const { error } = await db.from(listTable(kind)).insert({ label: label.trim() });
+  const { error } = await supabase.from(listTable(kind)).insert({ label: label.trim() } as TablesInsert<'dsr_idle_reasons'>); // org_id is stamped by the database
   if (error) fail(error);
 }
 export async function renameListItem(kind: DsrListKind, id: string, label: string): Promise<void> {
-  const { error } = await db.from(listTable(kind)).update({ label: label.trim() }).eq('id', id);
+  const { error } = await supabase.from(listTable(kind)).update({ label: label.trim() }).eq('id', id);
   if (error) fail(error);
 }
 /** Archive hides the item from the report pickers; reports that already used it keep it. */
 export async function setListItemArchived(kind: DsrListKind, id: string, archived: boolean): Promise<void> {
-  const { error } = await db.from(listTable(kind)).update({ archived_at: archived ? new Date().toISOString() : null }).eq('id', id);
+  const { error } = await supabase.from(listTable(kind)).update({ archived_at: archived ? new Date().toISOString() : null }).eq('id', id);
   if (error) fail(error);
 }
 
 /** The people a report may name when no crew applies: the member-readable directory (no pay, no documents). */
 export interface DsrPersonOption { id: string; name: string; code: string }
 export async function listLinkPeople(): Promise<DsrPersonOption[]> {
-  return fetchAllPages<DsrPersonOption>((f, t) => db.from('people_directory').select('id, name, code').is('archived_at', null).order('name').order('id').range(f, t));
+  const rows = await fetchAllPages((f, t) => supabase.from('people_directory').select('id, name, code').is('archived_at', null).order('name').order('id').range(f, t));
+  return rows as DsrPersonOption[]; // the directory view types every column nullable; the rows are always filled
 }
 /** One person's name for a report that names them (the directory keeps archived people too). */
 export async function personName(id: string): Promise<string | null> {
-  const { data, error } = await db.from('people_directory').select('name').eq('id', id).maybeSingle();
+  const { data, error } = await supabase.from('people_directory').select('name').eq('id', id).maybeSingle();
   if (error) fail(error);
   return (data as { name: string } | null)?.name ?? null;
 }
@@ -198,7 +193,7 @@ export async function personName(id: string): Promise<string | null> {
 /** The work order's contract items (work_order_lines + their BOQ line). */
 export async function listContractItems(workOrderId: string): Promise<DsrContractItem[]> {
   const data = await fetchAllPages<{ id: string; boq_item_id: string; boq_items: { item_code: string; description: string; unit: string; catalogue_item_id: string | null } | null }>((from, to) =>
-    db.from('work_order_lines').select('id, boq_item_id, boq_items(item_code, description, unit, catalogue_item_id)').eq('work_order_id', workOrderId).order('id').range(from, to));
+    supabase.from('work_order_lines').select('id, boq_item_id, boq_items(item_code, description, unit, catalogue_item_id)').eq('work_order_id', workOrderId).order('id').range(from, to));
   return data.map((r) => ({ id: r.id, boq_item_id: r.boq_item_id, item_code: r.boq_items?.item_code ?? '', description: r.boq_items?.description ?? '', unit: r.boq_items?.unit ?? '', catalogue_item_id: r.boq_items?.catalogue_item_id ?? null }))
     .sort((a, b) => a.item_code.localeCompare(b.item_code) || (a.id < b.id ? -1 : 1));
 }
@@ -209,7 +204,7 @@ export async function listContractItems(workOrderId: string): Promise<DsrContrac
  * equipment usage; read-only, it never creates hours. `peopleHours` stays an exact decimal string.
  */
 export async function reportHours(reportId: string): Promise<DsrReportHours> {
-  const { data, error } = await db.rpc('dsr_report_hours', { p_report: reportId });
+  const { data, error } = await supabase.rpc('dsr_report_hours', { p_report: reportId });
   if (error) fail(error);
   const r = (data ?? {}) as { people_hours?: number | string | null; equipment?: Array<{ id: string; asset_name: string; quantity: number | string; unit: string; kind: string; status: string }> | null };
   return {
@@ -219,7 +214,7 @@ export async function reportHours(reportId: string): Promise<DsrReportHours> {
 }
 
 export async function saveDraft(input: DsrDraftInput): Promise<string> {
-  const { data, error } = await db.rpc('dsr_save_draft', {
+  const { data, error } = await supabase.rpc('dsr_save_draft', {
     p: {
       id: input.id ?? null,
       client_request_id: input.clientRequestId ?? null,
@@ -243,25 +238,30 @@ export async function saveDraft(input: DsrDraftInput): Promise<string> {
   return String(data);
 }
 
-async function call(fn: string, args: Record<string, unknown>): Promise<unknown> {
-  const { data, error } = await db.rpc(fn, args);
+export async function submitReport(id: string): Promise<void> { const { error } = await supabase.rpc('dsr_submit', { p_report: id }); if (error) fail(error); }
+export async function withdrawReport(id: string): Promise<void> { const { error } = await supabase.rpc('dsr_withdraw', { p_report: id }); if (error) fail(error); }
+export async function validateReport(id: string): Promise<void> { const { error } = await supabase.rpc('dsr_validate', { p_report: id }); if (error) fail(error); }
+export async function returnReport(id: string, reason: string): Promise<void> { const { error } = await supabase.rpc('dsr_return', { p_report: id, p_reason: reason }); if (error) fail(error); }
+export async function correctReport(id: string, reason: string): Promise<string> {
+  const { data, error } = await supabase.rpc('dsr_correct', { p_report: id, p_reason: reason });
   if (error) fail(error);
-  return data;
+  return String(data);
 }
-export async function submitReport(id: string): Promise<void> { await call('dsr_submit', { p_report: id }); }
-export async function withdrawReport(id: string): Promise<void> { await call('dsr_withdraw', { p_report: id }); }
-export async function validateReport(id: string): Promise<void> { await call('dsr_validate', { p_report: id }); }
-export async function returnReport(id: string, reason: string): Promise<void> { await call('dsr_return', { p_report: id, p_reason: reason }); }
-export async function correctReport(id: string, reason: string): Promise<string> { return String(await call('dsr_correct', { p_report: id, p_reason: reason })); }
 
 export async function reportRevenue(id: string): Promise<DsrRevenueLineRow[]> {
-  return ((await call('dsr_report_revenue', { p_report: id })) ?? []) as DsrRevenueLineRow[];
+  const { data, error } = await supabase.rpc('dsr_report_revenue', { p_report: id });
+  if (error) fail(error);
+  return (data ?? []) as DsrRevenueLineRow[];
 }
 export async function workOrderValidatedRevenue(workOrderId: string): Promise<number> {
-  return Number(await call('work_order_validated_revenue', { p_work_order: workOrderId }));
+  const { data, error } = await supabase.rpc('work_order_validated_revenue', { p_work_order: workOrderId });
+  if (error) fail(error);
+  return Number(data);
 }
 export async function validationQueue(): Promise<DsrQueueRow[]> {
-  return ((await call('dsr_validation_queue', {})) ?? []) as DsrQueueRow[];
+  const { data, error } = await supabase.rpc('dsr_validation_queue');
+  if (error) fail(error);
+  return (data ?? []) as DsrQueueRow[];
 }
 
 export function buildSiteReportPhotoPath(orgId: string, reportId: string, photoId: string, fileName: string): string {
@@ -279,7 +279,7 @@ export async function uploadPhoto(report: Pick<DsrReport, 'id' | 'org_id'>, file
   if (upErr) throw isPostgresAuthored42501(upErr.message)
     ? new AppError(upErr.message, '42501')
     : new AppError(upErr.message);
-  const { error } = await db.from('dsr_photos').insert({ report_id: report.id, kind, file_path: path });
+  const { error } = await supabase.from('dsr_photos').insert({ report_id: report.id, kind, file_path: path } as TablesInsert<'dsr_photos'>); // org_id is stamped by the database
   if (error) {
     await bucket.remove([path]);
     fail(error);
