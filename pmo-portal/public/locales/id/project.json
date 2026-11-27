@@ -1160,7 +1160,10 @@
       "folders": {
         "none": "Belum ada folder Microsoft yang ditautkan ke proyek ini."
       },
-      "headingFolders": "Folder proyek"
+      "headingFolders": "Folder proyek",
+      "form": {
+        "partialSave": "Detail dokumen tersimpan. Kategori belum dapat diubah. Coba lagi untuk menyelesaikan pemindahan."
+      }
     },
     "procurement": {
       "erpCard": {

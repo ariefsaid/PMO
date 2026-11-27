@@ -1160,7 +1160,10 @@
       "folders": {
         "none": "No Microsoft folder is linked to this project."
       },
-      "headingFolders": "Project folders"
+      "headingFolders": "Project folders",
+      "form": {
+        "partialSave": "Document details saved. The category could not be changed. Retry to finish the move."
+      }
     },
     "procurement": {
       "erpCard": {
