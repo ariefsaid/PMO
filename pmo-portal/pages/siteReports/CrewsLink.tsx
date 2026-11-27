@@ -21,8 +21,8 @@ const CrewsLinkInner: React.FC = () => {
     d.setUTCDate(d.getUTCDate() - 29);
     return { from: d.toISOString().slice(0, 10), to };
   }, []);
-  const crews = useCrewPunctuality(filter);
   const readsAll = usePermission()('view', 'siteCheckpoint');
+  const crews = useCrewPunctuality(filter, !readsAll);
   if (!readsAll && (crews.data?.crews.length ?? 0) === 0) return null;
   return (
     <p>
