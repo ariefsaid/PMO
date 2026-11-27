@@ -5,9 +5,9 @@ import { roleJobUser } from './support/roleJobUser';
 
 test.setTimeout(120_000);
 
-test('AC-EQM-002 equipment manager ends an open rental and the invoice check stops billing after the last day', async ({ page }) => {
-  const db = serviceClient('AC-EQM-002');
-  const run = runId('EQM002');
+test('AC-EQM-010 equipment manager ends an open rental and the invoice check stops billing after the last day', async ({ page }) => {
+  const db = serviceClient('AC-EQM-010');
+  const run = runId('EQM010');
   const manager = await roleJobUser(db, 'equipment_manager', run);
   const code = `000-${run}`;
   let vendorId = '';

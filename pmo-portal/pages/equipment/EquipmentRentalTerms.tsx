@@ -84,7 +84,7 @@ export function EquipmentRentalTerms({ asset }: { asset: Asset }) {
     { key: 'rate', header: t('equipment:availability.rate', 'Rate'), align: 'num', kind: 'money',
       cell: (term) => <span className="whitespace-nowrap tabular-nums">{formatExactMoney(String(term.rate), term.currency, getNumberLocale(), { trimZeroFraction: true }) ?? '—'}</span> },
     { key: 'basis', header: t('equipment:availability.per', 'Per'), cell: (term) => basisName(term.basis) },
-    { key: 'actions', header: t('equipment:availability.endPeriod', 'End rental period'), cell: (term) => term.rented_to === null ? <Button variant="outline" onClick={() => { setEndingTermId(term.id); setLastRentalDay(''); setProblem(null); }}>{t('equipment:availability.endPeriod', 'End rental period')}</Button> : null },
+    { key: 'actions', kind: 'actions', header: <span className="sr-only">{t('equipment:expiryEdit.actions', 'Actions')}</span>, cell: (term) => term.rented_to === null ? <Button variant="outline" onClick={() => { setEndingTermId(term.id); setLastRentalDay(''); setProblem(null); }}>{t('equipment:availability.endPeriod', 'End rental period')}</Button> : null },
   ];
   const menu = [
     { key: 'rate', label: t('equipment:availability.changeRate', 'Change rate from date'), onSelect: () => open('rate') },
@@ -99,7 +99,7 @@ export function EquipmentRentalTerms({ asset }: { asset: Asset }) {
         <Button variant="outline" size="sm" onClick={() => open('terms')}>{t('equipment:availability.addTerms', 'Add rental terms')}</Button>
         <RecordMenu items={menu} ariaLabel={t('equipment:availability.otherAssetActions', 'Other asset actions')} />
       </>}>
-      {problem && dialog === null && <p role="alert" className="px-[var(--panel-inset)] pb-3 text-sm text-destructive-text">{problem}</p>}
+      {problem && dialog === null && !endingTermId && <p role="alert" className="px-[var(--panel-inset)] pb-3 text-sm text-destructive-text">{problem}</p>}
       <DataTable<RentalTermRow> embedded rows={rows} columns={columns} rowKey={(term) => term.id} tableId="equipment-rental-terms"
         accessibleName={t('equipment:availability.terms', 'Rental terms')}
         state={terms.isError ? 'error' : terms.isPending ? 'loading' : rows.length === 0 ? 'empty' : undefined}
