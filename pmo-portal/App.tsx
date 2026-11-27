@@ -206,7 +206,7 @@ interface PreloadableRouteChunk {
 const PROJECT_TAB_CHUNKS_BY_PATH: Record<string, PreloadableRouteChunk[]> = Object.fromEntries(
   Object.entries(PROJECT_TAB_CHUNKS).map(([area, chunks]) => [
     `/projects/:projectId/${area}`,
-    [ProjectDetail, ProjectSCurve, ...(chunks ?? [])],
+    [ProjectDetail, ...(chunks ?? [])],
   ]),
 );
 
@@ -222,8 +222,8 @@ const PROJECT_TAB_CHUNKS_BY_PATH: Record<string, PreloadableRouteChunk[]> = Obje
  *  - rail nav links on hover, focus and pointerdown (the `onPreloadHref` prop).
  *
  * Late IN-PAGE chunks ride along: the meeting routes include the MinutesEditor
- * chunk and the project routes include the overview's ProjectSCurve (+ a
- * deep-linked tab's chunks), so a data response never gates a second download.
+ * chunk; project overview routes include ProjectSCurve, while named tabs include
+ * only their own chunks, so a data response never gates a second download.
  */
 /**
  * #2097 — the namespaces a destination's FIRST PAINT needs, loaded by `preloadForPath` in parallel
@@ -298,7 +298,8 @@ const PRELOAD_RULES: PreloadRule[] = [
       chunks,
       namespaces: PROJECT_TAB_NAMESPACES[path.split('/').pop() ?? ''] ?? ['project'],
     })),
-  { path: '/projects/:projectId/:tab', chunks: [ProjectDetail, ProjectSCurve], namespaces: ['project', 'supplyRisk', 'workOrders', 'status'] },
+  { path: '/projects/:projectId/overview', chunks: [ProjectDetail, ProjectSCurve], namespaces: ['project'] },
+  { path: '/projects/:projectId/:tab', chunks: [ProjectDetail], namespaces: ['project', 'supplyRisk', 'workOrders', 'status'] },
   { path: '/projects/:projectId', chunks: [ProjectDetail, ProjectSCurve], namespaces: ['project'] },
   { path: '/sales', chunks: [SalesPipeline], namespaces: ['sales'] },
   // /sales/:id redirects to /projects/:projectId — start that download now.
