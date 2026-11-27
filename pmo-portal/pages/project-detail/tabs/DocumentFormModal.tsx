@@ -90,11 +90,11 @@ export const DocumentFormModal: React.FC<DocumentFormModalProps> = ({
   });
 
   // The list can arrive after the form opens: pick the starting category then, without marking the form edited.
-  const { reset: resetForm, values: formValues } = form;
+  const { setValue, values: formValues } = form;
   const startingCategory = defaultCategoryName(viewable);
   useEffect(() => {
-    if (!isEdit && !isFolder && !formValues.category && startingCategory) resetForm({ ...formValues, category: startingCategory });
-  }, [isEdit, isFolder, formValues, startingCategory, resetForm]);
+    if (!isEdit && !isFolder && !formValues.category && startingCategory) setValue('category', startingCategory);
+  }, [isEdit, isFolder, formValues.category, startingCategory, setValue]);
 
   const categoryOptions = viewable.map((c) => ({ value: c.name, label: categoryDisplay(t, c) }));
   const titleField = form.fieldProps('title');
