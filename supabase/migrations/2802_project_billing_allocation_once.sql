@@ -4,6 +4,16 @@
 -- Same rows, same figures, same guards: language, volatility, search path, security mode and grants are unchanged.
 -- No begin/commit: the rollback round trip wraps this file in its own transaction.
 -- Rollback: supabase/migrations/rollback/2802_project_billing_allocation_once_down.sql
+-- drops: get_project_billing(uuid) | "coalesce((select sum(a.quantity) from allocation a where a.boq_item_id=b.id and a.status in ('Issued','Closed')),0) ordered_quantity," | the per-line correlated sum is replaced by one grouped alloc_agg join
+-- drops: get_project_billing(uuid) | "coalesce((select sum(a.quantity) from allocation a where a.boq_item_id=b.id and a.status='Issued'),0) issued_ordered," | the per-line correlated sum is replaced by one grouped alloc_agg join
+-- drops: get_project_billing(uuid) | "coalesce((select sum(a.accepted) from allocation a where a.boq_item_id=b.id and a.final and a.status='Closed'),0) closed_final," | the per-line correlated sum is replaced by one grouped alloc_agg join
+-- drops: get_project_billing(uuid) | "coalesce((select sum(a.accepted) from allocation a where a.boq_item_id=b.id and a.accepted is not null),0) accepted_quantity," | the per-line correlated sum is replaced by one grouped alloc_agg join
+-- drops: get_project_billing(uuid) | "coalesce((select jsonb_agg(jsonb_build_object('work_order_id',x.work_order_id,'boq_item_id',x.boq_item_id,'quantity',x.quantity,'claimed_quantity',x.claimed,'accepted_quantity',x.accepted,'final',x.final) order by x.work_order_id)" | the per-line correlated sum is replaced by one grouped alloc_agg join
+-- drops: get_project_billing(uuid) | "from allocation x where x.boq_item_id=b.id),'[]'::jsonb) allocations" | the per-line correlated sum is replaced by one grouped alloc_agg join
+-- drops: get_project_billing(uuid) | "from public.boq_items b left join claimed_line cl on cl.boq_item_id=b.id left join assessed a on a.boq_item_id=b.id where b.project_id=p_project_id" | the per-line correlated sum is replaced by one grouped alloc_agg join
+-- drops: project_line_earned(uuid,date) | "coalesce((select sum(x.accepted) from allocation x where x.boq_item_id=b.id and x.final and x.status='Closed'),0) closed_final," | the per-line correlated sum is replaced by one grouped alloc_agg join
+-- drops: project_line_earned(uuid,date) | "coalesce((select sum(x.quantity) from allocation x,lim where x.boq_item_id=b.id and x.status='Closed' and x.closing_acceptance_id is not null and (lim.ts is null or x.final)),0) closed_ordered" | the per-line correlated sum is replaced by one grouped alloc_agg join
+-- drops: project_line_earned(uuid,date) | "from public.boq_items b left join assessed a on a.boq_item_id=b.id where b.project_id=p_project_id" | the per-line correlated sum is replaced by one grouped alloc_agg join
 
 CREATE OR REPLACE FUNCTION public.get_project_billing(p_project_id uuid)
  RETURNS jsonb
