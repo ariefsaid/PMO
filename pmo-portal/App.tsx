@@ -25,7 +25,6 @@ import { I18nProvider } from '@/src/lib/i18n/I18nProvider';
 import { RequireAuth } from '@/src/auth/RequireAuth';
 import { RequireInviteAccepted } from '@/src/auth/RequireInviteAccepted';
 import { AnalyticsProvider } from '@/src/lib/analytics';
-import { ImpersonationProvider } from '@/src/auth/impersonation';
 import { ImpersonationBanner } from '@/src/auth/ImpersonationBanner';
 import { useAuth } from '@/src/auth/useAuth';
 import { useOperatorMembership } from '@/src/auth/useIsOperator';
@@ -50,7 +49,7 @@ import type { BreadcrumbPart } from '@/src/components/shell';
 import { useCachedRecordLists } from '@/src/hooks/useCachedRecordLists';
 import { useRecordSearch } from '@/src/hooks/useRecordSearch';
 import { useOptionalRealRole } from '@/src/auth/impersonation';
-import { useDemoEligibility } from '@/src/hooks/useDemoEligibility';
+import { ShellSyncs, EligibleImpersonationProvider } from '@/src/components/shell/ShellSyncs';
 import { useBuiltInRoleKey, usePermission } from '@/src/auth/usePermission';
 import { roleHasCapability } from '@/src/auth/builtInRoles';
 import { UserRole } from './types';
@@ -84,7 +83,6 @@ import { FeedbackWidget } from '@/src/components/feedback/FeedbackWidget';
 import { SurveyHost } from '@/src/components/feedback/SurveyHost';
 import { useAssistantHotkey } from '@/src/hooks/useAssistantHotkey';
 // ADR-0056: seeds the fail-closed task-write ownership cache load-on-auth (mounted once in Shell).
-import { useOwnershipCacheSync } from '@/src/hooks/useOwnershipCacheSync';
 // ADR-0045 §3: live context (route/entity/selection) source for agent runs.
 import { AgentContextProvider } from '@/src/lib/agent/context/AgentContextProvider';
 import { useAgentContextPublisher } from '@/src/lib/agent/context/useAgentContext';
@@ -739,7 +737,7 @@ export const AppRoutes: React.FC = React.memo(function AppRoutes() {
 });
 
 // ── Shell chrome (inside the workspace provider + AgentRuntimeProvider) ───────
-export const ShellChrome: React.FC = () => {
+export const ShellChrome: React.FC = React.memo(function ShellChrome() {
   const location = useLocation();
   const { pathname, search } = location;
   const router = React.useContext(AppRouterContext);
@@ -1086,20 +1084,15 @@ export const ShellChrome: React.FC = () => {
       />
     </>
   );
-};
+});
 
 // ── Shell (eager — renders after auth is confirmed) ────────────────────────
 const Shell: React.FC = () => {
   const { role } = useAuth();
-  // ADR-0056: mount exactly once in the authenticated shell — seeds/clears the module-level
-  // ownership cache so routeTaskWrite() routes task writes correctly (fail-closed 'pmo').
-  useOwnershipCacheSync();
-  // FR-AUTH-036 (AC-AUTH-013/014): the Admin "view as role" control exists ONLY for Admins
-  // of a demo org. The hook reads the signed-in org's lifecycle_state via RLS (never a
-  // hardcoded org id) and FAILS CLOSED to 'pending' while loading or on error.
-  const demoEligibility = useDemoEligibility();
   return (
-    <ImpersonationProvider realRole={role} demoEligibility={demoEligibility}>
+    <>
+    <ShellSyncs />
+    <EligibleImpersonationProvider realRole={role}>
       <ToastProvider>
         {/* #2123: one tooltip delay group for the whole shell. 400ms of hover intent stops a
             pointer sweeping a table from flashing a panel per cell; Base UI then opens a
@@ -1130,7 +1123,8 @@ const Shell: React.FC = () => {
           </AgentRuntimeProvider>
         </BaseTooltip.Provider>
       </ToastProvider>
-    </ImpersonationProvider>
+    </EligibleImpersonationProvider>
+    </>
   );
 };
 
