@@ -4,6 +4,7 @@ import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { repositories } from '@/src/lib/repositories';
 import type { GetOdooStatementInput, SwitchOdooLedgerBasisInput } from '@/src/lib/db/odooLedger';
+import { invalidateAfterOrgCostSetting } from '@/src/lib/invalidateOrgSettings';
 
 const ROOT = 'odoo-ledger';
 
@@ -78,12 +79,12 @@ export function useOdooStatement(input: GetOdooStatementInput | null, enabled = 
   });
 }
 
-/** The switch changes every money screen of the org, so everything cached is re-read after it. */
+/** The switch changes every money screen of the org, so every cached read except identity, plan and CRM data is re-read after it. */
 export function useSwitchOdooLedgerBasis() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (input?: SwitchOdooLedgerBasisInput) => repositories.odooLedger.switchBasis(input),
-    onSuccess: () => qc.invalidateQueries(),
+    onSuccess: () => invalidateAfterOrgCostSetting(qc),
   });
 }
 
