@@ -1,24 +1,24 @@
 -- Owner material opening positions and live attribution seam (#3010).
 create table public.stock_material_categories (
- id uuid primary key default gen_random_uuid(), org_id uuid not null references public.organizations(id),
+ id uuid primary key default gen_random_uuid(), org_id uuid not null references public.organizations(id) on delete cascade,
  code text not null check(length(btrim(code)) between 1 and 40), name text not null check(length(btrim(name)) between 1 and 200),
  archived_at timestamptz, unique(id,org_id)
 );
 create unique index stock_material_categories_code on public.stock_material_categories(org_id,code) where archived_at is null;
 create table public.owner_material_warehouses (
- id uuid primary key default gen_random_uuid(), org_id uuid not null references public.organizations(id),
+ id uuid primary key default gen_random_uuid(), org_id uuid not null references public.organizations(id) on delete cascade,
  code text not null check(length(btrim(code)) between 1 and 40), name text not null check(length(btrim(name)) between 1 and 200),
  archived_at timestamptz, unique(id,org_id)
 );
 create unique index owner_material_warehouses_code on public.owner_material_warehouses(org_id,code) where archived_at is null;
 create table public.owner_material_import_batches (
- id uuid primary key default gen_random_uuid(), org_id uuid not null references public.organizations(id),
+ id uuid primary key default gen_random_uuid(), org_id uuid not null references public.organizations(id) on delete cascade,
  source_key text not null check(length(btrim(source_key)) between 1 and 200), schema_version integer not null check(schema_version=2),
  created_by uuid not null, created_at timestamptz not null default now(), source_digest text check(length(source_digest)<=200),
  unique(org_id,source_key),unique(id,org_id)
 );
 create table public.owner_material_import_rows (
- batch_id uuid not null, org_id uuid not null references public.organizations(id), entity_key text not null check(length(entity_key) between 1 and 500),
+ batch_id uuid not null, org_id uuid not null references public.organizations(id) on delete cascade, entity_key text not null check(length(entity_key) between 1 and 500),
  payload_hash text not null, result_ids jsonb not null, primary key(batch_id,entity_key),
  foreign key(batch_id,org_id) references public.owner_material_import_batches(id,org_id)
 );
@@ -36,7 +36,7 @@ alter table public.client_requisition_events add column owner_warehouse_id uuid,
 alter table public.client_requisitions add column import_batch_id uuid,
  add foreign key(import_batch_id,org_id) references public.owner_material_import_batches(id,org_id);
 create table public.owner_material_openings (
- org_id uuid not null references public.organizations(id), section_material_plan_id uuid primary key,
+ org_id uuid not null references public.organizations(id) on delete cascade, section_material_plan_id uuid primary key,
  as_of date not null, requested numeric(14,3) not null default 0 check(requested>=0),
  set_aside numeric(14,3) not null default 0 check(set_aside>=0), received numeric(14,3) not null default 0 check(received>=0),
  issued numeric(14,3) not null default 0 check(issued>=0), returned numeric(14,3) not null default 0 check(returned>=0),
@@ -48,20 +48,20 @@ create table public.owner_material_openings (
  foreign key(import_batch_id,org_id) references public.owner_material_import_batches(id,org_id)
 );
 create table public.owner_material_reconciliation_steps (
- id uuid primary key default gen_random_uuid(),org_id uuid not null references public.organizations(id),
+ id uuid primary key default gen_random_uuid(),org_id uuid not null references public.organizations(id) on delete cascade,
  position integer not null check(position>0),name text not null check(length(btrim(name)) between 1 and 100),
  percentage numeric(6,3) not null check(percentage between 0 and 100),archived_at timestamptz,unique(id,org_id)
 );
 create unique index owner_material_steps_position on public.owner_material_reconciliation_steps(org_id,position) where archived_at is null;
 create unique index owner_material_steps_name on public.owner_material_reconciliation_steps(org_id,lower(btrim(name))) where archived_at is null;
 create table public.owner_material_reconciliation (
- org_id uuid not null references public.organizations(id),section_id uuid primary key,step_id uuid not null,
+ org_id uuid not null references public.organizations(id) on delete cascade,section_id uuid primary key,step_id uuid not null,
  changed_on timestamptz not null default now(),changed_by uuid not null,reason text check(length(reason)<=1000),
  foreign key(section_id,org_id) references public.work_order_sections(id,org_id),
  foreign key(step_id,org_id) references public.owner_material_reconciliation_steps(id,org_id)
 );
 create table public.owner_material_reconciliation_events (
- id uuid primary key default gen_random_uuid(), org_id uuid not null references public.organizations(id),
+ id uuid primary key default gen_random_uuid(), org_id uuid not null references public.organizations(id) on delete cascade,
  section_id uuid not null,previous_step_id uuid,step_id uuid not null,changed_by uuid not null,
  changed_on timestamptz not null default now(),reason text check(length(reason)<=1000),
  foreign key(section_id,org_id) references public.work_order_sections(id,org_id),
@@ -70,7 +70,7 @@ create table public.owner_material_reconciliation_events (
 );
 alter table public.stock_document_lines add unique(id,document_id,org_id,item_id);
 create table public.owner_material_movement_links (
- org_id uuid not null references public.organizations(id),document_id uuid not null,stock_line_id uuid not null,
+ org_id uuid not null references public.organizations(id) on delete cascade,document_id uuid not null,stock_line_id uuid not null,
  section_material_plan_id uuid not null,item_id uuid not null,
  stage text not null check(stage in ('received','issued','returned','transfer_in','transfer_out','owner_return')),
  primary key(document_id,stock_line_id,stage,section_material_plan_id),
@@ -83,7 +83,7 @@ create unique index owner_material_links_line_stage on public.owner_material_mov
 create index owner_material_reconciliation_section_org on public.owner_material_reconciliation(org_id,section_id);
 -- Private capability: no client can insert a witness or retain one after the import returns.
 create table public.owner_material_import_witness (
- transaction_id bigint not null,backend_pid integer not null,org_id uuid not null references public.organizations(id),
+ transaction_id bigint not null,backend_pid integer not null,org_id uuid not null references public.organizations(id) on delete cascade,
  actor_id uuid not null,batch_id uuid not null, primary key(transaction_id,backend_pid),
  foreign key(batch_id,org_id) references public.owner_material_import_batches(id,org_id)
 );

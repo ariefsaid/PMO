@@ -276,6 +276,9 @@ jobs:
         run: npm ci
       # All repository script tests are CI-owned. The database-backed statements
       # proofs run in pgtap after Supabase starts; every other script test runs here.
+      - name: Owner material loader python (script tests run the real workbook reader)
+        working-directory: .
+        run: python3 -I -m venv /tmp/owner-material-loader-venv && /tmp/owner-material-loader-venv/bin/pip install -q -r scripts/requirements-owner-material.txt
       - name: Repository script tests (non-DB)
         working-directory: .
         run: |
