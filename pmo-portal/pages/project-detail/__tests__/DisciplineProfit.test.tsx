@@ -1,6 +1,6 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, within, fireEvent } from '@testing-library/react';
 import { rollupProject, type CostAmountLine, type PvaWorkOrder } from '@/src/lib/workOrderPlanVsActual';
 
 /**
@@ -11,13 +11,14 @@ vi.unmock('@/pages/project-detail/DisciplineProfit'); // test/setup.ts stubs it 
 const h = vi.hoisted(() => ({
   setting: { data: true } as Record<string, unknown>, pva: {} as Record<string, unknown>, revenue: {} as Record<string, unknown>,
   role: 'Finance' as string, revenueAsked: [] as boolean[],
+  lookupError: false, retryLookup: vi.fn(),
 }));
 vi.mock('@/src/hooks/useOrgSwitch', () => ({ useOrgSwitch: () => h.setting }));
 vi.mock('@/src/hooks/useDisciplineProfit', () => ({
   useDisciplineRevenue: (_p: string, enabled: boolean) => { h.revenueAsked.push(enabled); return h.revenue; },
 }));
 vi.mock('@/src/hooks/useWorkOrderPlanVsActual', () => ({ useProjectPlanVsActual: () => h.pva }));
-vi.mock('@/src/hooks/useWorkOrderCosts', () => ({ useCostDisciplines: () => ({ data: [{ id: 'civ', code: 'CIV', name: 'Civil' }, { id: 'ele', code: 'ELE', name: 'Electrical' }] }) }));
+vi.mock('@/src/hooks/useWorkOrderCosts', () => ({ useCostDisciplines: () => ({ isError: h.lookupError, refetch: h.retryLookup, data: [{ id: 'civ', code: 'CIV', name: 'Civil' }, { id: 'ele', code: 'ELE', name: 'Electrical' }] }) }));
 vi.mock('@/src/auth/usePermission', async () => {
   const { can } = await import('@/src/auth/policy');
   return { usePermission: () => (action: never, entity: never) => can(action, entity, { realRole: h.role as never }) };
@@ -42,6 +43,16 @@ function setData(revenue: unknown) {
 beforeEach(() => { h.role = 'Finance'; h.setting = { data: true }; h.revenueAsked = []; });
 
 describe('DisciplineProfit', () => {
+  it('shows a retryable error when discipline names fail to load', () => {
+    setData([rev('civ', '100.00')]);
+    h.lookupError = true;
+    const view = render(<DisciplineProfit projectId="p1" />);
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(h.retryLookup).toHaveBeenCalled();
+    h.lookupError = false;
+    view.rerender(<DisciplineProfit projectId="p1" />);
+    expect(screen.getByText('Civil')).toBeInTheDocument();
+  });
   it('AC-DPR-013 shows revenue beside cost and the margin per discipline, with a project total', () => {
     setData([rev('civ', '100.00'), rev('ele', '30.00')]);
     render(<DisciplineProfit projectId="p1" />);
