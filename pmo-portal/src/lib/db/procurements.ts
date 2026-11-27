@@ -61,8 +61,12 @@ const SELECT_WITH_REFS =
 
 /** PERF-DASH-1: the dashboards' list. The shared list's money/stage inputs without the SQL open commitment (a
  *  per-row function, most of the read's cost) and the search-only record-reference embeds, which no dashboard shows. */
+const LEAN_DETAILS = PROCUREMENT_LIST_DETAILS.split(', ')
+  // The dashboards derive money, ageing and the supplier balance only; stage age and stage dates (stage-event and receipt rows) are read by the shared list alone.
+  .filter((embed) => !embed.includes('procurement_status_events') && !embed.includes('procurement_receipts'))
+  .join(', ');
 const SELECT_LEAN_DETAILS =
-  `*, project:projects(name,short_name,code,project_manager_id), vendor:companies(name), requested_by:profiles!procurements_requested_by_id_fkey(full_name), ${PROCUREMENT_LIST_DETAILS}`;
+  `*, project:projects(name,short_name,code,project_manager_id), vendor:companies(name), requested_by:profiles!procurements_requested_by_id_fkey(full_name), ${LEAN_DETAILS}`;
 
 const SELECT_WITH_SHARED_DETAILS =
   `${SELECT_SHARED_LIST}, ${PROCUREMENT_LIST_DETAILS}, pr_refs:purchase_requests(external_ref), po_refs:purchase_orders(external_ref), vi_refs:procurement_invoices(external_ref)`;
