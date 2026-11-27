@@ -32,6 +32,7 @@ table or job and on a stale entry. Decision cell starts with `purge, <N days|mon
 | `stock_reservation_events` | keep: reservation history shown with the reservation (who reserved, released, lent and consumed, and for which request) |
 | `work_order_section_readiness_events` | keep: a section's readiness history shown on its record (who, when, note; #2576); removed with the section |
 | `client_requisition_events` | keep: client requisition history and the reservations and releases the figures are derived from; never edited or deleted (#2585) |
+| `owner_material_reconciliation_events` | keep: material reconciliation step changes retain actor, time and reason for the section record (#3010) |
 | `dsr_events` | keep: site report transition history and return reasons shown on the record (#1522) |
 | `quantity_change_request_events` | keep: quantity change request transition history, actors and reasons shown on the request (#2578); a change to a billable quantity is audit evidence |
 | `agent_automation_fires` | keep: owner decision pending (#1755); automation fire claims |
