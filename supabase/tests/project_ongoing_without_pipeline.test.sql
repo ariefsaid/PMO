@@ -120,6 +120,13 @@ set local request.jwt.claims = '{"sub":"30230000-0000-0000-0000-0000000000a1","r
 
 -- The preflight stays witness-aware on the new branch (the screen shows the same diagnosis).
 -- Still the pipeline-off org's PM: the preflight is org-scoped.
+-- The preflight's 'missing_witness' means NO witness stamp at all (set_at NULL, 0394); a self-authored
+-- value reads 'reviewer_required' instead (the win leg above covers that shape). The value-set trigger
+-- always stamps set_at, so the stamp is cleared by a plain update, as the owner of the table.
+reset role;
+update projects set contract_value_set_at = null, contract_value_set_by = null
+  where id = '30230000-0000-0000-0000-000000000011';
+set local role authenticated;
 select is(
   (select project_win_eligibility('30230000-0000-0000-0000-000000000011')),
   'missing_witness'::text,
