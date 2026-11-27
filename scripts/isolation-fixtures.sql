@@ -598,6 +598,12 @@ insert into public.headcount_day_documents (id, org_id, headcount_id, document_i
 insert into public.boq_item_area_rates (id, org_id, project_id, boq_item_id, area_id, rate, set_by)
   select 'a6120000-0000-4000-8000-000000000352', 'a6120000-0000-4000-8000-00000000000a', project,
          'a6120000-0000-4000-8000-0000000000d3', 'a6120000-0000-4000-8000-00000000032b', 1, profile from _iso_a;
+-- 2788 (#3025): the seed org carries no vendor tax numbers. Give A one, on A's first company, so the
+-- by-id read and update probes run instead of skipping.
+insert into public.company_tax_numbers (company_id, org_id, tax_number)
+  select id, org_id, '00.000.000.0-000.000' from public.companies
+   where org_id = 'a6120000-0000-4000-8000-00000000000a' order by id limit 1
+  on conflict do nothing;
 select 'ISO-COPY-SKIPPED ' || tbl || ': ' || why from _iso_skipped order by tbl;
 \endif
 
