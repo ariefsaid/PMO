@@ -675,7 +675,7 @@ describe('DocumentsTab — create / edit metadata form (AC-DOC-003 / AC-DOC-004)
 
   it('AC-DCV-012: an unchanged category is not a re-file; a changed one moves the whole lineage after the edit', async () => {
     renderTab('Admin');
-    await userEvent.click(within(screen.getByText('Site Plan').closest('tr')!).getByRole('button', { name: /Row actions/i }));
+    await userEvent.click(within(screen.getByRole('button', { name: 'View Site Plan' }).closest('tr')!).getByRole('button', { name: /Row actions/i }));
     await userEvent.click(await screen.findByRole('menuitem', { name: /Edit/i }));
     await userEvent.type(screen.getByLabelText(/Title/i), ' v2');
     await userEvent.click(screen.getByRole('button', { name: /^Save document$/i }));
@@ -683,7 +683,7 @@ describe('DocumentsTab — create / edit metadata form (AC-DOC-003 / AC-DOC-004)
     expect(mutations.update.mutateAsync.mock.calls[0][0]).not.toHaveProperty('refileTo');
 
     mutations.update.mutateAsync.mockClear();
-    await userEvent.click(within(screen.getByText('Site Plan').closest('tr')!).getByRole('button', { name: /Row actions/i }));
+    await userEvent.click(within(screen.getByRole('button', { name: 'View Site Plan' }).closest('tr')!).getByRole('button', { name: /Row actions/i }));
     await userEvent.click(await screen.findByRole('menuitem', { name: /Edit/i }));
     await userEvent.selectOptions(within(screen.getByRole('dialog')).getByLabelText(/Category/i), 'Specification');
     await userEvent.click(screen.getByRole('button', { name: /^Save document$/i }));

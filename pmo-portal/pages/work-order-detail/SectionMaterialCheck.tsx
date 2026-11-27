@@ -23,7 +23,7 @@ export const SectionMaterialCheck: React.FC<Props> = ({ workOrderId, sections })
   const check = useSectionMaterialCheck(workOrderId);
   const items = useStockItems();
   const rows = check.data ?? [];
-  if (check.isError) return <ListState variant="error" title={t('common:readError')} onRetry={() => void check.refetch()} />;
+  if (check.isError) return <ListState variant="error" title={t('common:ui.listState.readError')} onRetry={() => void check.refetch()} />;
   if (check.isPending || rows.length === 0) return null;
   const itemName = (id: string) => items.data?.find((i) => i.id === id)?.name ?? '—';
   const codeOf = (id: string | null) => (id === null ? t('remainder', 'Not in a {{section}}', { section: terms.section.toLowerCase() }) : sections.find((s) => s.id === id)?.code ?? '—');

@@ -7,7 +7,7 @@ import { ListState } from '@/src/components/ui';
 export const OpenChecksWarning: React.FC<{ projectId: string; workOrderId: string }> = ({ projectId, workOrderId }) => {
   const { t } = useTranslation('workOrders');
   const checks = useWorkOrderChecks(projectId, workOrderId);
-  if (checks.isError) return <ListState variant="error" title={t('common:readError')} onRetry={() => void checks.refetch()} />;
+  if (checks.isError) return <ListState variant="error" title={t('common:ui.listState.readError')} onRetry={() => void checks.refetch()} />;
   const open = (checks.data ?? []).filter((task) => task.status !== 'Done').map((task) => task.name);
   if (open.length === 0) return null;
   return <p data-testid="wo-issue-open-checks" className="font-medium text-warning-foreground">{t('checks.openWarning', 'Still open: {{names}}', { names: open.join(', ') })}</p>;

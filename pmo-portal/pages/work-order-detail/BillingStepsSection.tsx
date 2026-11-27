@@ -118,8 +118,8 @@ const StepRow: React.FC<{ step: WorkOrderStep; steps: WorkOrderStep[]; projectId
     </ul>}
     {open && <Drawer open title={step.name} subtitle={step.ownerRoleKey ? roleName(step.ownerRoleKey) : undefined} onClose={() => setOpen(false)}>
       <div className="flex flex-col gap-5">
-        {documents.isError && <ListState variant="error" title={t('common:readError')} onRetry={() => void documents.refetch()} />}
-        {canAct && users.isError && <ListState variant="error" title={t('common:readError')} onRetry={() => void users.refetch()} />}
+        {documents.isError && <ListState variant="error" title={t('common:ui.listState.readError')} onRetry={() => void documents.refetch()} />}
+        {canAct && users.isError && <ListState variant="error" title={t('common:ui.listState.readError')} onRetry={() => void users.refetch()} />}
         <p className="text-control text-muted-foreground">{status === 'done' ? t('done', 'Done {{date}}', { date: formatIsoDay(step.doneOn ?? '') }) : status === 'current' ? t('current', 'Current') : status === 'skipped' ? t('skipped', 'Skipped {{date}}', { date: formatIsoDay(step.skippedOn ?? '') }) : t('waiting', 'Not yet open')}</p>
         {canEvidence && <Checkbox checked={step.claimEvidenceEnabled === true} disabled={markEvidence.isPending}
           label={t('claimEvidence', 'Documents here count as claim evidence')}

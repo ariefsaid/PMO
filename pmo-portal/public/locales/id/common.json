@@ -246,6 +246,7 @@
       "showingOf": "Menampilkan {{count}} dari {{total}}"
     },
     "listState": {
+      "readError": "Informasi ini gagal dimuat",
       "loading": "Memuat…",
       "retry": "Coba lagi",
       "tryAgainSentence": "Coba lagi.",
@@ -5022,6 +5023,5 @@
     "title": "Halaman tidak ditemukan",
     "body": "Halaman yang Anda cari tidak ada atau sudah dipindahkan.",
     "back": "Kembali ke Dasbor"
-  },
-  "readError": "Informasi ini tidak dapat dimuat"
+  }
 }

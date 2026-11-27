@@ -19,7 +19,7 @@ export const CheckInRequests: React.FC = () => {
   const [rejecting, setRejecting] = useState<CheckInRequest | null>(null);
   const [error, setError] = useState<string | null>(null);
   const rows = requests.data ?? [];
-  if (requests.isError) return <ListState variant="error" title={t('common:readError')} onRetry={() => void requests.refetch()} />;
+  if (requests.isError) return <ListState variant="error" title={t('common:ui.listState.readError')} onRetry={() => void requests.refetch()} />;
   if (rows.length === 0) return null;
 
   const outcome = (o: CheckInRequest['outcome']) => o === 'not_rostered' ? t('crews:checkIn.outcomeNotRostered', 'Not on the roster today')

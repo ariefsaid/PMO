@@ -22,7 +22,7 @@ export const IdleCostBlock: React.FC<Props> = ({ projectId, ...rest }) => {
 const IdleCostRows: React.FC<Props & { projectId: string }> = ({ projectId, workOrderId, testId }) => {
   const { t } = useTranslation('workOrderPva');
   const q = useProjectIdleCost(projectId);
-  if (q.isError) return <ListState variant="error" title={t('common:readError')} onRetry={() => void q.refetch()} />;
+  if (q.isError) return <ListState variant="error" title={t('common:ui.listState.readError')} onRetry={() => void q.refetch()} />;
   const rows = (q.data ?? []).filter((r) => r.workOrderId === workOrderId);
   if (rows.length === 0) return null;
   const money = (v: string | null, cur: string) => (v === null ? t('idle.noRate', 'No rate') : formatTableMoney(v, cur) ?? v);

@@ -246,6 +246,7 @@
       "showingOf": "Showing {{count}} of {{total}}"
     },
     "listState": {
+      "readError": "Could not load this information",
       "loading": "Loading…",
       "retry": "Retry",
       "tryAgainSentence": "Try again.",
@@ -5022,6 +5023,5 @@
     "title": "Page not found",
     "body": "The page you're looking for doesn't exist or has been moved.",
     "back": "Back to Dashboard"
-  },
-  "readError": "Could not load this information"
+  }
 }

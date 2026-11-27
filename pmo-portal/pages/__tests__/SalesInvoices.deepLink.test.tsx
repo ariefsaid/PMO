@@ -398,7 +398,7 @@ describe('SalesInvoices — deep link (#787)', () => {
     renderAt('/sales-invoices/inv-unlisted');
     await userEvent.click(await screen.findByRole('button', { name: /retry|try again/i }));
     await waitFor(() => expect(hoisted.getInvoice).toHaveBeenCalledTimes(2));
-    expect(await screen.findByText('ACC-SINV-2026-00001')).toBeInTheDocument();
+    expect(await screen.findByTestId('record-label')).toHaveTextContent('ACC-SINV-2026-00001');
   });
   it('UXS-014 directly addresses an unnumbered draft by its customer and does not offer its author self-approval', () => {
     salesInvoicesState.data[0] = {

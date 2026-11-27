@@ -140,7 +140,7 @@ const InspectionCard: React.FC<CardProps> = ({ inspection: i, costs, costsUnavai
             onClick={() => run(m.execute.mutateAsync({ id: i.id, on }))}>{t('inspections.recordExecution', 'Record execution')}</Button>
         </div>
       )}
-      {files.isError && <ListState variant="error" title={t('common:readError')} onRetry={() => void files.refetch()} />}
+      {files.isError && <ListState variant="error" title={t('common:ui.listState.readError')} onRetry={() => void files.refetch()} />}
       {(i.status === 'executed' || i.status === 'reported') && !files.isError && mayAttach && liveFiles.length < INSPECTION_FILE_MAX_COUNT && (
         <div className="flex flex-wrap items-end gap-2">
           <input ref={fileRef} type="file" accept={INSPECTION_FILE_ALLOWED_MIME.join(',')} className="sr-only"
@@ -262,7 +262,7 @@ export const InspectionsSection: React.FC<Props> = ({ workOrderId }) => {
           {t('inspections.billingOpen', 'Billing is waiting on {{count}} required inspection(s)', { count: blockingBilling })}
         </p>
       )}
-      {costs.isError && <ListState variant="error" title={t('common:readError')} onRetry={() => void costs.refetch()} />}
+      {costs.isError && <ListState variant="error" title={t('common:ui.listState.readError')} onRetry={() => void costs.refetch()} />}
       {rows.length === 0
         ? <p className="text-control text-muted-foreground">{t('inspections.empty', 'No third-party inspections on this work order yet.')}</p>
         : <ul className="divide-y divide-border" data-testid="wo-inspections">

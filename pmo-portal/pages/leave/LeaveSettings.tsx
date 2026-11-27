@@ -38,7 +38,7 @@ const LeaveSettingsPage: React.FC = () => {
         <Card seam>
           <CardHead>{t('crews:leave.typesHeading', 'Leave types')}</CardHead>
           <CardPad>
-            {types.isError ? <ListState variant="error" title={t('common:readError')} onRetry={() => void types.refetch()} /> : (types.data ?? []).filter((x) => !x.archived_at).length === 0
+            {types.isError ? <ListState variant="error" title={t('common:ui.listState.readError')} onRetry={() => void types.refetch()} /> : (types.data ?? []).filter((x) => !x.archived_at).length === 0
               ? <p className="mb-3 text-sm text-muted-foreground">{t('crews:leave.noTypes', 'No leave types yet. Add the types your organisation uses.')}</p>
               : (
                 <ul className="mb-3 divide-y divide-border">

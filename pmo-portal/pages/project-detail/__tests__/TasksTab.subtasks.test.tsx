@@ -186,10 +186,10 @@ describe('TasksTab — Move offers no parent that would make a cycle (AC-SUB-UI-
     renderTab();
     const dialog = await openEditFor('Parent task');
     await userEvent.selectOptions(within(dialog).getByLabelText('Group'), 'm:m');
-    await userEvent.click(within(dialog).getByRole('button', { name: 'Move', exact: true }));
+    await userEvent.click(within(dialog).getByRole('button', { name: /^Move$/ }));
     expect(await within(dialog).findByText(/Child task.*retry/i)).toBeInTheDocument();
     mutations.update.mutateAsync.mockResolvedValue(undefined);
-    await userEvent.click(within(dialog).getByRole('button', { name: 'Move', exact: true }));
+    await userEvent.click(within(dialog).getByRole('button', { name: /^Move$/ }));
     const writes = mutations.update.mutateAsync.mock.calls.map(([input]) => input.id);
     expect(writes.filter((id) => id === 'p')).toHaveLength(1);
     expect(writes.filter((id) => id === 'd')).toHaveLength(1);

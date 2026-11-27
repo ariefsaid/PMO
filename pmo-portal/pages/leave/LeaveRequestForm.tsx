@@ -60,8 +60,8 @@ export const LeaveRequestForm: React.FC<{ onClose: () => void }> = ({ onClose })
     <EntityFormModal open title={t('crews:leave.formTitle', 'Request leave or report sickness')} submitLabel={t('crews:leave.send', 'Send request')}
       onSubmit={(e) => void send(e)} onClose={onClose} loading={submit.isPending} dirty={Boolean(typeId || reason)}
       submitDisabled={people.isError || types.isError || people.isPending || types.isPending || !effectivePerson || !typeId || !start} submitError={error}>
-      {people.isError && <ListState variant="error" title={t('common:readError')} onRetry={() => void people.refetch()} />}
-      {types.isError && <ListState variant="error" title={t('common:readError')} onRetry={() => void types.refetch()} />}
+      {people.isError && <ListState variant="error" title={t('common:ui.listState.readError')} onRetry={() => void people.refetch()} />}
+      {types.isError && <ListState variant="error" title={t('common:ui.listState.readError')} onRetry={() => void types.refetch()} />}
       {!people.isError && !types.isError && (!people.isPending && (people.data ?? []).length === 0
         ? <p className="text-control text-muted-foreground" data-testid="leave-nobody">{t('crews:leave.nobodyToFileFor', 'You can file leave only for yourself and the people you manage. Ask your line manager or an Admin to file it.')}</p>
         : <FormGrid>

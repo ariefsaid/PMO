@@ -156,7 +156,7 @@ describe('SubcontractLinesSection', () => {
   it('FR-SCA-002 draft lines show an Issue button that asks for confirmation before issuing', async () => {
     const user = userEvent.setup();
     h.position = { data: [], isPending: false, isError: false, refetch: vi.fn() };
-    h.draft = { data: [{ boq_item_id: 'e1', quantity: 10, rate: 5, unit: 'm' }], isPending: false };
+    h.draft = { data: [{ boq_item_id: 'e1', quantity: 10, rate: 5, unit: 'm' }], isPending: false, isError: false, refetch: vi.fn() };
     renderSection();
     await user.click(await screen.findByRole('button', { name: /^issue lines$/i }));
     expect(h.issue).not.toHaveBeenCalled();

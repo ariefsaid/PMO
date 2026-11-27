@@ -22,7 +22,7 @@ export const SiteLocationSection: React.FC<{ workOrderId: string; projectId: str
     if (ready && hash === '#site-location') anchor.current?.scrollIntoView?.({ block: 'center' });
   }, [ready, hash]);
   if (!on) return null;
-  if (current.isError || options.isError) return <RecordSection title={t('siteLocation.title', 'Site location')}><ListState variant="error" title={t('common:readError')} onRetry={() => { if (current.isError) void current.refetch(); if (options.isError) void options.refetch(); }} /></RecordSection>;
+  if (current.isError || options.isError) return <RecordSection title={t('siteLocation.title', 'Site location')}><ListState variant="error" title={t('common:ui.listState.readError')} onRetry={() => { if (current.isError) void current.refetch(); if (options.isError) void options.refetch(); }} /></RecordSection>;
   if (current.data === undefined) return null;
   const canEdit = may('create', 'workOrder');
   const name = (options.data ?? []).find((o) => o.id === current.data)?.name;

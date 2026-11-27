@@ -17,7 +17,7 @@ export const ResponsiblePersonSection: React.FC<{ workOrderId: string }> = ({ wo
   const people = useResponsibleCandidates(true);
   const set = useSetResponsiblePerson(workOrderId);
   const refusal = useRefusalLine();
-  if (current.isError || people.isError) return <RecordSection title={t('responsible.title', 'Responsible person')}><ListState variant="error" title={t('common:readError')} onRetry={() => { if (current.isError) void current.refetch(); if (people.isError) void people.refetch(); }} /></RecordSection>;
+  if (current.isError || people.isError) return <RecordSection title={t('responsible.title', 'Responsible person')}><ListState variant="error" title={t('common:ui.listState.readError')} onRetry={() => { if (current.isError) void current.refetch(); if (people.isError) void people.refetch(); }} /></RecordSection>;
   if (current.data === undefined) return null;
   const options = people.data ?? [];
   const name = options.find((o) => o.id === current.data)?.name;

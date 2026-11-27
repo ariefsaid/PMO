@@ -35,7 +35,7 @@ describe('ClaimEvidenceModal', () => {
     render(<ToastProvider><ClaimEvidenceModal documents={DOCS} attachedDocumentIds={[]} earlierDocumentIds={['doc-1', 'doc-4']} onClose={onClose} onAttach={onAttach} onError={vi.fn()} /></ToastProvider>);
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: 'Attach' }));
-    await screen.findByRole('alert');
+    await screen.findByRole('alert', { name: 'Save failed' });
     expect(onClose).not.toHaveBeenCalled();
     await user.click(screen.getByRole('button', { name: 'Attach' }));
     expect(onAttach.mock.calls.map((c) => c[0])).toEqual(['doc-1', 'doc-4', 'doc-4']);

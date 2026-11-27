@@ -53,7 +53,7 @@ export const SectionReadinessModal: React.FC<Props> = ({ workOrderId, section, c
         )}
       </FormGrid>
       <h3 className="mt-4 text-body font-semibold">{t('history', 'History')}</h3>
-      {events.isError ? <ListState variant="error" title={t('common:readError')} onRetry={() => void events.refetch()} /> : events.isPending ? null : (events.data ?? []).length === 0 ? (
+      {events.isError ? <ListState variant="error" title={t('common:ui.listState.readError')} onRetry={() => void events.refetch()} /> : events.isPending ? null : (events.data ?? []).length === 0 ? (
         <p className="text-control text-muted-foreground">{t('historyEmpty', 'No changes yet.')}</p>
       ) : (
         <ul className="mt-2 space-y-2 text-control" data-testid="wos-readiness-history">
