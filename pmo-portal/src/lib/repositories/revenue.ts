@@ -8,7 +8,6 @@ import { domainTier, routeDomainWrite } from '@/src/lib/adapterSeam/ownershipCac
 import { dispatchDomainCommand } from '@/src/lib/adapterSeam/dispatchClient';
 import {
   listSalesInvoices,
-  getOverdueInvoiceCount,
   listOverdueInvoiceFacts,
   listPaidPaymentFacts,
   listMonthlyInvoiceFacts,
@@ -52,7 +51,6 @@ const INVOICE_PDF_INVOKE_TIMEOUT_MS = 45_000;
 export const revenueRepository: RevenueRepository = {
   // Read methods (ADR-0017)
   listInvoices: (params) => wrap(() => listSalesInvoices(params)),
-  countOverdueInvoices: (today) => wrap(() => getOverdueInvoiceCount(today)),
   listOverdueInvoiceFacts: () => wrap(() => listOverdueInvoiceFacts()),
   listPaidPaymentFacts: () => wrap(() => listPaidPaymentFacts()),
   listMonthlyInvoiceFacts: (from, toExclusive) => wrap(() => listMonthlyInvoiceFacts(from, toExclusive)),

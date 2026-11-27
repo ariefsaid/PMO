@@ -1,17 +1,12 @@
-import { useQuery } from '@tanstack/react-query';
-import { useAuth } from '@/src/auth/useAuth';
 import { useFxOrgDay } from '@/src/hooks/useFxOrgDay';
-import { repositories } from '@/src/lib/repositories';
-import { MONEY_QUERY_OPTIONS } from '@/src/lib/queryPolicies';
+import { useOverdueInvoiceFacts } from './useRevenue';
+import { clientInvoiceOverdueDays } from '@/src/lib/repositories/revenueDisplay';
 
-/** Lightweight rail badge: one narrow invoice projection, with no payments or procurement tables. */
+/** The rail derives its badge from the dashboard's shared invoice facts. */
 export function useOverdueInvoiceCount(enabled = true) {
-  const orgId = useAuth().currentUser?.org_id;
   const orgDay = useFxOrgDay(enabled);
-  return useQuery({
-    queryKey: ['overdue-invoice-count', orgId, orgDay.day],
-    queryFn: () => repositories.revenue.countOverdueInvoices(orgDay.day!),
-    enabled: Boolean(enabled && orgId && orgDay.day),
-    ...MONEY_QUERY_OPTIONS,
-  });
+  const facts = useOverdueInvoiceFacts(enabled);
+  return { ...facts, data: facts.data && orgDay.day
+    ? facts.data.filter(row => clientInvoiceOverdueDays(row, orgDay.day!) !== null).length
+    : undefined };
 }
