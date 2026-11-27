@@ -1,5 +1,4 @@
 import React, { useContext, useEffect, useState } from 'react';
-import { QueryClientContext } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { AuthContext } from '@/src/auth/AuthContext';
 import { useEffectiveRole } from '@/src/auth/impersonation';
@@ -48,11 +47,10 @@ const LiveCount: React.FC<{ badge: boolean }> = ({ badge }) => {
 };
 
 export const ApprovalsNavCount: React.FC<{ badge?: boolean }> = ({ badge = false }) => {
-  const queryClient = useContext(QueryClientContext);
   const auth = useContext(AuthContext);
   // The reads behind the number start after the opening screen's data; until then there is no badge (it shows a moment later).
   const afterFirstData = useAfterFirstData();
-  // A bare render (no data layer, no signed-in person) has nothing to count.
-  if (!afterFirstData || !queryClient || !auth?.currentUser || !auth.role) return null;
+  // A bare render (no signed-in person) has nothing to count.
+  if (!afterFirstData || !auth?.currentUser || !auth.role) return null;
   return <LiveCount badge={badge} />;
 };

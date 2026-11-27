@@ -1,5 +1,4 @@
 import React, { useContext } from 'react';
-import { QueryClientContext } from '@tanstack/react-query';
 import { AuthContext } from '@/src/auth/AuthContext';
 import { usePermission } from '@/src/auth/usePermission';
 import { useRevenuePlanSettings } from '@/src/hooks/useWorkOrderRevenuePlan';
@@ -14,9 +13,8 @@ interface Props { workOrderId: string; woLabel: string; frozen: boolean; costGro
  * existing screen is unchanged.
  */
 export const DailyTargetGate: React.FC<Props> = (props) => {
-  const queries = useContext(QueryClientContext);
   const auth = useContext(AuthContext);
-  if (!queries || !auth) return null;
+  if (!auth) return null;
   return <Inner {...props} />;
 };
 

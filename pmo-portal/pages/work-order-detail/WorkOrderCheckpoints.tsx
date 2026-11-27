@@ -1,5 +1,4 @@
 import React, { useContext } from 'react';
-import { QueryClientContext } from '@tanstack/react-query';
 import { AuthContext } from '@/src/auth/AuthContext';
 import { SiteCheckpoints } from '../siteReports/SiteCheckpoints';
 import { checkpointToday } from '../siteReports/checkpointTime';
@@ -11,7 +10,6 @@ import { checkpointToday } from '../siteReports/checkpointTime';
  */
 export const WorkOrderCheckpoints: React.FC<{ workOrderId: string; projectManagerId: string | null; status: string }> = ({ workOrderId, projectManagerId, status }) => {
   const auth = useContext(AuthContext);
-  const queries = useContext(QueryClientContext);
-  if (!auth || !queries) return null;
+  if (!auth) return null;
   return <SiteCheckpoints workOrderId={workOrderId} workDate={checkpointToday()} projectManagerId={projectManagerId} canRecordDay={status === 'Issued'} />;
 };

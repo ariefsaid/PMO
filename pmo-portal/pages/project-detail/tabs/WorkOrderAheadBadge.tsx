@@ -46,6 +46,5 @@ const Inner: React.FC<Props> = ({ workOrderId, onOpen, href }) => {
 
 export const WorkOrderAheadBadge: React.FC<Props> = ({ workOrderId, onOpen, href }) => {
   const auth = useContext(AuthContext);
-  const queries = useContext(QueryClientContext);
-  return Boolean(auth) && Boolean(queries) ? <Inner workOrderId={workOrderId} onOpen={onOpen} href={href} /> : null;
+  return auth ? <Inner workOrderId={workOrderId} onOpen={onOpen} href={href} /> : null;
 };

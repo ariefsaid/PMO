@@ -1,4 +1,3 @@
-import { ReservationsSlot } from '@/src/components/stock/ReservationsSlot';
 import { RequestBorrowingNotice } from '@/src/components/stock/RequestBorrowingNotice';
 import React, { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
@@ -144,7 +143,7 @@ const MaterialRequestDetailPage: React.FC = () => {
       </RecordHeader>
 
       <RecordStack>
-        <ReservationsSlot><RequestBorrowingNotice requestId={req.id} /></ReservationsSlot>
+        <RequestBorrowingNotice requestId={req.id} />
         {req.transferDocumentId && (
           <RecordSection title={t('detail.transfer', 'Delivery')}>
             <p>
