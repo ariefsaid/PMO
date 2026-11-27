@@ -16,6 +16,15 @@ vi.mock('@/src/lib/lazyWithPreload', () => {
 });
 
 import { preloadsForPath, namespacesForPath, preloadForPath, subscribeToRoutePreloads } from './App';
+import { ProjectSCurve } from './pages/project-detail/lazyProjectChunks';
+
+it('#2972 downloads the overview chart only for overview destinations', () => {
+  for (const tab of ['documents', 'tasks', 'budget', 'contract', 'orders', 'activity']) {
+    expect(preloadsForPath(`/projects/p1/${tab}`)).not.toContain(ProjectSCurve);
+  }
+  expect(preloadsForPath('/projects/p1')).toContain(ProjectSCurve);
+  expect(preloadsForPath('/projects/p1/overview')).toContain(ProjectSCurve);
+});
 import { i18next } from '@/src/lib/i18n';
 import { queryClient } from '@/src/lib/queryClient';
 import { appRouteConfig } from './App';
@@ -120,9 +129,9 @@ describe('preloadsForPath (#1834 route-entry preload rules)', () => {
   });
 
   it('a deep-linked lazy tab pulls the tab chunks in the same batch', () => {
-    expect(preloadsForPath('/projects/p1/budget')).toHaveLength(3);
+    expect(preloadsForPath('/projects/p1/budget')).toHaveLength(2);
     // Contract renders cascade + billing tools + work orders together.
-    expect(preloadsForPath('/projects/p1/contract')).toHaveLength(5);
+    expect(preloadsForPath('/projects/p1/contract')).toHaveLength(4);
   });
 
   it('literal routes beat params: /projects/new is the create page, not the detail bundle', () => {
