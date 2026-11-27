@@ -96,13 +96,17 @@ export interface TermRenderContext {
   namespace?: string;
 }
 
-export function applyOrgTerms(text: string, locale: string, terms: OrgTerms, context: TermRenderContext = {}): string {
-  const { englishReference, cursor = {}, numberOverrides = {}, protect = (value: string) => value, namespace } = context;
-  if (!text) return text;
-  const loc: TermLocale = locale.startsWith('id') ? 'id' : 'en';
-  const overrides = terms[loc];
-  if (!overrides) return text;
-  const replacements = new Map<string, { key: TermKey; number: 'singular' | 'plural' }>();
+type Replacements = Map<string, { key: TermKey; number: 'singular' | 'plural' }>;
+/** The replacement map and its regex depend only on (overrides object, language, namespace), never on the text:
+ *  built once per overrides object (a new object from setOrgTerms/rowsToOrgTerms is a new cache entry; the old one is collected with it). */
+const compiledCache = new WeakMap<object, Map<string, { replacements: Replacements; re: RegExp | null }>>();
+function compiledTerms(overrides: Partial<Record<TermKey, TermForms>>, loc: TermLocale, namespace: string | undefined) {
+  const cacheKey = `${loc}\u0000${namespace ?? ''}`;
+  let perOverrides = compiledCache.get(overrides);
+  if (!perOverrides) compiledCache.set(overrides, (perOverrides = new Map()));
+  let hit = perOverrides.get(cacheKey);
+  if (hit) return hit;
+  const replacements: Replacements = new Map();
   for (const key of TERM_KEYS) {
     if (!overrides[key]) continue;
     const scope = TERM_SCOPE[key];
@@ -115,9 +119,31 @@ export function applyOrgTerms(text: string, locale: string, terms: OrgTerms, con
       }
     }
   }
-  if (!replacements.size) return text;
   const forms = [...replacements.keys()].sort((a, b) => b.length - a.length).map(escapeRe).join('|');
-  const re = new RegExp(`(?<![\\p{L}\\p{N}])(?:${forms})(?![\\p{L}\\p{N}])`, 'giu');
+  hit = { replacements, re: replacements.size ? new RegExp(`(?<![\\p{L}\\p{N}])(?:${forms})(?![\\p{L}\\p{N}])`, 'giu') : null };
+  perOverrides.set(cacheKey, hit);
+  return hit;
+}
+const englishReCache = new Map<TermKey, RegExp>();
+function englishFormsRe(key: TermKey): RegExp {
+  let re = englishReCache.get(key);
+  if (!re) {
+    const english = SHIPPED_FORMS.en[key];
+    const forms = [...new Set([...english.plural, ...english.singular])].sort((a, b) => b.length - a.length);
+    re = new RegExp(`(?<![\\p{L}\\p{N}])(?:${forms.map(escapeRe).join('|')})(?![\\p{L}\\p{N}])`, 'giu');
+    englishReCache.set(key, re);
+  }
+  return re;
+}
+
+export function applyOrgTerms(text: string, locale: string, terms: OrgTerms, context: TermRenderContext = {}): string {
+  const { englishReference, cursor = {}, numberOverrides = {}, protect = (value: string) => value, namespace } = context;
+  if (!text) return text;
+  const loc: TermLocale = locale.startsWith('id') ? 'id' : 'en';
+  const overrides = terms[loc];
+  if (!overrides) return text;
+  const { replacements, re } = compiledTerms(overrides, loc, namespace);
+  if (!re) return text;
   return text.replace(re, (match) => {
     const found = replacements.get(match.toLowerCase())!;
     let number = found.number;
@@ -129,8 +155,7 @@ export function applyOrgTerms(text: string, locale: string, terms: OrgTerms, con
       number = typeof numberHint === 'string' ? numberHint : numberHint[index] ?? numberHint[numberHint.length - 1] ?? 'singular';
     } else if (loc === 'id' && englishReference) {
       const english = SHIPPED_FORMS.en[found.key];
-      const englishForms = [...new Set([...english.plural, ...english.singular])].sort((a, b) => b.length - a.length);
-      const enRe = new RegExp(`(?<![\\p{L}\\p{N}])(?:${englishForms.map(escapeRe).join('|')})(?![\\p{L}\\p{N}])`, 'giu');
+      const enRe = englishFormsRe(found.key);
       const occurrences = [...englishReference.matchAll(enRe)].map((m) => m[0].toLowerCase());
       const index = cursor[found.key] ?? 0;
       cursor[found.key] = index + 1;
