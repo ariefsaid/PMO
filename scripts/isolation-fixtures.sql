@@ -598,7 +598,30 @@ insert into public.headcount_day_documents (id, org_id, headcount_id, document_i
 insert into public.boq_item_area_rates (id, org_id, project_id, boq_item_id, area_id, rate, set_by)
   select 'a6120000-0000-4000-8000-000000000352', 'a6120000-0000-4000-8000-00000000000a', project,
          'a6120000-0000-4000-8000-0000000000d3', 'a6120000-0000-4000-8000-00000000032b', 1, profile from _iso_a;
-select 'ISO-COPY-SKIPPED ' || tbl || ': ' || why from _iso_skipped order by tbl;
+-- 2790 (#3010): the seed org carries no owner-material rows beyond its reconciliation steps. Give A one of each (on A's section d7 and material plan 21c)
+-- so their by-id read and update probes run instead of skipping.
+insert into public.stock_material_categories (id, org_id, code, name)
+  values ('a6120000-0000-4000-8000-000000000360', 'a6120000-0000-4000-8000-00000000000a', 'ISO-CAT', 'Isolation material category');
+insert into public.owner_material_warehouses (id, org_id, code, name)
+  values ('a6120000-0000-4000-8000-000000000361', 'a6120000-0000-4000-8000-00000000000a', 'ISO-WH', 'Isolation owner warehouse');
+insert into public.owner_material_import_batches (id, org_id, source_key, schema_version, created_by)
+  select 'a6120000-0000-4000-8000-000000000362', 'a6120000-0000-4000-8000-00000000000a', 'isolation-proof', 2, profile from _iso_a;
+insert into public.owner_material_import_rows (batch_id, org_id, entity_key, payload_hash, result_ids)
+  values ('a6120000-0000-4000-8000-000000000362', 'a6120000-0000-4000-8000-00000000000a', 'isolation-row', 'iso', '{}'::jsonb);
+insert into public.owner_material_openings (org_id, section_material_plan_id, as_of, import_batch_id, created_by)
+  select 'a6120000-0000-4000-8000-00000000000a', 'a6120000-0000-4000-8000-00000000021c', current_date,
+         'a6120000-0000-4000-8000-000000000362', profile from _iso_a;
+insert into public.owner_material_reconciliation (org_id, section_id, step_id, changed_by)
+  select 'a6120000-0000-4000-8000-00000000000a', 'a6120000-0000-4000-8000-0000000000d7',
+         (select id from public.owner_material_reconciliation_steps where org_id = 'a6120000-0000-4000-8000-00000000000a' order by position limit 1), profile from _iso_a
+  on conflict do nothing;  -- 2793 may already have placed a closed section here
+insert into public.owner_material_reconciliation_events (id, org_id, section_id, step_id, changed_by)
+  select 'a6120000-0000-4000-8000-000000000364', 'a6120000-0000-4000-8000-00000000000a', 'a6120000-0000-4000-8000-0000000000d7',
+         (select id from public.owner_material_reconciliation_steps where org_id = 'a6120000-0000-4000-8000-00000000000a' order by position limit 1), profile from _iso_a;
+insert into public.owner_material_movement_links (org_id, document_id, stock_line_id, section_material_plan_id, item_id, stage)
+  select l.org_id, l.document_id, l.id, 'a6120000-0000-4000-8000-00000000021c', l.item_id, 'received'
+    from public.stock_document_lines l where l.org_id = 'a6120000-0000-4000-8000-00000000000a' order by l.id limit 1;
+select 'ISO-COPY-SKIPPED' || tbl || ': ' || why from _iso_skipped order by tbl;
 \endif
 
 do $$ declare r record; begin
