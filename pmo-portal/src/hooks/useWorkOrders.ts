@@ -59,6 +59,7 @@ interface TransitionArgs {
 /** Every derived surface that reads a project's work-order allocations or billing facts. */
 export function invalidateWorkOrderQueries(qc: QueryClient, orgId: string | undefined, projectId: string) {
   void qc.invalidateQueries({ queryKey: ['work-orders', orgId, projectId] });
+  void qc.invalidateQueries({ queryKey: ['work-orders', orgId, 'home-open'] });
   void qc.invalidateQueries({ queryKey: ['project-drawdown', orgId, projectId] });
   void qc.invalidateQueries({ queryKey: ['work-order-billing', orgId, projectId] });
   void qc.invalidateQueries({ queryKey: ['unbilled-work-orders', orgId] });
@@ -136,5 +137,16 @@ export function useAllWorkOrders(enabled = true) {
     queryKey: ['work-orders', orgId, 'all', currentUser?.id, currentUser?.role],
     queryFn: () => repositories.workOrder.listAll(),
     enabled: enabled && Boolean(orgId),
+  });
+}
+
+/** The five newest open work orders visible to the home tile's reader. */
+export function useOpenWorkOrdersForHome() {
+  const { currentUser } = useAuth();
+  const orgId = currentUser?.org_id;
+  return useQuery({
+    queryKey: ['work-orders', orgId, 'home-open', currentUser?.id, currentUser?.role, currentUser?.manager_id],
+    queryFn: () => repositories.workOrder.listOpenForHome(),
+    enabled: Boolean(orgId),
   });
 }

@@ -264,7 +264,7 @@
     "help": "Permintaan yang belum dipesan atau dibayar. Daftar ini hanya saran; rencana tetap Anda ubah dan simpan sendiri.",
     "empty": "Belum ada permintaan pembelian terbuka di proyek lokasi ini. Anggota proyek membuatnya di Pengadaan, lalu muncul di sini sampai dipesan.",
     "startPlan": "Mulai rencana dari daftar ini",
-    "noPrices": "Anda tidak dapat melihat harga pada permintaan, jadi jumlah tidak bisa diisi otomatis. Tambahkan barisnya sendiri di rencana.",
+    "noPrices": "Tambahkan barisnya sendiri di rencana.",
     "nothingToStart": "Untuk memulai rencana, permintaan memerlukan keperluan dan total yang terlihat di atas nol dalam {{currency}}.",
     "skipped": "{{count}} permintaan tanpa keperluan, tanpa harga yang terlihat, atau dalam mata uang lain tidak dihitung dalam rencana.",
     "error": "Permintaan pembelian terbuka tidak bisa dimuat",

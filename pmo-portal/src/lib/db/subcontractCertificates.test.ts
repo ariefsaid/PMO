@@ -1,4 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { setHidePricesActive } from '@/src/lib/priceReadPath';
 
 const h = vi.hoisted(() => {
   const result = { value: {} as { data: unknown; error: unknown }, queue: [] as Array<{ data: unknown; error: unknown }> };
@@ -34,12 +35,14 @@ import {
 import { AppError } from '@/src/lib/appError';
 
 beforeEach(() => {
+  setHidePricesActive(false);
   h.from.mockClear();
   h.rpc.mockClear();
   for (const v of Object.values(h.calls)) (v as unknown[]).length = 0;
   h.result.value = { data: null, error: null };
   h.result.queue = [];
 });
+afterEach(() => setHidePricesActive(false));
 
 describe('subcontractCertificates DAL', () => {
   it('listSubcontractPos qualifies procurements embed with purchase_orders_procurement_id_fkey', async () => {
@@ -72,6 +75,16 @@ describe('subcontractCertificates DAL', () => {
         currency: 'USD',
       },
     ]);
+  });
+
+  it('reads subcontract POs and their procurement through masked views when price hiding is active', async () => {
+    setHidePricesActive(true);
+    h.result.value = { data: [], error: null };
+
+    await listSubcontractPos();
+
+    expect(h.calls.from).toContain('purchase_orders_masked');
+    expect(h.calls.select[0]).toContain('procurements:procurements_masked!purchase_orders_procurement_id_fkey!inner');
   });
 });
 

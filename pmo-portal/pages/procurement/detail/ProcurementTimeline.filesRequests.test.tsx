@@ -58,12 +58,12 @@ const ledgerRow = (i: number): LedgerRow => ({
 } as unknown as LedgerRow);
 const rows = Array.from({ length: 8 }, (_, i) => ledgerRow(i));
 
-const renderTimeline = () =>
+const renderTimeline = (canWriteRequestFiles = false) =>
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
       <ToastProvider>
         <ProcurementTimeline procurement={procurement} ledgerRows={rows} linkedDocuments={[]} isEngineer={false}
-          canWriteFiles={false} uploadedById={null} onFullHistory={vi.fn()} />
+          canWriteFiles={false} canWriteRequestFiles={canWriteRequestFiles} uploadedById={canWriteRequestFiles ? '27000000-0000-0000-0000-0000000000e1' : null} onFullHistory={vi.fn()} />
       </ToastProvider>
     </QueryClientProvider>,
   );
@@ -151,5 +151,12 @@ describe('AC-PERF-2106-2 the Timeline reads every record’s files in one reques
     await user.click(summaryOf(trows[4])); // PO record (rec-3) — its phase succeeded
     expect(await within(trows[4]).findByText('spec-rec-3.pdf')).toBeInTheDocument();
     expect(within(trows[4]).queryByText(/load attachments/)).not.toBeInTheDocument();
+  });
+  it('AC-HPG-046 a requester can attach evidence to the purchase request', async () => {
+    renderTimeline(true);
+    const row = screen.getAllByTestId('procurement-timeline-row')[1];
+    await userEvent.click(summaryOf(row));
+    expect(await within(row).findByLabelText('Attach a file')).toBeInTheDocument();
+    expect(within(row).queryByRole('button', { name: /Remove file/ })).not.toBeInTheDocument();
   });
 });

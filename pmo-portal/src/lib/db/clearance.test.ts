@@ -4,7 +4,7 @@ const h = vi.hoisted(() => ({ calls: [] as Array<[string, unknown]>, result: { d
 vi.mock('@/src/lib/supabase/client', () => {
   const chain = (name: string): Record<string, unknown> => {
     const c: Record<string, unknown> = {};
-    for (const m of ['select', 'is', 'order', 'limit', 'eq']) c[m] = (...a: unknown[]) => { h.calls.push([`${name}.${m}`, a]); return c; };
+    for (const m of ['select', 'is', 'order', 'limit', 'range', 'eq']) c[m] = (...a: unknown[]) => { h.calls.push([`${name}.${m}`, a]); return c; };
     for (const m of ['insert', 'update']) c[m] = (v: unknown) => { h.calls.push([`${name}.${m}`, v]); return c; };
     c.delete = () => { h.calls.push([`${name}.delete`, null]); return c; };
     c.then = (res: (v: unknown) => unknown) => Promise.resolve(h.result).then(res);

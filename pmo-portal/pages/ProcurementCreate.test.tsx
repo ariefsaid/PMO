@@ -220,7 +220,7 @@ describe('AC-PROC1 one-page request creation', () => {
 
     fireEvent.change(screen.getByLabelText('New item description'), { target: { value: 'Invalid price' } });
     fireEvent.change(screen.getByLabelText('New item quantity'), { target: { value: '2' } });
-    fireEvent.change(screen.getByLabelText('New item unit price'), { target: { value: '0' } });
+    fireEvent.change(screen.getByLabelText('New item unit price'), { target: { value: '-1' } });
     expect(estimatedTotalCell()).toHaveTextContent('—');
     expect(estimatedTotalCell()).not.toHaveTextContent('$0');
     expect(screen.getByLabelText('New line total')).toHaveTextContent('—');
@@ -841,7 +841,7 @@ describe('AC-PROC1 one-page request creation', () => {
     renderCreate();
     fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Office supplies' } });
     fireEvent.change(screen.getByLabelText('New item quantity'), { target: { value: '2' } });
-    fireEvent.change(screen.getByLabelText('New item unit price'), { target: { value: '0' } });
+    fireEvent.change(screen.getByLabelText('New item unit price'), { target: { value: '-1' } });
 
     const saveDraft = screen.getByRole('button', { name: 'Save draft' });
     const form = saveDraft.closest('form');
@@ -849,11 +849,11 @@ describe('AC-PROC1 one-page request creation', () => {
 
     expect(mocks.createAtomic).not.toHaveBeenCalled();
     expect(await screen.findByText('Item is required.')).toBeVisible();
-    expect(screen.getByText('Unit price must be greater than 0 with no more than 2 decimal places.')).toBeVisible();
+    expect(screen.getByText('Unit price cannot be negative and must have no more than 2 decimal places.')).toBeVisible();
     expect(screen.getByLabelText('New item description')).toHaveFocus();
     expect(screen.getByLabelText('New item description')).toHaveValue('');
     expect(screen.getByLabelText('New item quantity')).toHaveValue('2');
-    expect(screen.getByLabelText('New item unit price')).toHaveValue('0');
+    expect(screen.getByLabelText('New item unit price')).toHaveValue('-1');
 
     fireEvent.submit(form as HTMLFormElement);
     expect(mocks.createAtomic).not.toHaveBeenCalled();
@@ -871,12 +871,12 @@ describe('AC-PROC1 one-page request creation', () => {
     );
     fireEvent.change(screen.getByRole('textbox', { name: /Title/ }), { target: { value: 'Perlengkapan kantor' } });
     fireEvent.change(screen.getByLabelText('Jumlah item baru'), { target: { value: '2' } });
-    fireEvent.change(screen.getByLabelText('Harga satuan item baru'), { target: { value: '0' } });
+    fireEvent.change(screen.getByLabelText('Harga satuan item baru'), { target: { value: '-1' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
 
     expect(mocks.createAtomic).not.toHaveBeenCalled();
     expect(await screen.findByText('Nama item wajib diisi.')).toBeVisible();
-    expect(screen.getByText('Harga satuan harus lebih besar dari 0 dengan maksimal 2 angka desimal.')).toBeVisible();
+    expect(screen.getByText('Harga satuan tidak boleh negatif dan maksimal 2 angka desimal.')).toBeVisible();
     expect(screen.getByLabelText('Deskripsi item baru')).toHaveFocus();
   });
 

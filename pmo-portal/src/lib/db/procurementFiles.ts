@@ -10,6 +10,7 @@ import {
 import type { Tables } from '@/src/lib/supabase/database.types';
 import { BY_IDS_CHUNK } from '@/src/lib/db/limits';
 import { assertMicrosoftReference, type MicrosoftReferenceInput } from '@/src/lib/m365/reference';
+import { priceSource } from '@/src/lib/priceReadPath';
 
 /**
  * Procurement attachments DAL — many files per procurement PHASE row (ADR-0023).
@@ -319,7 +320,7 @@ export async function prepareUpload(
 ): Promise<{ signedUrl: string; path: string; fileId: string }> {
   validateUploadExtension(fileName);
   const { data: proc, error: fetchError } = await supabase
-    .from('procurements')
+    .from(priceSource('procurements') as 'procurements')
     .select('org_id')
     .eq('id', procurementId)
     .maybeSingle();

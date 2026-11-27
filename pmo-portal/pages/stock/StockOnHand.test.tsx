@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { act, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes, useLocation, useParams } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -7,6 +7,7 @@ import React from 'react';
 import i18next from 'i18next';
 import type { Role } from '@/src/auth/AuthContext';
 import { ToastProvider } from '@/src/components/ui';
+import { setPricesHidden } from '@/src/lib/priceReadPath';
 import { AppError } from '@/src/lib/appError';
 import stockEn from '@/public/locales/en/stock.json';
 
@@ -71,7 +72,10 @@ beforeEach(() => {
   reports.onHand.mockResolvedValue([row]);
   reorder.worklist.mockResolvedValue([]);
 });
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  act(() => setPricesHidden(false));
+  vi.unstubAllGlobals();
+});
 
 describe('C18 — the balance list is ordered for scanning', () => {
   it('orders by item, then warehouse, so one item sits with all its stores instead of three lookups by eye', async () => {
@@ -126,6 +130,19 @@ describe('stock balance identity', () => {
 });
 
 describe('StockOnHand (AC-STK-032 states, AC-STK-020 cost by data)', () => {
+  it('keeps quantities and explains the omitted valuation', async () => {
+    act(() => setPricesHidden(true));
+    renderPage('Engineer');
+    expect(await screen.findByText('CEM')).toBeVisible();
+    expect(screen.getByText('70')).toBeVisible();
+    const notice = screen.getByText('Prices are hidden from requesters.');
+    expect(notice).toBeVisible();
+    expect(notice).toHaveTextContent(/^Prices are hidden from requesters\.$/);
+    expect(notice.closest('h1')).toBeNull();
+    expect(notice.closest('[data-testid="stock-onhand-toolbar-controls"]')).toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: /^Value$/ })).toBeNull();
+  });
+
   it('AC-STK-032 loading, then the populated balance with its quantity and unit', async () => {
     renderPage();
     expect(screen.getByTestId('liststate-loading')).toBeInTheDocument();

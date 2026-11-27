@@ -8,6 +8,7 @@
  */
 import {
   parseCostAmountRows, parsePlanRows, parseSplitRows,
+  getDashboardWorkOrderCosts,
   listProjectCostAmounts,
   listProjectPlanLines,
   setWorkOrderPlan,
@@ -131,6 +132,14 @@ async function loadMany(ids: readonly string[]): Promise<Record<string, ProjectP
 
 export const workOrderFinanceRepository = {
   projectsPlanVsActual: (ids: readonly string[]) => wrap(() => loadMany(ids)),
+  dashboardCosts: (projectIds: readonly string[]) => wrap(async () => {
+    try {
+      return await getDashboardWorkOrderCosts(projectIds);
+    } catch (error) {
+      if ((error as { code?: string } | null)?.code === '42501') return null;
+      throw error;
+    }
+  }),
   projectPlanVsActual: (projectId: string): Promise<ProjectPlanVsActual> => wrap(() => load(projectId)),
   setPlan: (projectId: string, workOrderId: string, changes: readonly PlanChange[]): Promise<void> => wrap(() => setWorkOrderPlan(projectId, workOrderId, changes)),
   setSplit: (projectId: string, split: readonly SplitPercent[]): Promise<number> => wrap(() => setSharedSplit(projectId, split)),

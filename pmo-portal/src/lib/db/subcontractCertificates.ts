@@ -2,6 +2,7 @@ import { supabase } from '@/src/lib/supabase/client';
 import { nullableArg } from './nullableArg';
 import { AppError } from '@/src/lib/appError';
 import type { Json } from '@/src/lib/supabase/database.types';
+import { maskSelection, priceSource } from '@/src/lib/priceReadPath';
 
 /**
  * Subcontractor progress certificates, the rate card and backcharges (#2584, migrations 1135 to 1138).
@@ -253,11 +254,20 @@ export async function setRate(input: SetRateInput): Promise<string> {
 
 /** Subcontract purchases that have an issued PO, for the "new certificate" picker. */
 export async function listSubcontractPos(): Promise<SubcontractPoOption[]> {
-  const { data, error } = await supabase.from('purchase_orders')
-    .select('id, po_number, work_order_id, currency, procurements!purchase_orders_procurement_id_fkey!inner(title, project_id, vendor_id, is_subcontract)')
+  const { data, error } = await supabase.from(priceSource('purchase_orders') as 'purchase_orders')
+    .select(maskSelection('id, po_number, work_order_id, currency, procurements!purchase_orders_procurement_id_fkey!inner(title, project_id, vendor_id, is_subcontract)'))
     .eq('procurements.is_subcontract', true).order('created_at', { ascending: false }).limit(200);
   if (error) throwRpc(error);
-  return (data ?? []).map((r) => {
+  type ReadRow = {
+    id: string;
+    po_number: string | null;
+    work_order_id: string | null;
+    currency: string;
+    procurements: { title: string; project_id: string | null; vendor_id: string | null; is_subcontract: boolean }
+      | Array<{ title: string; project_id: string | null; vendor_id: string | null; is_subcontract: boolean }>
+      | null;
+  };
+  return ((data ?? []) as unknown as ReadRow[]).map((r) => {
     const p = Array.isArray(r.procurements) ? r.procurements[0] : r.procurements;
     return { po_id: r.id, po_number: r.po_number, title: p?.title ?? '', project_id: p?.project_id ?? null, vendor_id: p?.vendor_id ?? null, work_order_id: r.work_order_id, currency: r.currency };
   });

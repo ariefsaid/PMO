@@ -10,7 +10,7 @@ import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, useLocation } from 'react-router';
 import { ToastProvider } from '@/src/components/ui/Toast';
-import { useCheckInRequests } from '@/src/hooks/usePhoneCheckIn';
+import { useWaitingForYou } from '@/src/hooks/useWaitingForYou';
 
 const dash = {
   active_projects: 2, active_delivery_projects: 2, risk_unchecked_projects: 0,
@@ -37,7 +37,8 @@ const h = vi.hoisted(() => ({
   portfolioIds: [] as string[][],
   projectListEnabled: false,
   projectListPending: false,
-  checkInRequests: () => Promise.resolve([] as unknown[]),
+  checkInRequests: vi.fn(async () => []),
+  checkIns: { status: 'success', count: 0 },
 }));
 const read = (name: string) => {
   const result = h.reads[name] ?? ok({});
@@ -54,9 +55,9 @@ vi.mock('@/src/hooks/useWaitingForYou', () => ({
   useWaitingForYou: () => ({
     entries: [],
     count: 0,
-    countFor: () => 0,
-    pendingKinds: [],
-    failedKinds: [],
+    countFor: (kind: string) => kind === 'check_in' ? h.checkIns.count : 0,
+    pendingKinds: h.checkIns.status === 'pending' ? ['check_in'] : [],
+    failedKinds: h.checkIns.status === 'error' ? ['check_in'] : [],
     isPending: false,
     isError: false,
     refetch: vi.fn(),
@@ -118,11 +119,11 @@ vi.mock('@/src/hooks/useOrgSwitch', () => ({ useOrgSwitch: () => ({ data: h.mana
 
 import { CompanyDashboard } from './CompanyDashboard';
 
-const renderRole = (role: 'Executive' | 'Admin' | 'Finance') => {
+const renderRole = (role: 'Executive' | 'Admin' | 'Finance', includeProbe = true) => {
   h.role = role;
   return render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-      <MemoryRouter><LocationProbe /><CheckInProbe /><ToastProvider><CompanyDashboard role={role} /></ToastProvider></MemoryRouter>
+      <MemoryRouter><LocationProbe />{includeProbe && <CheckInProbe />}<ToastProvider><CompanyDashboard role={role} /></ToastProvider></MemoryRouter>
     </QueryClientProvider>,
   );
 };
@@ -134,8 +135,9 @@ function LocationProbe() {
   return <output data-testid="dashboard-location">{location.pathname}{location.search}</output>;
 }
 function CheckInProbe() {
-  const query = useCheckInRequests();
-  return <output data-testid="check-in-probe" data-status={query.status} data-count={query.data?.length ?? -1}>{query.status}</output>;
+  const waiting = useWaitingForYou();
+  const status = waiting.pendingKinds.includes('check_in') ? 'pending' : waiting.failedKinds.includes('check_in') ? 'error' : 'success';
+  return <output data-testid="check-in-probe" data-status={status} data-count={waiting.countFor('check_in')}>{status}</output>;
 }
 const band = () => screen.getByRole('region', { name: 'Company figures' });
 const tile = (label: string) => within(band()).getByText(label, { exact: true }).closest('div[class*="flex-col"]') as HTMLElement;
@@ -147,7 +149,7 @@ beforeEach(() => {
   h.portfolioIds = [];
   h.projectListEnabled = false;
   h.projectListPending = false;
-  h.checkInRequests = () => Promise.resolve([]);
+  h.checkIns = { status: 'success', count: 0 };
   h.reads = { dashboard: ok(dash), pack: ok(pack), invoices: ok([invoice]), salesInvoices: ok([]), payments: ok([]), procurements: ok([]) };
 });
 
@@ -268,26 +270,15 @@ describe('company home states keep the filled structure', () => {
 });
 
 describe('AC-PCI-E2E / AC-WCI-060 phone check-ins waiting entry on CompanyDashboard', () => {
-  const pendingCheckIn = {
-    id: 'req-1',
-    work_order_id: 'wo-1',
-    work_order_title: 'Slab',
-    worker_name: 'Worker 1',
-    crew_id: null,
-    crew_name: null,
-    work_date: '2026-10-27',
-    hours: 8,
-    outcome: 'outside',
-    distance_m: 1112,
-    accuracy_m: 5,
-    checked_in_at: '2026-10-27T08:00:00Z',
-    area_lat: -6.2,
-    area_lng: 106.8,
-    area_radius_m: 150,
-  };
+  it('AC-2818-003 reuses the waiting list without a separate check-in request', async () => {
+    h.checkInRequests.mockClear();
+    renderRole('Finance', false);
+    await waitFor(() => expect(screen.getByRole('region', { name: 'Company figures' })).toBeInTheDocument());
+    expect(h.checkInRequests).not.toHaveBeenCalled();
+  });
 
   it('eligible role Admin renders positive count linking to /crews and navigates to the exact existing destination', async () => {
-    h.checkInRequests = () => Promise.resolve([pendingCheckIn]);
+    h.checkIns = { status: 'success', count: 1 };
     renderAdmin();
 
     const link = await screen.findByRole('link', { name: /1 check-in waiting for your decision/i });
@@ -297,7 +288,7 @@ describe('AC-PCI-E2E / AC-WCI-060 phone check-ins waiting entry on CompanyDashbo
   });
 
   it('eligible role Executive renders plural count when multiple requests wait', async () => {
-    h.checkInRequests = () => Promise.resolve([pendingCheckIn, { ...pendingCheckIn, id: 'req-2' }]);
+    h.checkIns = { status: 'success', count: 2 };
     renderExec();
 
     const link = await screen.findByRole('link', { name: /2 check-ins waiting for your decision/i });
@@ -305,7 +296,7 @@ describe('AC-PCI-E2E / AC-WCI-060 phone check-ins waiting entry on CompanyDashbo
   });
 
   it('mounts check-ins waiting row across both overview and focused layouts for eligible role', async () => {
-    h.checkInRequests = () => Promise.resolve([pendingCheckIn]);
+    h.checkIns = { status: 'success', count: 1 };
 
     localStorage.setItem('home-layout', 'focused');
     const { unmount } = renderAdmin();
@@ -318,7 +309,7 @@ describe('AC-PCI-E2E / AC-WCI-060 phone check-ins waiting entry on CompanyDashbo
   });
 
   it('zero count safely omits check-ins waiting row and displays no dummy count', async () => {
-    h.checkInRequests = () => Promise.resolve([]);
+    h.checkIns = { status: 'success', count: 0 };
     renderAdmin();
 
     await waitFor(() => expect(screen.getByTestId('check-in-probe')).toHaveTextContent('success'));
@@ -328,7 +319,7 @@ describe('AC-PCI-E2E / AC-WCI-060 phone check-ins waiting entry on CompanyDashbo
   });
 
   it('unknown / pending check-in read safely omits the row without breaking dashboard', () => {
-    h.checkInRequests = () => new Promise(() => {});
+    h.checkIns = { status: 'pending', count: 0 };
     renderAdmin();
 
     expect(screen.getByTestId('check-in-probe')).toHaveTextContent('pending');
@@ -337,7 +328,7 @@ describe('AC-PCI-E2E / AC-WCI-060 phone check-ins waiting entry on CompanyDashbo
   });
 
   it('error on check-in read is safely handled without displaying dummy counts or throwing', async () => {
-    h.checkInRequests = () => Promise.reject(new Error('RPC error'));
+    h.checkIns = { status: 'error', count: 0 };
     renderAdmin();
 
     await waitFor(() => expect(screen.getByTestId('check-in-probe')).toHaveTextContent('error'));
@@ -347,13 +338,13 @@ describe('AC-PCI-E2E / AC-WCI-060 phone check-ins waiting entry on CompanyDashbo
   });
 
   it('Finance sees a check-in pointer when the caller-scoped read authorizes a decision', async () => {
-    h.checkInRequests = () => Promise.resolve([pendingCheckIn]);
+    h.checkIns = { status: 'success', count: 1 };
     renderFinance();
     expect(await screen.findByRole('link', { name: /1 check-in waiting for your decision/i })).toHaveAttribute('href', '/crews');
   });
 
   it('Finance sees no check-in pointer when the caller-scoped read returns no decisions for them', async () => {
-    h.checkInRequests = () => Promise.resolve([]);
+    h.checkIns = { status: 'success', count: 0 };
     renderFinance();
 
     await waitFor(() => expect(screen.getByTestId('check-in-probe')).toHaveTextContent('success'));

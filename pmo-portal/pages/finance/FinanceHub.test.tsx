@@ -503,3 +503,20 @@ describe('Finance hub', () => {
     expect(screen.queryByRole('button', { name: /New invoice/ })).not.toBeInTheDocument();
   });
 });
+
+it("#2438 failed reads offer one retry per notice without loading placeholders or stale captions", () => {
+  state.financeSources.invoicesError = true;
+  state.financeSources.procurementsError = true;
+  state.financeSources.paymentsPending = true;
+  state.financeSources.orgDayPending = true;
+  state.figures.isError = true;
+  state.figures.isPending = true;
+  renderHub();
+  expect(screen.queryByTestId("finance-attention-loading")).not.toBeInTheDocument();
+  expect(screen.queryAllByTestId("kpi-skeleton")).toHaveLength(0);
+  expect(screen.queryByText("unpaid", { exact: true })).not.toBeInTheDocument();
+  expect(within(screen.getByRole('region', { name: 'Ageing' })).getAllByRole('alert')).toHaveLength(2);
+  for (const alert of screen.getAllByRole("alert")) {
+    expect(within(alert).getAllByRole("button", { name: "Retry" })).toHaveLength(1);
+  }
+});

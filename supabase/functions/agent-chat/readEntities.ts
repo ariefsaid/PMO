@@ -83,7 +83,7 @@ export const AGENT_AGGREGATE_GROUP_CAP = 200;
  * Agent-curated entity catalogue for the entities NOT covered by ENTITY_WHITELIST. Pure data
  * (dependency-free) so this file stays a leaf. Columns are conservative: business-read fields only.
  *
- * - `table`: the real Postgres table the caller-JWT client reads from (RLS caps every row).
+ * - `table`: the caller-JWT table or masked view used for the read (the database scopes every row).
  * - `allowedColumns`: the only columns a query may SELECT or FILTER on. `org_id` is intentionally
  *   absent on every entry — the tenancy seam is never surfaced to the model.
  */
@@ -94,11 +94,11 @@ export interface AgentCuratedEntity {
 }
 
 export const AGENT_ENTITY_TABLES: Readonly<Record<string, AgentCuratedEntity>> = Object.freeze({
-  // Procurement cases (procure-to-pay folders). Excludes org_id (tenancy), pr_number/po_number
+  // Procurement cases read through the database's visibility-aware view. Excludes org_id (tenancy), pr_number/po_number
   // (internal system IDs beyond the primary `code`), approval_notes/rejection_notes (sensitive
   // approver rationale), approved_by_id/vendor_invoiced_at (audit trails).
   procurements: {
-    table: 'procurements', numericColumns: ['total_value'],
+    table: 'procurements_masked', numericColumns: ['total_value'],
     allowedColumns: [
       'id', 'code', 'title', 'project_id', 'requested_by_id',
       'status', 'total_value', 'vendor_id', 'created_at',
@@ -134,7 +134,7 @@ export const AGENT_ENTITY_TABLES: Readonly<Record<string, AgentCuratedEntity>> =
   // (internal ETL plumbing); file_url/link (raw storage refs). Business doc number + status +
   // amount + date are the fields a user asks about ("where's the PO?", "was it paid?").
   purchase_requests: {
-    table: 'purchase_requests', numericColumns: ['amount'],
+    table: 'purchase_requests_masked', numericColumns: ['amount'],
     allowedColumns: ['id', 'procurement_id', 'pr_number', 'reference_number', 'status', 'date', 'amount', 'created_at'],
   },
   rfqs: {
@@ -150,7 +150,7 @@ export const AGENT_ENTITY_TABLES: Readonly<Record<string, AgentCuratedEntity>> =
     ],
   },
   purchase_orders: {
-    table: 'purchase_orders', numericColumns: ['amount'],
+    table: 'purchase_orders_masked', numericColumns: ['amount'],
     allowedColumns: ['id', 'procurement_id', 'po_number', 'reference_number', 'status', 'date', 'amount', 'created_at'],
   },
   // Goods receipts (GRN). po_id links to the ordering PO.
@@ -168,7 +168,7 @@ export const AGENT_ENTITY_TABLES: Readonly<Record<string, AgentCuratedEntity>> =
   },
   // Line items within a procurement case (name/qty/rate/amount). Capped at the row cap like any read.
   procurement_items: {
-    table: 'procurement_items', numericColumns: ['quantity', 'rate', 'amount'],
+    table: 'procurement_items_masked', numericColumns: ['quantity', 'rate', 'amount'],
     allowedColumns: ['id', 'procurement_id', 'name', 'description', 'quantity', 'rate', 'amount'],
   },
   // Procurement status history (the case's stage transitions). Excludes `notes` (approver

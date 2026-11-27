@@ -1,6 +1,6 @@
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError, toAppError } from '@/src/lib/appError';
-import { listItemTagNames } from './stockMaster';
+import { listItemTagNames, withStockItemTags, type ReadStockItemTags } from './stockMaster';
 
 /** Quantities and money arrive as decimal strings from the read RPCs and stay strings (NFR-STK-007). Cost keys are absent below rank 20. */
 export interface StockOnHandRow {
@@ -22,19 +22,6 @@ export interface StockLedgerRow {
   tagName?: string;
 }
 
-/**
- * The read RPCs carry no item tag, so a screen that must mark client-supplied stock joins the organisation's tag by
- * item id here — one narrow read of tagged items only. An untagged item gets no key (absent, never a blank or a zero).
- */
-async function withItemTags<T extends { itemId: string; tagName?: string }>(rows: T[]): Promise<T[]> {
-  if (rows.length === 0) return rows;
-  const tagByItem = new Map((await listItemTagNames()).map((t) => [t.itemId, t.tagName] as const));
-  for (const row of rows) {
-    const tagName = tagByItem.get(row.itemId);
-    if (tagName) row.tagName = tagName;
-  }
-  return rows;
-}
 export interface StockLedgerFilters {
   itemId?: string; warehouseId?: string; projectId?: string; boqItemId?: string; documentId?: string; from?: string; to?: string;
 }
@@ -72,7 +59,7 @@ type Json = Record<string, any>; // eslint-disable-line @typescript-eslint/no-ex
 const defined = (o: Json) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined));
 const optional = (o: Json, k: string, to: string, out: Json) => { if (o[k] !== undefined) out[to] = o[k]; };
 
-export async function getStockOnHand(f: { warehouseId?: string; itemId?: string; includeZero?: boolean }): Promise<StockOnHandRow[]> {
+export async function getStockOnHand(f: { warehouseId?: string; itemId?: string; includeZero?: boolean }, readTags: ReadStockItemTags = listItemTagNames): Promise<StockOnHandRow[]> {
   const { data, error } = await supabase.rpc('get_stock_on_hand', defined({ p_warehouse_id: f.warehouseId, p_item_id: f.itemId, p_include_zero: f.includeZero }) as never);
   if (error) throw toAppError(error);
   const rows = ((data ?? []) as Json[]).map((r) => {
@@ -85,7 +72,7 @@ export async function getStockOnHand(f: { warehouseId?: string; itemId?: string;
     if (r.vendor_name != null) out.vendorName = r.vendor_name;
     return out as StockOnHandRow;
   });
-  return withItemTags(rows);
+  return withStockItemTags(rows, readTags);
 }
 
 export async function getStockAtRisk(): Promise<StockAtRiskRow[]> {
@@ -127,9 +114,9 @@ async function readStockLedgerPage(f: StockLedgerFilters & { beforeSeq?: number;
 }
 
 /** The screen's page: each row carries its item's configured tag so the trace can mark client-supplied stock. */
-export async function getStockLedgerPage(f: StockLedgerFilters & { beforeSeq?: number; limit?: number }): Promise<StockLedgerPage> {
+export async function getStockLedgerPage(f: StockLedgerFilters & { beforeSeq?: number; limit?: number }, readTags: ReadStockItemTags = listItemTagNames): Promise<StockLedgerPage> {
   const page = await readStockLedgerPage(f);
-  return { ...page, rows: await withItemTags(page.rows) };
+  return { ...page, rows: await withStockItemTags(page.rows, readTags) };
 }
 
 /** Follows the cursor to the end. Throws at the page cap rather than silently truncating (FR-STK-044). */

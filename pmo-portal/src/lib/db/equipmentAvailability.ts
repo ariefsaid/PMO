@@ -107,6 +107,10 @@ export async function listRentalTerms(assetId: string): Promise<RentalTermRow[]>
 export async function saveRentalTerm(term: RentalTermInput): Promise<string> {
   return (await call('save_equipment_rental_term', { p_term: term })) as string;
 }
+export async function endRentalTerm(termId: string, date: string): Promise<void> {
+  const { error } = await supabase.rpc('end_equipment_rental_term', { p_id: termId, p_to: date });
+  if (error) throw new AppError(error.message, error.code);
+}
 export async function changeRentalRate(assetId: string, effectiveOn: string, newRate: string): Promise<string> {
   return (await call('change_equipment_rental_rate', { p_asset: assetId, p_effective_on: effectiveOn, p_new_rate: newRate })) as string;
 }

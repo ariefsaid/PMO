@@ -70,7 +70,8 @@ vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD', useO
 vi.mock('@/src/hooks/useFxOrgDay', () => ({ useFxOrgDay: () => ({ day: '2026-10-27', isPending: false, isError: false, retry: vi.fn() }) }));
 vi.mock('@/src/hooks/useMyTasks', () => ({ useMyTasks: () => ok([]) }));
 vi.mock('@/src/hooks/useOrgToday', () => ({ useOrgToday: () => '2026-10-27' }));
-vi.mock('@/src/hooks/useWorkOrders', () => ({ useAllWorkOrders: () => ok([]) }));
+// #2818: the home tile now reads through the capped open-order hook.
+vi.mock('@/src/hooks/useWorkOrders', () => ({ useOpenWorkOrdersForHome: () => ok([]) }));
 
 import { CompanyDashboard } from '@/src/components/dashboard/hub/company/CompanyDashboard';
 

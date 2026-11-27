@@ -40,13 +40,14 @@ const MASKABLE: readonly MaskableTable[] = [
   'procurements', 'procurement_items', 'procurement_invoices', 'purchase_orders', 'purchase_requests', 'payments',
   'purchase_order_lines', 'po_variation_lines', 'stock_document_lines', 'stock_ledger', 'stock_balances', 'equipment_plan_lines',
 ];
-const EMBED = new RegExp(`(^|[\\s,:])(${MASKABLE.join('|')})\\(`, 'g');
+const EMBED = new RegExp(`(^|[\\s,:])(${MASKABLE.join('|')})((?:![\\w]+)*)\\(`, 'g');
 
 /** Rewrites the price-bearing embeds of a PostgREST select to their masked views while the setting is on; unchanged otherwise.
- *  `a:purchase_orders(*)` -> `a:purchase_orders_masked(*)`; `purchase_orders(amount)` -> `purchase_orders:purchase_orders_masked(amount)`. */
+ *  `a:purchase_orders(*)` -> `a:purchase_orders_masked(*)`; `purchase_orders!inner(amount)` ->
+ *  `purchase_orders:purchase_orders_masked!inner(amount)`. */
 export function maskSelection(selection: string): string {
   if (!hidePricesActive) return selection;
-  return selection.replace(/procurement_open_commitment(?![\w])/g, 'procurement_open_commitment_masked').replace(EMBED, (_m, pre: string, table: string) => (pre === ':' ? `:${table}_masked(` : `${pre}${table}:${table}_masked(`));
+  return selection.replace(/procurement_open_commitment(?![\w])/g, 'procurement_open_commitment_masked').replace(EMBED, (_m, pre: string, table: string, hints: string) => (pre === ':' ? `:${table}_masked${hints}(` : `${pre}${table}:${table}_masked${hints}(`));
 }
 
 export type MaskableFunction = 'project_committed_spend' | 'procurement_open_commitments';

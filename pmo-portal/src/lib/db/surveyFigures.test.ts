@@ -12,7 +12,8 @@ const facts = (): ProjectBillingFacts => ({
 
 beforeEach(() => {
   h.result = { data: [], error: null };
-  h.from.mockReset().mockImplementation(() => ({ select: () => ({ in: () => ({ limit: () => Promise.resolve(h.result) }) }) }));
+  const query = { select: () => query, in: () => query, order: () => query, range: () => Promise.resolve(h.result) };
+  h.from.mockReset().mockReturnValue(query);
 });
 
 describe('AC-SCR-012 withSurveyFigures', () => {

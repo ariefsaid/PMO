@@ -30,7 +30,7 @@ function useInvalidate(workOrderId: string, projectId?: string) {
     qc.invalidateQueries({ queryKey: ['work-order-sections', orgId, workOrderId] }),
     qc.invalidateQueries({ queryKey: ['work-order-sections', orgId, 'events'] }),
     // The work order's plan total reads the same plan lines.
-    projectId ? invalidateProjectPlanVsActual(qc, orgId, projectId) : Promise.resolve(),
+    projectId ? invalidateProjectPlanVsActual(qc, orgId) : Promise.resolve(),
   ]);
 }
 

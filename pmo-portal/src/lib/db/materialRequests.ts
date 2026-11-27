@@ -1,3 +1,4 @@
+import { fetchAllPages } from '@/src/lib/pagedRead';
 import { BY_IDS_CHUNK } from './limits';
 import { supabase } from '@/src/lib/supabase/client';
 import { nullableArg } from './nullableArg';
@@ -362,18 +363,17 @@ export interface PriorRequestLine { requestId: string; number: string; status: M
  * work order, which is not a request and is not listed here.
  */
 export async function listPriorRequestLines(workOrderId: string, itemId: string, excludeRequestId?: string | null): Promise<PriorRequestLine[]> {
-  const { data, error } = await (supabase
+  const rows = await fetchAllPages((from, to) => supabase
     .from('material_request_lines')
     .select('quantity, material_requests!inner(id, number, status, needed_by, work_order_id, created_at)')
     .eq('item_id', itemId)
     .eq('material_requests.work_order_id', workOrderId)
     .in('material_requests.status', ['pending', 'approved'])
-    .limit(200) as unknown as DbResult<Array<{
+    .order('id').range(from, to) as unknown as DbResult<Array<{
       quantity: number | string;
       material_requests: { id: string; number: string; status: MaterialRequestStatus; needed_by: string; created_at: string };
     }>>);
-  if (error) fail(error);
-  return (data ?? [])
+  return rows
     .filter((l) => l.material_requests.id !== excludeRequestId)
     .sort((a, b) => b.material_requests.created_at.localeCompare(a.material_requests.created_at))
     .map((l) => ({ requestId: l.material_requests.id, number: l.material_requests.number, status: l.material_requests.status, quantity: Number(l.quantity), neededBy: l.material_requests.needed_by }));

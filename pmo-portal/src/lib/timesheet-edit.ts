@@ -48,7 +48,7 @@ export function parseHourCell(raw: string): { value: number; valid: boolean } {
   const trimmed = raw.trim();
   if (trimmed === '') return { value: 0, valid: true };
   // Number('') is 0 and Number('8h') is NaN; reject anything non-finite.
-  const value = Number(trimmed);
+  const value = Number(trimmed.replace(',', '.'));
   if (!Number.isFinite(value)) return { value: NaN, valid: false };
   const valid = value >= 0 && value <= 24;
   return { value, valid };

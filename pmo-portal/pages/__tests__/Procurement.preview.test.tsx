@@ -141,8 +141,8 @@ describe('Procurement list — inline preview (fix #5)', () => {
     items: [{ id: 'i-1', name: 'Steel beam', description: 'IPE 300', quantity: 12 }],
     purchase_requests: [], quotations: [], purchase_orders: [], receipts: [], invoices: [], payments: [],
   };
-  const openPreview = async () => {
-    detailState.data = DETAIL;
+  const openPreview = async (detail: Record<string, unknown> = DETAIL) => {
+    detailState.data = detail;
     const user = userEvent.setup();
     renderPage();
     await user.click(screen.getByRole('button', { name: 'Open Steel Beams Supply' }));
@@ -154,11 +154,17 @@ describe('Procurement list — inline preview (fix #5)', () => {
     const drawer = screen.getByRole('dialog');
     expect(within(drawer).getByText('Line items')).toBeInTheDocument();
     expect(within(drawer).getByText('Steel beam · IPE 300')).toBeInTheDocument();
-    // The quantity leads the item's price line (12 × unit price).
-    expect(within(drawer).getByText(/^12 ×/)).toBeInTheDocument();
+    // An omitted estimate leaves the quantity visible without an invented price.
+    expect(within(drawer).getByText('12', { exact: true })).toBeInTheDocument();
+    expect(within(drawer).queryByText(/^12 ×/)).not.toBeInTheDocument();
     expect(within(drawer).getByText('Next step')).toBeInTheDocument();
     expect(within(drawer).getByText('Request')).toBeInTheDocument();
     expect(within(drawer).getByText('Waiting on approver')).toBeInTheDocument();
+  });
+
+  it('AC-FIX5-PREVIEW-02: a known estimate shows quantity and unit price', async () => {
+    await openPreview({ ...DETAIL, items: [{ id: 'i-1', name: 'Steel beam', description: 'IPE 300', quantity: 12, rate: 5 }] });
+    expect(within(screen.getByRole('dialog')).getByText(/^12 × \$5/)).toBeInTheDocument();
   });
 
   it('AC-FIX5-PREVIEW-03: from the preview the user reaches the full record at /procurement/:id', async () => {

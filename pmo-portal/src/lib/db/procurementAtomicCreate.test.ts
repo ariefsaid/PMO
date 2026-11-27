@@ -13,6 +13,12 @@ const input = {
 describe('atomic procurement creation', () => {
   beforeEach(() => rpc.mockReset());
 
+  it('AC-HPG-047 sends the existing empty-estimate value for a price-hidden request line', async () => {
+    rpc.mockResolvedValue({ data: { id: 'header-id' }, error: null });
+    await createProcurementWithItems({ ...input, lines: [{ ...input.lines[0], rate: null }] });
+    expect(rpc.mock.calls[0][1].p_items[0]).toMatchObject({ name: 'Material', quantity: 2, rate: 0 });
+  });
+
   it('submits stable IDs and all lines together without client authority fields', async () => {
     rpc.mockResolvedValue({ data: { id: 'header-id' }, error: null });
     await expect(createProcurementWithItems(input)).resolves.toEqual({ id: 'header-id' });

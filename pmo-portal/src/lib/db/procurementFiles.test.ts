@@ -1,4 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { setHidePricesActive } from '@/src/lib/priceReadPath';
 
 // Chainable supabase query-builder + storage mock — same harness shape as documents.test.ts.
 const h = vi.hoisted(() => {
@@ -109,6 +110,7 @@ beforeEach(() => {
   };
   h.dlResult.value = { data: { signedUrl: 'https://dl/url' }, error: null };
 });
+afterEach(() => setHidePricesActive(false));
 
 describe('AC-PERF-2106-2 listProcurementFilesForParents', () => {
   it('AC-PERF-2106-2: one in(parent) read per phase present, rows grouped per record, empty record kept', async () => {
@@ -173,6 +175,16 @@ describe('AC-PF-009 prepareUpload (server-fetches org_id — ADR-0017 seam fix)'
     // Verify the DAL queried procurements table for org_id
     expect(h.calls.from).toContain('procurements');
     expect(h.calls.eq).toContainEqual(['id', 'proc1']);
+  });
+
+  it('AC-PF-009: reads the request owner through the masked procurement view when price hiding is active', async () => {
+    setHidePricesActive(true);
+    h.result.value = { data: { org_id: 'server-org' }, error: null };
+
+    await prepareUpload('purchase_request', 'proc1', 'request.pdf');
+
+    expect(h.calls.from).toEqual(['procurements_masked']);
+    expect(h.calls.select).toContain('org_id');
   });
 
   it('AC-PF-009: throws AppError when procurement row is not found (no client-supplied org fallback)', async () => {

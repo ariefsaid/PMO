@@ -44,6 +44,7 @@ export async function createProcurementFixture(opts: {
   rentalTo?: string;
   /** Name the seeded supplier on the purchase (an order needs one). */
   withSupplier?: boolean;
+  lineName?: string;
   /** Unit price of the one line; the purchase total follows it. */
   rate?: number;
   quantity?: number;
@@ -69,7 +70,7 @@ export async function createProcurementFixture(opts: {
   if (error) throw new Error(`procurement fixture insert failed: ${error.message}`);
   const { error: itemError } = await admin
     .from('procurement_items')
-    .insert({ procurement_id: id, name: 'Fixture line', description: 'e2e fixture', quantity: opts.quantity ?? 1, rate: opts.rate ?? 12000 });
+    .insert({ procurement_id: id, name: opts.lineName ?? 'Fixture line', description: 'e2e fixture', quantity: opts.quantity ?? 1, rate: opts.rate ?? 12000 });
   if (itemError) throw new Error(`procurement fixture item insert failed: ${itemError.message}`);
 
   return {
