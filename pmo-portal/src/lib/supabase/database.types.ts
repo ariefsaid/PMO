@@ -32598,6 +32598,14 @@ export type Database = {
         Args: { p_from?: string; p_to?: string }
         Returns: Json
       }
+      get_projects_plan_actual_sources: {
+        Args: { p_project_ids: string[] }
+        Returns: Json
+      }
+      project_plan_actual_sources: {
+        Args: { p_project_ids: string[] }
+        Returns: { project_id: string; sources: Json }[]
+      }
       get_management_pack: {
         Args: { p_from?: string; p_to?: string }
         Returns: Json

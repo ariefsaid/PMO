@@ -55,6 +55,10 @@ export async function listProjectCostAmounts(projectId: string): Promise<CostAmo
   const rows = await fetchAllPages<CostAmountRow>((from, to) =>
     supabase.rpc('work_order_cost_amounts', { p_project_id: projectId })
       .order('record_id', { ascending: true }).order('source', { ascending: true }).range(from, to) as unknown as PromiseLike<{ data: CostAmountRow[] | null; error: { message: string; code?: string } | null }>);
+  return parseCostAmountRows(rows);
+}
+
+export function parseCostAmountRows(rows: CostAmountRow[]): CostAmountLine[] {
   return rows.map((r) => {
     // Labour money for a Project Manager is aggregate (migrations 1298, 1721, 1722, 1933): timesheet money one row per work order,
     // discipline and class; class-priced money (attendance, head count) one row per work order and discipline with no class and no
@@ -93,6 +97,10 @@ export async function listProjectPlanLines(projectId: string): Promise<PlanLine[
   const rows = await fetchAllPages<PlanRow>((from, to) =>
     supabase.from('work_order_plan_lines').select('id, work_order_id, section_id, discipline_id, kind, value::text, note')
       .eq('project_id', projectId).order('id', { ascending: true }).range(from, to) as unknown as PromiseLike<{ data: PlanRow[] | null; error: { message: string; code?: string } | null }>);
+  return parsePlanRows(rows);
+}
+
+export function parsePlanRows(rows: PlanRow[]): PlanLine[] {
   return rows.map((r) => {
     const value = String(r.value);
     if (!KINDS.includes(r.kind as PlanKind) || !EXACT.test(value)) throw new AppError('Plan figure: unexpected row', MALFORMED);
@@ -117,6 +125,10 @@ export async function getSharedSplit(projectId: string): Promise<SplitPercent[] 
   const rows = await fetchAllPages<{ work_order_id: string; percent: number | string }>((from, to) =>
     supabase.from('project_shared_cost_splits').select('work_order_id, percent').eq('project_id', projectId)
       .order('work_order_id', { ascending: true }).range(from, to));
+  return parseSplitRows(rows);
+}
+
+export function parseSplitRows(rows: { work_order_id: string; percent: number | string }[]): SplitPercent[] | null {
   if (rows.length === 0) return null;
   return rows.map((r) => {
     const p = num(r.percent);

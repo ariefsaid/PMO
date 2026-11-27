@@ -14,7 +14,7 @@ import { EarnedBilledTable, type EbCell, type EbTableRow } from '@/src/component
 /**
  * Management pack: earned and billed revenue with the gap and margin on each basis, per project (#2733, FR-EBR-021).
  * Earned comes from `management_pack_earned`; cost and billed from the SAME plan-versus-actual roll-up the project tab uses
- * (same query and cache key), so the pack and the tab never disagree. Existing pack columns and totals are untouched.
+ * (shared parsers and rollup), so the pack and the tab never disagree. Existing pack columns and totals are untouched.
  * Nothing renders while the organisation setting is off or the role may not read work-order money.
  */
 const ManagementPackEarned: React.FC = () => {
@@ -32,13 +32,14 @@ const ManagementPackEarned: React.FC = () => {
 
   if (!on) return null;
   const title = t('earnedBilled.packTitle', 'Earned and billed revenue by project');
-  if (earned.isPending || earned.isError) {
+  const batchError = rollups.find((q) => q.isBatchError);
+  if (earned.isPending || earned.isError || batchError) {
     return (
       <Card className="min-w-0" data-testid="pack-earned">
         <CardHead level={2} className="text-base">{title}</CardHead>
         <CardPad className="pt-0">
-          {earned.isError
-            ? <ListState variant="error" title={t('earnedBilled.loadError', 'Couldn\'t load earned and billed revenue')} retryLabel={t('profit.retry', 'Try again')} onRetry={() => { void earned.refetch(); }} />
+          {earned.isError || batchError
+            ? <ListState variant="error" title={t('earnedBilled.loadError', 'Couldn\'t load earned and billed revenue')} retryLabel={t('profit.retry', 'Try again')} onRetry={() => { void (batchError ?? earned).refetch(); }} />
             : <ListState variant="loading" rows={3} />}
         </CardPad>
       </Card>

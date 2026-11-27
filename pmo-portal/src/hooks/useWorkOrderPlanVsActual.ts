@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/src/auth/useAuth';
 import { workOrderFinanceRepository, type PlanChange } from '@/src/lib/repositories/workOrderFinance';
 import type { SplitPercent } from '@/src/lib/workOrderPlanVsActual';
@@ -14,10 +14,15 @@ export function useProjectPlanVsActual(projectId: string, enabled = true) {
   return useQuery(projectPlanVsActualQuery(useAuth().currentUser?.org_id, projectId, enabled));
 }
 
+/** Refresh every project-money consumer in this organisation. */
+export function invalidateProjectPlanVsActual(qc: QueryClient, orgId: string | undefined) {
+  return qc.invalidateQueries({ queryKey: ['work-order-plan-vs-actual', orgId] });
+}
+
 function useInvalidate() {
   const qc = useQueryClient();
   const { currentUser } = useAuth();
-  return () => qc.invalidateQueries({ queryKey: ['work-order-plan-vs-actual', currentUser?.org_id] });
+  return () => invalidateProjectPlanVsActual(qc, currentUser?.org_id);
 }
 
 export function useSaveWorkOrderPlan(projectId: string) {

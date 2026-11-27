@@ -1,6 +1,6 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { rollupProject, type CostAmountLine, type PvaWorkOrder } from '@/src/lib/workOrderPlanVsActual';
 
 /** #2733 AC-EBR-012 — the pack shows earned, billed, gap and margin on both bases from the project tab's own roll-up. */
@@ -56,4 +56,14 @@ describe('ManagementPackEarned', () => {
     h.setting = { data: true }; h.role = 'Engineer';
     expect(render(<ManagementPackEarned />).container.textContent).toBe('');
   });
+});
+
+it('AC-Q9-013: a shared pack error offers one retry', () => {
+  setData([row()]);
+  const retry = vi.fn();
+  h.roll = [{ isBatchError: true, isError: true, refetch: retry }];
+  render(<ManagementPackEarned />);
+  fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+  expect(retry).toHaveBeenCalledOnce();
+  expect(screen.queryByTestId('pack-earned-row-p1-USD-earned')).not.toBeInTheDocument();
 });
