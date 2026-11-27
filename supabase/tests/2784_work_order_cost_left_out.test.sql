@@ -3,6 +3,8 @@
 -- Mutation checks:
 --   mut:hide_prices — set v_show_prices := true; the price-hidden role test goes red (returns totals instead of null).
 --   mut:pm_scope    — remove project_money_in_scope(v_project_id); PM of another project reads WO instead of P0002.
+--   mut:unlinked_cap — drop the unlinked-payment subtraction in bill_purchase; test 4 goes red (unpaid bill total 2,000,000).
+--   mut:draft_po    — drop the Draft exclusion from open_pos; test 4 goes red (purchase order count 3).
 begin;
 create extension if not exists pgtap;
 select no_plan();
@@ -111,6 +113,24 @@ insert into expense_claims (id, org_id, project_id, work_order_id, claimant_id, 
   ('27840000-0000-0000-0000-000000000701', '27840000-0000-0000-0000-00000000000a', '27840000-0000-0000-0000-000000000101', '27840000-0000-0000-0000-000000000201', '27840000-0000-0000-0000-0000000000a6', 'claim', 'Submitted', 'Site fuel', 300000, 'IDR'),
   ('27840000-0000-0000-0000-000000000702', '27840000-0000-0000-0000-00000000000a', '27840000-0000-0000-0000-000000000101', '27840000-0000-0000-0000-000000000201', '27840000-0000-0000-0000-0000000000a6', 'claim', 'Approved',  'Site toll', 200000, 'IDR');
 
+-- 6. Review cases (#3026 fix round):
+--   P4: bill 1,000,000 (tax 0) with a 400,000 advance NOT linked to the bill. Direct cost already counts the 400,000 as the
+--       purchase balance, so only 600,000 is left out (mut:unlinked_cap).
+--   P5: a Draft purchase order (900,000) is not a commitment -> not "ordered, not billed" (mut:draft_po).
+--   P6: Issued PO 1,000,000, no bill, 300,000 advance not linked to a bill -> 700,000 left out.
+insert into procurements (id, org_id, title, project_id, work_order_id, requested_by_id, status, total_value, approved_total_value, currency) values
+  ('27840000-0000-0000-0000-000000000304', '27840000-0000-0000-0000-00000000000a', 'Rebar advance', '27840000-0000-0000-0000-000000000101', '27840000-0000-0000-0000-000000000201', '27840000-0000-0000-0000-0000000000a1', 'Vendor Invoiced', 1000000, 1000000, 'IDR'),
+  ('27840000-0000-0000-0000-000000000305', '27840000-0000-0000-0000-00000000000a', 'Draft order',   '27840000-0000-0000-0000-000000000101', '27840000-0000-0000-0000-000000000201', '27840000-0000-0000-0000-0000000000a1', 'Approved',        900000,  900000, 'IDR'),
+  ('27840000-0000-0000-0000-000000000306', '27840000-0000-0000-0000-00000000000a', 'Pipe advance',  '27840000-0000-0000-0000-000000000101', '27840000-0000-0000-0000-000000000201', '27840000-0000-0000-0000-0000000000a1', 'Ordered',        1000000, 1000000, 'IDR');
+insert into purchase_orders (id, org_id, procurement_id, po_number, date, status, amount, currency, work_order_id) values
+  ('27840000-0000-0000-0000-000000000315', '27840000-0000-0000-0000-00000000000a', '27840000-0000-0000-0000-000000000305', 'PO-5', '2026-11-11', 'Draft',   900000, 'IDR', '27840000-0000-0000-0000-000000000201'),
+  ('27840000-0000-0000-0000-000000000316', '27840000-0000-0000-0000-00000000000a', '27840000-0000-0000-0000-000000000306', 'PO-6', '2026-11-11', 'Issued', 1000000, 'IDR', '27840000-0000-0000-0000-000000000201');
+insert into procurement_invoices (id, org_id, procurement_id, po_id, vi_number, invoice_date, status, amount, tax_treatment, tax_amount, currency, work_order_id) values
+  ('27840000-0000-0000-0000-000000000334', '27840000-0000-0000-0000-00000000000a', '27840000-0000-0000-0000-000000000304', null, 'VI-4', '2026-11-12', 'Received', 1000000, 'exclusive', 0, 'IDR', '27840000-0000-0000-0000-000000000201');
+insert into payments (id, org_id, procurement_id, invoice_id, pay_number, date, status, amount, currency) values
+  ('27840000-0000-0000-0000-000000000344', '27840000-0000-0000-0000-00000000000a', '27840000-0000-0000-0000-000000000304', null, 'PAY-4', '2026-11-10', 'Paid', 400000, 'IDR'),
+  ('27840000-0000-0000-0000-000000000346', '27840000-0000-0000-0000-00000000000a', '27840000-0000-0000-0000-000000000306', null, 'PAY-6', '2026-11-10', 'Paid', 300000, 'IDR');
+
 set local session_replication_role = origin;
 
 create or replace function pg_temp.act_as(p_uid uuid) returns void language sql as $$
@@ -139,8 +159,8 @@ select is(
   (select jsonb_object_agg(x->>'kind', jsonb_build_object('count', (x->>'count')::int, 'currency', x->>'currency', 'total', x->>'total'))
      from jsonb_array_elements(work_order_cost_left_out('27840000-0000-0000-0000-000000000201')->'items') x),
   jsonb_build_object(
-    'unpaid_bill',          jsonb_build_object('count', 1, 'currency', 'IDR', 'total', '1000000.00'),
-    'purchase_order',       jsonb_build_object('count', 1, 'currency', 'IDR', 'total', '2500000.00'),
+    'unpaid_bill',          jsonb_build_object('count', 2, 'currency', 'IDR', 'total', '1600000.00'),
+    'purchase_order',       jsonb_build_object('count', 2, 'currency', 'IDR', 'total', '3200000.00'),
     'goods_receipt',        jsonb_build_object('count', 1, 'currency', null,  'total', null),
     'uncounted_stock',      jsonb_build_object('count', 1, 'currency', 'IDR', 'total', '750000.00'),
     'unapproved_claim',     jsonb_build_object('count', 1, 'currency', 'IDR', 'total', '300000.00'),

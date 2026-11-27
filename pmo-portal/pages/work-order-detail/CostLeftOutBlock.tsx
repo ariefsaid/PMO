@@ -71,7 +71,7 @@ const CostLeftOutView: React.FC<{ data: WorkOrderCostLeftOut }> = ({ data }) => 
       <button
         type="button"
         aria-expanded={open}
-        aria-controls="wo-cost-left-out-panel"
+        aria-controls={open ? 'wo-cost-left-out-panel' : undefined}
         onClick={() => setOpen((prev) => !prev)}
         className="inline-flex items-center gap-1.5 text-control text-muted-foreground hover:text-foreground"
         data-testid="wo-cost-left-out-toggle"

@@ -51,7 +51,7 @@ begin
   v_fin_currency := v_fin->>'currency';
 
   with proj_purchases as materialized (
-    select p.id, p.currency, p.status, p.work_order_id
+    select p.id, p.currency, p.status, p.work_order_id, public.procurement_paid_pre_tax(p) as paid
       from public.procurements p
      where not v_erp
        and p.org_id = v_org and p.project_id = v_project_id
@@ -73,8 +73,29 @@ begin
      where pay.org_id = v_org and pay.invoice_id is not null and pay.status = 'Paid'
        and coalesce(pay.erp_docstatus, 1) <> 2 and pay.erp_cancelled_at is null
      group by pay.invoice_id
+  ), bill_linked as (
+    -- The bill-linked share of what direct cost counts, as work_order_cost_amounts (2768 bill_amounts) computes it.
+    select i.procurement_id, i.id,
+           case when coalesce(lp.unreadable, false) or i.amount is null or i.amount::text in ('NaN', 'Infinity', '-Infinity')
+                     or i.currency is distinct from pr.currency then null::numeric
+                when (i.amount + case when i.tax_treatment = 'exclusive' then coalesce(i.tax_amount, 0) else 0 end
+                      - coalesce(i.withheld_amount, 0)) > 0
+                then round(lp.paid * (case when i.tax_treatment = 'inclusive' then i.amount - coalesce(i.tax_amount, 0) else i.amount end)
+                     / (i.amount + case when i.tax_treatment = 'exclusive' then coalesce(i.tax_amount, 0) else 0 end
+                         - coalesce(i.withheld_amount, 0)), 2)
+                else lp.paid end as share
+      from linked_pay lp
+      join public.procurement_invoices i on i.id = lp.invoice_id and i.org_id = v_org
+      join proj_purchases pr on pr.id = i.procurement_id
+  ), purchase_unlinked as (
+    -- Paid on the purchase but not linked to a bill: direct cost counts it as the purchase balance (2768 remainders).
+    select pr.id as procurement_id, pr.currency,
+           case when pr.paid is null or bool_or(b.id is not null and b.share is null) then null::numeric
+                else greatest(pr.paid - coalesce(sum(b.share), 0), 0) end as unlinked
+      from proj_purchases pr left join bill_linked b on b.procurement_id = pr.id
+     group by pr.id, pr.currency, pr.paid
   ), unpaid_bills as (
-    select i.id, i.currency,
+    select i.id, i.procurement_id, i.currency,
            case
              when i.amount is null or i.amount::text in ('NaN', 'Infinity', '-Infinity')
                   or coalesce(lp.unreadable, false)
@@ -116,9 +137,21 @@ begin
        -- Exclude invoices on a purchase already marked Paid via unlinked payment (counted through purchase_balance).
        and not (lp.invoice_id is null and pr.status = 'Paid' and exists (select 1 from paid_purchases pp where pp.procurement_id = pr.id))
   ), unpaid_bills_open as (
-    select id, currency, unpaid from unpaid_bills where unpaid is null or unpaid > 0
+    select id, procurement_id, currency, unpaid from unpaid_bills where unpaid is null or unpaid > 0
+  ), bill_purchase as (
+    -- ponytail: the whole unlinked paid amount is taken off this work order's bills (then its orders), so a purchase split
+    -- across work orders is understated here, never double counted; prorate by work order if that ever matters.
+    select b.procurement_id, count(*) as cnt, min(b.currency) as currency,
+           bool_or(b.unpaid is null) or u.unlinked is null or count(distinct b.currency) > 1
+             or bool_or(b.currency is distinct from u.currency) as unreadable,
+           greatest(sum(b.unpaid) - coalesce(u.unlinked, 0), 0) as unpaid,                    -- mut:unlinked_cap
+           greatest(coalesce(u.unlinked, 0) - coalesce(sum(b.unpaid), 0), 0) as unlinked_left
+      from unpaid_bills_open b join purchase_unlinked u on u.procurement_id = b.procurement_id
+     group by b.procurement_id, u.unlinked, u.currency
+  ), bill_purchase_open as (
+    select * from bill_purchase where unreadable or unpaid > 0
   ), open_pos as (
-    select po.id, po.currency,
+    select po.id, po.procurement_id, po.currency,
            case when po.amount is null or po.amount::text in ('NaN', 'Infinity', '-Infinity') then null::numeric
                 else round(po.amount, 2) end as amount
       from public.purchase_orders po
@@ -126,7 +159,7 @@ begin
      where po.org_id = v_org
        and pr.status not in ('Cancelled', 'Rejected')
        and coalesce(po.erp_docstatus, 1) <> 2 and po.erp_cancelled_at is null
-       and coalesce(po.status, '') not in ('Cancelled', 'Rejected')
+       and po.status in ('Issued', 'Acknowledged', 'Closed')   -- mut:draft_po: a Draft order is not a commitment (as 2768)
        and coalesce(po.work_order_id, pr.work_order_id) = p_work_order_id
        and not exists (
          select 1 from public.procurement_invoices i
@@ -134,7 +167,18 @@ begin
             and (i.po_id = po.id or i.po_id is null)
             and i.voided_at is null and coalesce(i.erp_docstatus, 1) <> 2 and i.erp_cancelled_at is null
        )
-       and not exists (select 1 from paid_purchases pp where pp.procurement_id = pr.id)
+  ), po_purchase as (
+    -- What is still paid but not yet taken by this work order's bills comes off the open orders (no double count).
+    select o.procurement_id, count(*) as cnt, min(o.currency) as currency,
+           bool_or(o.amount is null) or count(distinct o.currency) > 1 or bool_or(o.currency is distinct from u.currency)
+             or u.unlinked is null or (bp.procurement_id is not null and bp.unreadable) as unreadable,
+           greatest(sum(o.amount) - case when bp.procurement_id is not null then bp.unlinked_left else coalesce(u.unlinked, 0) end, 0) as amount
+      from open_pos o
+      join purchase_unlinked u on u.procurement_id = o.procurement_id
+      left join bill_purchase bp on bp.procurement_id = o.procurement_id
+     group by o.procurement_id, u.unlinked, u.currency, bp.procurement_id, bp.unreadable, bp.unlinked_left
+  ), po_purchase_open as (
+    select * from po_purchase where unreadable or amount > 0
   ), open_grs as (
     select gr.id
       from public.procurement_receipts gr
@@ -226,19 +270,19 @@ begin
             and e.work_date between v.window_from and v.window_to
        )
   ), kinds as (
-    select 1 as ord, 'unpaid_bill'::text as kind, count(*)::integer as cnt,
-           case when v_show_prices and count(distinct currency) = 1 and count(*) filter (where unpaid is null) = 0
+    select 1 as ord, 'unpaid_bill'::text as kind, coalesce(sum(cnt), 0)::integer as cnt,
+           case when v_show_prices and count(distinct currency) = 1 and not bool_or(unreadable)
                 then min(currency) end as currency,
-           case when v_show_prices and count(distinct currency) = 1 and count(*) filter (where unpaid is null) = 0
+           case when v_show_prices and count(distinct currency) = 1 and not bool_or(unreadable)
                 then round(sum(unpaid), 2)::text end as total
-      from unpaid_bills_open
+      from bill_purchase_open
     union all
-    select 2, 'purchase_order', count(*)::integer,
-           case when v_show_prices and count(distinct currency) = 1 and count(*) filter (where amount is null) = 0
+    select 2, 'purchase_order', coalesce(sum(cnt), 0)::integer,
+           case when v_show_prices and count(distinct currency) = 1 and not bool_or(unreadable)
                 then min(currency) end,
-           case when v_show_prices and count(distinct currency) = 1 and count(*) filter (where amount is null) = 0
+           case when v_show_prices and count(distinct currency) = 1 and not bool_or(unreadable)
                 then round(sum(amount), 2)::text end
-      from open_pos
+      from po_purchase_open
     union all
     select 3, 'goods_receipt', count(*)::integer, null::text, null::text
       from open_grs
