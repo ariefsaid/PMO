@@ -54,7 +54,7 @@ export interface ProofStatusRow {
 }
 
 export async function getTransferSettings(): Promise<TransferSettings> {
-  const { data, error } = await readOrgColumnsStrict(['stock_transfer_mode', 'stock_proof_timing', 'stock_handover_scope']);
+  const { data, error } = await readOrgColumnsStrict(['stock_transfer_mode', 'stock_proof_timing', 'stock_handover_scope'], { limit: true });
   if (error) throw toAppError(error);
   return { mode: data?.stock_transfer_mode === 'two_step' ? 'two_step' : 'one_step', proofTiming: data?.stock_proof_timing === 'may_follow' ? 'may_follow' : 'before_posting',
     handoverScope: data?.stock_handover_scope === 'transfers_and_issues' ? 'transfers_and_issues' : 'transfers' };

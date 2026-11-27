@@ -40,7 +40,7 @@ interface DsrStockStatusRpc {
 /** The organisation's setting; a read that fails counts as off, so a screen never shows the feature by accident. */
 export async function getDsrStockSettings(): Promise<DsrStockSettings> {
   try {
-    const { data, error } = await readOrgColumnsStrict(['dsr_stock_issue', 'dsr_stock_issue_items']);
+    const { data, error } = await readOrgColumnsStrict(['dsr_stock_issue', 'dsr_stock_issue_items'], { limit: true });
     if (error || !data) return OFF;
     return { enabled: data.dsr_stock_issue === true, items: data.dsr_stock_issue_items === 'consumables' ? 'consumables' : 'all' };
   } catch {

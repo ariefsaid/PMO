@@ -6,6 +6,7 @@ const h = vi.hoisted(() => {
   const builder: Record<string, unknown> = {};
   builder.select = (arg: string) => { state.selects.push(arg); return builder; };
   builder.limit = (n: number) => { state.limits.push(n); return builder; };
+  builder.maybeSingle = async () => ({ data: state.rows[0] ?? null, error: state.error });
   builder.then = (resolve: (v: unknown) => unknown) => resolve({ data: state.error ? null : state.rows, error: state.error });
   return { state, from: vi.fn(() => builder) };
 });
@@ -52,13 +53,49 @@ describe('organisation setting reads in the same moment share one request', () =
     h.state.error = { message: 'boom', code: 'XX000' };
     const results = await Promise.all([readOrgColumns(['a']), readOrgColumns(['b'])]);
     expect(results.map((r) => r.error?.code)).toEqual(['XX000', 'XX000']);
-    expect(h.from).toHaveBeenCalledTimes(1);
+    expect(h.from).toHaveBeenCalledTimes(3); // the shared read, then each reader's own read
   });
 
   it('keeps single-row semantics: the strict reader refuses two visible organisations, the first-row reader takes the first', async () => {
     h.state.rows = [{ x: 1 }, { x: 2 }];
     await expect(readOrgColumnsStrict(['x'])).resolves.toMatchObject({ data: null, error: { code: 'PGRST116' } });
     await expect(readOrgColumns(['x'])).resolves.toEqual({ data: { x: 1 }, error: null });
+  });
+
+  it('a failed shared read falls back to each reader\'s own read, so one bad column does not break the others', async () => {
+    h.from.mockImplementationOnce(() => { throw new TypeError('shared read unavailable'); });
+    h.state.rows = [{ crew_loans_enabled: true, claim_quantity_over_cap: 'block' }];
+    const [loans, cap] = await Promise.all([getCrewLoansEnabled(), getClaimOverCap()]);
+    expect([loans, cap]).toEqual([true, 'block']);
+    expect(h.from).toHaveBeenCalledTimes(3);
+    expect(h.state.selects.slice(-2).sort()).toEqual(['claim_quantity_over_cap', 'crew_loans_enabled']);
+  });
+
+  it('a shared read that throws never leaves an unhandled rejection', async () => {
+    const seen: unknown[] = [];
+    const onRejection = (e: unknown) => seen.push(e);
+    process.on('unhandledRejection', onRejection);
+    h.from.mockImplementationOnce(() => { throw new Error('nope'); });
+    h.state.rows = [{ x: 1 }];
+    await expect(readOrgColumns(['x'])).resolves.toEqual({ data: { x: 1 }, error: null });
+    await new Promise((r) => setTimeout(r, 10));
+    process.off('unhandledRejection', onRejection);
+    expect(seen).toEqual([]);
+  });
+
+  it('asks for one row, or two only when a reader must refuse a second visible organisation', async () => {
+    h.state.rows = [{ crew_loans_enabled: true }];
+    await getCrewLoansEnabled();
+    expect(h.state.limits).toEqual([1]);
+    h.state.limits.length = 0;
+    await getClaimOverCap();
+    expect(h.state.limits).toEqual([2]);
+  });
+
+  it('a lone reader gets a database error back as its own error, with no second request', async () => {
+    h.state.error = { message: 'denied', code: '42501' };
+    await expect(getCrewLoansEnabled()).rejects.toMatchObject({ code: '42501' });
+    expect(h.from).toHaveBeenCalledTimes(1);
   });
 
   it('no organisation visible reads as no row', async () => {

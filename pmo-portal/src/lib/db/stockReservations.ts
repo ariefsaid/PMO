@@ -32,7 +32,7 @@ const OFF: ReservationSettings = { enabled: false, borrowMode: 'approve', borrow
 
 /** The organisation's reservation settings (default off). */
 export async function getReservationSettings(): Promise<ReservationSettings> {
-  const { data, error } = await readOrgColumnsStrict<{ stock_reservations: boolean | null; reservation_borrow_mode: string | null; reservation_borrow_role: string | null; reservation_borrow_label: string | null }>(['stock_reservations', 'reservation_borrow_mode', 'reservation_borrow_role', 'reservation_borrow_label']);
+  const { data, error } = await readOrgColumnsStrict<{ stock_reservations: boolean | null; reservation_borrow_mode: string | null; reservation_borrow_role: string | null; reservation_borrow_label: string | null }>(['stock_reservations', 'reservation_borrow_mode', 'reservation_borrow_role', 'reservation_borrow_label'], { limit: true });
   if (error) throw toAppError(error);
   if (!data) return OFF;
   return {
