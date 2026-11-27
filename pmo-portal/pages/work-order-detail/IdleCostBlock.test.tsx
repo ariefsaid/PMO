@@ -3,20 +3,32 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import { formatTableMoney } from '@/src/lib/format';
 import { setActiveLocale } from '@/src/lib/locale/activeLocale';
+import userEvent from '@testing-library/user-event';
 
 /** #2673 (AC-IHC-001, AC-IHC-010): idle block shows only with rows, apart from direct cost. */
-const h = vi.hoisted(() => ({ rows: [] as unknown[] }));
+const h = vi.hoisted(() => ({ rows: [] as unknown[], error: false, retry: vi.fn() }));
 vi.mock('@/src/auth/AuthContext', async () => {
   const { createContext } = await import('react');
   return { AuthContext: createContext<unknown>({ currentUser: { org_id: 'o1' } }) };
 });
-vi.mock('@/src/hooks/useIdleCost', () => ({ useProjectIdleCost: () => ({ data: h.rows }) }));
+vi.mock('@/src/hooks/useIdleCost', () => ({ useProjectIdleCost: () => ({ data: h.error ? undefined : h.rows, isError: h.error, refetch: h.retry }) }));
 import { IdleCostBlock } from './IdleCostBlock';
 
 const row = (o: object) => ({ workOrderId: 'A', reasonId: 'r1', reasonLabel: 'Rain', minutes: 60, hours: '1.00', hourlyCost: '62500.00', amount: '62500.00', currency: 'IDR', reason: 'counted', peopleAmount: null, equipmentAmount: null, headcountHours: null, ...o });
 beforeEach(() => { setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'UTC' }); h.rows = []; });
 
 describe('idle cost block', () => {
+  it('offers retry for unavailable idle costs and keeps successful empty output', async () => {
+    h.error = true;
+    try {
+      const view = render(<IdleCostBlock projectId="p1" workOrderId="A" testId="idle" />);
+      await userEvent.click(screen.getByRole('button', { name: /retry|try again/i }));
+      expect(h.retry).toHaveBeenCalled();
+      h.error = false;
+      view.rerender(<IdleCostBlock projectId="p1" workOrderId="A" testId="idle" />);
+      expect(view.container).toBeEmptyDOMElement();
+    } finally { h.error = false; }
+  });
   it('AC-IHC-001 renders nothing when the read returns no row', () => {
     const { container } = render(<IdleCostBlock projectId="p1" workOrderId="A" testId="idle" />);
     expect(container).toBeEmptyDOMElement();
