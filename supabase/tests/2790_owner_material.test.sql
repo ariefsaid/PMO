@@ -252,11 +252,24 @@ insert into crews(id,org_id,code,name,field_controller_id) values
  ('30100000-0000-0000-0000-000000008001','30100000-0000-0000-0000-00000000010a','OM-CREW','Synthetic crew','30100000-0000-0000-0000-0000000001a6');
 insert into work_order_crews(org_id,work_order_id,crew_id,valid_from) values
  ('30100000-0000-0000-0000-00000000010a','30100000-0000-0000-0000-000000001401','30100000-0000-0000-0000-000000008001',current_date);
+select ok((select count(*) from owner_material_reconciliation_steps where org_id='30100000-0000-0000-0000-00000000010a')>0,'AC-LA-014 fixture org holds reconciliation steps, so the phone zero is not vacuous');
 set local role authenticated;
 select pg_temp.act_as('30100000-0000-0000-0000-0000000001a6');
 select ok(light_can_see_work_order('30100000-0000-0000-0000-000000001401'),'AC-005 phone fixture has its current crew assignment');
 select is((select count(*) from owner_material_posted_quantities),0::bigint,'AC-005 phone scope excludes material movement quantities');
 select is((select count(*) from owner_material_unallocated_totals),0::bigint,'AC-005 phone scope excludes unallocated quantities');
+-- AC-LA-014 a field account reads no row of any owner-material table (restrictive light_account_deny_select).
+-- MUTATION: drop policy light_account_deny_select on owner_material_reconciliation_steps -> the steps case goes red.
+select is((select count(*) from owner_material_reconciliation_steps),0::bigint,'AC-LA-014 phone reads no owner_material_reconciliation_steps row');
+select is((select count(*) from stock_material_categories),0::bigint,'AC-LA-014 phone reads no stock_material_categories row');
+select is((select count(*) from owner_material_warehouses),0::bigint,'AC-LA-014 phone reads no owner_material_warehouses row');
+select is((select count(*) from owner_material_import_batches),0::bigint,'AC-LA-014 phone reads no owner_material_import_batches row');
+select is((select count(*) from owner_material_import_rows),0::bigint,'AC-LA-014 phone reads no owner_material_import_rows row');
+select is((select count(*) from owner_material_openings),0::bigint,'AC-LA-014 phone reads no owner_material_openings row');
+select is((select count(*) from owner_material_reconciliation),0::bigint,'AC-LA-014 phone reads no owner_material_reconciliation row');
+select is((select count(*) from owner_material_reconciliation_events),0::bigint,'AC-LA-014 phone reads no owner_material_reconciliation_events row');
+select is((select count(*) from owner_material_movement_links),0::bigint,'AC-LA-014 phone reads no owner_material_movement_links row');
+select ok(not has_table_privilege('authenticated','public.owner_material_import_witness','SELECT'),'AC-LA-014 the import witness has no signed-in read grant');
 reset role;
 select set_config('request.jwt.claims','{}',true);
 insert into stock_tags(id,org_id,name,zero_cost) values('30100000-0000-0000-0000-000000009001','30100000-0000-0000-0000-00000000010a','Synthetic owner tag',true);
