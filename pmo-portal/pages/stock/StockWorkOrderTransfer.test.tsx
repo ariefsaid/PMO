@@ -24,7 +24,7 @@ vi.mock('@/src/hooks/useStock', () => ({
   useStockWarehouses: () => ({ data: [
     { id: 'w1', code: 'SITE1', name: 'Site one', kind: 'site', project_id: 'p1' }, { id: 'w2', code: 'CEN', name: 'Central', kind: 'central', project_id: null },
     { id: 'w3', code: 'SITE9', name: 'Other site', kind: 'site', project_id: 'p1' }] }),
-  useStockKeepers: () => ({ data: [{ user_id: 'me', warehouse_id: 'w1' }, { user_id: 'me', warehouse_id: 'w2' }] }),
+  useMyStockLocations: () => ((rows: { user_id: string; warehouse_id: string }[], me: string) => { const ids = new Set(rows.filter((k) => k.user_id === me).map((k) => k.warehouse_id)); return { ids, keeps: (id?: string | null) => !!id && ids.has(id), keepsAny: ids.size > 0, isError: false, isPending: false, refetch: () => undefined }; })([{ user_id: 'me', warehouse_id: 'w1' }, { user_id: 'me', warehouse_id: 'w2' }], 'me'),
 }));
 vi.mock('@/src/lib/repositories/stockWorkOrderTransfer', () => ({ stockWorkOrderTransferRepository: { post: h.post } }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'me', org_id: 'org-1' } }) }));

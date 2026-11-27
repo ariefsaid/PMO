@@ -11,7 +11,7 @@ import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useAuth } from '@/src/auth/useAuth';
 import { useUnsavedChangesGuard } from '@/src/hooks/useUnsavedChangesGuard';
-import { useStockDocument, useStockDocumentCosts, useStockDocumentMutations, useStockItems, useStockKeepers, useStockOnHand, useStockUnits, useStockWarehouses } from '@/src/hooks/useStock';
+import { useStockDocument, useStockDocumentCosts, useStockDocumentMutations, useStockItems, useMyStockLocations, useStockOnHand, useStockUnits, useStockWarehouses } from '@/src/hooks/useStock';
 import { useProjectWorkOrders } from '@/src/hooks/useWorkOrders';
 import { isPositiveDecimal, isWholeQuantity, normalizeDecimal, subtractDecimal } from '@/src/lib/stockFormat';
 import type { StockDocumentDetail, StockDocumentInput, StockLineCost, StockLineInput } from '@/src/lib/db/stockDocuments';
@@ -124,7 +124,6 @@ const WriteOffForm: React.FC<{ kind: WriteOffKind; draft?: StockDocumentDetail; 
   const m = useStockDocumentMutations();
 
   const warehouses = useStockWarehouses(false);
-  const keepers = useStockKeepers();
   const items = useStockItems(false);
   const units = useStockUnits(true);
 
@@ -172,8 +171,8 @@ const WriteOffForm: React.FC<{ kind: WriteOffKind; draft?: StockDocumentDetail; 
   const viewOnly = realRole !== effectiveRole;
   const isAdmin = realRole === 'Admin';
   const canSeeCost = may('create', 'stockItem'); // FR-STK-063
-  const keptIds = useMemo(() => new Set((keepers.data ?? []).filter((k) => k.user_id === me).map((k) => k.warehouse_id)), [keepers.data, me]);
-  const usable = useMemo(() => (warehouses.data ?? []).filter((w) => isAdmin || keptIds.has(w.id)), [warehouses.data, isAdmin, keptIds]);
+  const mine = useMyStockLocations();
+  const usable = useMemo(() => (warehouses.data ?? []).filter((w) => isAdmin || mine.keeps(w.id)), [warehouses.data, isAdmin, mine]);
   const itemById = useMemo(() => new Map((items.data ?? []).map((i) => [i.id, i])), [items.data]);
   const wholeByUnit = useMemo(() => new Map((units.data ?? []).map((u) => [u.id, u.whole_only])), [units.data]);
   const unitCodeById = useMemo(() => new Map((units.data ?? []).map((u) => [u.id, u.code])), [units.data]);
@@ -199,14 +198,14 @@ const WriteOffForm: React.FC<{ kind: WriteOffKind; draft?: StockDocumentDetail; 
   };
 
   // AC-NBR-032: the header needs warehouses + keepers; the line editor needs items + units. Submit waits for all four.
-  const headerError = warehouses.isError || keepers.isError;
-  const headerPending = warehouses.isPending || keepers.isPending;
+  const headerError = warehouses.isError || mine.isError;
+  const headerPending = warehouses.isPending || mine.isPending;
   const linesError = items.isError || units.isError;
   const linesPending = items.isPending || units.isPending;
-  const retryHeader = () => { for (const q of [warehouses, keepers]) if (q.isError) void q.refetch(); };
+  const retryHeader = () => { for (const q of [warehouses, mine]) if (q.isError) void q.refetch(); };
   const retryLines = () => { for (const q of [items, units]) if (q.isError) void q.refetch(); };
   const linesSettled = !linesPending && !linesError;
-  const canAuthor = may('create', 'stockDocument', { record: { isKeeper: keptIds.has(warehouseId), viewOnly } });
+  const canAuthor = may('create', 'stockDocument', { record: { isKeeper: mine.keeps(warehouseId), viewOnly } });
   const variances = lines.map(varianceOf);
   // FR-STK-062: a count whose every line is known and zero may be posted by its author; anything else goes to another person.
   const hasDifference = kind === 'count' && variances.some((v) => v !== undefined && v !== '0');

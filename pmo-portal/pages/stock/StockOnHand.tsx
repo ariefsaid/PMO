@@ -9,9 +9,8 @@ import { StockFilters, StockTabs } from '@/src/components/stock/StockTabs';
 import { ProofChaseCard } from '@/src/components/stock/ProofChaseCard';
 import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
-import { useAuth } from '@/src/auth/useAuth';
 import { useRequestPurchase } from '@/src/components/stock/useRequestPurchase';
-import { useBelowReorder, useStockKeepers, useStockOnHand, useStockWarehouses } from '@/src/hooks/useStock';
+import { useBelowReorder, useMyStockLocations, useStockOnHand, useStockWarehouses } from '@/src/hooks/useStock';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { formatQuantity, formatStockValue, sumDecimal } from '@/src/lib/stockFormat';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
@@ -45,7 +44,6 @@ const StockOnHand: React.FC = () => {
   const may = usePermission();
   const woTransfers = useOrgSwitch('stockWoTransfers').data === true;   // the move between work orders starts here too, not only under Documents
   const { realRole, effectiveRole } = useEffectiveRole();
-  const me = useAuth().currentUser?.id;
   const currency = useOrgCurrency();
   const loc = getNumberLocale();
   // R2: all four filters are URL-owned so Back/refresh keep them; defaults stay out of the URL
@@ -66,7 +64,7 @@ const StockOnHand: React.FC = () => {
   const { canRequest, request: requestPurchase } = useRequestPurchase();
 
   const warehouses = useStockWarehouses(false);
-  const keepers = useStockKeepers();
+  const mine = useMyStockLocations();
   // The worklist always loads: its size is the one thing on this page that waits on someone.
   const below = useBelowReorder(belowOnly);
   const onHand = useStockOnHand({ ...(warehouseId ? { warehouseId } : {}), ...(includeZero || belowOnly ? { includeZero: true } : {}) });
@@ -78,9 +76,9 @@ const StockOnHand: React.FC = () => {
   const [overflowing, setOverflowing] = useState(false);
   const figureOf = useMemo(() => new Map((figures.data ?? []).map((f) => [`${f.itemId}:${f.warehouseId}`, f])), [figures.data]);
   const mayReserveAt = useCallback((r: StockOnHandRow): boolean => r.warehouseKind !== 'vendor'
-    && mayReserve(realRole, realRole !== effectiveRole, (keepers.data ?? []).some((k) => k.user_id === me && k.warehouse_id === r.warehouseId)),
-  [realRole, effectiveRole, keepers.data, me]);
-  const isKeeper = (keepers.data ?? []).some((k) => k.user_id === me);
+    && mayReserve(realRole, realRole !== effectiveRole, mine.keeps(r.warehouseId)),
+  [realRole, effectiveRole, mine]);
+  const isKeeper = mine.keepsAny;
   const canMove = may('create', 'stockDocument', { record: { isKeeper, viewOnly: realRole !== effectiveRole } });
 
   const allRows = useMemo(() => {
@@ -188,7 +186,7 @@ const StockOnHand: React.FC = () => {
     return cols;
   }, [t, loc, currency, showCost, maySeePrices, sharedNames, belowOnly, canRequest, below.data, requestPurchase, rsvOn, figureOf, mayReserveAt]);
 
-  const lookupError = warehouses.isError || keepers.isError || (belowOnly && below.isError);
+  const lookupError = warehouses.isError || mine.isError || (belowOnly && below.isError);
   const state: 'loading' | 'empty' | 'error' | undefined =
     onHand.isError || lookupError ? 'error' : onHand.isPending ? 'loading' : rows.length === 0 ? 'empty' : undefined;
   const tooMany = parseRefusal(onHand.error)?.code === 'STK_TOO_MANY';
@@ -297,7 +295,7 @@ const StockOnHand: React.FC = () => {
           title={t(tooMany ? 'onHand.states.tooManyTitle' : 'states.errorTitle')}
           sub={t(tooMany ? 'errors.STK_TOO_MANY' : 'states.errorSub')}
           retryLabel={t('actions.retry')}
-          onRetry={() => { void onHand.refetch(); void warehouses.refetch(); void keepers.refetch(); void below.refetch(); }}
+          onRetry={() => { void onHand.refetch(); void warehouses.refetch(); void mine.refetch(); void below.refetch(); }}
         />
       )}
       {state === 'empty' && (

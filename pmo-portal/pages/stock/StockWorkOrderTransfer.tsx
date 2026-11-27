@@ -5,8 +5,7 @@ import { Button, ConfirmDialog, FormActions, FormGrid, ListState, MobileActionBa
 import { FormErrorStrip } from '@/src/components/ui/FormFields';
 import { useStockErrorText } from '@/src/components/stock/useStockErrorText';
 import { useEffectiveRole } from '@/src/auth/impersonation';
-import { useAuth } from '@/src/auth/useAuth';
-import { useIssuableProjects, useStockKeepers, useStockWarehouses } from '@/src/hooks/useStock';
+import { useIssuableProjects, useMyStockLocations, useStockWarehouses } from '@/src/hooks/useStock';
 import { useProjectWorkOrdersForStock, useReturnable, useWoTransferRefresh } from '@/src/hooks/useStockWorkOrderTransfer';
 import { useOrgSwitch } from '@/src/hooks/useOrgSwitch';
 import { formatQuantity, isPositiveDecimal, normalizeDecimal } from '@/src/lib/stockFormat';
@@ -26,10 +25,8 @@ const StockWorkOrderTransfer: React.FC = () => {
   const refresh = useWoTransferRefresh();
   const enabled = useOrgSwitch('stockWoTransfers').data === true;
   const { realRole, effectiveRole } = useEffectiveRole();
-  const me = useAuth().currentUser?.id;
   const projects = useIssuableProjects();
   const warehouses = useStockWarehouses(false);
-  const keepers = useStockKeepers();
   const requestId = useRef(crypto.randomUUID());
   const nextKey = useRef(2);
   const [projectId, setProjectId] = useState('');
@@ -46,11 +43,11 @@ const StockWorkOrderTransfer: React.FC = () => {
   const returnable = useReturnable(from || undefined);
   const loc = getNumberLocale();
   const isAdmin = realRole === 'Admin';
-  const kept = useMemo(() => new Set((keepers.data ?? []).filter((k) => k.user_id === me).map((k) => k.warehouse_id)), [keepers.data, me]);
+  const mine = useMyStockLocations();
   const wos = useMemo(() => (workOrders.data ?? []).filter((w) => w.status !== 'Cancelled'), [workOrders.data]);
   const places = useMemo(
-    () => (warehouses.data ?? []).filter((w) => PROJECT_KINDS.has(w.kind) && (w as { project_id?: string | null }).project_id === projectId && (isAdmin || kept.has(w.id))),
-    [warehouses.data, projectId, isAdmin, kept],
+    () => (warehouses.data ?? []).filter((w) => PROJECT_KINDS.has(w.kind) && (w as { project_id?: string | null }).project_id === projectId && (isAdmin || mine.keeps(w.id))),
+    [warehouses.data, projectId, isAdmin, mine],
   );
   const held = useMemo(() => new Map((returnable.data ?? []).map((r) => [r.itemId, r])), [returnable.data]);
   const setLine = (key: number, patch: Partial<LineState>) => setLines((ls) => ls.map((l) => (l.key === key ? { ...l, ...patch } : l)));

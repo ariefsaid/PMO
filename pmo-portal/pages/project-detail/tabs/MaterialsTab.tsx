@@ -6,17 +6,14 @@ import StockLedger from '@/pages/stock/StockLedger';
 import ConsumptionReport from './ConsumptionReport';
 import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
-import { useAuth } from '@/src/auth/useAuth';
-import { useStockKeepers } from '@/src/hooks/useStock';
+import { useMyStockLocations } from '@/src/hooks/useStock';
 
 /** Materials used by this project against its allowances (#1512 S5), then the trace of every movement (S3). */
 const MaterialsTab: React.FC<{ projectId: string }> = ({ projectId }) => {
   const { t } = useTranslation('stock');
   const may = usePermission();
   const { realRole, effectiveRole } = useEffectiveRole();
-  const me = useAuth().currentUser?.id;
-  const keepers = useStockKeepers();
-  const isKeeper = (keepers.data ?? []).some((k) => k.user_id === me);
+  const isKeeper = useMyStockLocations().keepsAny;
   const canIssue = may('create', 'stockDocument', { record: { isKeeper, viewOnly: realRole !== effectiveRole } });
   return (
     <section aria-label={t('materials.title')} className="flex min-w-0 flex-col gap-6">
