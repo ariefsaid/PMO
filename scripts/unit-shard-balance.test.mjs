@@ -22,3 +22,15 @@ test('affected discovery remains its own complete partition including new files'
   const files = ['new.test.ts', 'other.test.ts'];
   validateInventory(files, partition(files, 4).map(bin => bin.files));
 });
+test('Vitest sequencer consumes the installed runner context and partitions actual discovery', async () => {
+  const { default: Sequencer } = await import('../pmo-portal/unit-sequencer.mjs');
+  const { spawnSync } = await import('node:child_process');
+  const { resolve } = await import('node:path');
+  const root = resolve('pmo-portal');
+  const result = spawnSync(resolve(root, 'node_modules/.bin/vitest'), ['list', '--filesOnly'], { cwd: root, encoding: 'utf8' });
+  assert.equal(result.status, 0, result.stderr);
+  const files = result.stdout.trim().split('\n').map(file => file.replace(/^\[[^\]]+\] /, ''));
+  const specs = files.map(file => ({ moduleId: resolve(root, file) }));
+  const shards = [1, 2, 3, 4].map(index => new Sequencer({ config: { root, shard: { index, count: 4 } } }).shard(specs).map(spec => spec.moduleId));
+  validateInventory(specs.map(spec => spec.moduleId), shards);
+});
