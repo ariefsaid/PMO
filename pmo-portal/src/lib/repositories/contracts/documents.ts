@@ -12,6 +12,8 @@ import type { PreparedAgentAttachmentUpload } from '@/src/lib/db/agentAttachment
 export interface DocumentRepository {
   /** The per-project document register (metadata only; ordered by code). */
   list(projectId: string): Promise<ProjectDocumentRow[]>;
+  /** One work order's slice of the register: its own documents plus the named linked ones; same rows the project list holds for them. */
+  listForWorkOrder(projectId: string, workOrderId: string, linkedIds: string[]): Promise<ProjectDocumentRow[]>;
   /** A single document by id, or null when not found / not readable. */
   get(id: string): Promise<ProjectDocumentRow | null>;
   /** Create a register entry (org_id stamped by RLS; author_id stamped from the current user). */

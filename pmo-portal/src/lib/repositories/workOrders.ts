@@ -44,6 +44,7 @@ import {
 import {
   listAcceptancesAwaitingConfirmation,
   listProjectAcceptances,
+  listWorkOrderAcceptances,
   listWorkOrderLines,
   listProjectWorkOrderLines,
   createWorkOrderLine,
@@ -130,6 +131,7 @@ export const progressBillingRepository: ProgressBillingRepository = {
 /** Contract quantities (ADR-0091): allocations and BAST acceptances. Operational only — never dispatches to an ERP. */
 export const workOrderAcceptanceRepository: WorkOrderAcceptanceRepository = {
   listByProject: (projectId) => wrap(() => listProjectAcceptances(projectId)),
+  listByWorkOrder: (projectId, workOrderId) => wrap(() => listWorkOrderAcceptances(projectId, workOrderId)),
   listAwaitingConfirmation: () => wrap(() => listAcceptancesAwaitingConfirmation()),
   listLines: (workOrderId) => wrap(() => listWorkOrderLines(workOrderId)),
   listProjectLines: (projectId) => wrap(() => listProjectWorkOrderLines(projectId)),

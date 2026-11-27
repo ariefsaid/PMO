@@ -3,6 +3,7 @@ import { getDefaultLibrary, setDefaultLibrary } from '@/src/lib/db/m365DocumentS
 import { ensureRecordFolder, linkExistingRecordFolders } from '@/src/lib/m365/recordFolders';
 import {
   listProjectDocuments,
+  listWorkOrderDocuments,
   getProjectDocument,
   createProjectDocument,
   linkMicrosoftDocument,
@@ -29,6 +30,7 @@ import type { AgentAttachmentRepository, DocumentRepository, M365DocumentSetting
 
 export const documentRepository: DocumentRepository = {
   list: (projectId) => wrap(() => listProjectDocuments(projectId)),
+  listForWorkOrder: (projectId, workOrderId, linkedIds) => wrap(() => listWorkOrderDocuments(projectId, workOrderId, linkedIds)),
   get: (id) => wrap(() => getProjectDocument(id)),
   create: (projectId, input, authorId, workOrderId) =>
     wrap(() => workOrderId === undefined

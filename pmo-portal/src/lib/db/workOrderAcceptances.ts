@@ -83,6 +83,21 @@ export async function listProjectAcceptances(projectId: string): Promise<WorkOrd
   return rows;
 }
 
+/** The acceptances of ONE work order with their lines, newest first; the same row shape and order as the project read. */
+export async function listWorkOrderAcceptances(projectId: string, workOrderId: string): Promise<WorkOrderAcceptanceWithLines[]> {
+  const { data, error } = await supabase.from('work_order_acceptances')
+    .select('*, lines:work_order_acceptance_lines(*)')
+    .eq('project_id', projectId)
+    .eq('work_order_id', workOrderId)
+    .order('prepared_at', { ascending: false })
+    .order('id', { ascending: false })
+    .limit(LIST_LIMIT);
+  if (error) fail(error);
+  const rows = (data ?? []) as WorkOrderAcceptanceWithLines[];
+  refuseSaturated(rows, 'acceptances');
+  return rows;
+}
+
 export async function listWorkOrderLines(workOrderId: string): Promise<WorkOrderLineRow[]> {
   const { data, error } = await supabase.from('work_order_lines').select('*')
     .eq('work_order_id', workOrderId)

@@ -341,6 +341,7 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
         'get',
         'getChild',
         'getSignedUrl',
+        'listForWorkOrder',
         'linkMicrosoftDocument',
         'list',
         'prepareUpload',

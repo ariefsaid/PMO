@@ -125,6 +125,8 @@ export interface ProgressBillingRepository {
 export interface WorkOrderAcceptanceRepository {
   /** Every acceptance on a project with its lines, newest first; refuses a saturated list. */
   listByProject(projectId: string): Promise<WorkOrderAcceptanceWithLines[]>;
+  /** The acceptances of one work order with their lines, newest first; refuses a saturated list. */
+  listByWorkOrder(projectId: string, workOrderId: string): Promise<WorkOrderAcceptanceWithLines[]>;
   /** Every BAST the signed-in Admin/Finance user may confirm; the whole caller-scoped waiting read. */
   listAwaitingConfirmation(): Promise<AcceptanceAwaitingConfirmationRow[]>;
   /** The allocations of one work order. */
