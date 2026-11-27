@@ -49,6 +49,7 @@ import {
   type PendingTransition,
 } from './workOrdersTabFigures';
 import WorkOrderCustomerOrderCard from './WorkOrderCustomerOrderCard';
+import { WorkOrderAlertCountsProvider } from './WorkOrderAheadBadge';
 import WorkOrdersDraftOrders from './WorkOrdersDraftOrders';
 import WorkOrdersClaimsCard, { WorkOrdersOrderlessInvoices } from './WorkOrdersClaimsCard';
 import {
@@ -158,6 +159,7 @@ const WorkOrdersTabInner: React.FC<WorkOrdersTabProps> = ({ projectId, currency,
   const openClaimDrawer = (claim: ProgressClaimWithInvoice) => { updateOpenRecord(claim.id, 'workOrderClaim'); };
 
   const rows = useMemo(() => data ?? [], [data]);
+  const alertCountIds = useMemo(() => rows.filter((row) => row.status !== 'Draft').map((row) => row.id), [rows]);
   const canIssue = (id: string) => !isPending && !isFetching && !isError && rows.some((row) => row.id === id && row.status === 'Draft' && row.issue_eligibility === 'allowed');
   const requestIssue = (row: WorkOrderRow) => {
     if (canIssue(row.id) && may('transition', 'workOrder')) setPending({ row, to: 'Issued' });
@@ -606,6 +608,7 @@ const WorkOrdersTabInner: React.FC<WorkOrdersTabProps> = ({ projectId, currency,
             />)}</div>;
 
   return (
+    <WorkOrderAlertCountsProvider workOrderIds={alertCountIds}>
     <div className="space-y-[var(--space-panel-gap)]">
       {canViewBilling && dpNotice !== null && (
         <div role="status" data-testid="wo-dp-held-notice" className="border-b border-border pb-3 text-sm text-muted-foreground">
@@ -942,6 +945,7 @@ const WorkOrdersTabInner: React.FC<WorkOrdersTabProps> = ({ projectId, currency,
       />
 
     </div>
+    </WorkOrderAlertCountsProvider>
   );
 };
 
