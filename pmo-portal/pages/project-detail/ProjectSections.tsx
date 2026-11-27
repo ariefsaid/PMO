@@ -1,4 +1,4 @@
-import React, { useCallback, useContext, useMemo, useState } from 'react';
+import React, { useCallback, useContext, useMemo, useState, useEffect } from 'react';
 import { QueryClientContext } from '@tanstack/react-query';
 import { AuthContext } from '@/src/auth/AuthContext';
 import { preloadProjectOrders } from '@/src/lib/routeData';
@@ -25,6 +25,8 @@ import { ActivityFooter, MyOpenTasks, ProjectActivity } from './ProjectActivity'
 
 import { AREAS, type Area } from './projectDetailAreas';
 import { useTerms } from '@/src/lib/i18n/terms';
+
+import { afterPaintIdle } from '@/src/lib/afterPaintIdle';
 
 type Lens = 'money' | 'delivery';
 
@@ -248,6 +250,12 @@ const ProjectSections: React.FC<Props> = ({ project, area, setArea, isPipeline, 
   const currentCounts = loadedCounts.projectId === project.id ? loadedCounts.values : {};
   // A deep link to an area this role or stage doesn't have lands on the Overview (AC-PB-008, SUB-A).
   const panel: Area = (areas as Area[]).includes(area) ? area : 'overview';
+  useEffect(() => {
+    if (overviewPending || panel !== 'overview') return;
+    return afterPaintIdle(() => {
+      for (const next of AREAS) preloadProjectTab(next);
+    });
+  }, [project.id, overviewPending, panel]);
   const items: TabItem<Area>[] = areas.map((a) => {
     if (a === 'procurement' || a === 'tasks' || a === 'documents') {
       return { value: a, label: labels[a], count: currentCounts[a] ?? null, countPresentation: 'inline' };
