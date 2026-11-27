@@ -13,7 +13,7 @@ type NotificationCopy = {
 };
 
 /** Titles whose body carries a person's words (a comment, a return or refusal reason, a task note): never rewritten. */
-const PERSON_TEXT_TITLE_KEYS = new Set([
+export const PERSON_TEXT_TITLE_KEYS = new Set([
   'taskAssigned',
   'quantityChangeReturned',
   'commentMention',
@@ -26,6 +26,9 @@ const PERSON_TEXT_TITLE_KEYS = new Set([
   'certReturned',
   'eqpReturned',
 ]);
+
+/** The quantity-change-request titles (registry keys): their bodies are localized. */
+const QCR_TITLE_KEYS = new Set(['quantityChangeApproval', 'quantityChangeApproved', 'quantityChangeReturned', 'quantityChangeAccepted', 'quantityChangeDeclined']);
 
 /** A body the database wrote itself (its title is one of the fixed system titles) names terms in shipped English. A person's
  *  words and a title nobody recognises are never rewritten. */
@@ -65,13 +68,8 @@ function localizeApprovalNotificationBody(row: NotificationCopy, body: string, t
 
   // Quantity change request (QCR, 1176/1177) awaiting, approved, returned prefix and the client decision.
   // The titles are the ones 1176/1177 write; the metadata type is the identity `notify_workflow_user` stamps.
-  const isQcrProducer =
-    row.title === 'Quantity change request awaiting approval' ||
-    row.title === 'Quantity change request approved' ||
-    row.title === 'Quantity change request returned' ||
-    row.title === 'Quantity change accepted by the client' ||
-    row.title === 'Quantity change declined by the client' ||
-    getMetadataEntityType(row.metadata) === 'quantity_change_request';
+  const titleKey = row.title ? matchNotificationTitle(row.title)?.key : undefined;
+  const isQcrProducer = (titleKey !== undefined && QCR_TITLE_KEYS.has(titleKey)) || getMetadataEntityType(row.metadata) === 'quantity_change_request';
   if (isQcrProducer) {
     if (body === 'A quantity change request has been submitted for your approval.') {
       return t('notifications:qcrAwaitingBody', 'A quantity change request has been submitted for your approval.');
