@@ -23,7 +23,7 @@ export function datesInWeek(start: Date): Date[] {
 }
 
 export function entriesToGridRows(
-  entries: TimesheetEntryWithProject[],
+  entries: Pick<TimesheetEntryWithProject, 'project_id' | 'work_order_id' | 'project' | 'work_order' | 'entry_date' | 'hours'>[],
   weekDates: Date[],
   unknownProject: string,
   options?: { groupByWorkOrder?: boolean },

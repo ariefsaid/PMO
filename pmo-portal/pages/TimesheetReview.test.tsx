@@ -270,6 +270,7 @@ describe('HR Officer timesheet review list (AC-HTR-001..006)', () => {
     expect(list.getByText('Sari Putri')).toBeInTheDocument();
     expect(list.queryByText('Budi Santoso')).toBeNull();
     expect(screen.getByTestId('url-search').textContent).toContain('from=2026-11-15');
+    expect(h.listForReview).toHaveBeenCalledTimes(1);
   });
 
   it('AC-HTR-006 renders in Bahasa Indonesia', async () => {
