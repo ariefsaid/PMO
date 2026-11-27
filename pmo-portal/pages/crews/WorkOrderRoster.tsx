@@ -201,7 +201,7 @@ export const WorkOrderRoster: React.FC = () => {
             errorTitle={t('crews:placementsError', "Couldn't load roster placements")}
             retryLabel={t('crews:retry', 'Retry')}
             empty={(
-              <DataTable<WorkOrderCrewRow> embedded rows={[]} columns={columns} rowKey={(p) => p.id} tableId="work-order-crews-table"
+              <DataTable<WorkOrderCrewRow> embedded rows={[]} columns={columns} rowKey={(p) => p.id} tableId="work-order-crews-empty-table"
                 state="empty" emptyTitle={t('crews:noPlacements', 'No crew has been rostered here')} />
             )}
           >
