@@ -1,7 +1,7 @@
 begin;
 create or replace function public.resolve_feature_internal(p_org_id uuid, p_key text)
 returns table(enabled boolean, display_enabled boolean, source text)
-language plpgsql stable security definer set search_path = public as $$
+language plpgsql stable security definer set search_path = public, pg_temp as $$
 declare
   v_global_enabled boolean;
   v_override_enabled boolean;
@@ -74,7 +74,7 @@ begin
 end $$;
 create or replace function public.resolved_org_features()
  returns table(feature_key text, enabled boolean, display_enabled boolean, source text)
- language plpgsql stable security definer set search_path to 'public'
+ language plpgsql stable security definer set search_path = public, pg_temp
 as $function$
 declare
   v_org_id uuid;
@@ -125,7 +125,7 @@ begin
 end $function$;
 create or replace function public.service_resolved_org_features(p_org_id uuid)
 returns table(feature_key text, enabled boolean, display_enabled boolean, source text)
-language plpgsql stable security definer set search_path = public as $$
+language plpgsql stable security definer set search_path = public, pg_temp as $$
 begin
   if auth.role() is distinct from 'service_role' then
     raise exception 'service_role_only' using errcode = '42501';
