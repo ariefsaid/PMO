@@ -427,7 +427,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, onRecor
   }
 
   if (invoiceId) {
-    return <SalesInvoiceDetail viewTarget={viewTarget} isPending={!viewTarget && !unlisted.isError && !isError && (isPending || (unlisted.isPending && unlisted.fetchStatus !== 'idle'))} isError={!viewTarget && unlisted.isError} data={data} organizationToday={organizationToday} onBack={recordContext.closeRecord} refetch={refetch} recordPrimaryAction={recordPrimaryAction} invoiceDisplayLabel={invoiceDisplayLabel} projectName={viewTarget ? projectOptionsById.get(viewTarget.project_id ?? '')?.contractualName ?? null : null} receiptAwaitingOdoo={viewTarget ? receiptAwaitingOdooForInvoice(viewTarget) : false} odoo={odoo} may={may} pdfDownload={pdfDownload} dialogs={<SalesInvoiceDialogs actions={actions} submitFallback={invoiceDisplayLabel} />} />;
+    return <SalesInvoiceDetail viewTarget={viewTarget} isPending={!viewTarget && !unlisted.isError && !isError && (isPending || (unlisted.isPending && unlisted.fetchStatus !== 'idle'))} isError={!viewTarget && unlisted.isError} data={data} organizationToday={organizationToday} onBack={recordContext.closeRecord} refetch={() => { void refetch(); if (!listedTarget) void unlisted.refetch(); }} recordPrimaryAction={recordPrimaryAction} invoiceDisplayLabel={invoiceDisplayLabel} projectName={viewTarget ? projectOptionsById.get(viewTarget.project_id ?? '')?.contractualName ?? null : null} receiptAwaitingOdoo={viewTarget ? receiptAwaitingOdooForInvoice(viewTarget) : false} odoo={odoo} may={may} pdfDownload={pdfDownload} dialogs={<SalesInvoiceDialogs actions={actions} submitFallback={invoiceDisplayLabel} />} />;
   }
 
   const groupRowsBy = groupMode === 'client'
