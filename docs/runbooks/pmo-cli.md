@@ -778,9 +778,10 @@ Set `PMO_OWNER_MATERIAL_PYTHON` (or pass `--python <path>`) if your venv lives e
     "template_sheets": [],
     "location_sheet": {
       "header_contains": ["PART_NO", "DESC"],
-      "warehouse_band": { "single_row_after_fields": ["reservation_date"], "end_field": "total_set_aside" },
+      "warehouse_band": { "single_row_after_fields": ["reservation_date"], "end_field": "total_set_aside", "required": true },
       "columns": { "item_code": ["PART_NO"], "description": ["DESC"], "unit": ["UNIT"], "planned": ["PLAN_QTY"], "order_number": ["ORDER_NO"], "total_set_aside": ["SET_ASIDE_TOTAL"] },
-      "evidence_columns": { "reservation_date": ["SET_ASIDE_DATE"] }
+      "evidence_columns": { "reservation_date": ["SET_ASIDE_DATE"] },
+      "field_presence": { "item_code": "required", "description": "required", "unit": "required", "planned": "required", "order_number": "required", "total_set_aside": "required", "reservation_date": "required" }
     }
   },
   "sheets": {}
@@ -795,6 +796,8 @@ Set `PMO_OWNER_MATERIAL_PYTHON` (or pass `--python <path>`) if your venv lives e
 - `policy.duplicate_items`: `"refuse"` (default) skips repeated item rows within a location at line level (marking the section partial); `"sum"` consolidates repeated rows for the same item into one planned line with summed quantities, agreed category (or none), and all source rows preserved verbatim in `evidence.rows`, flagged in the report.
 - `work_order_defaults`: explicit commercial inputs (`tax_treatment`, `currency`, optional `order_value` / `tax_amount`) required when the workbook contains owner order numbers not yet in the project. Missing work orders are created first via `import_work_orders` in `Draft` status (requires organisation setup workflows enabled). Never guessed or defaulted.
 - `workbook`: defines every workbook-specific sheet name, header marker, column heading/alias, excluded column, and warehouse band so the tracked parser stays generic.
+- `workbook.location_sheet.field_presence`: required map declaring every mapped field (every key of `columns`, `sub_header_columns`, and `evidence_columns`) as `"required"` or `"optional"`; where the layout variants differ, declare per variant with `{ "two_row": "...", "single_row": "..." }`. A sheet whose headers match no column for a `required` field is refused whole before any row is read, with the reason naming the field and the header aliases looked for (under every policy, including `movements_win`); an absent `optional` column stays zero. A mapping that does not declare every field is rejected before anything is parsed or sent.
+- `workbook.location_sheet.warehouse_band.required`: required boolean declaring whether every location sheet must carry at least one owner-warehouse column; when `true`, a sheet whose band matches no warehouse column is refused whole (`missing_required_column`).
 - `owner_warehouses`: maps every normalized owner-warehouse column header discovered inside the configured `workbook.location_sheet.warehouse_band`. Unknown headers are refused, never guessed.
 - `units`: optional map of upper-case unit code -> `{ name, whole_only }` used when creating missing units (defaults to `name = code`, `whole_only = false`; unit chunks are sent before items and preview lists every unit it would create).
 

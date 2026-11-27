@@ -32,6 +32,47 @@ const tmpDir = () => fs.mkdtempSync(path.join(os.tmpdir(), 'pmo-om-test-'));
 const ZERO_COST_TAG_ID = '33333333-3333-4333-8333-333333333333';
 
 function baseMapping(overrides = {}) {
+  const loc = {
+    header_contains: ['PART_NO', 'PART_DESC'],
+    warehouse_band: {
+      single_row_after_fields: ['reservation_date', 'request_date'],
+      end_field: 'total_set_aside',
+      required: true,
+    },
+    columns: {
+      item_code: ['PART_NO'],
+      description: ['PART_DESC'],
+      unit: ['UNIT'],
+      planned: ['PLAN_QTY'],
+      category_code: ['CAT_CODE'],
+      order_number: ['ORDER_NO'],
+      cost_code: ['COST_CODE'],
+      total_set_aside: ['HOLD_TOTAL'],
+      received_direct: ['RECV_DIRECT'],
+      received_transfer_in: ['RECV_XFER'],
+      total_received: ['RECV_TOTAL'],
+      issued: ['ISSUE_QTY'],
+      returned: ['RET_QTY'],
+      transfer_out: ['XFER_OUT_QTY'],
+      closing: ['END_BAL'],
+    },
+    evidence_columns: {
+      request_reference: ['REQ_REF'],
+      request_date: ['REQ_DATE'],
+      reservation_date: ['HOLD_DATE'],
+      reservation_reference: ['HOLD_REF'],
+      received_date: ['RECV_DATE'],
+      issue_reference: ['ISSUE_REF'],
+      issued_date: ['ISSUE_DATE'],
+      returned_date: ['RET_DATE'],
+      transfer_out_date: ['XFER_OUT_DATE'],
+    },
+  };
+  // Every mapped field must say explicitly whether a sheet lacking its column is
+  // refused (required) or loaded with zero (optional).
+  loc.field_presence = Object.fromEntries(
+    [...Object.keys(loc.columns), ...Object.keys(loc.evidence_columns)].map((k) => [k, 'required']),
+  );
   return {
     source_key: 'syn-source-v2',
     as_of: '2026-01-31',
@@ -51,41 +92,7 @@ function baseMapping(overrides = {}) {
       'WH NORTH': { code: 'WH-N', name: 'North Warehouse' },
     },
     workbook: {
-      location_sheet: {
-        header_contains: ['PART_NO', 'PART_DESC'],
-        warehouse_band: {
-          single_row_after_fields: ['reservation_date', 'request_date'],
-          end_field: 'total_set_aside',
-        },
-        columns: {
-          item_code: ['PART_NO'],
-          description: ['PART_DESC'],
-          unit: ['UNIT'],
-          planned: ['PLAN_QTY'],
-          category_code: ['CAT_CODE'],
-          order_number: ['ORDER_NO'],
-          cost_code: ['COST_CODE'],
-          total_set_aside: ['HOLD_TOTAL'],
-          received_direct: ['RECV_DIRECT'],
-          received_transfer_in: ['RECV_XFER'],
-          total_received: ['RECV_TOTAL'],
-          issued: ['ISSUE_QTY'],
-          returned: ['RET_QTY'],
-          transfer_out: ['XFER_OUT_QTY'],
-          closing: ['END_BAL'],
-        },
-        evidence_columns: {
-          request_reference: ['REQ_REF'],
-          request_date: ['REQ_DATE'],
-          reservation_date: ['HOLD_DATE'],
-          reservation_reference: ['HOLD_REF'],
-          received_date: ['RECV_DATE'],
-          issue_reference: ['ISSUE_REF'],
-          issued_date: ['ISSUE_DATE'],
-          returned_date: ['RET_DATE'],
-          transfer_out_date: ['XFER_OUT_DATE'],
-        },
-      },
+      location_sheet: loc,
     },
     sheets: {},
     ...overrides,
@@ -673,6 +680,61 @@ test('AC-002: mapping validation rejects unknown keys and buildSectionEntity emi
   const dupProblems = validateMapping(baseMapping({ policy: { closing_conflict: 'movements_win', duplicate_items: 'invalid' } }));
   assert.ok(dupProblems.some((p) => p.includes('policy.duplicate_items')));
   assert.deepEqual(validateMapping(baseMapping({ policy: { closing_conflict: 'movements_win', duplicate_items: 'sum' } })), []);
+});
+
+test('AC-002 (v2.4): mapping validation requires explicit required/optional presence for every declared column', () => {
+  const loc = () => baseMapping().workbook.location_sheet;
+
+  // field_presence missing entirely
+  const withoutPresence = baseMapping();
+  delete withoutPresence.workbook.location_sheet.field_presence;
+  const p0 = validateMapping(withoutPresence);
+  assert.ok(p0.some((p) => p.includes('field_presence')), 'missing field_presence must be rejected');
+
+  // one mapped field not declared
+  const missingOne = baseMapping();
+  delete missingOne.workbook.location_sheet.field_presence.planned;
+  const p1 = validateMapping(missingOne);
+  assert.ok(p1.some((p) => p.includes("must declare 'planned'")));
+
+  // unknown field declared
+  const unknownField = baseMapping();
+  unknownField.workbook.location_sheet.field_presence.made_up_field = 'required';
+  const p2 = validateMapping(unknownField);
+  assert.ok(p2.some((p) => p.includes("unknown field 'made_up_field'")));
+
+  // variant-scoped declaration missing the single_row variant
+  const halfVariant = baseMapping();
+  halfVariant.workbook.location_sheet.field_presence.planned = { two_row: 'required' };
+  const p3 = validateMapping(halfVariant);
+  assert.ok(p3.some((p) => p.includes("field_presence['planned']")));
+
+  // invalid declaration value
+  const badValue = baseMapping();
+  badValue.workbook.location_sheet.field_presence.planned = 'sometimes';
+  const p4 = validateMapping(badValue);
+  assert.ok(p4.some((p) => p.includes("field_presence['planned']")));
+
+  // warehouse band without an explicit required flag
+  const noBandFlag = baseMapping();
+  delete noBandFlag.workbook.location_sheet.warehouse_band.required;
+  const p5 = validateMapping(noBandFlag);
+  assert.ok(p5.some((p) => p.includes('warehouse_band.required')));
+
+  // unknown warehouse band key rejected (typo guard)
+  const badBand = baseMapping();
+  badBand.workbook.location_sheet.warehouse_band.mystery = 1;
+  const p6 = validateMapping(badBand);
+  assert.ok(p6.some((p) => p.includes("warehouse_band key 'mystery'")));
+
+  // variant-scoped declaration where the variants genuinely differ is valid
+  const variantSplit = baseMapping();
+  variantSplit.workbook.location_sheet.field_presence.planned = { two_row: 'required', single_row: 'optional' };
+  assert.deepEqual(validateMapping(variantSplit), []);
+
+  // valid base mapping stays clean
+  assert.deepEqual(validateMapping(baseMapping()), []);
+  assert.ok(loc(), 'fixture builds');
 });
 
 test('AC-002: partial section loads accepted lines, reports skipped_lines and policy flags, and exits 1', async () => {

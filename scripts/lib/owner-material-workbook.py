@@ -27,6 +27,12 @@ Contract v2:
 - `duplicate_items`: 'refuse' (default) or 'sum' (consolidates repeated item rows within
   a location into one line with summed quantities, agreed category or None, and all
   source rows preserved verbatim in `evidence.rows`, flagged in the report).
+- Every mapped location-sheet field must declare itself `required` or `optional` in
+  `location_sheet.field_presence` (per layout variant via `{two_row, single_row}` where
+  the variants differ, plus `warehouse_band.required` for the owner-warehouse column
+  band). A sheet whose headers match no column for a REQUIRED field is refused whole,
+  before any data row is read, with the reason naming the field and the aliases looked
+  for; an absent OPTIONAL column stays zero.
 
 Usage:
   <venv-python> -I scripts/lib/owner-material-workbook.py <workbook.xlsx> <mapping.json>
@@ -475,6 +481,79 @@ def _resolve_warehouse_map(raw_map: dict[str, Any]) -> dict[str, dict[str, str]]
     return out
 
 
+PRESENCE_VALUES = ("required", "optional")
+
+
+def _is_valid_presence_decl(decl: Any) -> bool:
+    if isinstance(decl, str):
+        return decl in PRESENCE_VALUES
+    if isinstance(decl, dict) and set(decl) == {"two_row", "single_row"}:
+        return decl["two_row"] in PRESENCE_VALUES and decl["single_row"] in PRESENCE_VALUES
+    return False
+
+
+def _presence_is_required(decl: Any, two_row: bool) -> bool:
+    if isinstance(decl, str):
+        return decl == "required"
+    if isinstance(decl, dict):
+        return decl.get("two_row" if two_row else "single_row") == "required"
+    return False
+
+
+def _validate_field_presence(loc_cfg: dict[str, Any]) -> dict[str, Any]:
+    """Require an explicit required/optional declaration for every mapped field.
+
+    A layout that does not say is rejected outright: an undeclared field would
+    silently parse as zero when its column is missing.
+    """
+    presence = loc_cfg.get("field_presence")
+    declared = (
+        set(loc_cfg.get("columns") or {})
+        | set(loc_cfg.get("sub_header_columns") or {})
+        | set(loc_cfg.get("evidence_columns") or {})
+    )
+    problems: list[str] = []
+    if not isinstance(presence, dict) or not presence:
+        problems.append(
+            "field_presence must be an object declaring every mapped field as 'required' or 'optional'"
+        )
+    else:
+        for field in sorted(declared):
+            if not _is_valid_presence_decl(presence.get(field)):
+                problems.append(
+                    f"field_presence['{field}'] must be 'required', 'optional', or an object "
+                    "with both 'two_row' and 'single_row' set to 'required' or 'optional'"
+                )
+        for field in sorted(set(presence) - declared):
+            problems.append(f"field_presence declares unknown field '{field}'")
+    band = loc_cfg.get("warehouse_band")
+    if isinstance(band, dict) and not isinstance(band.get("required"), bool):
+        problems.append(
+            "warehouse_band.required must be a boolean declaring whether every sheet must "
+            "carry at least one owner-warehouse column"
+        )
+    if problems:
+        raise ValueError("Invalid location-sheet layout declaration: " + "; ".join(problems))
+    return presence
+
+
+def _aliases_for_field(loc_cfg: dict[str, Any], field: str) -> list[str]:
+    """All normalized header aliases the layout looks at for one field, in priority order."""
+    seen: set[str] = set()
+    out: list[str] = []
+    for src in (
+        loc_cfg.get("columns") or {},
+        loc_cfg.get("sub_header_columns") or {},
+        loc_cfg.get("evidence_columns") or {},
+    ):
+        if field in src:
+            for alias in _as_header_list(src[field]):
+                if alias not in seen:
+                    seen.add(alias)
+                    out.append(alias)
+    return out
+
+
 def parse_workbook(workbook_path: str, mapping: dict[str, Any]) -> dict[str, Any]:
     wb_val = openpyxl.load_workbook(workbook_path, read_only=True, data_only=True)
     wb_f = openpyxl.load_workbook(workbook_path, read_only=True, data_only=False)
@@ -491,6 +570,13 @@ def parse_workbook(workbook_path: str, mapping: dict[str, Any]) -> dict[str, Any
     loc_cfg = wb_cfg.get("location_sheet") or {}
     if not loc_cfg or not loc_cfg.get("header_contains") or not (loc_cfg.get("columns") or {}).get("item_code"):
         raise ValueError("Mapping requires workbook.location_sheet with header_contains and columns.item_code.")
+    presence_cfg = _validate_field_presence(loc_cfg)
+    declared_fields = (
+        set(loc_cfg.get("columns") or {})
+        | set(loc_cfg.get("sub_header_columns") or {})
+        | set(loc_cfg.get("evidence_columns") or {})
+    )
+    alias_text = {field: ", ".join(_aliases_for_field(loc_cfg, field)) for field in sorted(declared_fields)}
 
     default_as_of = mapping.get("as_of")
     wh_map = _resolve_warehouse_map(mapping.get("owner_warehouses") or {})
@@ -630,6 +716,50 @@ def parse_workbook(workbook_path: str, mapping: dict[str, Any]) -> dict[str, Any
                 info = wh_map[wh_header]
                 resolved_whs.append((col_idx, wh_header, info))
                 discovered_warehouses[info["code"]] = info
+
+        # A REQUIRED field whose header aliases match no column would silently parse as
+        # zero, so the section is refused whole before any data row is read. An absent
+        # OPTIONAL column stays zero.
+        two_row = bool(layout["two_row"])
+        for field in sorted(declared_fields):
+            if not _presence_is_required(presence_cfg.get(field), two_row):
+                continue
+            present = field in ev_cols if field in (loc_cfg.get("evidence_columns") or {}) else field in cols
+            if not present:
+                label = "Required evidence field" if field in (loc_cfg.get("evidence_columns") or {}) else "Required field"
+                section_refusals.append(
+                    make_refusal(
+                        layout["header_row"],
+                        0,
+                        "missing_required_column",
+                        f"{label} '{field}' has no matching column on sheet '{sname}' "
+                        f"(header row {layout['header_row']}); looked for header aliases: {alias_text[field]}.",
+                    )
+                )
+        band_cfg_check = loc_cfg.get("warehouse_band") or {}
+        if band_cfg_check.get("required") is True and not layout["warehouses"]:
+            end_field = band_cfg_check.get("end_field", "total_set_aside")
+            end_aliases = alias_text.get(end_field) or end_field
+            section_refusals.append(
+                make_refusal(
+                    layout["header_row"],
+                    0,
+                    "missing_required_column",
+                    f"Required owner-warehouse column band matched no warehouse column on sheet '{sname}' "
+                    f"(header row {layout['header_row']}); the band ends at the column mapped for "
+                    f"'{end_field}' (aliases: {end_aliases}).",
+                )
+            )
+        if any(r["class"] == "missing_required_column" for r in section_refusals):
+            mapped_order = scfg.get("owner_order_number")
+            refused_sections.append({
+                "sheet": sname,
+                "owner_order_number": str(mapped_order).strip() if mapped_order else None,
+                "location_name": str(scfg.get("location_name") or sname.strip()),
+                "item_row_count": 0,
+                "refusals": section_refusals,
+            })
+            continue
 
         def cell_v(row_tuple: tuple[Any, ...], idx: int | None) -> Any:
             if idx is None or idx >= len(row_tuple):

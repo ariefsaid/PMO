@@ -83,6 +83,7 @@ def build_base_mapping(**overrides):
                     "two_row_start_header": "HOLD_GROUP",
                     "single_row_after_fields": ["reservation_date", "request_date"],
                     "end_field": "total_set_aside",
+                    "required": True,
                 },
                 "columns": {
                     "item_code": ["PART_NO"],
@@ -119,6 +120,37 @@ def build_base_mapping(**overrides):
                     "returned_date": ["RET_DATE", "RET_DATE_TYPO"],
                     "transfer_out_date": ["XFER_OUT_DATE"],
                     "owner_return_date": ["OWNER_RET_DATE"],
+                },
+                # Every mapped field must say explicitly whether a sheet lacking its column
+                # is refused (required) or loaded with zero (optional).
+                "field_presence": {
+                    "item_code": "required",
+                    "description": "required",
+                    "unit": "required",
+                    "planned": "required",
+                    "category_code": "required",
+                    "order_number": "required",
+                    "cost_code": "required",
+                    "total_set_aside": "required",
+                    "received_direct": "required",
+                    "received_transfer_in": "required",
+                    "total_received": "required",
+                    "issued": "required",
+                    "returned": "required",
+                    "transfer_out": "required",
+                    "owner_return": "optional",
+                    "closing": "required",
+                    "request_reference": "required",
+                    "request_date": "required",
+                    "reservation_date": "required",
+                    "reservation_reference": "required",
+                    "plant_location": "required",
+                    "received_date": "required",
+                    "issue_reference": "required",
+                    "issued_date": "required",
+                    "returned_date": "required",
+                    "transfer_out_date": "required",
+                    "owner_return_date": "optional",
                 },
             },
         },
@@ -739,6 +771,145 @@ class TestOwnerMaterialWorkbook(unittest.TestCase):
         self.assertEqual(len(sec["empty_lines"]), 1)
         self.assertEqual(sec["empty_lines"][0]["item_code"], "400002")
         self.assertEqual(sec["empty_lines"][0]["class"], "empty_line")
+
+    def _rename_single_row_header(self, ws, old, new):
+        """Rename one header cell in the standard single-row header (row 7)."""
+        for cell in ws[7]:
+            if cell.value == old:
+                cell.value = new
+                return
+        raise AssertionError(f"header {old!r} not found in row 7")
+
+    def test_ac002_missing_required_column_refuses_whole_section_under_every_policy(self):
+        # Reproduction of the silent-zero defect: a configured stage field whose header
+        # aliases match no column used to parse as zero and the section was accepted
+        # (planned 100 / received 40 / issued 25 / returned 0 / closing 15 became
+        # issued 0, closing 40) with no refusal under movements_win.
+        for policy in ("movements_win", "refuse"):
+            wb = openpyxl.Workbook()
+            wb.remove(wb.active)
+            ws = add_standard_location_sheet(
+                wb,
+                "LOC_ISSUE_GONE",
+                [
+                    {
+                        "LINE_NO": 1, "PART_NO": "600001", "PART_DESC": "Renamed Column Item", "UNIT": "PCS",
+                        "PLAN_QTY": 100, "ORDER_NO": "WO-REQ", "COST_CODE": "CC-R",
+                        "WH NORTH": 0, "WH SOUTH": 0, "HOLD_TOTAL": 0,
+                        "RECV_DIRECT": 40, "RECV_XFER": 0, "RECV_TOTAL": 40,
+                        "RET_QTY": 0, "XFER_OUT_QTY": 0, "END_BAL": 15,
+                    }
+                ],
+            )
+            self._rename_single_row_header(ws, "ISSUE_QTY", "ISSUE_QTY_RENAMED")
+            path = self._save(wb)
+            result = self.mod.parse_workbook(path, build_base_mapping(policy={"closing_conflict": policy}))
+
+            self.assertEqual(result["accepted_sections"], [], f"policy={policy}: renamed required heading must refuse the section")
+            self.assertEqual(len(result["refused_sections"]), 1, f"policy={policy}")
+            refused = result["refused_sections"][0]
+            self.assertEqual(refused["sheet"], "LOC_ISSUE_GONE")
+            self.assertEqual(refused["item_row_count"], 0, "no row may be read or loaded")
+            classes = [r["class"] for r in refused["refusals"]]
+            self.assertEqual(classes, ["missing_required_column"], f"policy={policy}")
+            rec = refused["refusals"][0]
+            self.assertEqual(rec["sheet"], "LOC_ISSUE_GONE")
+            self.assertEqual(rec["row"], 7, "reason must point at the header row")
+            self.assertIn("issued", rec["reason"])
+            self.assertIn("ISSUE_QTY", rec["reason"], "reason must name the header aliases looked for")
+            self.assertIn("header row 7", rec["reason"])
+            raw = json.dumps(result)
+            self.assertNotIn('"issued": "25"', raw)
+            self.assertNotIn('"closing": "40"', raw, "the silent-zero parse must not happen")
+
+    def test_ac002_optional_column_absent_still_loads_zero(self):
+        wb = openpyxl.Workbook()
+        wb.remove(wb.active)
+        add_standard_location_sheet(
+            wb,
+            "LOC_NO_OWNER_RET",
+            [
+                {
+                    "LINE_NO": 1, "PART_NO": "600002", "PART_DESC": "Optional Absent Item", "UNIT": "PCS",
+                    "PLAN_QTY": 8, "ORDER_NO": "WO-OPT", "COST_CODE": "CC-O",
+                    "WH NORTH": 8, "WH SOUTH": 0, "HOLD_TOTAL": 8,
+                    "RECV_DIRECT": 8, "RECV_XFER": 0, "RECV_TOTAL": 8,
+                    "ISSUE_QTY": 3, "RET_QTY": 0, "XFER_OUT_QTY": 0, "END_BAL": 5,
+                }
+            ],
+            include_owner_return=False,
+        )
+        path = self._save(wb)
+        result = self.mod.parse_workbook(path, build_base_mapping())
+        self.assertEqual(result["refused_sections"], [])
+        self.assertEqual(len(result["accepted_sections"]), 1)
+        line = result["accepted_sections"][0]["lines"][0]
+        self.assertEqual(line["opening"]["owner_return"], "0")
+        self.assertNotIn("owner_return_date", line["evidence"])
+
+    def test_ac002_mapping_without_presence_declaration_is_rejected(self):
+        wb = openpyxl.Workbook()
+        wb.remove(wb.active)
+        add_standard_location_sheet(
+            wb,
+            "LOC_DECL",
+            [
+                {
+                    "LINE_NO": 1, "PART_NO": "600003", "PART_DESC": "Decl Item", "UNIT": "PCS",
+                    "PLAN_QTY": 5, "ORDER_NO": "WO-DECL", "COST_CODE": "CC-D",
+                    "WH NORTH": 5, "WH SOUTH": 0, "HOLD_TOTAL": 5,
+                    "RECV_DIRECT": 5, "RECV_XFER": 0, "RECV_TOTAL": 5, "END_BAL": 5,
+                }
+            ],
+        )
+        path = self._save(wb)
+
+        with self.subTest("field_presence missing entirely"):
+            mapping = build_base_mapping()
+            del mapping["workbook"]["location_sheet"]["field_presence"]
+            with self.assertRaises(ValueError) as ctx:
+                self.mod.parse_workbook(path, mapping)
+            self.assertIn("field_presence", str(ctx.exception))
+
+        with self.subTest("one field not declared"):
+            mapping = build_base_mapping()
+            del mapping["workbook"]["location_sheet"]["field_presence"]["planned"]
+            with self.assertRaises(ValueError) as ctx:
+                self.mod.parse_workbook(path, mapping)
+            self.assertIn("planned", str(ctx.exception))
+
+        with self.subTest("variant-scoped declaration missing the single_row variant"):
+            mapping = build_base_mapping()
+            mapping["workbook"]["location_sheet"]["field_presence"]["planned"] = {"two_row": "required"}
+            with self.assertRaises(ValueError) as ctx:
+                self.mod.parse_workbook(path, mapping)
+            self.assertIn("planned", str(ctx.exception))
+
+        with self.subTest("presence declared for an unknown field"):
+            mapping = build_base_mapping()
+            mapping["workbook"]["location_sheet"]["field_presence"]["made_up_field"] = "required"
+            with self.assertRaises(ValueError) as ctx:
+                self.mod.parse_workbook(path, mapping)
+            self.assertIn("made_up_field", str(ctx.exception))
+
+        with self.subTest("invalid declaration value"):
+            mapping = build_base_mapping()
+            mapping["workbook"]["location_sheet"]["field_presence"]["planned"] = "sometimes"
+            with self.assertRaises(ValueError) as ctx:
+                self.mod.parse_workbook(path, mapping)
+            self.assertIn("planned", str(ctx.exception))
+
+        with self.subTest("warehouse band without an explicit required flag"):
+            mapping = build_base_mapping()
+            del mapping["workbook"]["location_sheet"]["warehouse_band"]["required"]
+            with self.assertRaises(ValueError) as ctx:
+                self.mod.parse_workbook(path, mapping)
+            self.assertIn("warehouse_band.required", str(ctx.exception))
+
+        with self.subTest("valid declaration still parses"):
+            result = self.mod.parse_workbook(path, build_base_mapping())
+            self.assertEqual(result["refused_sections"], [])
+            self.assertEqual(len(result["accepted_sections"]), 1)
 
 
 if __name__ == "__main__":

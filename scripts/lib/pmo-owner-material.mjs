@@ -106,7 +106,26 @@ const ALLOWED_LOCATION_SHEET_KEYS = new Set([
   'columns',
   'sub_header_columns',
   'evidence_columns',
+  'field_presence',
 ]);
+
+const ALLOWED_WAREHOUSE_BAND_KEYS = new Set([
+  'two_row_start_header',
+  'single_row_after_fields',
+  'end_field',
+  'required',
+]);
+
+const PRESENCE_VALUES = new Set(['required', 'optional']);
+
+/** 'required' | 'optional' | {two_row, single_row} with both variants declared. */
+function isValidPresenceDecl(decl) {
+  if (typeof decl === 'string') return PRESENCE_VALUES.has(decl);
+  if (isPlainObject(decl) && Object.keys(decl).length === 2) {
+    return PRESENCE_VALUES.has(decl.two_row) && PRESENCE_VALUES.has(decl.single_row);
+  }
+  return false;
+}
 
 const ALLOWED_WO_DEFAULT_KEYS = new Set([
   'tax_treatment',
@@ -334,6 +353,48 @@ export function validateMapping(mapping) {
         }
         if (!isPlainObject(loc.columns) || !loc.columns.item_code) {
           problems.push('workbook.location_sheet.columns.item_code is required');
+        }
+        if (loc.warehouse_band !== undefined) {
+          if (!isPlainObject(loc.warehouse_band)) {
+            problems.push('workbook.location_sheet.warehouse_band must be an object');
+          } else {
+            for (const k of Object.keys(loc.warehouse_band)) {
+              if (!ALLOWED_WAREHOUSE_BAND_KEYS.has(k)) {
+                problems.push(`unknown workbook.location_sheet.warehouse_band key '${k}'`);
+              }
+            }
+            if (typeof loc.warehouse_band.required !== 'boolean') {
+              problems.push(
+                'workbook.location_sheet.warehouse_band.required must be a boolean declaring whether every sheet must carry at least one owner-warehouse column',
+              );
+            }
+          }
+        }
+        const declaredFieldKeys = new Set([
+          ...Object.keys(loc.columns ?? {}),
+          ...Object.keys(loc.sub_header_columns ?? {}),
+          ...Object.keys(loc.evidence_columns ?? {}),
+        ]);
+        if (!isPlainObject(loc.field_presence) || Object.keys(loc.field_presence).length === 0) {
+          problems.push(
+            'workbook.location_sheet.field_presence must be an object declaring every mapped field as "required" or "optional"',
+          );
+        } else {
+          for (const [field, decl] of Object.entries(loc.field_presence)) {
+            if (!declaredFieldKeys.has(field)) {
+              problems.push(`workbook.location_sheet.field_presence declares unknown field '${field}'`);
+            }
+            if (!isValidPresenceDecl(decl)) {
+              problems.push(
+                `workbook.location_sheet.field_presence['${field}'] must be "required", "optional", or an object with both "two_row" and "single_row" set to "required" or "optional"`,
+              );
+            }
+          }
+          for (const field of declaredFieldKeys) {
+            if (!(field in loc.field_presence)) {
+              problems.push(`workbook.location_sheet.field_presence must declare '${field}' (required or optional)`);
+            }
+          }
         }
       }
     }
