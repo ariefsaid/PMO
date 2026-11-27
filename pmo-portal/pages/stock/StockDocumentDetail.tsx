@@ -1,3 +1,4 @@
+import { stockUnitCode } from "@/src/lib/i18n/stockUnitLabel";
 import React, { useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
@@ -96,7 +97,7 @@ const StockDocumentDetail: React.FC = () => {
   const postedFromOdoo = d?.status === 'Posted' && evidence?.state === 'confirmed';
   // Odoo's number is a sum across items: it reads as a quantity only when every line shares one unit, else the lines are counted.
   const units = new Set((d?.lines ?? []).map((l) => l.item?.unit.code));
-  const moved = units.size === 1 ? t('detail.erp.movedQuantity', { quantity: formatQuantity(evidence?.completedQuantity ?? '0', loc), unit: [...units][0] }) : t('detail.erp.movedLines', { count: d?.lines.length ?? 0 });
+  const moved = units.size === 1 ? t('detail.erp.movedQuantity', { quantity: formatQuantity(evidence?.completedQuantity ?? '0', loc), unit: stockUnitCode([...units][0] ?? '', t) }) : t('detail.erp.movedLines', { count: d?.lines.length ?? 0 });
   // The valuation is the project's material cost: the database answers it only to the roles that see stock costs.
   const value = evidence?.completedValue ?? null;
   const awaitingEvidence = connected && d?.status === 'Posted' && erp.isPending;
@@ -144,7 +145,7 @@ const StockDocumentDetail: React.FC = () => {
     },
     {
       key: 'qty', header: d?.kind === 'count' ? t('count.detail.counted') : t('detail.columns.quantity'), align: 'num',
-      cell: (l) => <span className="tabular-nums">{formatQuantity(l.quantity ?? l.counted_quantity ?? '0', loc)} <span className="text-muted-foreground">{l.item?.unit.code}</span>
+      cell: (l) => <span className="tabular-nums">{formatQuantity(l.quantity ?? l.counted_quantity ?? '0', loc)} <span className="text-muted-foreground">{l.item ? stockUnitCode(l.item.unit.code, t) : null}</span>
         {l.quantity && Number(l.qty_rejected ?? 0) > 0 && <span className="block text-sm text-muted-foreground">{t('quality.passedQty', { qty: formatQuantity(subtractDecimal(l.quantity, l.qty_rejected ?? '0'), loc) })} · {t('quality.rejectedQty', { qty: formatQuantity(l.qty_rejected ?? '0', loc), reason: l.reject_note ?? '' })}</span>}</span>,
       exportValue: (l) => l.quantity ?? l.counted_quantity ?? '',
     },
@@ -195,7 +196,7 @@ const StockDocumentDetail: React.FC = () => {
     const cols: Column<StockLedgerRow>[] = [
       { key: 'item', header: t('detail.columns.item'), rowHeader: true, cell: (r) => <span className="record-id font-semibold text-foreground">{r.itemCode}</span>, exportValue: (r) => r.itemCode },
       { key: 'wh', header: t('detail.columns.warehouse'), cell: (r) => <span className="text-sm">{r.warehouseCode}</span>, exportValue: (r) => r.warehouseCode },
-      { key: 'delta', header: t('detail.columns.change'), align: 'num', cell: (r) => <span className="tabular-nums">{r.qtyDelta.startsWith('-') ? '' : '+'}{formatQuantity(r.qtyDelta, loc)} {r.unitCode}</span>, exportValue: (r) => r.qtyDelta },
+      { key: 'delta', header: t('detail.columns.change'), align: 'num', cell: (r) => <span className="tabular-nums">{r.qtyDelta.startsWith('-') ? '' : '+'}{formatQuantity(r.qtyDelta, loc)} {stockUnitCode(r.unitCode, t)}</span>, exportValue: (r) => r.qtyDelta },
       { key: 'after', header: t('detail.columns.balance'), align: 'num', cell: (r) => <span className="tabular-nums">{formatQuantity(r.qtyAfter, loc)}</span>, exportValue: (r) => r.qtyAfter },
     ];
     if (showCost) cols.push({ key: 'value', header: t('detail.columns.value'), align: 'num', cell: (r) => <span className="tabular-nums">{formatStockValue(r.valueDelta, currency, loc)}</span>, exportValue: (r) => r.valueDelta ?? '' });

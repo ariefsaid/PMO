@@ -1,4 +1,5 @@
 import { supabase } from '@/src/lib/supabase/client';
+import { BY_IDS_CHUNK } from './limits';
 import { fetchAllPages } from '@/src/lib/pagedRead';
 import { AppError, assertWriteLanded } from '@/src/lib/appError';
 import { revenueRefusalCode } from '@/src/lib/db/revenueNative';
@@ -269,10 +270,14 @@ export async function withSurveyFigures(facts: ProjectBillingFacts | null): Prom
   if (!facts) return facts;
   const workOrderIds = [...new Set(facts.contractLines.flatMap((line) => line.allocations.map((a) => a.workOrderId)))];
   if (workOrderIds.length === 0) return facts;
-  const { data: certified, error: certifiedError } = await supabase.from('survey_certified_lines')
-    .select('work_order_id,boq_item_id,certified_quantity,quality_ready_quantity').in('work_order_id', workOrderIds).limit(5000);
-  if (certifiedError) fail(certifiedError);
-  const byLine = new Map((certified ?? []).map((r) => [`${r.work_order_id}:${r.boq_item_id}`, r]));
+  const byLine = new Map<string, { certified_quantity: number | null; quality_ready_quantity: number | null }>();
+  for (let i = 0; i < workOrderIds.length; i += BY_IDS_CHUNK) {
+    const ids = workOrderIds.slice(i, i + BY_IDS_CHUNK);
+    const certified = await fetchAllPages((from, to) => supabase.from('survey_certified_lines')
+      .select('work_order_id,boq_item_id,certified_quantity,quality_ready_quantity').in('work_order_id', ids)
+      .order('work_order_id').order('boq_item_id').order('org_id').range(from, to));
+    for (const row of certified) byLine.set(`${row.work_order_id}:${row.boq_item_id}`, row);
+  }
   return {
     ...facts,
     contractLines: facts.contractLines.map((line) => ({

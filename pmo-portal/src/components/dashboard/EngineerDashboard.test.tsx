@@ -26,7 +26,7 @@ const state = vi.hoisted(() => ({
 }));
 
 vi.mock('@/src/hooks/useTimesheets', () => ({ useTimesheets: (...args: unknown[]) => { state.timesheetArgs.push(args); return state.timesheets; } }));
-vi.mock('@/src/hooks/useWorkOrders', () => ({ useAllWorkOrders: () => ({ data: [], isPending: false, isError: false, refetch: () => undefined }) }));
+vi.mock('@/src/hooks/useWorkOrders', () => ({ useOpenWorkOrdersForHome: () => ({ data: [], isPending: false, isError: false, refetch: () => undefined }) }));
 vi.mock('@/src/hooks/useMyTasks', () => ({ useMyTasks: () => state.tasks }));
 vi.mock('@/src/hooks/useOrgToday', () => ({ useOrgToday: () => state.orgDay.day ?? '2026-06-03' }));
 vi.mock('@/src/hooks/useExpenseClaims', () => ({ useExpenseClaims: (filters: unknown) => { state.claimFilters.push(filters); return state.expenses; } }));

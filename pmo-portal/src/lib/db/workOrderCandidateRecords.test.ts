@@ -5,7 +5,7 @@ const h = vi.hoisted(() => {
   const result = { value: { data: [] as unknown, error: null as unknown } };
   const calls: Array<[string, unknown[]]> = [];
   const builder: Record<string, unknown> = {};
-  for (const k of ['select', 'eq', 'order', 'limit'] as const) builder[k] = (...a: unknown[]) => { calls.push([k, a]); return builder; };
+  for (const k of ['select', 'eq', 'order', 'range'] as const) builder[k] = (...a: unknown[]) => { calls.push([k, a]); return builder; };
   builder.then = (resolve: (v: unknown) => unknown) => resolve(result.value);
   return { calls, result, from: vi.fn(() => builder) };
 });

@@ -911,6 +911,14 @@ async function sendGraphRequest(
       contextId: connection.id,
       orgId,
     });
+    if (method === "GET" && graphRes.status === 403 && upstreamCode.toLowerCase() === "accessdenied" &&
+      url.pathname.endsWith("/children")) {
+      return {
+        status: 403,
+        body: { error: "FOLDER_ACCESS_DENIED", message: "Folder access denied" },
+        headers: GRAPH_HEADERS,
+      };
+    }
     // Record-folder reads only: a throttled/unavailable answer may carry a bounded retry hint (seconds).
     const retryAfter = options.redact && (graphRes.status === 429 || graphRes.status === 503)
       ? retryAfterSeconds(graphRes.headers.get("Retry-After"))

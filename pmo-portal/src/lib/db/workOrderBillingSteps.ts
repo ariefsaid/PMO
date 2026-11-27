@@ -1,3 +1,4 @@
+import { fetchAllPages } from '@/src/lib/pagedRead';
 import { supabase } from '@/src/lib/supabase/client';
 import { nullableArg } from './nullableArg';
 import { AppError } from '@/src/lib/appError';
@@ -10,7 +11,6 @@ import type { StepInput } from './billingSteps';
  * reads `WBS_CODE: sentence` (the refusals catalogue).
  */
 const STEP_LIMIT = 20;
-const BOARD_LIMIT = 500;
 
 function fail(error: { message: string; code?: string }): never {
   throw new AppError(error.message, error.code);
@@ -93,13 +93,14 @@ export async function listWorkOrderSteps(workOrderId: string): Promise<WorkOrder
 
 /** The steps of every issued work order the viewer may see (the billing board rows). Optionally one project. */
 export async function listBoardWorkOrderSteps(projectId?: string): Promise<BoardWorkOrderStep[]> {
-  let q = supabase.from('work_orders')
-    .select('id,wo_number,title,project_id,project:projects!project_id(name),steps:work_order_billing_steps(id,work_order_id,project_id,position,name,owner_role_key,assignee_id,target_days,optional,claim_evidence_enabled,started_on,done_on,skipped_on,skipped_reason,assignee:profiles!work_order_billing_steps_assignee_id_fkey(full_name),documents:work_order_billing_step_documents(id,position,name,required,document_id))')
-    .eq('status', 'Issued');
-  if (projectId) q = q.eq('project_id', projectId);
-  const { data, error } = await q.order('created_at', { ascending: false }).limit(BOARD_LIMIT);
-  if (error) fail(error);
-  return (data ?? []).flatMap((w) => w.steps.map((r) => ({ ...toStep(r), workOrderLabel: w.wo_number ?? w.title, projectName: w.project?.name ?? '' })));
+  const rows = await fetchAllPages((from, to) => {
+    let q = supabase.from('work_orders')
+      .select('id,wo_number,title,project_id,project:projects!project_id(name),steps:work_order_billing_steps(id,work_order_id,project_id,position,name,owner_role_key,assignee_id,target_days,optional,claim_evidence_enabled,started_on,done_on,skipped_on,skipped_reason,assignee:profiles!work_order_billing_steps_assignee_id_fkey(full_name),documents:work_order_billing_step_documents(id,position,name,required,document_id))')
+      .eq('status', 'Issued');
+    if (projectId) q = q.eq('project_id', projectId);
+    return q.order('created_at', { ascending: false }).order('id').range(from, to);
+  });
+  return rows.flatMap((w) => w.steps.map((r) => ({ ...toStep(r), workOrderLabel: w.wo_number ?? w.title, projectName: w.project?.name ?? '' })));
 }
 
 export async function getWaitingWorkOrderSteps(): Promise<WaitingWorkOrderStep[]> {

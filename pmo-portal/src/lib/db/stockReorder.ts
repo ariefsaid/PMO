@@ -1,6 +1,6 @@
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError, toAppError } from '@/src/lib/appError';
-import { listItemTagNames } from './stockMaster';
+import { listItemTagNames, withStockItemTags, type ReadStockItemTags } from './stockMaster';
 
 /** Reorder levels (#1512 S6, FR-STK-051..054). Quantities stay decimal strings (NFR-STK-007). */
 export interface ReorderLevel { reorderLevel: string; reorderQuantity: string | null }
@@ -39,7 +39,7 @@ export async function getReorderSuggestion(warehouseId: string, itemId: string):
   return { status: d.status, suggestion: level(d.suggestion), inputs: inputs as ReorderInputs, current: level(d.current) };
 }
 
-export async function getBelowReorder(): Promise<BelowReorderRow[]> {
+export async function getBelowReorder(readTags: ReadStockItemTags = listItemTagNames): Promise<BelowReorderRow[]> {
   const { data, error } = await supabase.rpc('get_stock_below_reorder');
   if (error) throw toAppError(error);
   const rows: BelowReorderRow[] = ((data ?? []) as Json[]).map((r) => ({
@@ -47,16 +47,7 @@ export async function getBelowReorder(): Promise<BelowReorderRow[]> {
     warehouseId: r.warehouse_id, warehouseCode: r.warehouse_code,
     qtyOnHand: r.qty_on_hand, reorderLevel: r.reorder_level, reorderQuantity: r.reorder_quantity ?? null,
   }));
-  if (rows.length === 0) return rows;
-  // The 0418 RPC carries no tag. Join the same narrow, paged read of tagged items the balance/ledger reads use — once
-  // for the whole worklist, never per row and never the item catalogue — so a never-stocked worklist row keeps its
-  // configured tag and an ordinary row stays absent (no invented label or zero).
-  const tagByItem = new Map((await listItemTagNames()).map((t) => [t.itemId, t.tagName] as const));
-  for (const row of rows) {
-    const tagName = tagByItem.get(row.itemId);
-    if (tagName) row.tagName = tagName;
-  }
-  return rows;
+  return withStockItemTags(rows, readTags);
 }
 
 /** `level: null` clears the level. The strings travel as typed; PostgREST casts them to numeric. */

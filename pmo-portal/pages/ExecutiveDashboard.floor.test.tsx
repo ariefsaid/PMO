@@ -66,7 +66,7 @@ vi.mock('@/src/hooks/useDashboard', () => ({
   useLossBreakdown: () => lossState,
 }));
 vi.mock('@/src/hooks/useProcurements', () => ({ useProcurements: () => procurementsState }));
-vi.mock('@/src/hooks/useWorkOrders', () => ({ useAllWorkOrders: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }) }));
+vi.mock('@/src/hooks/useWorkOrders', () => ({ useOpenWorkOrdersForHome: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }) }));
 vi.mock('@/src/hooks/useMyTasks', () => ({ useMyTasks: () => myTasksState }));
 vi.mock('@/src/hooks/useProjectsDelivery', () => ({ useProjectManagementOverview: () => ({ data: [], isPending: false, isError: false }), useProjectsDelivery: () => deliveryState, useProjectsDeliverySummary: () => ({ data: {}, isPending: false, isError: false }) }));
 vi.mock('@/src/hooks/useOrgToday', () => ({ useOrgToday: () => '2026-10-27' }));
