@@ -204,6 +204,7 @@ describe('#2097: only `common` is resident at boot; feature namespaces arrive on
         '/locales/id/common.json': { shell: { nav: { projects: 'Proyek' } } },
         '/locales/en/crm.json': { companies: { title: 'Companies' } },
         '/locales/id/crm.json': { companies: { title: 'Perusahaan' } },
+        '/locales/en/commonPages.json': { history: { title: 'History' } },
       };
       return { ok: Boolean(catalogues[url]), status: catalogues[url] ? 200 : 404, json: () => Promise.resolve(catalogues[url] ?? {}) };
     });
@@ -264,6 +265,15 @@ describe('#2097: only `common` is resident at boot; feature namespaces arrive on
     expect(handler('crm:companies.title')).toBe('Companies');
     // ...and the call site's own default still wins, as before (FR-L10N-041).
     expect(handler('crm:companies.title', 'Supplier list')).toBe('Supplier list');
+  });
+
+  it('a bare key common lacks loads commonPages once and returns its English text', async () => {
+    const { mod, instance, urls } = await isolatedBoot();
+    const handler = mod.createParseMissingKeyHandler(instance);
+    handler('history.title');
+    handler('history.title');
+    await vi.waitFor(() => expect(handler('history.title')).toBe('History'));
+    expect(urls().filter((u) => u === '/locales/en/commonPages.json')).toHaveLength(1);
   });
 
   it('⛔ a namespaced miss with no default never renders the namespace prefix on screen', () => {
