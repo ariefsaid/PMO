@@ -117,6 +117,10 @@ insert into work_order_acceptance_lines (acceptance_id, boq_item_id, quantity) v
 -- Project for equal-confirmed_at tie break testing
 insert into projects (id, org_id, name, status, contract_value, tax_treatment, tax_amount, currency) values
   ('09210000-0000-0000-0000-000000000024', '09210000-0000-0000-0000-000000000001', 'Tie-Break Project', 'Ongoing Project', 100000, 'exclusive', 0, 'USD');
+-- Each org's Project Manager manages its projects: a Project Manager reads money for their own projects (DD-R1125-14).
+update projects set project_manager_id = case org_id when '09210000-0000-0000-0000-000000000001' then '09210000-0000-0000-0000-000000000011'::uuid
+                                                     else '09210000-0000-0000-0000-000000000013'::uuid end
+ where id::text like '09210000-%';
 
 insert into boq_items (id, org_id, project_id, item_code, description, unit, quantity, rate, earning_basis, line_no) values
   ('09210000-0000-0000-0000-000000000045', '09210000-0000-0000-0000-000000000001', '09210000-0000-0000-0000-000000000024', 'BOQ-TIE', 'Tie Item', 'm', 100, 250, 'unit_rate', 1);

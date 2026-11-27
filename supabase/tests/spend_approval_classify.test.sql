@@ -23,10 +23,11 @@ insert into profiles (id, org_id, full_name, email, role, status) values
   ('02342000-0000-0000-0000-0000000000a5','02342000-0000-0000-0000-00000000000a','Cls Engineer','apr-cls-eng@example.com','Engineer','active'),
   ('02342000-0000-0000-0000-0000000000b1','02342000-0000-0000-0000-00000000000b','Cls PM B','apr-cls-pm-b@example.com','Project Manager','active');
 
-insert into projects (id, org_id, name, status) values
-  ('02342000-0000-0000-0000-000000000101','02342000-0000-0000-0000-00000000000a','Cls Project','Ongoing Project'),
-  ('02342000-0000-0000-0000-000000000102','02342000-0000-0000-0000-00000000000a','Cls Budget Changed','Ongoing Project'),
-  ('02342000-0000-0000-0000-000000000103','02342000-0000-0000-0000-00000000000a','Cls Budget Settled','Ongoing Project');
+-- The viewer manages the projects whose routes it reads: a Project Manager reads money for their own projects (DD-R1125-14).
+insert into projects (id, org_id, name, status, project_manager_id) values
+  ('02342000-0000-0000-0000-000000000101','02342000-0000-0000-0000-00000000000a','Cls Project','Ongoing Project','02342000-0000-0000-0000-0000000000a1'),
+  ('02342000-0000-0000-0000-000000000102','02342000-0000-0000-0000-00000000000a','Cls Budget Changed','Ongoing Project','02342000-0000-0000-0000-0000000000a1'),
+  ('02342000-0000-0000-0000-000000000103','02342000-0000-0000-0000-00000000000a','Cls Budget Settled','Ongoing Project','02342000-0000-0000-0000-0000000000a1');
 -- budget_line_items_draft_guard: lines only land on a Draft version, so seed Draft → lines → Active.
 insert into budget_versions (id, org_id, project_id, name, version, status) values
   ('02342000-0000-0000-0000-000000000201','02342000-0000-0000-0000-00000000000a','02342000-0000-0000-0000-000000000101','v1',1,'Draft'),

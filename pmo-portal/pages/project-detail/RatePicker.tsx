@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button, Combobox, DateField, SelectField } from '@/src/components/ui';
 import { repositories } from '@/src/lib/repositories';
@@ -19,22 +19,28 @@ export default function RatePicker({ projectId, today, currency, onChange, initi
   const [itemId, setItemId] = useState(initial?.itemId ?? '');
   const [variantId, setVariantId] = useState(initial?.variantId ?? '');
   const [asOf, setAsOf] = useState(initial?.asOf ?? today);
-  const load = useCallback(async () => {
-    setStatus('loading');
-    try {
-      const [nextItems, nextVariants, nextRates] = await Promise.all([repositories.rateCatalogue.listItems(projectId), repositories.rateCatalogue.listVariants(projectId), repositories.rateCatalogue.listRates(projectId)]);
-      setItems(nextItems); setVariants(nextVariants); setRates(nextRates);
-      setVariantId((v) => v || nextVariants.find((x) => x.is_default)?.id || ''); setStatus('ready');
-    } catch { setStatus('error'); }
-  }, [projectId]);
-  useEffect(() => { void load(); }, [load, retryKey]);
+  const [retryCount, setRetryCount] = useState(0);
+  useEffect(() => {
+    let active = true;
+    async function load() {
+      setStatus('loading');
+      try {
+        const [nextItems, nextVariants, nextRates] = await Promise.all([repositories.rateCatalogue.listItems(projectId), repositories.rateCatalogue.listVariants(projectId), repositories.rateCatalogue.listRates(projectId)]);
+        if (!active) return;
+        setItems(nextItems); setVariants(nextVariants); setRates(nextRates);
+        setVariantId((v) => v || nextVariants.find((x) => x.is_default)?.id || ''); setStatus('ready');
+      } catch { if (active) setStatus('error'); }
+    }
+    void load();
+    return () => { active = false; };
+  }, [projectId, retryKey, retryCount]);
   const current = useMemo(() => rates.filter((r) => r.item_id === itemId && r.variant_id === variantId && r.effective_from <= asOf).sort((a, b) => b.effective_from.localeCompare(a.effective_from))[0], [rates, itemId, variantId, asOf]);
   const picked = useMemo(() => items.find((i) => i.id === itemId), [items, itemId]);
   useEffect(() => {
     onChange(itemId ? { itemId, variantId, asOf, rate: current?.rate ?? null, ...(picked ? { item: { itemCode: picked.item_code ?? '', description: picked.description ?? '', unit: picked.unit ?? '' } } : {}) } : null);
   }, [itemId, variantId, asOf, current, picked, onChange]);
   if (status === 'loading') return <p role="status">{t('rateCatalogue.loading', 'Loading rates…')}</p>;
-  if (status === 'error') return <div role="alert">{t('rateCatalogue.loadError', 'Could not load rates')} <Button variant="outline" onClick={() => void load()}>{t('rateCatalogue.retry', 'Retry')}</Button></div>;
+  if (status === 'error') return <div role="alert">{t('rateCatalogue.loadError', 'Could not load rates')} <Button variant="outline" onClick={() => setRetryCount((count) => count + 1)}>{t('rateCatalogue.retry', 'Retry')}</Button></div>;
   return <div className="space-y-3">
     <Combobox label={t('rateCatalogue.pickItem', 'Catalogue item')} value={itemId || null} selectedOption={items.find((i) => i.id === itemId) ? { value: itemId, label: items.find((i) => i.id === itemId)?.description ?? '' } : null} loadOptions={async () => items.map((i) => ({ value: i.id, label: `${i.item_code} · ${i.description}` }))} onChange={setItemId} clearable onClear={() => setItemId('')} />
     {itemId && <>

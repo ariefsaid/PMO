@@ -1,4 +1,5 @@
 import { companyDisplayName } from '@/src/lib/companyDisplayName';
+import { ProjectMoneyScopeContext, useMayViewProjectMoney } from '@/src/hooks/useProjectMoneyScope';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import { TaxRateFields } from '@/src/components/ui/TaxRateFields';
 import { useStandaloneTaxFields } from '@/src/hooks/useStandaloneTaxFields';
@@ -379,13 +380,14 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   // D15 (OD-W5-C3-A): delivery-forward roles (Engineer) have the finance strip and SoD row
   // relocated to the Overview "Financial summary" aside. Finance-forward roles (Admin·Exec·Finance·PM)
   // keep the header unchanged. FE-only reprioritization — never hides RLS-permitted data.
-  const isFinanceForward = hasFinanceView(realRole);
+  const moneyInScope = React.useContext(ProjectMoneyScopeContext);
+  const isFinanceForward = hasFinanceView(realRole) && moneyInScope;
   const canEdit = may('edit', 'project');
   const canArchive = may('archive', 'project');
   const canDelete = may('delete', 'project'); // Admin-only (rbac-visibility §B2/§K).
   const canEditValue = may('editContractValue', 'project', { record: { status } });
   const canSetVat = may('setVatFlag', 'project');
-  const canViewMoney = may('view', 'salesInvoice');
+  const canViewMoney = useMayViewProjectMoney();
   const taxDetailsNeeded = project.tax_rate == null
     || (project.tax_base_numerator ?? 1) !== 1 || (project.tax_base_denominator ?? 1) !== 1;
 
@@ -853,7 +855,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
             commitmentError={commitmentError}
             isOnHand={isOnHand}
             isFinanceForward={isFinanceForward}
-            canViewActual={may('view', 'salesInvoice')}
+            canViewActual={canViewMoney}
             canEditValue={canEditValue}
             valueEditing={valueEditing}
             lockReasonOpen={lockReasonOpen}

@@ -25,6 +25,7 @@ select plan(8);
 create temp table la_fn_allow (fn text primary key, kind text not null check (kind in ('field_path','helper','trigger')), why text not null);
 insert into la_fn_allow values
   ('order_receiving_blind', 'helper', 'scalar policy predicate: a field account holds no storekeeper job, so it answers false'),
+  ('actor_money_scoped', 'helper', 'scalar money-scope predicate: a field account is not a Project Manager, so it answers false'),
   ('order_receiving_line_blind', 'helper', 'scalar policy predicate scoped to the caller organization, false without the storekeeper job'),
   ('attendance_can_record', 'field_path', 'the field home, clock-in, attendance and own-leave paths'),
   ('attendance_second_record_may_decide', 'helper', 'the signed-in authorization-state or organisation-setting helper the shell and the policies read'),

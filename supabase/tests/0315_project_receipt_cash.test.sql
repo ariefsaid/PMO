@@ -36,6 +36,8 @@ insert into public.projects (id,org_id,name,status,currency,contract_value,tax_t
  ('10730000-0000-0000-0000-0000000000d9','10730000-0000-0000-0000-000000000001','Before reassignment','Ongoing Project','USD',10000,'exclusive',0,0,1,1,false,'CASH-REASSIGN-FROM'),
  ('10730000-0000-0000-0000-0000000000da','10730000-0000-0000-0000-000000000001','After reassignment','Ongoing Project','USD',10000,'exclusive',0,0,1,1,false,'CASH-REASSIGN-TO'),
  ('10730000-0000-0000-0000-0000000000db','10730000-0000-0000-0000-000000000002','Foreign project','Ongoing Project','USD',10000,'exclusive',0,0,1,1,false,'CASH-FOREIGN');
+-- A Project Manager reads project money for their own projects (2750): this Project Manager manages the project under test.
+update public.projects set project_manager_id = '10730000-0000-0000-0000-0000000000a4' where org_id = '10730000-0000-0000-0000-000000000001' and project_manager_id is null;
 
 set local role authenticated;
 set local request.jwt.claims='{"sub":"10730000-0000-0000-0000-0000000000a1","role":"authenticated"}';
