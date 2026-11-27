@@ -530,6 +530,45 @@ function chunkArray(items, size) {
   return chunks;
 }
 
+/**
+ * Build bounded (<= maxChunkSize) catalogue chunks so every chunk containing items begins
+ * with the distinct unit entities those items depend on (same entity_key and hash as the
+ * initial unit chunk). Preview calls roll back independently, so each item chunk must carry
+ * its own unit prerequisites; confirm skips already-created units idempotently.
+ */
+export function buildCatalogueChunks(catalogueEntities, maxChunkSize = MAX_CATALOGUE_CHUNK) {
+  const unitEntities = catalogueEntities.filter((e) => e.type === 'unit');
+  const nonItemOther = catalogueEntities.filter((e) => e.type !== 'unit' && e.type !== 'item');
+  const itemEntities = catalogueEntities.filter((e) => e.type === 'item');
+  const unitByCode = new Map(unitEntities.map((u) => [u.code, u]));
+
+  const chunks = [];
+  chunks.push(...chunkArray(unitEntities, maxChunkSize));
+  chunks.push(...chunkArray(nonItemOther, maxChunkSize));
+
+  let curUnits = new Map();
+  let curItems = [];
+  for (const item of itemEntities) {
+    const unitCode = String(item.unit || '').trim().toUpperCase();
+    const neededUnit = unitByCode.get(unitCode);
+    const needsNewUnit = Boolean(neededUnit && !curUnits.has(unitCode));
+    const projectedSize = curUnits.size + (needsNewUnit ? 1 : 0) + curItems.length + 1;
+    if (curItems.length > 0 && projectedSize > maxChunkSize) {
+      chunks.push([...curUnits.values(), ...curItems]);
+      curUnits = new Map();
+      curItems = [];
+    }
+    if (neededUnit && !curUnits.has(unitCode)) {
+      curUnits.set(unitCode, neededUnit);
+    }
+    curItems.push(item);
+  }
+  if (curItems.length > 0) {
+    chunks.push([...curUnits.values(), ...curItems]);
+  }
+  return chunks;
+}
+
 function truncateUtf8Bytes(str, maxBytes) {
   if (Buffer.byteLength(str, 'utf8') <= maxBytes) return str;
   const markerBytes = Buffer.byteLength(EVIDENCE_TRUNCATION_MARKER, 'utf8');
@@ -1136,11 +1175,7 @@ export async function runMaterialLoad(opts, api) {
   );
   const catalogueByKey = new Map(catalogueEntities.map((e) => [e.entity_key, e]));
   const unitEntities = catalogueEntities.filter((e) => e.type === 'unit');
-  const otherCatalogueEntities = catalogueEntities.filter((e) => e.type !== 'unit');
-  const orderedCatalogueChunks = [
-    ...chunkArray(unitEntities, MAX_CATALOGUE_CHUNK),
-    ...chunkArray(otherCatalogueEntities, MAX_CATALOGUE_CHUNK),
-  ];
+  const orderedCatalogueChunks = buildCatalogueChunks(catalogueEntities, MAX_CATALOGUE_CHUNK);
 
   const catalogueResults = [];
   let catalogueComplete = true;

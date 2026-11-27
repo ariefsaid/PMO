@@ -901,6 +901,110 @@ test('AC-002: loader refuses over-limit mapping, section, and line fields instea
   assert.ok(secCall.body.p_payload.entities[0].section_code.length <= 20);
 });
 
+test('AC-001 (v2.3): preview rolls back each call, so item catalogue chunks prepend needed unit entities (<= 500 total) and return zero refusals', async () => {
+  // Server models transactional preview rollback: units created in an earlier preview call do NOT persist
+  // to later calls; an item fails with material-invalid unless its unit exists in persistedUnits OR in the SAME call.
+  const persistedUnits = new Set(['PCS']); // 'EA' and 'JT' do not exist yet
+  const calls = [];
+  const transport = {
+    calls,
+    async get(table) {
+      if (table === 'work_orders') {
+        return [{ id: 'wo-1', wo_number: 'WO-SYN-100', client_po_number: null, title: 'Existing', status: 'Issued' }];
+      }
+      return [];
+    },
+    async rpc(name, body) {
+      calls.push({ kind: 'rpc', name, body });
+      if (name === 'om_material_config') {
+        return {
+          categories: [],
+          owner_warehouses: [],
+          steps: [
+            { id: 'step-1', name: 'Prepared', position: 1, percentage: '20' },
+            { id: 'step-2', name: 'Closed', position: 2, percentage: '100' },
+          ],
+          zero_cost_tags: [{ id: ZERO_COST_TAG_ID, name: 'Owner Supplied Material' }],
+        };
+      }
+      if (name === 'om_material_import') {
+        const { p_payload: payload, p_confirm: confirm } = body;
+        assert.ok(payload.entities.length <= 500, 'chunk must stay <= 500 entities');
+        if (payload.kind === 'catalogue') {
+          // Local transaction state: rolled back when !confirm
+          const txUnits = new Set(persistedUnits);
+          const results = [];
+          let complete = true;
+          const ordered = [...payload.entities].sort((a, b) => (a.type === 'unit' ? 0 : 1) - (b.type === 'unit' ? 0 : 1));
+          for (const e of ordered) {
+            if (e.type === 'unit') {
+              const existed = txUnits.has(e.code);
+              txUnits.add(e.code);
+              results.push({ entity_key: e.entity_key, status: existed ? 'skip' : 'create', ids: {} });
+            } else if (e.type === 'item') {
+              if (!txUnits.has(e.unit)) {
+                complete = false;
+                results.push({
+                  entity_key: e.entity_key,
+                  status: 'refused',
+                  reason_code: 'material-invalid',
+                  reason: `Unit must exist as a live organisation unit: unit="${e.unit}"`,
+                  ids: {},
+                });
+              } else {
+                results.push({ entity_key: e.entity_key, status: 'create', ids: {} });
+              }
+            } else {
+              results.push({ entity_key: e.entity_key, status: 'create', ids: {} });
+            }
+          }
+          if (confirm) {
+            for (const u of txUnits) persistedUnits.add(u);
+          }
+          return { batch_id: confirm ? '22222222-2222-4222-8222-222222222222' : null, results, complete };
+        }
+        return {
+          batch_id: null,
+          results: payload.entities[0].lines.map((l) => ({ entity_key: l.entity_key, status: 'create', ids: {} })),
+          complete: true,
+        };
+      }
+      throw new Error(`Unexpected RPC ${name}`);
+    },
+  };
+
+  // Build 510 items across units PCS, EA, JT to force multiple item chunks
+  const parsed = sampleParsed();
+  parsed.catalogue.items = Array.from({ length: 510 }, (_, i) => ({
+    code: String(100000 + i),
+    name: `Synthetic Item ${i}`,
+    unit: i % 3 === 0 ? 'PCS' : i % 3 === 1 ? 'EA' : 'JT',
+  }));
+
+  const preview = await runMaterialLoad(
+    { workbookPath: '/fake/wb.xlsx', mappingPath: '/fake/map.json', mapping: baseMapping(), projectId: PROJECT_ID, confirm: false, parseWorkbook: async () => parsed },
+    transport,
+  );
+  assert.equal(preview.exit, 0);
+  assert.equal(preview.report.complete, true);
+  assert.equal(preview.report.counts.server_refused, 0);
+  assert.deepEqual(
+    preview.report.units_to_create.map((u) => u.code).sort(),
+    ['EA', 'JT'],
+  );
+
+  // Every catalogue chunk containing items must begin with the unit entities those items need and stay <= 500
+  const itemChunks = calls
+    .filter((c) => c.name === 'om_material_import' && c.body.p_payload.kind === 'catalogue')
+    .map((c) => c.body.p_payload.entities)
+    .filter((ents) => ents.some((e) => e.type === 'item'));
+  assert.ok(itemChunks.length >= 2, '510 items should span at least 2 item chunks');
+  for (const ents of itemChunks) {
+    assert.ok(ents.length <= 500);
+    assert.equal(ents[0].type, 'unit', 'item chunk must start with unit entities');
+  }
+});
+
 test('AC-001: CLI `pmo material load` wires ordinary session, Admin check, preview default, and never prints tokens', async () => {
   const dir = tmpDir();
   const requests = [];
