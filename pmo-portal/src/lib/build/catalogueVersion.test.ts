@@ -48,3 +48,46 @@ describe('versioned language catalogues', () => {
     expect(rule('/index.html')).toBe('Cache-Control: no-cache');
   });
 });
+
+describe('stale versioned catalogue address (tab kept open across a release)', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+  });
+
+  it('falls back once to /locales when the old address answers with HTML', async () => {
+    vi.stubEnv('VITE_CATALOGUE_BASE', '/catalogues/oldhash00000');
+    const fetchMock = vi.fn((url: string) =>
+      url.startsWith('/catalogues/')
+        ? Promise.resolve({ ok: true, json: () => Promise.reject(new SyntaxError('Unexpected token <')) })
+        : Promise.resolve({ ok: true, json: () => Promise.resolve({ greeting: 'Hello' }) }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const cb = vi.fn();
+    catalogueBackend.read!('en', 'common', cb);
+    await vi.waitFor(() => expect(cb).toHaveBeenCalledWith(null, { greeting: 'Hello' }));
+    expect(fetchMock.mock.calls.map(([u]) => u)).toEqual([
+      '/catalogues/oldhash00000/en/common.json',
+      '/locales/en/common.json',
+    ]);
+  });
+
+  it('falls back on a failed versioned fetch, and reports an error when the fallback fails too (no loop)', async () => {
+    vi.stubEnv('VITE_CATALOGUE_BASE', '/catalogues/oldhash00000');
+    const fetchMock = vi.fn().mockResolvedValue({ ok: false, status: 404 });
+    vi.stubGlobal('fetch', fetchMock);
+    const cb = vi.fn();
+    catalogueBackend.read!('en', 'common', cb);
+    await vi.waitFor(() => expect(cb).toHaveBeenCalledWith(expect.any(Error), false));
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not fall back when the base is already /locales', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: false, status: 404 });
+    vi.stubGlobal('fetch', fetchMock);
+    const cb = vi.fn();
+    catalogueBackend.read!('en', 'common', cb);
+    await vi.waitFor(() => expect(cb).toHaveBeenCalled());
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
