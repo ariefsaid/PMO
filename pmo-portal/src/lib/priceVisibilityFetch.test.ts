@@ -52,6 +52,20 @@ it.each(['project_committed_spend', 'procurement_open_commitments'])(
   },
 );
 
+it('AC-HPG-P2 sends a price-free embed read exactly as constructed while it waits for the answer', async () => {
+  setHidePricesActive(null);
+  const base = vi.fn().mockResolvedValue(new Response('{}'));
+  const pending = createPriceVisibilityFetch(base)('https://example.test/rest/v1/stock_documents?select=stock_document_lines(id,qty_rejected,item:stock_items(code))');
+  await Promise.resolve();
+  expect(base).not.toHaveBeenCalled();
+  setHidePricesActive(true);
+  await pending;
+  const sent = String(base.mock.calls[0][0]);
+  expect(sent).toContain('/stock_documents?');
+  expect(decodeURIComponent(sent)).toContain('stock_document_lines(id,qty_rejected,item:stock_items(code))');
+  expect(sent).not.toContain('_masked');
+});
+
 it('AC-HPG-P2 cancels a pending read without dispatching it', async () => {
   setHidePricesActive(null);
   const controller = new AbortController();
