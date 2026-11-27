@@ -26,12 +26,12 @@ export const FILE_THRESHOLD = 60;
 
 // Above this many changed files an affected run is split across the same SHARDS runners the full run
 // uses. Before dependencies are installed, changed files are a preliminary proxy; the scope job
-// then measures the actual affected union and promotes oversized selections to full x4. The data: the data above gives ~8 affected tests per changed file (20 files -> 158 tests, 69 -> ~590). A
+// then measures the actual affected union and promotes oversized selections to full x8. The data: the data above gives ~8 affected tests per changed file (20 files -> 158 tests, 69 -> ~590). A
 // full run is ~1,410 files in ~26 min of one runner (2 shards measured ~10/~16 min), ~1.1 s per file,
 // plus ~2 min of install per runner. Sharding wins once the run outlasts the extra installs: ~200 tests
 // (~4 min) is ~25 files. At or below it one job is cheaper in runner-minutes and just as fast.
 export const SHARD_FILE_THRESHOLD = 25;
-export const SHARDS = 4;
+export const SHARDS = 8;
 
 // Run 45442245877 completed 736 of 1023 selected files in ~38.5 min before the 40-min
 // cap: ~19 files/min. 400 files leaves ~19 min for setup, coverage and slower runs.
@@ -438,11 +438,11 @@ async function selfTest() {
     assert.equal(s(many(FILE_THRESHOLD + 1)).unit, 'full');
     assert.equal(s(many(5), { threshold: 4 }).unit, 'full');
   });
-  test('actual affected count keeps 400 files unchanged and routes 401 to full x4', () => {
+  test('actual affected count keeps 400 files unchanged and routes 401 to full x8', () => {
     const files = ['pmo-portal/src/lib/example.ts'];
     assert.deepEqual(s(files, { affectedTestCount: 400 }), s(files));
     const broad = s(files, { affectedTestCount: 401 });
-    assert.deepEqual([broad.unit, broad.shards], ['full', 4]);
+    assert.deepEqual([broad.unit, broad.shards], ['full', 8]);
     assert.match(broad.reason, /401 affected tests > 400/);
     for (const affectedTestCount of [-1, NaN, 1.5]) {
       assert.throws(() => s(files, { affectedTestCount }), /non-negative integer/);
@@ -452,17 +452,17 @@ async function selfTest() {
     const r = s(Array.from({ length: 25 }, (_, i) => `pmo-portal/src/lib/f${i}.ts`));
     assert.deepEqual([r.unit, r.shards], ['affected', 1]);
   });
-  test('shards: a large affected set (past the shard threshold, under the full threshold) runs 4 shards', () => {
+  test('shards: a large affected set (past the shard threshold, under the full threshold) runs 8 shards', () => {
     const r = s(Array.from({ length: 26 }, (_, i) => `pmo-portal/src/lib/f${i}.ts`));
-    assert.deepEqual([r.unit, r.shards], ['affected', 4]);
+    assert.deepEqual([r.unit, r.shards], ['affected', 8]);
     assert.match(r.reason, /sharded/);
   });
-  test('shards: forced-full is unchanged (full, 4 shards)', () => {
-    assert.deepEqual((({ unit, shards }) => ({ unit, shards }))(s(['pmo-portal/vite.config.ts'])), { unit: 'full', shards: 4 });
+  test('shards: forced-full is unchanged (full, 8 shards)', () => {
+    assert.deepEqual((({ unit, shards }) => ({ unit, shards }))(s(['pmo-portal/vite.config.ts'])), { unit: 'full', shards: 8 });
     const r = s(Array.from({ length: 61 }, (_, i) => `pmo-portal/src/lib/f${i}.ts`));
-    assert.deepEqual([r.unit, r.shards], ['full', 4]);
+    assert.deepEqual([r.unit, r.shards], ['full', 8]);
   });
-  test('shards: the shard threshold is injectable', () => assert.equal(s(['pmo-portal/src/lib/a.ts', 'pmo-portal/src/lib/b.ts'], { shardThreshold: 1 }).shards, 4));
+  test('shards: the shard threshold is injectable', () => assert.equal(s(['pmo-portal/src/lib/a.ts', 'pmo-portal/src/lib/b.ts'], { shardThreshold: 1 }).shards, 8));
   for (const p of ['supabase/migrations/0400_x.sql', 'supabase/tests/x.sql', 'supabase/functions/a/index.ts', 'scripts/with-db-lock.sh',
     'scripts/check-schema-registrations.sh', 'scripts/check-schema-registrations.mjs', 'scripts/check-schema-registrations.test.mjs',
     'scripts/check-isolation-denominator.mjs', 'scripts/isolation-probe-denominator.d/legacy.json', 'scripts/anon-definer-inventory.mjs', 'scripts/isolation-probe.sh', 'scripts/isolation-proof.sh', 'scripts/isolation-fixtures.sql', 'scripts/financial-statements-rollback.test.mjs',

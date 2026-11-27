@@ -442,11 +442,11 @@ test('non-browser repo guards run in CI verify early', async () => {
   const { scope: scopeOf, SHARD_FILE_THRESHOLD } = await import('./ci-test-scope.mjs');
   const files = (n) => Array.from({ length: n }, (_, i) => ({ status: 'M', path: `pmo-portal/src/lib/f${i}.ts` }));
   const shardsOf = (include) => include.map((e) => e.shard);
-  assert.deepEqual(shardsOf(matrixFor(fullJson[1])), [1, 2, 3, 4], 'full mode must run four shards (#2161)');
+  assert.deepEqual(shardsOf(matrixFor(fullJson[1])), [1, 2, 3, 4, 5, 6, 7, 8], 'full mode must run eight shards (#2161)');
   assert.ok(matrixFor(fullJson[1]).every((e) => e.mode === 'full'), 'full mode entries carry mode full');
   const large = scopeOf(files(SHARD_FILE_THRESHOLD + 5));
   assert.equal(large.unit, 'affected');
-  assert.deepEqual(shardsOf(matrixFor(JSON.stringify(large))), [1, 2, 3, 4], 'a large affected set (>25 files) must run four shards (#2293)');
+  assert.deepEqual(shardsOf(matrixFor(JSON.stringify(large))), [1, 2, 3, 4, 5, 6, 7, 8], 'a large affected set (>25 files) must run eight shards (#2293)');
   assert.ok(matrixFor(JSON.stringify(large)).every((e) => e.mode === 'affected'));
   const small = scopeOf(files(3));
   assert.deepEqual(matrixFor(JSON.stringify(small)), [{ shard: 1, mode: 'affected' }], 'a small affected set stays one runner (#1584)');

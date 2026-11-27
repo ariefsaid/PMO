@@ -150,7 +150,7 @@ jobs:
             json=$(node scripts/ci-test-scope.mjs --base "origin/$BASE_REF")
             base_sha=$(git merge-base "origin/$BASE_REF" HEAD)
             # Measure the same union the affected unit job runs before choosing its lane.
-            # Small selections keep their existing route; broad fan-out uses full x4.
+            # Small selections keep their existing route; broad fan-out uses full x8.
             if [ "$(echo "$json" | jq -r .unit)" = affected ]; then
               (cd pmo-portal && npm ci)
               (cd pmo-portal && npx vitest list --filesOnly --changed "$base_sha") | sed -E 's/^\[[a-z]+\] //' > /tmp/changed-tests.txt
@@ -166,8 +166,8 @@ jobs:
           unit=$(jq -r .unit <<<"$json")
           release_light=$(jq -r '.releaseLight // false' <<<"$json")
           # The shard COUNT comes from `strategy.job-total` in the run step. `shards` (scope script) is
-          # 4 for a full run or a large affected set, 1 for a small affected set (#2293).
-          shards=$(jq -r '.shards // 4' <<<"$json")
+          # 8 for a full run or a large affected set, 1 for a small affected set (#2293).
+          shards=$(jq -r '.shards // 8' <<<"$json")
           if [ "$unit" = full ]; then mode=full; else mode=affected; fi
           matrix=$(jq -cn --arg mode "$mode" --argjson n "$shards" '{include: [range(1; $n + 1) | {shard: ., mode: $mode}]}')
           {
@@ -209,6 +209,8 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: pmo-portal/package-lock.json
+      - name: Record unit runner capacity
+        run: node -e 'const os=require("node:os"); console.log(JSON.stringify({cpus:os.cpus().length,availableParallelism:os.availableParallelism(),node:process.version,memory:os.totalmem()}))'
       - run: npm ci
       - name: Unit tests (shard ${{ matrix.shard }}/${{ strategy.job-total }}, + coverage)
         if: matrix.mode == 'full'
