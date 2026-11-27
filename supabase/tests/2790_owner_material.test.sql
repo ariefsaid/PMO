@@ -306,6 +306,7 @@ insert into order_receiving_requests(id,org_id,po_id,receiver_id,warehouse_id,re
  ('30100000-0000-0000-0000-000000009103','30100000-0000-0000-0000-00000000010a','30100000-0000-0000-0000-000000009102','30100000-0000-0000-0000-0000000001a2',
  '30100000-0000-0000-0000-000000006001',current_date,'[]',(select id from material_docs where kind='receive'));
 set local role authenticated;
+select set_order_receiving_enabled(true);
 select lives_ok($$select reverse_order_receiving('30100000-0000-0000-0000-000000009103','Synthetic correction')$$,'AC-003 native receipt reversal posts a correction');
 select is((select received::numeric from om_material_lines('30100000-0000-0000-0000-000000001401','30100000-0000-0000-0000-000000002001')),10::numeric,'AC-003 reversed receipt no longer adds to opening received');
 reset role;
