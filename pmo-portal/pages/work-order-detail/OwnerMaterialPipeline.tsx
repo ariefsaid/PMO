@@ -108,10 +108,12 @@ const Over: React.FC = () => {
 };
 
 /** Contract v2.4: a location loaded with source rows skipped says so above its table; reasons in plain words, from the server's codes. */
+/** The loader's line-level classes (scripts/lib/owner-material-workbook.py, pmo-owner-material.mjs); any other code reads as "other reason", never raw. */
+const SKIP_CODES = new Set(['missing_formula_cache', 'excel_error', 'check_cell', 'missing_unit', 'invalid_numeric', 'invalid_numeric_precision', 'negative_quantity', 'conflicting_cache', 'closing_stock_conflict', 'conflicting_duplicate_unit', 'duplicate_section_item', 'zero_planned_with_movements', 'field_length_exceeded']);
 const Skipped: React.FC<{ count: number; codes: string[] }> = ({ count, codes }) => {
   const { t } = useTranslation('ownerMaterial');
   if (count <= 0) return null;
-  const why = codes.map((c) => t(`skipReason.${c}`, { defaultValue: c.replace(/_/g, ' ') })).join(', ');
+  const why = codes.map((c) => (SKIP_CODES.has(c) ? t(`skipReason.${c}`) : t('skipReason.other', 'Other reason'))).join(', ');
   return (
     <p className="px-[var(--panel-inset)] pb-3 text-control text-foreground" data-testid="om-skipped">
       {t('skipped', { count, defaultValue_one: '{{count}} source row was not loaded', defaultValue_other: '{{count}} source rows were not loaded' })}
