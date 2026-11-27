@@ -1,5 +1,6 @@
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError, assertWriteLanded } from '@/src/lib/appError';
+import { parseDecimal } from '@/src/lib/exactDecimal';
 
 /**
  * Attendance rate per crew against the organisation's target (#2706, migrations 1436/1437).
@@ -34,7 +35,7 @@ export interface CrewAttendanceRateRow {
 export function attendanceTargetIssue(value: number | null): 'range' | 'precision' | null {
   if (value === null) return null;
   if (!Number.isFinite(value) || value < 0 || value > 100) return 'range';
-  if (Math.round(value * 100) !== value * 100) return 'precision';
+  if (parseDecimal(String(value), 2) === null) return 'precision';
   return null;
 }
 
