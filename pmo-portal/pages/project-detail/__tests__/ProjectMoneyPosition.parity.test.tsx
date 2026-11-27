@@ -21,6 +21,8 @@ import { setActiveLocale } from '@/src/lib/locale/activeLocale';
 
 const h = vi.hoisted(() => ({
   getProjectFinances: vi.fn(),
+  boqPending: false,
+  billingPending: false,
   versions: { data: [] as unknown[] | undefined, isPending: false, isError: false },
   budgetPosition: null as unknown,
   procurements: { data: [] as unknown[], isPending: false, isError: false },
@@ -49,14 +51,14 @@ vi.mock('@/src/hooks/useProcurements', () => ({
   useProjectCommittedSpend: () => ({ data: h.committed.data, otherCurrencies: [], commitmentSource: h.committed.commitmentSource, ledgerBasis: 'erp', isPending: false, isError: false, refetch: vi.fn() }),
 }));
 vi.mock('@/src/hooks/useProgressBilling', () => ({
-  useBoqItems: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
-  useProjectBilling: () => ({ data: { contractLines: [] }, isPending: false, isError: false, refetch: vi.fn() }),
+  useBoqItems: () => ({ data: [], isPending: h.boqPending, isError: false, refetch: vi.fn() }),
+  useProjectBilling: () => ({ data: { contractLines: [] }, isPending: h.billingPending, isError: false, refetch: vi.fn() }),
 }));
 vi.mock('@/src/hooks/useRevenue', () => ({
   useSalesInvoices: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
 }));
 vi.mock('@/src/components/fx/FxEquivalent', () => ({ default: () => null }));
-vi.mock('../ProjectProfitLossSection', () => ({ default: () => null }));
+vi.mock('../ProjectProfitLossSection', () => ({ default: ({ projectId }: { projectId: string }) => <div data-testid="statement-host">{projectId}</div> }));
 
 import { CostBlock, MoneyBlock } from '../ProjectBlocks';
 
@@ -111,6 +113,8 @@ const definitionValueText = (scope: HTMLElement, label: string) => {
 };
 
 beforeEach(() => {
+  h.boqPending = false;
+  h.billingPending = false;
   h.getProjectFinances.mockReset();
   h.getProjectFinances.mockResolvedValue(reading());
   h.versions = { data: [activeVersion([['Labor', 30], ['Materials', 10]])], isPending: false, isError: false };
@@ -121,6 +125,25 @@ beforeEach(() => {
 });
 
 describe('project money position consumer parity (AC-PMP-003)', () => {
+  it.each(['finances', 'boq', 'billing'] as const)('AC-008 starts statements independently of pending %s', (pending) => {
+    if (pending === 'finances') h.getProjectFinances.mockReturnValue(new Promise(() => {}));
+    h.boqPending = pending === 'boq';
+    h.billingPending = pending === 'billing';
+    renderOverviewMoney();
+    expect(screen.getByTestId('statement-host')).toHaveTextContent(project.id);
+    expect(within(screen.getByRole('region', { name: 'Money position' })).getByTestId('liststate-loading')).toHaveAttribute('aria-busy', 'true');
+  });
+
+  it('AC-008 retains the statement host when the money projection finishes', async () => {
+    let finish!: (value: ProjectFinances) => void;
+    h.getProjectFinances.mockReturnValue(new Promise<ProjectFinances>((resolve) => { finish = resolve; }));
+    renderOverviewMoney();
+    const host = screen.getByTestId('statement-host');
+    finish(reading());
+    await screen.findByRole('button', { name: 'Details' });
+    expect(screen.getByTestId('statement-host')).toBe(host);
+  });
+
   it('keeps the shared currency and tax basis visible when the money read fails', async () => {
     h.getProjectFinances.mockRejectedValue(new Error('unavailable'));
     renderOverviewMoney();
