@@ -8,15 +8,18 @@ import { deriveProjectPerformance, deriveWorkOrderPerformance } from '@/src/lib/
 import { Link } from 'react-router';
 import { PerformanceFigures } from '../work-order-detail/PerformanceIndices';
 import { PvaTable } from './PvaTable';
+import { ProjectMoneyScopeContext } from '@/src/hooks/useProjectMoneyScope';
 
 /**
  * The project's cost and schedule indices beside the S-curve (#2597, FR-CSP-010). The project figure is the ratio of
  * sums over its issued and closed work orders, never an average of their indices. Renders nothing at all, and issues
  * no request, until the organisation turns the panels on (AC-CSP-018).
  */
-export const ProjectPerformance: React.FC<{ projectId: string }> = ({ projectId }) => (
-  <PerformanceGate><ProjectPerformancePanel projectId={projectId} /></PerformanceGate>
-);
+export const ProjectPerformance: React.FC<{ projectId: string }> = ({ projectId }) => {
+  const inScope = React.useContext(ProjectMoneyScopeContext);
+  if (!inScope) return null;
+  return <PerformanceGate><ProjectPerformancePanel projectId={projectId} /></PerformanceGate>;
+};
 
 const ProjectPerformancePanel: React.FC<{ projectId: string }> = ({ projectId }) => {
   const { t } = useTranslation('workOrderPva');
