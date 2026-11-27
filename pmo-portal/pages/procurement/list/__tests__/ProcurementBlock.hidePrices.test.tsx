@@ -4,7 +4,7 @@ import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
-import { setPricesHidden } from '@/src/lib/priceReadPath';
+import { setPricesHidden, setHidePricesActive } from '@/src/lib/priceReadPath';
 import { ProcurementBlock } from '@/src/components/procurement/ProcurementBlock';
 
 /**
@@ -46,6 +46,7 @@ const renderBlock = () => render(
   </QueryClientProvider>,
 );
 
+beforeEach(() => { setHidePricesActive(false); setPricesHidden(false); });
 afterEach(() => act(() => setPricesHidden(false)));
 
 describe('AC-009 procurement table without prices', () => {
