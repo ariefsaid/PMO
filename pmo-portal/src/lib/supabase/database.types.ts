@@ -36809,6 +36809,10 @@ export type Database = {
         Args: { p_claim: string; p_open_ids: string[]; p_start: string }
         Returns: undefined
       }
+      reopen_work_order: {
+        Args: { p_id: string; p_reason: string }
+        Returns: undefined
+      }
       reopen_equipment_plan: {
         Args: { p_id: string }
         Returns: {

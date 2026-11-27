@@ -1,0 +1,5 @@
+{
+  "definer_functions": [
+    "reopen_work_order(uuid,text)"
+  ]
+}

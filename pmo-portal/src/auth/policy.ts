@@ -84,7 +84,8 @@ export type Action =
   | 'attribute'
   | 'toggleRole'
   | 'setPaymentChannel'
-  | 'review';
+  | 'review'
+  | 'reopen';
 
 export type Entity =
   | 'project'
@@ -505,6 +506,7 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     edit: (role, ctx) => has(MASTER_DATA, role) && ctx.record?.status === 'Draft',
     setValue: (role, ctx) => has(MASTER_DATA, role) && ctx.record?.status === 'Draft',
     transition: allow(MASTER_DATA),
+    reopen: (role, ctx) => role === 'Admin' && ctx.record?.status === 'Closed' && !ctx.record?.closing_acceptance_id,
   },
   /** Bulk work-order import is deliberately narrower than ordinary create: Admin or the project's own PM only. */
   workOrderImport: {

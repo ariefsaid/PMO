@@ -73,6 +73,7 @@ import {
   setWorkOrderValue,
   transitionWorkOrder,
   cancelWorkOrder,
+  reopenWorkOrder,
   getProjectDrawdown,
   isLegalWorkOrderTransition,
   isOverCommitmentRefusal,
@@ -350,6 +351,13 @@ describe('cancelWorkOrder', () => {
   it('AC-WOC-002 sends the work order and the reason to the cancel step', async () => {
     await cancelWorkOrder('wo-1', 'Client withdrew the order');
     expect(h.calls.rpc[0]).toEqual(['cancel_work_order', { p_id: 'wo-1', p_reason: 'Client withdrew the order' }]);
+  });
+});
+
+describe('reopenWorkOrder', () => {
+  it('AC-WOR-001 sends the work order and the reason to reopen_work_order', async () => {
+    await reopenWorkOrder('wo-1', 'Closed prematurely');
+    expect(h.calls.rpc[0]).toEqual(['reopen_work_order', { p_id: 'wo-1', p_reason: 'Closed prematurely' }]);
   });
 });
 

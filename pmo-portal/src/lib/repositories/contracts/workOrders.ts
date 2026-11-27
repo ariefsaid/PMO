@@ -83,6 +83,8 @@ export interface WorkOrderRepository {
   transition(id: string, to: WorkOrderStatus, opts?: { overCommitAck?: boolean }): Promise<void>;
   /** Cancel with a reason (#2898): `cancel_work_order`, then the transition's own gates. */
   cancel(id: string, reason: string): Promise<void>;
+  /** Admin-only audited reopen of a Closed work order without a confirmed final acceptance (#3024). */
+  reopen(id: string, reason: string): Promise<void>;
   /** The retired candidate work orders of a project, read-only (#2898 keeps them readable). */
   listCandidateRecords(projectId: string): Promise<CandidateRecord[]>;
   /** The derived drawdown, or null when the project is invisible/absent (never a fabricated zero). */
