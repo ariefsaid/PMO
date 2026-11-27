@@ -184,18 +184,36 @@ async function attachOpenCommitments<T extends { id: string }>(rows: T[]): Promi
   return rows.map((r) => (byId.has(r.id) ? { ...r, open_commitment: byId.get(r.id) } : r));
 }
 
+const MAX_SCOPE_PROJECTS = 100;
+
+/**
+ * Server-side form of the list's Project Manager view: requests the person raised plus purchases on the
+ * projects they manage. The browser applies the same predicate to what it receives, and RLS stays the
+ * authority on what is readable. Returns null (no narrowing; the browser filter still applies) when the
+ * person manages more projects than fit a request URL.
+ */
+async function ownAndManagedFilter(userId: string): Promise<string | null> {
+  const { data, error } = await supabase.from('projects').select('id').eq('project_manager_id', userId).limit(MAX_SCOPE_PROJECTS + 1);
+  if (error) throw new Error(error.message);
+  const ids = (data ?? []).map((p) => p.id);
+  if (ids.length > MAX_SCOPE_PROJECTS) return null;
+  return ids.length ? `requested_by_id.eq.${userId},project_id.in.(${ids.join(',')})` : `requested_by_id.eq.${userId}`;
+}
+
 /**
  * List procurements for the caller's org. org_id is NEVER sent — RLS (org_id = auth_org_id())
  * scopes rows (FR-DAL-PROC-001). Reads every page by keyset (ordered by id) so the list is never cut at the row cap: the ⌘K CommandPalette record search indexes
  * the full cached list. `status` filters server-side (the approvals queue reads only `Requested`).
  */
 export async function listProcurements(
-  opts?: { withRefs?: boolean; withSharedDetails?: boolean; lean?: boolean; status?: ProcurementRow['status'] },
+  opts?: { withRefs?: boolean; withSharedDetails?: boolean; lean?: boolean; status?: ProcurementRow['status']; scope?: { userId: string } },
 ): Promise<ProcurementWithRefs[]> {
+  const scopeFilter = opts?.scope ? await ownAndManagedFilter(opts.scope.userId) : null;
   const selection = opts?.lean ? SELECT_LEAN_DETAILS : opts?.withSharedDetails ? SELECT_WITH_SHARED_DETAILS : opts?.withRefs ? SELECT_WITH_REFS : SELECT;
   const data = await fetchAllRowsByKeyset((afterId, limit) => {
     let query = supabase.from(priceSource('procurements') as 'procurements').select(maskSelection(selection)).order('id', { ascending: true }).limit(limit);
     if (opts?.status) query = query.eq('status', opts.status);
+    if (scopeFilter) query = query.or(scopeFilter);
     if (afterId !== null) query = query.gt('id', afterId);
     return query as unknown as PromiseLike<{ data: ProcurementWithRefs[] | null; error: { message: string; code?: string } | null }>;
   });

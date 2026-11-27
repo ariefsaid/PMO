@@ -1,13 +1,15 @@
 import type { Role } from '@/src/auth/AuthContext';
 
+export const MAY_ORDER_PURCHASES_KEY = 'may-order-purchases';
+
 /** The approvals queue's Requested-only read; a child of ['procurements', orgId], so every procurement invalidation refetches it. */
 export const requestedProcurementsKey = (orgId: string | undefined) => ['procurements', orgId, 'requested'] as const;
 
-export const procurementsKey = (orgId: string | undefined, withRefs = false, withSharedDetails = false, lean = false) =>
+export const procurementsKey = (orgId: string | undefined, withRefs = false, withSharedDetails = false, lean = false, scopeUserId?: string) =>
   lean
     ? ['procurements', orgId, 'lean-list'] as const
     : withSharedDetails
-    ? ['procurements', orgId, 'shared-list'] as const
+    ? scopeUserId ? ['procurements', orgId, 'shared-list', 'scope', scopeUserId] as const : ['procurements', orgId, 'shared-list'] as const
     : withRefs ? ['procurements', orgId, 'with-refs'] as const : ['procurements', orgId] as const;
 
 export const expenseClaimsAwaitingKey = (orgId: string | undefined) =>

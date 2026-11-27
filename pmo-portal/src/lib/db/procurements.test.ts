@@ -1,12 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const { mockSelect, mockFrom, mockRange, mockEq, rpcSpy } = vi.hoisted(() => {
+const { mockSelect, mockFrom, mockRange, mockEq, mockOr, rpcSpy } = vi.hoisted(() => {
   const rpcSpy = vi.fn();
+  const mockOr = vi.fn();
   const mockSelect = vi.fn();
   const mockEq = vi.fn();
   const mockFrom = vi.fn();
   const mockRange = vi.fn();
-  return { mockSelect, mockFrom, mockRange, mockEq, rpcSpy };
+  return { mockSelect, mockFrom, mockRange, mockEq, mockOr, rpcSpy };
 });
 
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: mockFrom, rpc: rpcSpy } }));
@@ -25,6 +26,7 @@ function makeBuilder(resolved: { data: unknown; error: unknown }) {
     select: mockSelect,
     range: mockRange,
     eq: mockEq,
+    or: mockOr,
     order: () => builder,
     gt: () => builder,
     limit: () => builder,
@@ -34,11 +36,39 @@ function makeBuilder(resolved: { data: unknown; error: unknown }) {
   mockSelect.mockReturnValue(builder);
   mockRange.mockReturnValue(builder);
   mockEq.mockReturnValue(builder);
+  mockOr.mockReturnValue(builder);
   mockFrom.mockReturnValue(builder);
   return builder;
 }
 
-beforeEach(() => { mockEq.mockReset(); mockFrom.mockReset(); mockSelect.mockReset(); mockRange.mockReset(); });
+beforeEach(() => { mockOr.mockReset(); mockEq.mockReset(); mockFrom.mockReset(); mockSelect.mockReset(); mockRange.mockReset(); });
+
+describe('listProcurements scope', () => {
+  it('PERF-1128: scope.userId reads only own requests plus the managed projects\' purchases, server-side', async () => {
+    makeBuilder({ data: [], error: null });
+    mockEq.mockImplementation((col: string) => {
+      const b = mockFrom.mock.results[0].value;
+      return col === 'project_manager_id' ? { limit: () => Promise.resolve({ data: [{ id: 'p1' }, { id: 'p2' }], error: null }) } : b;
+    });
+    await listProcurements({ withRefs: true, withSharedDetails: true, scope: { userId: 'u1' } });
+    expect(mockEq).toHaveBeenCalledWith('project_manager_id', 'u1');
+    expect(mockOr).toHaveBeenCalledWith('requested_by_id.eq.u1,project_id.in.(p1,p2)');
+  });
+
+  it('PERF-1128: a manager of no project reads own requests only', async () => {
+    makeBuilder({ data: [], error: null });
+    mockEq.mockImplementation((col: string) => (col === 'project_manager_id'
+      ? { limit: () => Promise.resolve({ data: [], error: null }) } : mockFrom.mock.results[0].value));
+    await listProcurements({ withRefs: true, withSharedDetails: true, scope: { userId: 'u1' } });
+    expect(mockOr).toHaveBeenCalledWith('requested_by_id.eq.u1');
+  });
+
+  it('PERF-1128: no scope sends no scope filter', async () => {
+    makeBuilder({ data: [], error: null });
+    await listProcurements({ withRefs: true, withSharedDetails: true });
+    expect(mockOr).not.toHaveBeenCalled();
+  });
+});
 
 describe('listProcurements', () => {
   it('selects procurements joining project/vendor/requester; returns rows (AC-509, FR-DAL-PROC-001)', async () => {
