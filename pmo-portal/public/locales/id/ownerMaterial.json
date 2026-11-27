@@ -17,6 +17,13 @@
     "transferred": "Dipindahkan",
     "closing": "Stok akhir"
   },
+  "returnedToOwner": "dikembalikan ke pemilik {{n}}",
+  "overPlan": "melebihi rencana",
+  "skipped_one": "{{count}} baris sumber tidak dimuat",
+  "skipped_other": "{{count}} baris sumber tidak dimuat",
+  "skipReason": {
+    "field_length_exceeded": "Isian terlalu panjang"
+  },
   "transferIn": "masuk {{n}}",
   "transferOut": "keluar {{n}}",
   "reconciliation": "Rekonsiliasi material",
@@ -42,6 +49,9 @@
     "locationsError": "Lokasi tidak dapat dimuat",
     "lines_one": "{{count}} baris",
     "lines_other": "{{count}} baris",
+    "partialOrder_one": "{{count}} lokasi dimuat sebagian",
+    "partialOrder_other": "{{count}} lokasi dimuat sebagian",
+    "partialLocation": "Dimuat sebagian",
     "openStages": "Buka tahap",
     "noLocations": "Belum ada lokasi.",
     "tableLabel": "Kemajuan material per pekerjaan",

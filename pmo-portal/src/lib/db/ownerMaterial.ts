@@ -21,6 +21,8 @@ export interface MaterialRollupRow {
   workOrderId: string; number: string | null; title: string; sectionCount: number;
   requestedPct: string | null; setAsidePct: string | null; receivedPct: string | null; issuedPct: string | null; closingPct: string | null;
   reconciliationStep: string | null; reconciliationPct: string | null; unallocatedMovementCount: number;
+  /** Contract v2.4: how many of its locations were loaded with source rows skipped. */
+  partialSectionCount: number;
 }
 export interface Paged<T> { rows: T[]; total: number }
 export interface ReconciliationStep { id: string; name: string; position: number; percentage: string }
@@ -33,6 +35,8 @@ export interface SectionStage {
   sectionId: string; code: string | null; name: string; ownerCostCode: string | null; lineCount: number;
   requestedPct: string | null; setAsidePct: string | null; receivedPct: string | null; issuedPct: string | null; closingPct: string | null;
   stepId: string | null; step: string | null; stepPct: string | null; asOf: string | null;
+  /** Contract v2.4: source rows of this location the loader skipped, and the loader's reason codes (as stored; never inferred here). */
+  skippedSourceRows: number; skippedReasonCodes: string[];
 }
 
 type Raw = Record<string, unknown>;
@@ -76,7 +80,7 @@ export async function listMaterialRollup(projectId: string, page: number, pageSi
       requestedPct: strOrNull(x.requested_pct), setAsidePct: strOrNull(x.set_aside_pct), receivedPct: strOrNull(x.received_pct),
       issuedPct: strOrNull(x.issued_pct), closingPct: strOrNull(x.closing_pct),
       reconciliationStep: strOrNull(x.reconciliation_step), reconciliationPct: strOrNull(x.reconciliation_pct),
-      unallocatedMovementCount: Number(x.unallocated_movement_count ?? 0),
+      unallocatedMovementCount: Number(x.unallocated_movement_count ?? 0), partialSectionCount: Number(x.partial_section_count ?? 0),
     })),
   };
 }
@@ -101,6 +105,7 @@ export async function listSectionStages(workOrderId: string): Promise<SectionSta
     sectionId: str(x.section_id), code: strOrNull(x.section_code), name: str(x.section_name), ownerCostCode: strOrNull(x.owner_cost_code), lineCount: Number(x.line_count ?? 0),
     requestedPct: strOrNull(x.requested_pct), setAsidePct: strOrNull(x.set_aside_pct), receivedPct: strOrNull(x.received_pct), issuedPct: strOrNull(x.issued_pct), closingPct: strOrNull(x.closing_pct),
     stepId: strOrNull(x.reconciliation_step_id), step: strOrNull(x.reconciliation_step), stepPct: strOrNull(x.reconciliation_pct), asOf: strOrNull(x.as_of),
+    skippedSourceRows: Number(x.skipped_source_rows ?? 0), skippedReasonCodes: Array.isArray(x.skipped_reason_codes) ? x.skipped_reason_codes.map(String) : [],
   }));
 }
 

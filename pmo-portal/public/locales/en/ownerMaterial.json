@@ -17,6 +17,13 @@
     "transferred": "Transferred",
     "closing": "Closing stock"
   },
+  "returnedToOwner": "returned to owner {{n}}",
+  "overPlan": "over plan",
+  "skipped_one": "{{count}} source row was not loaded",
+  "skipped_other": "{{count}} source rows were not loaded",
+  "skipReason": {
+    "field_length_exceeded": "Field too long"
+  },
   "transferIn": "in {{n}}",
   "transferOut": "out {{n}}",
   "reconciliation": "Material reconciliation",
@@ -42,6 +49,9 @@
     "locationsError": "Couldn't load the locations",
     "lines_one": "{{count}} line",
     "lines_other": "{{count}} lines",
+    "partialOrder_one": "{{count}} location partly loaded",
+    "partialOrder_other": "{{count}} locations partly loaded",
+    "partialLocation": "Partly loaded",
     "openStages": "Open stages",
     "noLocations": "No locations yet.",
     "tableLabel": "Material progress by work order",

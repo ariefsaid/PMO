@@ -1,9 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, useLocation } from 'react-router';
 import { can } from '@/src/auth/policy';
 import i18n from '@/src/lib/i18n';
+import ownerMaterialEn from '@/public/locales/en/ownerMaterial.json';
 import ownerMaterialId from '@/public/locales/id/ownerMaterial.json';
 
 /**
@@ -34,7 +35,7 @@ const line = (over: Record<string, unknown> = {}) => ({
   planned: '100.000', requested: '40.500', setAside: '30.000', received: '10.000', issued: '6.000', returned: '1.000', transferIn: '0.000', transferOut: '2.000', ownerReturn: '0.000', closing: '3.000',
   requestedPct: '40.5', setAsidePct: '30', receivedPct: '10', issuedPct: '60', closingPct: '30', asOf: null, evidence: null, ...over,
 });
-const stage = (o: Record<string, unknown> = {}) => ({ sectionId: 's1', code: 'L1', name: 'North yard', ownerCostCode: 'CC-9', lineCount: 1, requestedPct: null, setAsidePct: null, receivedPct: null, issuedPct: null, closingPct: null, stepId: 'st1', step: 'Prepared', stepPct: '20.000', asOf: null, ...o });
+const stage = (o: Record<string, unknown> = {}) => ({ sectionId: 's1', code: 'L1', name: 'North yard', ownerCostCode: 'CC-9', lineCount: 1, requestedPct: null, setAsidePct: null, receivedPct: null, issuedPct: null, closingPct: null, stepId: 'st1', step: 'Prepared', stepPct: '20.000', asOf: null, skippedSourceRows: 0, skippedReasonCodes: [], ...o });
 const steps = [{ id: 'st1', name: 'Prepared', position: 1, percentage: '20.000' }, { id: 'st2', name: 'Checked', position: 2, percentage: '40.000' }];
 const Where = () => <span data-testid="where">{useLocation().search}</span>;
 const view = (search = '') => render(<MemoryRouter initialEntries={[`/work-orders/w1${search}`]}><OwnerMaterialPipeline workOrderId="w1" /><Where /></MemoryRouter>);
@@ -104,6 +105,46 @@ describe('AC-008 OwnerMaterialPipeline', () => {
     expect(ev).toHaveTextContent('<b>bold</b> <a href="https://x.test">go</a> https://x.test/y');
     expect(ev.querySelector('b')).toBeNull();
     expect(within(ev).queryByRole('link')).toBeNull();
+  });
+
+  it('AC-008 a location loaded with source rows skipped says how many, with the reasons in words (both languages); a clean one says nothing', async () => {
+    i18n.addResourceBundle('en', 'ownerMaterial', ownerMaterialEn, true, true);
+    h.sections = ok([stage({ skippedSourceRows: 6, skippedReasonCodes: ['field_length_exceeded', 'unknown_unit'] })]);
+    view();
+    expect(screen.getByTestId('om-skipped')).toHaveTextContent('6 source rows were not loaded');
+    expect(screen.getByTestId('om-skipped-why')).toHaveTextContent('Field too long, unknown unit');
+    cleanup();
+    h.sections = ok([stage({ skippedSourceRows: 1, skippedReasonCodes: [] })]);
+    view();
+    expect(screen.getByTestId('om-skipped')).toHaveTextContent('1 source row was not loaded');
+    expect(screen.queryByTestId('om-skipped-why')).toBeNull();
+    cleanup();
+    h.sections = ok([stage({ skippedSourceRows: 0, skippedReasonCodes: [] })]);
+    view();
+    expect(screen.queryByTestId('om-skipped')).toBeNull();
+    cleanup();
+    i18n.addResourceBundle('id', 'ownerMaterial', ownerMaterialId, true, true);
+    await i18n.changeLanguage('id');
+    h.sections = ok([stage({ skippedSourceRows: 6, skippedReasonCodes: ['field_length_exceeded'] })]);
+    view();
+    expect(screen.getByTestId('om-skipped')).toHaveTextContent('6 baris sumber tidak dimuat');
+    expect(screen.getByTestId('om-skipped-why')).toHaveTextContent('Isian terlalu panjang');
+  });
+
+  it('AC-008 owner return shows with Returned only when it is non-zero', () => {
+    h.lines = ok({ rows: [line({ ownerReturn: '2.500' }), line({ planId: 'p2', ownerReturn: '0.000' })], total: 2 });
+    view();
+    expect(within(screen.getByTestId('om-row-p1')).getByTestId('om-returned-note')).toHaveTextContent('returned to owner 2.5');
+    expect(within(screen.getByTestId('om-row-p2')).queryByTestId('om-returned-note')).toBeNull();
+  });
+
+  it('AC-008 a stage above the planned quantity carries an over-plan marker beside its capped percentage; others do not', () => {
+    h.lines = ok({ rows: [line({ received: '120.000', receivedPct: '100' }), line({ planId: 'p2', received: '100.000', receivedPct: '100' })], total: 2 });
+    view();
+    const first = screen.getByTestId('om-row-p1');
+    expect(within(within(first).getByTestId('om-received')).getByTestId('om-over')).toHaveTextContent('over plan');
+    expect(within(first).getAllByTestId('om-over')).toHaveLength(1);
+    expect(within(screen.getByTestId('om-row-p2')).queryByTestId('om-over')).toBeNull();
   });
 
   it('shows no loaded-position line when no row has an opening', () => {

@@ -1,4 +1,4 @@
-/** AC-OMT-002 (#3010, FR-016): an organisation's own words for the eight stage terms head both material screens, in both
+/** AC-008 (#3010, FR-016): an organisation's own words for the eight stage terms head both material screens, in both
  *  languages, and reach no other namespace ("received" on a purchase screen stays a purchase word). Binds the shipped
  *  catalogues on disk and the shipped rewriter/plugin. */
 import { describe, it, expect, afterEach } from 'vitest';
@@ -22,7 +22,7 @@ const HEADINGS: [TermKey, string][] = [
   ['stageReturned', 'col.returned'], ['stageTransferred', 'col.transferred'], ['stageClosing', 'col.closing'], ['materialReconciliation', 'reconciliation'],
 ];
 
-describe('AC-OMT-002 the eight stage terms', () => {
+describe('AC-008 the eight stage terms', () => {
   for (const lang of ['en', 'id'] as const) {
     it(`ship the words the screens show, and an organisation's word replaces each heading (${lang})`, async () => {
       const om = await screen(lang, 'ownerMaterial');

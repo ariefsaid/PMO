@@ -107,6 +107,17 @@ const Unplaced: React.FC<{ n: number }> = ({ n }) => {
   return n > 0 ? <span className="block text-control text-muted-foreground" data-testid="omr-unplaced">{t('rollup.unallocated', { count: n, defaultValue_one: '{{count}} stock movement is in no location\'s figures', defaultValue_other: '{{count}} stock movements are in no location\'s figures' })}</span> : null;
 };
 
+/** Contract v2.4: a work order or location with source rows skipped at load is marked, from the server's counts. */
+const Partial: React.FC<{ n: number; scope: 'order' | 'location' }> = ({ n, scope }) => {
+  const { t } = useTranslation('ownerMaterial');
+  if (n <= 0) return null;
+  return (
+    <span className="block text-control text-muted-foreground" data-testid={scope === 'order' ? 'omr-partial' : 'omr-loc-partial'}>
+      {scope === 'order' ? t('rollup.partialOrder', { count: n, defaultValue_one: '{{count}} location partly loaded', defaultValue_other: '{{count}} locations partly loaded' }) : t('rollup.partialLocation', 'Partly loaded')}
+    </span>
+  );
+};
+
 const Identity: React.FC<{ row: MaterialRollupRow; names: OrderNames }> = ({ row, names }) => (
   <>
     <span className="block font-medium text-foreground" data-testid="omr-order-number">{names.label}</span>
@@ -129,6 +140,7 @@ const RollupRow: React.FC<{ row: MaterialRollupRow; names: OrderNames; expanded:
             <span className="min-w-0">
               <Identity row={row} names={names} />
               <Unplaced n={row.unallocatedMovementCount} />
+              <Partial n={row.partialSectionCount} scope="order" />
             </span>
           </button>
         </th>
@@ -160,6 +172,7 @@ const Locations: React.FC<{ workOrderId: string }> = ({ workOrderId }) => {
         <tr key={s.sectionId} className="border-b border-border/70" data-testid={`omr-location-${s.sectionId}`}>
           <th scope="row" className={`${td} sticky left-0 bg-card text-left font-normal`}>
             <span className="block pl-6 text-foreground">{locationLabel(s.code, s.name)}</span>
+            <span className="block pl-6"><Partial n={s.skippedSourceRows} scope="location" /></span>
             <Link to={`/work-orders/${workOrderId}?section=${s.sectionId}#wo-material`} className="inline-flex min-h-8 items-center pl-6 text-control text-primary-text hover:underline">
               {t('rollup.openStages', 'Open stages')}
             </Link>
@@ -206,6 +219,7 @@ const RollupCard: React.FC<{ row: MaterialRollupRow; names: OrderNames; expanded
           <Identity row={row} names={names} />
           <span className="block text-control text-muted-foreground">{t('rollup.sections', 'Locations')} {row.sectionCount}</span>
           <Unplaced n={row.unallocatedMovementCount} />
+          <Partial n={row.partialSectionCount} scope="order" />
         </span>
       </button>
       <StageList s={row} step={row.reconciliationStep ? `${row.reconciliationStep} · ${pct(row.reconciliationPct)}` : '—'} testPrefix="omr-" />
@@ -217,6 +231,7 @@ const RollupCard: React.FC<{ row: MaterialRollupRow; names: OrderNames; expanded
           {sections.data?.map((s) => (
             <div key={s.sectionId} className="py-3" data-testid={`omr-location-${s.sectionId}`}>
               <p className="text-foreground">{locationLabel(s.code, s.name)}</p>
+              <Partial n={s.skippedSourceRows} scope="location" />
               <Link to={`/work-orders/${row.workOrderId}?section=${s.sectionId}#wo-material`} className="inline-flex min-h-11 items-center text-control text-primary-text hover:underline">{t('rollup.openStages', 'Open stages')}</Link>
               <StageList s={s} step={s.step ? `${s.step} · ${pct(s.stepPct)}` : t('notStarted', 'Not started')} testPrefix="omr-loc-" />
             </div>

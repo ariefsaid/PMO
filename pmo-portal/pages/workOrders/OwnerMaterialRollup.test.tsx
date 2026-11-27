@@ -1,8 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, useLocation } from 'react-router';
 import i18n from '@/src/lib/i18n';
+import ownerMaterialId from '@/public/locales/id/ownerMaterial.json';
 
 /** AC-008 (supplementary, #3010): the Work Orders Materials view — one page request, the server's percentages, location drilldown, every state. */
 const h = vi.hoisted(() => ({
@@ -21,7 +22,7 @@ const ok = (data: unknown) => ({ data, isPending: false, isError: false, isSucce
 const failed = (code?: string) => ({ data: undefined, isPending: false, isError: true, isSuccess: false, error: { code }, refetch: vi.fn() });
 const row = (over: Record<string, unknown> = {}) => ({
   workOrderId: 'w1', number: 'WO-1', title: 'Pipe work', sectionCount: 3, requestedPct: '50', setAsidePct: null, receivedPct: '25.5', issuedPct: '0', closingPct: '12.25',
-  reconciliationStep: 'Checked', reconciliationPct: '40', unallocatedMovementCount: 0, ...over,
+  reconciliationStep: 'Checked', reconciliationPct: '40', unallocatedMovementCount: 0, partialSectionCount: 0, ...over,
 });
 const Where = () => <span data-testid="where">{useLocation().search}</span>;
 const view = (search = '') => render(<MemoryRouter initialEntries={[`/work-orders${search}`]}><OwnerMaterialRollup /><Where /></MemoryRouter>);
@@ -31,8 +32,8 @@ beforeEach(async () => {
   h.choices = ok([{ value: 'pr1', label: 'Yard' }, { value: 'pr2', label: 'Plant' }]);
   h.rollup = ok({ rows: [row(), row({ workOrderId: 'w2', number: null, title: 'Untitled order', unallocatedMovementCount: 4, reconciliationStep: null, reconciliationPct: null })], total: 2 });
   h.sections = ok([
-    { sectionId: 's1', code: 'L1', name: 'North yard', ownerCostCode: null, lineCount: 4, requestedPct: '70', setAsidePct: null, receivedPct: '33.5', issuedPct: '10', closingPct: '5', stepId: 'st1', step: 'Prepared', stepPct: '20', asOf: null },
-    { sectionId: 's2', code: 'L2', name: 'South yard', ownerCostCode: null, lineCount: 2, requestedPct: null, setAsidePct: null, receivedPct: null, issuedPct: null, closingPct: null, stepId: null, step: null, stepPct: null, asOf: null },
+    { sectionId: 's1', code: 'L1', name: 'North yard', ownerCostCode: null, lineCount: 4, requestedPct: '70', setAsidePct: null, receivedPct: '33.5', issuedPct: '10', closingPct: '5', stepId: 'st1', step: 'Prepared', stepPct: '20', asOf: null, skippedSourceRows: 0, skippedReasonCodes: [] },
+    { sectionId: 's2', code: 'L2', name: 'South yard', ownerCostCode: null, lineCount: 2, requestedPct: null, setAsidePct: null, receivedPct: null, issuedPct: null, closingPct: null, stepId: null, step: null, stepPct: null, asOf: null, skippedSourceRows: 0, skippedReasonCodes: [] },
   ]);
   h.numbers = ok([{ workOrderId: 'w1', clientPoNumber: 'PO-77', woNumber: 'WO-1' }, { workOrderId: 'w2', clientPoNumber: null, woNumber: null }]);
   h.rollupArgs = [];
@@ -73,9 +74,28 @@ describe('AC-008 OwnerMaterialRollup', () => {
   });
 
   it('prints a location once when its code is its name, in the drilldown', async () => {
-    h.sections = ok([{ sectionId: 's1', code: 'LOC_ALPHA', name: 'LOC_ALPHA', ownerCostCode: null, lineCount: 4, requestedPct: '70', setAsidePct: null, receivedPct: null, issuedPct: null, closingPct: null, stepId: null, step: null, stepPct: null, asOf: null }]);
+    h.sections = ok([{ sectionId: 's1', code: 'LOC_ALPHA', name: 'LOC_ALPHA', ownerCostCode: null, lineCount: 4, requestedPct: '70', setAsidePct: null, receivedPct: null, issuedPct: null, closingPct: null, stepId: null, step: null, stepPct: null, asOf: null, skippedSourceRows: 0, skippedReasonCodes: [] }]);
     view('?project=pr1&open=w1');
     expect(within(screen.getByTestId('omr-location-s1')).getAllByText('LOC_ALPHA')).toHaveLength(1);
+  });
+
+  it('AC-008 a work order with partly loaded locations, and each such location, is marked from the server counts', async () => {
+    h.rollup = ok({ rows: [row({ partialSectionCount: 2 }), row({ workOrderId: 'w2', number: null, title: 'Untitled order', partialSectionCount: 0 })], total: 2 });
+    h.sections = ok([
+      { sectionId: 's1', code: 'L1', name: 'North yard', ownerCostCode: null, lineCount: 4, requestedPct: null, setAsidePct: null, receivedPct: null, issuedPct: null, closingPct: null, stepId: null, step: null, stepPct: null, asOf: null, skippedSourceRows: 6, skippedReasonCodes: [] },
+      { sectionId: 's2', code: 'L2', name: 'South yard', ownerCostCode: null, lineCount: 2, requestedPct: null, setAsidePct: null, receivedPct: null, issuedPct: null, closingPct: null, stepId: null, step: null, stepPct: null, asOf: null, skippedSourceRows: 0, skippedReasonCodes: [] },
+    ]);
+    view('?project=pr1');
+    expect(within(screen.getByTestId('omr-row-w1')).getByTestId('omr-partial')).toHaveTextContent('2 locations partly loaded');
+    expect(within(screen.getByTestId('omr-row-w2')).queryByTestId('omr-partial')).toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: 'Locations of PO-77' }));
+    expect(within(screen.getByTestId('omr-location-s1')).getByTestId('omr-loc-partial')).toHaveTextContent('Partly loaded');
+    expect(within(screen.getByTestId('omr-location-s2')).queryByTestId('omr-loc-partial')).toBeNull();
+    cleanup();
+    i18n.addResourceBundle('id', 'ownerMaterial', ownerMaterialId, true, true);
+    await i18n.changeLanguage('id');
+    view('?project=pr1');
+    expect(within(screen.getByTestId('omr-row-w1')).getByTestId('omr-partial')).toHaveTextContent('2 lokasi dimuat sebagian');
   });
 
   it('opening a work order lists its locations as rows with their own percentages, step and a link to the stages', async () => {

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { categoryLabel, locationLabel } from './ownerMaterialFormat';
 
-describe('AC-OMT-003 material labels never print the same text twice', () => {
+describe('AC-008 material labels never print the same text twice', () => {
   it('a location whose code is its name (ignoring case and spaces) shows once; different ones show both', () => {
     expect(locationLabel('LOC_ALPHA', 'LOC_ALPHA')).toBe('LOC_ALPHA');
     expect(locationLabel('loc alpha', 'LOC ALPHA')).toBe('LOC ALPHA');

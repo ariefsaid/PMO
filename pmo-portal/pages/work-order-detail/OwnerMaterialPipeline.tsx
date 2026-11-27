@@ -79,24 +79,46 @@ export const OwnerMaterialPipeline: React.FC<Props> = ({ workOrderId }) => {
     <RecordSection title={title} data-testid="owner-material-pipeline" flush={Boolean(lines.data?.rows.length)}
       bodyClassName={lines.data?.rows.length ? 'pb-0' : undefined}>
       <div className={lines.data?.rows.length ? 'px-[var(--panel-inset)]' : undefined}>{head}</div>
+      <Skipped count={section.skippedSourceRows} codes={section.skippedReasonCodes} />
       {body}
       {lines.data && lines.data.total > 0 && <PaginationFooter pagination={{ page, pageSize: MATERIAL_PAGE_SIZE, onPageChange: (p) => setPage(p) }} total={lines.data.total} shown={lines.data.rows.length} />}
     </RecordSection>
   );
 };
 
-interface StageCell { key: string; label: string; q: string; p?: string | null; moved?: { in: string; out: string } }
+interface StageCell { key: string; label: string; q: string; p?: string | null; moved?: { in: string; out: string }; note?: string; over?: boolean }
+
+/** A flag from the server's own quantities for this one line (never a recomputed percentage): more arrived at this stage than was planned. */
+const isOver = (q: string, planned: string): boolean => Number(planned) > 0 && Number(q) > Number(planned);
 
 const stageCells = (l: MaterialLine, t: TFunction): StageCell[] => [
   { key: 'planned', label: t('col.planned', 'Planned'), q: l.planned },
-  { key: 'requested', label: t('col.requested', 'Requested'), q: l.requested, p: l.requestedPct },
-  { key: 'set-aside', label: t('col.setAside', 'Owner set-aside'), q: l.setAside, p: l.setAsidePct },
-  { key: 'received', label: t('col.received', 'Received'), q: l.received, p: l.receivedPct },
-  { key: 'issued', label: t('col.issued', 'Issued'), q: l.issued, p: l.issuedPct },
-  { key: 'returned', label: t('col.returned', 'Returned'), q: l.returned },
+  { key: 'requested', label: t('col.requested', 'Requested'), q: l.requested, p: l.requestedPct, over: isOver(l.requested, l.planned) },
+  { key: 'set-aside', label: t('col.setAside', 'Owner set-aside'), q: l.setAside, p: l.setAsidePct, over: isOver(l.setAside, l.planned) },
+  { key: 'received', label: t('col.received', 'Received'), q: l.received, p: l.receivedPct, over: isOver(l.received, l.planned) },
+  { key: 'issued', label: t('col.issued', 'Issued'), q: l.issued, p: l.issuedPct, over: isOver(l.issued, l.planned) },
+  { key: 'returned', label: t('col.returned', 'Returned'), q: l.returned, note: Number(l.ownerReturn) !== 0 ? t('returnedToOwner', 'returned to owner {{n}}', { n: qty(l.ownerReturn) }) : undefined },
   { key: 'transferred', label: t('col.transferred', 'Transferred'), q: '', moved: { in: l.transferIn, out: l.transferOut } },
   { key: 'closing', label: t('col.closing', 'Closing stock'), q: l.closing, p: l.closingPct },
 ];
+
+const Over: React.FC = () => {
+  const { t } = useTranslation('ownerMaterial');
+  return <span className="ml-1 text-control font-medium text-warning-text" data-testid="om-over">{t('overPlan', 'over plan')}</span>;
+};
+
+/** Contract v2.4: a location loaded with source rows skipped says so above its table; reasons in plain words, from the server's codes. */
+const Skipped: React.FC<{ count: number; codes: string[] }> = ({ count, codes }) => {
+  const { t } = useTranslation('ownerMaterial');
+  if (count <= 0) return null;
+  const why = codes.map((c) => t(`skipReason.${c}`, { defaultValue: c.replace(/_/g, ' ') })).join(', ');
+  return (
+    <p className="px-[var(--panel-inset)] pb-3 text-control text-foreground" data-testid="om-skipped">
+      {t('skipped', { count, defaultValue_one: '{{count}} source row was not loaded', defaultValue_other: '{{count}} source rows were not loaded' })}
+      {why && <span className="text-muted-foreground" data-testid="om-skipped-why"> · {why}</span>}
+    </p>
+  );
+};
 
 /** A transfer shows 0 when nothing moved, and in / out only when something did. */
 const Moved: React.FC<{ moved: { in: string; out: string }; t: TFunction; stacked: boolean }> = ({ moved, t, stacked }) => {
@@ -156,7 +178,8 @@ const LinesTable: React.FC<{ rows: MaterialLine[]; categories: readonly { code: 
                   {stageCells(l, t).map((c) => (
                     <td key={c.key} className={`${td} text-right tabular-nums`} data-testid={`om-${c.key}`}>
                       {c.moved ? <Moved moved={c.moved} t={t} stacked /> : <div>{qty(c.q)}</div>}
-                      {c.p !== undefined && <div className="text-control text-muted-foreground">{pct(c.p)}</div>}
+                      {c.note && <div className="text-control text-muted-foreground" data-testid={`om-${c.key}-note`}>{c.note}</div>}
+                      {c.p !== undefined && <div className="text-control text-muted-foreground">{pct(c.p)}{c.over && <Over />}</div>}
                     </td>
                   ))}
                 </tr>
@@ -172,11 +195,11 @@ const LinesTable: React.FC<{ rows: MaterialLine[]; categories: readonly { code: 
               <dl className="mt-3 grid grid-cols-[minmax(0,1fr)_auto_3.5rem] gap-x-3 gap-y-2 text-control">
                 {stageCells(l, t).map((c) => (
                   <React.Fragment key={c.key}>
-                    <dt className="text-muted-foreground">{c.label}</dt>
+                    <dt className="text-muted-foreground">{c.label}{c.note && <span className="block" data-testid={`om-${c.key}-note`}>{c.note}</span>}</dt>
                     {/* quantity and percentage keep their own columns, so every figure of the list ends on one edge */}
                     <dd className="contents" data-testid={`om-${c.key}`}>
                       <span className="text-right tabular-nums">{c.moved ? <Moved moved={c.moved} t={t} stacked={false} /> : qty(c.q)}</span>
-                      <span className="text-right tabular-nums text-muted-foreground">{c.p !== undefined ? pct(c.p) : ''}</span>
+                      <span className="text-right tabular-nums text-muted-foreground">{c.p !== undefined ? pct(c.p) : ''}{c.over && <Over />}</span>
                     </dd>
                   </React.Fragment>
                 ))}
