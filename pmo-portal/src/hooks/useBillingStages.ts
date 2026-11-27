@@ -1,30 +1,17 @@
+import { billingReconciliationQuery, claimBillingTraceQuery, claimBillingTraceKey } from '@/src/lib/routeQueries/useBillingStages';
+export { billingReconciliationQuery, claimBillingTraceQuery } from '@/src/lib/routeQueries/useBillingStages';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { repositories } from '@/src/lib/repositories';
-import { MONEY_STALE_TIME } from '@/src/lib/queryPolicies';
 import { useAuth } from '@/src/auth/useAuth';
 import type { CompleteStageInput, RetentionReleaseInput, StageTemplateInput } from '@/src/lib/db/billingStages';
 
 /** One claim's billing stages, retention and the project's invoice deadline (#2522). Keys carry org_id. */
-const claimBillingTraceKey = (orgId: string | undefined, claimId: string, projectId: string) =>
-  ['claim-billing-trace', orgId, claimId, projectId] as const;
-
-export const claimBillingTraceQuery = (orgId: string | undefined, claimId: string, projectId: string) => ({
-  queryKey: claimBillingTraceKey(orgId, claimId, projectId),
-  queryFn: () => repositories.billingStages.trace(claimId, projectId),
-  enabled: Boolean(orgId) && Boolean(claimId) && Boolean(projectId),
-});
 
 export function useClaimBillingTrace(claimId: string, projectId: string) {
   return useQuery(claimBillingTraceQuery(useAuth().currentUser?.org_id, claimId, projectId));
 }
 
 /** Per-item reconciliation of progress, measured and billed quantities (the server's one derivation). */
-export const billingReconciliationQuery = (orgId: string | undefined, projectId: string, workOrderId: string | null) => ({
-  queryKey: ['billing-reconciliation', orgId, projectId, workOrderId],
-  queryFn: () => repositories.billingStages.reconciliation(projectId, workOrderId),
-  staleTime: workOrderId ? MONEY_STALE_TIME : 0,
-  enabled: Boolean(orgId) && Boolean(projectId),
-});
 
 export function useBillingReconciliation(projectId: string, workOrderId: string | null) {
   return useQuery(billingReconciliationQuery(useAuth().currentUser?.org_id, projectId, workOrderId));

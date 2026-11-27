@@ -1,3 +1,5 @@
+import { projectClaimsQuery } from '@/src/lib/routeQueries/useProgressBilling';
+export { projectClaimsQuery } from '@/src/lib/routeQueries/useProgressBilling';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { repositories } from '@/src/lib/repositories';
 import { useAuth } from '@/src/auth/useAuth';
@@ -9,12 +11,6 @@ export function useBoqItems(projectId: string) {
   const orgId = useAuth().currentUser?.org_id;
   return useQuery({ queryKey: ['boq-items', orgId, projectId], queryFn: () => repositories.progressBilling.listBoq(projectId), enabled: Boolean(orgId) && Boolean(projectId) });
 }
-
-export const projectClaimsQuery = (orgId: string | undefined, projectId: string) => ({
-  queryKey: ['progress-claims', orgId, projectId],
-  queryFn: () => repositories.progressBilling.listClaims(projectId),
-  enabled: Boolean(orgId) && Boolean(projectId),
-});
 
 export function useProjectClaims(projectId: string) {
   return useQuery(projectClaimsQuery(useAuth().currentUser?.org_id, projectId));
