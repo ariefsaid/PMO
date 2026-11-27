@@ -44,6 +44,7 @@ const WorkOrdersModals: React.FC<{
   liveDownPayment: boolean;
   evidenceAttachedIds: string[];
   evidenceEarlierIds: string[];
+  claimSources?: { name: string; pending: boolean; error: boolean; retry: () => void }[];
   linesSources: { name: string; pending: boolean; error: boolean; retry: () => void }[];
   // Modal state (closed = null/undefined, exactly as the tab holds it).
   assessOpen: boolean;
@@ -293,6 +294,7 @@ const WorkOrdersModals: React.FC<{
           claimedByBoqItem={summary.claimedByBoqItem}
           assessedByBoqItem={summary.assessedByBoqItem}
           assessmentMonth={summary.assessment?.month ?? null}
+          sources={props.claimSources ?? linesSources}
           initialWorkOrderId={claimFor?.id}
           onClose={onCloseClaim}
           onSave={onSaveClaim}
