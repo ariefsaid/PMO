@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { DateField, EntityFormModal, FormGrid, SelectField, TextArea, useToast, type SubmitError } from '@/src/components/ui';
+import { DateField, EntityFormModal, FormGrid, ListState, SelectField, TextArea, useToast, type SubmitError } from '@/src/components/ui';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/src/auth/useAuth';
 import { useLeaveMutations, useLeaveTypes } from '@/src/hooks/useLeave';
@@ -46,6 +46,7 @@ export const LeaveRequestForm: React.FC<{ onClose: () => void }> = ({ onClose })
   const effectivePerson = personId || onlySelf;
   const send = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (people.isError || types.isError || people.isPending || types.isPending) return;
     setError(null);
     try {
       await submit.mutateAsync({ person_id: effectivePerson, leave_type_id: typeId, start_date: start, end_date: end || start, reason: reason || null });
@@ -58,8 +59,10 @@ export const LeaveRequestForm: React.FC<{ onClose: () => void }> = ({ onClose })
   return (
     <EntityFormModal open title={t('crews:leave.formTitle', 'Request leave or report sickness')} submitLabel={t('crews:leave.send', 'Send request')}
       onSubmit={(e) => void send(e)} onClose={onClose} loading={submit.isPending} dirty={Boolean(typeId || reason)}
-      submitDisabled={!effectivePerson || !typeId || !start} submitError={error}>
-      {!people.isPending && !people.isError && (people.data ?? []).length === 0
+      submitDisabled={people.isError || types.isError || people.isPending || types.isPending || !effectivePerson || !typeId || !start} submitError={error}>
+      {people.isError && <ListState variant="error" title={t('common:readError')} onRetry={() => void people.refetch()} />}
+      {types.isError && <ListState variant="error" title={t('common:readError')} onRetry={() => void types.refetch()} />}
+      {!people.isError && !types.isError && (!people.isPending && (people.data ?? []).length === 0
         ? <p className="text-control text-muted-foreground" data-testid="leave-nobody">{t('crews:leave.nobodyToFileFor', 'You can file leave only for yourself and the people you manage. Ask your line manager or an Admin to file it.')}</p>
         : <FormGrid>
         {(people.data ?? []).length > 1 && (
@@ -77,7 +80,7 @@ export const LeaveRequestForm: React.FC<{ onClose: () => void }> = ({ onClose })
         <p className="col-span-full text-sm text-muted-foreground">
           {t('crews:leave.goesTo', 'Your person record manager decides. If that manager is missing or inactive, an HR Manager decides, then an Admin. The person who enters the request cannot decide it. You get a notification with the result.')}
         </p>
-      </FormGrid>}
+      </FormGrid>)}
     </EntityFormModal>
   );
 };
