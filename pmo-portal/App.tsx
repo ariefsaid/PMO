@@ -1,3 +1,5 @@
+import { isPriceVisibilityResolved, subscribeHidePrices } from '@/src/lib/priceReadPath';
+import type { ProjectOverviewAccess } from '@/src/auth/projectOverviewAccess';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import React, { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -18,7 +20,7 @@ import { QueryClientProvider, type QueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { queryClient } from '@/src/lib/queryClient';
 import type { ProjectOrdersViewer } from '@/src/hooks/useWorkOrders';
-import { preloadClaimDrawer, preloadContractProject, preloadOrderReconciliation, preloadProjectOrders, preloadWorkOrder } from '@/src/lib/routeData';
+import { preloadProjectOverview, preloadClaimDrawer, preloadContractProject, preloadOrderReconciliation, preloadProjectOrders, preloadWorkOrder } from '@/src/lib/routeData';
 import { LoadingFallback } from './components/LoadingFallback';
 import { AuthProvider } from '@/src/auth/AuthProvider';
 import { I18nProvider } from '@/src/lib/i18n/I18nProvider';
@@ -73,7 +75,7 @@ import { useReturnNavigate } from '@/src/hooks/useListReturn';
 import { lazyWithPreload } from '@/src/lib/lazyWithPreload';
 import { i18next, preloadNamespaces } from '@/src/lib/i18n';
 import { preloadMinutesEditor } from '@/src/components/meetings/minutesEditorChunk';
-import { PROJECT_TAB_CHUNKS, ProjectSCurve } from './pages/project-detail/lazyProjectChunks';
+import { PROJECT_TAB_CHUNKS } from './pages/project-detail/lazyProjectChunks';
 // A2 (ADR-0040): AssistantPanel + provider + hotkey — flag-gated, absent when off.
 import { AgentRuntimeProvider } from '@/src/lib/agent/runtime/AgentRuntimeProvider';
 import { useAgentRuntimeContext } from '@/src/lib/agent/runtime/AgentRuntimeContext';
@@ -87,7 +89,7 @@ import { AgentContextProvider } from '@/src/lib/agent/context/AgentContextProvid
 import { useAgentContextPublisher } from '@/src/lib/agent/context/useAgentContext';
 import { AccountMenu } from '@/src/components/shell/AccountMenu';
 import { AfterFirstData } from '@/src/components/shell/AfterFirstData';
-import { usePriceVisibilitySync } from '@/src/hooks/useHidePrices';
+import { HIDE_PRICES_ENABLED_KEY, MAY_SEE_PRICES_KEY, usePriceVisibilitySync } from '@/src/hooks/useHidePrices';
 
 // ── Lazy route chunks (lazyWithPreload: each carries an idempotent preload() —
 //    #1834 fires it on nav-link hover/focus/pointerdown and on route entry, so
@@ -224,7 +226,7 @@ const PROJECT_TAB_CHUNKS_BY_PATH: Record<string, PreloadableRouteChunk[]> = Obje
  *  - rail nav links on hover, focus and pointerdown (the `onPreloadHref` prop).
  *
  * Late IN-PAGE chunks ride along: the meeting routes include the MinutesEditor
- * chunk; project overview routes include ProjectSCurve, while named tabs include
+ * chunk; project overview leaves its chart behind a Suspense boundary, while named tabs include
  * only their own chunks, so a data response never gates a second download.
  */
 /**
@@ -247,6 +249,7 @@ const PROJECT_TAB_NAMESPACES: Record<string, readonly string[]> = {
 };
 
 interface RouteDataContext {
+  overviewAccess?: ProjectOverviewAccess;
   orgId: string;
   client: QueryClient;
   canViewWorkOrderPlan?: boolean;
@@ -300,12 +303,13 @@ const PRELOAD_RULES: PreloadRule[] = [
       chunks,
       namespaces: PROJECT_TAB_NAMESPACES[path.split('/').pop() ?? ''] ?? ['project'],
     })),
-  { path: '/projects/:projectId/overview', chunks: [ProjectDetail, ProjectSCurve], namespaces: ['project', 'projects', 'recordFolders', 'status', 'workOrderPva'] },
+  { path: '/projects/:projectId/overview', data: ({ projectId }, { client, orgId, overviewAccess }) => { if (projectId) preloadProjectOverview(client, orgId, projectId, overviewAccess); }, chunks: [ProjectDetail], namespaces: ['project', 'projects', 'recordFolders', 'status', 'workOrderPva'] },
   { path: '/projects/:projectId/:tab', chunks: [ProjectDetail], namespaces: ['project', 'supplyRisk', 'workOrders', 'status'] },
-  { path: '/projects/:projectId', chunks: [ProjectDetail, ProjectSCurve], namespaces: ['project', 'projects', 'recordFolders', 'status', 'workOrderPva'] },
+  { path: '/projects/:projectId', data: ({ projectId }, { client, orgId, overviewAccess }) => { if (projectId) preloadProjectOverview(client, orgId, projectId, overviewAccess); }, chunks: [ProjectDetail], namespaces: ['project', 'projects', 'recordFolders', 'status', 'workOrderPva'] },
   { path: '/sales', chunks: [SalesPipeline], namespaces: ['sales'] },
   // /sales/:id redirects to /projects/:projectId — start that download now.
-  { path: '/sales/:opportunityId', chunks: [ProjectDetail, ProjectSCurve], namespaces: ['project', 'projects', 'recordFolders', 'status', 'workOrderPva'] },
+  { path: '/sales/:opportunityId', chunks: [ProjectDetail], namespaces: ['project', 'projects', 'recordFolders', 'status', 'workOrderPva'] },
+
   { path: '/procurement', chunks: [ProcurementPage], namespaces: ['procurement', 'procurementList'] },
   { path: '/procurement/new', chunks: [ProcurementCreate], namespaces: ['procurementCreate', 'purchaseTypes'] },
   { path: '/procurement/:procurementId/purchase-orders/:orderId/print', chunks: [PurchaseOrderPrintPage], namespaces: ['procurement'] },
@@ -740,18 +744,23 @@ export const AppRoutes: React.FC = React.memo(function AppRoutes() {
 
 // ── Shell chrome (inside the workspace provider + AgentRuntimeProvider) ───────
 export const ShellChrome: React.FC = React.memo(function ShellChrome() {
+  const realRole = useOptionalRealRole();
+  const priceVisibilityReady = React.useSyncExternalStore(subscribeHidePrices, isPriceVisibilityResolved, () => false);
   const location = useLocation();
   const { pathname, search } = location;
   const router = React.useContext(AppRouterContext);
-  const { currentUser } = useAuth();
+  const { currentUser, session, loading } = useAuth();
   const orgId = currentUser?.org_id;
   const may = usePermission();
   const canViewWorkOrderPlan = may('view', 'workOrderPlan');
   const canReadClaims = may('view', 'progressClaim');
   const canViewBilling = may('view', 'salesInvoice');
   const preload = useCallback((href: string) => {
-    preloadForPath(href, orgId && currentUser ? { orgId, client: queryClient, canViewWorkOrderPlan, canReadClaims, canViewBilling, viewer: currentUser } : undefined);
-  }, [orgId, canViewWorkOrderPlan, canReadClaims, canViewBilling, currentUser]);
+    const setting = queryClient.getQueryState([HIDE_PRICES_ENABLED_KEY, orgId]);
+    const caller = queryClient.getQueryState([MAY_SEE_PRICES_KEY, orgId, currentUser?.id]);
+    const currentPriceAnswer = setting?.status === 'error' || (setting?.status === 'success' && (setting.data === false || caller?.status === 'success' || caller?.status === 'error'));
+    preloadForPath(href, orgId && currentUser ? { orgId, client: queryClient, canViewWorkOrderPlan, canReadClaims, canViewBilling, viewer: currentUser, overviewAccess: !loading && session && priceVisibilityReady && currentPriceAnswer ? { may, realRole } : undefined } : undefined);
+  }, [orgId, canViewWorkOrderPlan, canReadClaims, canViewBilling, currentUser, may, realRole, loading, session, priceVisibilityReady]);
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -976,7 +985,7 @@ export const ShellChrome: React.FC = React.memo(function ShellChrome() {
   // AC-W3-N3: filter Navigate items by the viewer's REAL role, plus verified Operator membership.
   // A plain Engineer does not see Sales/Procurement/Companies/Administration; a verified Operator
   // gains Administration. Outside the provider there are no Navigate items.
-  const realRole = useOptionalRealRole();
+
   // AC-ADMIA-002: a REAL server-confirmed platform Operator gains Administration in ⌘K regardless
   // of base role. Sourced from the settled `useIsOperator()` projection — never effective/preview
   // role — so a plain Engineer stays hidden. Fail-closed (false) while loading.

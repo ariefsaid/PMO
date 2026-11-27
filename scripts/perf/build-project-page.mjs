@@ -18,7 +18,9 @@ try {
       : i === 1
         ? ["ProjectDetail"]
         : []) {
-      const needle = name + ": React.FC = () => {";
+      const needle = source.includes(name + ": React.FC = () => {")
+        ? name + ": React.FC = () => {"
+        : name + ": React.FC = React.memo(function " + name + "() {";
       if (!source.includes(needle))
         throw Error("Instrumentation target changed: " + name);
       source = source.replace(

@@ -1,3 +1,5 @@
+import { isPriceVisibilityResolved } from './priceReadPath';
+import { projectOverviewFlags, type ProjectOverviewAccess } from '@/src/auth/projectOverviewAccess';
 import { projectClaimsQuery } from '@/src/hooks/useProgressBilling';
 import { projectWorkOrdersQuery, type ProjectOrdersViewer } from '@/src/hooks/useWorkOrders';
 import { projectQuery } from '@/src/hooks/useProjects';
@@ -10,6 +12,17 @@ import { workOrderAllocationsQuery, workOrderQuery } from '@/src/hooks/useWorkOr
 import { workOrderStepsQuery } from '@/src/hooks/useBillingSteps';
 import { billingReconciliationQuery, claimBillingTraceQuery } from '@/src/hooks/useBillingStages';
 import { costDisciplinesQuery, workOrderCostLinesQuery } from '@/src/hooks/useWorkOrderCosts';
+import { projectBudgetPositionsQuery, projectOverviewQuery } from './projectRouteQueries';
+
+/** Navigation uses the hooks' query factories and resolved real-role policy. */
+export function preloadProjectOverview(client: QueryClient, orgId: string, projectId: string, access?: ProjectOverviewAccess): void {
+  if (!orgId || !projectId || !access?.realRole || !isPriceVisibilityResolved()) return;
+  void client.prefetchQuery(projectQuery(orgId, projectId));
+  void client.prefetchQuery(projectOverviewQuery(client, orgId, projectId, projectOverviewFlags(access)));
+  if (access.may('view', 'salesInvoice')) {
+    void client.prefetchQuery(projectBudgetPositionsQuery(orgId, [projectId]));
+  }
+}
 
 export function preloadWorkOrder(client: QueryClient, orgId: string, id: string): void {
   void client.prefetchQuery(workOrderQuery(orgId, id));
