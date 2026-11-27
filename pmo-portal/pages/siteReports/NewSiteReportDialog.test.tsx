@@ -11,7 +11,7 @@ const h = vi.hoisted(() => ({
 }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: h.userId, org_id: 'o1' } }) }));
 vi.mock('@/src/hooks/useCrews', () => ({ useCrews: () => ({ data: h.crews }) }));
-vi.mock('@/src/hooks/useProjects', () => ({ useProjects: () => ({ data: [{ id: 'p1', name: 'Pipeline', short_name: null, project_code: null }] }) }));
+vi.mock('@/src/hooks/useProjects', () => ({ useProjectPickerOptions: () => ({ data: [{ id: 'p1', name: 'Pipeline', short_name: null, project_code: null }] }) }));
 vi.mock('@/src/hooks/useDailySiteReports', () => ({ useDailySiteReportMutations: () => ({ save: { mutateAsync: h.save, isPending: false } }) }));
 vi.mock('@/src/lib/repositories', () => ({ repositories: {
   workOrder: { list: async () => [{ id: 'w1', wo_number: 'WO-1', title: 'Pipe run', status: 'Issued' }] },

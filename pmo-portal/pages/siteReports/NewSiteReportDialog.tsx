@@ -2,7 +2,7 @@ import React, { useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Button, DateField, EntityFormModal, SelectField } from '@/src/components/ui';
-import { useProjects } from '@/src/hooks/useProjects';
+import { useProjectPickerOptions } from '@/src/hooks/useProjects';
 import { useAuth } from '@/src/auth/useAuth';
 import { repositories } from '@/src/lib/repositories';
 import { useDailySiteReportMutations } from '@/src/hooks/useDailySiteReports';
@@ -21,7 +21,7 @@ export const NewSiteReportDialog: React.FC<{ onClose: () => void; onCreated: (id
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
   const crews = useCrews();
-  const projects = useProjects();
+  const projects = useProjectPickerOptions();
   const requestId = useRef(crypto.randomUUID());
   const [projectId, setProjectId] = useState('');
   const [workOrderId, setWorkOrderId] = useState('');

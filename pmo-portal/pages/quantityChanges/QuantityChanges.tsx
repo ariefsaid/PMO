@@ -6,7 +6,7 @@ import { useAuth } from '@/src/auth/useAuth';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { can } from '@/src/auth/policy';
 import { useStoredOrgSwitch } from '@/src/hooks/useOrgSwitch';
-import { useProjects } from '@/src/hooks/useProjects';
+import { useProjectPickerOptions } from '@/src/hooks/useProjects';
 import { useBuiltInRoleName } from '@/src/hooks/useOrgRoleNames';
 import { BUILT_IN_ROLES } from '@/src/auth/builtInRoles';
 import { useOverContract, useQuantityChangeApproverRoles, useQuantityChangeLimit, useQuantityChangeMutations, useQuantityChangeRequests } from '@/src/hooks/useQuantityChanges';
@@ -38,7 +38,7 @@ const QuantityChanges: React.FC = () => {
 
   const mayRaise = can('create', 'quantityChange', { realRole, currentUserId: userId });
   const mayLimit = can('manage', 'quantityChange', { realRole });
-  const projects = useProjects();
+  const projects = useProjectPickerOptions();
   const projectOptions = useMemo(() => (projects.data ?? []).map((p) => ({ value: p.id, label: projectDisplayName(p) })), [projects.data]);
   const mayForecast = (() => {
     const pm = (projects.data ?? []).find((p) => p.id === projectId)?.project_manager_id ?? null;
