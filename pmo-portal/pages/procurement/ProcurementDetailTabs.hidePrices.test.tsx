@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, render, screen } from '@testing-library/react';
 import { ToastProvider } from '@/src/components/ui';
 import type { ProcurementDetail } from '@/src/lib/db/procurementLifecycle';
-import { setPricesHidden } from '@/src/lib/priceReadPath';
+import { setPricesHidden, setHidePricesActive } from '@/src/lib/priceReadPath';
 import { ProcurementQuotesTab } from './ProcurementDetailTabs';
 import { QueryClientTestProvider } from '@/test/QueryClientTestProvider';
 
@@ -15,6 +15,7 @@ const p = { id: 'p1', currency: 'USD', vendor_id: null, vendor: null, approved_t
 const renderTab = () => render(<QueryClientTestProvider><ToastProvider><ProcurementQuotesTab p={p} selectedQuote={p.quotations[0] as never} vendorMap={{ 'v-a': 'Quote supplier' }}
   mutations={{ createQuotation: { isPending: false } } as never} crud={{ selectQuote: { isPending: false } } as never}
   canAddQuote={false} canSelectQuote={false} canManageFiles={false} currentUserId={null} onMutationError={vi.fn()} /></ToastProvider></QueryClientTestProvider>);
+beforeEach(() => { setHidePricesActive(false); setPricesHidden(false); });
 afterEach(() => act(() => setPricesHidden(false)));
 
 describe('AC-009 quotes tab without prices', () => {
