@@ -119,7 +119,9 @@ describe('listProcurements', () => {
     expect(sel).toContain('project:projects(name,short_name,code,project_manager_id)');
     expect(sel).toContain('procurement_invoices(id,currency,amount,invoice_date,created_at,erp_outstanding_amount,external_ref,voided_at)');
     expect(sel).toContain('payments(invoice_id,currency,amount,date,created_at,status)');
-    expect(sel).toContain('status_events:procurement_status_events(to_status,created_at)');
+    // No lean reader derives stage age or stage dates, so the stage-event and receipt embeds are not read.
+    expect(sel).not.toContain('procurement_status_events');
+    expect(sel).not.toContain('procurement_receipts');
     expect(sel).not.toContain('open_commitment');
     expect(sel).not.toMatch(/pr_refs|po_refs|vi_refs/);
   });
