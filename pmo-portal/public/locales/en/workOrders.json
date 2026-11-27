@@ -465,5 +465,12 @@
     "action": "New work order"
   },
   "complete": "Complete",
-  "stockOpen": "Open stock"
+  "stockOpen": "Open stock",
+  "ownerMaterial": {
+    "rollup": {
+      "view": "Materials",
+      "board": "Work orders",
+      "viewLabel": "Work orders view"
+    }
+  }
 }

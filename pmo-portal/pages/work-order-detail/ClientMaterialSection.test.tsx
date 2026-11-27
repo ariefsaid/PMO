@@ -35,6 +35,8 @@ vi.mock('@/src/hooks/useStock', () => ({
 }));
 vi.mock('@/src/hooks/useStockSiteWork', () => ({ useStockTags: () => ok([{ id: 't1', name: 'Free issue', zero_cost: true }, { id: 't2', name: 'Own', zero_cost: false }]) }));
 
+// The owner-material stage table (#3010) has its own test file.
+vi.mock('./OwnerMaterialPipeline', () => ({ OwnerMaterialPipeline: () => null }));
 import { ClientMaterialSection } from './ClientMaterialSection';
 
 const mut = () => ({ mutateAsync: vi.fn().mockResolvedValue('x'), isPending: false, isError: false, reset: vi.fn(), error: null });

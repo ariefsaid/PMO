@@ -465,5 +465,12 @@
     "action": "$t(common:terms.clientWorkOrder) baru"
   },
   "complete": "Selesai",
-  "stockOpen": "Buka stok"
+  "stockOpen": "Buka stok",
+  "ownerMaterial": {
+    "rollup": {
+      "view": "Material",
+      "board": "Pekerjaan",
+      "viewLabel": "Tampilan pekerjaan"
+    }
+  }
 }

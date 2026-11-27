@@ -11,6 +11,8 @@ export const TERM_KEYS = [
   'billingPlan', 'billingStep', 'handoverCertificate', 'stockTransfer', 'stockReceipt', 'stockReturn', 'reservation',
   'crew', 'roster', 'issue', 'checkpoint', 'milestone', 'dailyTarget', 'rootCause', 'safetyRecordType',
   'candidateWorkOrder', 'closeOut',
+  // #3010 owner material stage terms (scoped to the ownerMaterial namespace)
+  'stageRequested', 'stageSetAside', 'stageReceived', 'stageIssued', 'stageReturned', 'stageTransferred', 'stageClosing', 'materialReconciliation',
 ] as const;
 export type TermKey = (typeof TERM_KEYS)[number];
 export const TERM_LOCALES = ['en', 'id'] as const;
