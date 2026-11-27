@@ -7,7 +7,7 @@ import SalesInvoicesFilters from './sales-invoices/SalesInvoicesFilters';
 import SalesInvoicePanelDrawer from './sales-invoices/SalesInvoicePanelDrawer';
 import { createInvoiceReceiptGate, createInvoiceStatus } from './sales-invoices/salesInvoiceStatus';
 import { buildInvoiceRowMenu } from './sales-invoices/salesInvoiceRowMenu';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
 import { repositories } from '@/src/lib/repositories';
@@ -173,8 +173,19 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, onRecor
   };
   const viewTarget = invoiceId ? listedTarget ?? unlisted.data ?? null : null;
   const invoiceRecordLabel = viewTarget ? invoiceNumber(viewTarget) ?? invoiceDisplayLabel(viewTarget) : null;
+  const leavingRecordRef = useRef(false);
+  const browserPathMatchedRef = useRef(false);
   useEffect(() => {
-    if (!invoiceId || !invoiceRecordLabel) return;
+    leavingRecordRef.current = false;
+    browserPathMatchedRef.current = typeof window !== 'undefined' && window.location.pathname === location.pathname;
+  }, [invoiceId, location.pathname]);
+  const handleBack = useCallback(() => {
+    leavingRecordRef.current = true;
+    recordContext.closeRecord();
+  }, [recordContext]);
+  useEffect(() => {
+    if (!invoiceId || !invoiceRecordLabel || leavingRecordRef.current) return;
+    if (browserPathMatchedRef.current && window.location.pathname !== location.pathname) return;
     const state = location.state && typeof location.state === 'object'
       ? location.state as Record<string, unknown>
       : {};
@@ -330,7 +341,13 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, onRecor
       : (viewTarget.status === 'Submitted' || viewTarget.status === 'Unpaid') && !viewTarget.received_date && canRecordReceipt && !(viewTarget.pmo_native && !native)
         ? { label: t('finance:receivables.markReceived', 'Record delivery'), onClick: () => setReceiptTarget(viewTarget) }
         : (viewTarget.status === 'Submitted' || viewTarget.status === 'Unpaid') && (viewTarget.erp_outstanding_amount ?? 0) > 0 && may('create', 'incomingPayment')
-          ? { label: t('finance:receivables.recordPayment', 'Record payment'), onClick: () => navigate(`/finance/receivables?view=payments&invoice=${encodeURIComponent(viewTarget.id)}&create=1`) }
+          ? {
+            label: t('finance:receivables.recordPayment', 'Record payment'),
+            onClick: () => {
+              leavingRecordRef.current = true;
+              navigate(`/finance/receivables?view=payments&invoice=${encodeURIComponent(viewTarget.id)}&create=1`);
+            },
+          }
           : null
     : null;
 
@@ -427,7 +444,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, onRecor
   }
 
   if (invoiceId) {
-    return <SalesInvoiceDetail viewTarget={viewTarget} isPending={!viewTarget && !unlisted.isError && !isError && (isPending || (unlisted.isPending && unlisted.fetchStatus !== 'idle'))} isError={!viewTarget && unlisted.isError} data={data} organizationToday={organizationToday} onBack={recordContext.closeRecord} refetch={() => { void refetch(); if (!listedTarget) void unlisted.refetch(); }} recordPrimaryAction={recordPrimaryAction} invoiceDisplayLabel={invoiceDisplayLabel} projectName={viewTarget ? projectOptionsById.get(viewTarget.project_id ?? '')?.contractualName ?? null : null} receiptAwaitingOdoo={viewTarget ? receiptAwaitingOdooForInvoice(viewTarget) : false} odoo={odoo} may={may} pdfDownload={pdfDownload} dialogs={<SalesInvoiceDialogs actions={actions} submitFallback={invoiceDisplayLabel} />} />;
+    return <SalesInvoiceDetail viewTarget={viewTarget} isPending={!viewTarget && !unlisted.isError && !isError && (isPending || (unlisted.isPending && unlisted.fetchStatus !== 'idle'))} isError={!viewTarget && unlisted.isError} data={data} organizationToday={organizationToday} onBack={handleBack} refetch={() => { void refetch(); if (!listedTarget) void unlisted.refetch(); }} recordPrimaryAction={recordPrimaryAction} invoiceDisplayLabel={invoiceDisplayLabel} projectName={viewTarget ? projectOptionsById.get(viewTarget.project_id ?? '')?.contractualName ?? null : null} receiptAwaitingOdoo={viewTarget ? receiptAwaitingOdooForInvoice(viewTarget) : false} odoo={odoo} may={may} pdfDownload={pdfDownload} dialogs={<SalesInvoiceDialogs actions={actions} submitFallback={invoiceDisplayLabel} />} />;
   }
 
   const groupRowsBy = groupMode === 'client'
