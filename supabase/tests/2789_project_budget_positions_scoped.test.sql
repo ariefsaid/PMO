@@ -445,6 +445,26 @@ create function pg_temp.cmp_core(p_ids uuid[]) returns table(diff bigint, n bigi
          (select count(*) from o where figures->>'basis' = 'erp' and figures->'recorded' <> '{}'::jsonb
                                    and jsonb_path_exists(figures->'recorded', '$.*.amount ? (@ != null)')),
          (select count(*) from o where figures->>'basis' = 'pmo' and figures->>'proj_spent' is not null) $$;
+-- one-project lists in one pass: the old body read once for the caller (every project), each project's row compared
+-- with the new body read for that project alone. Sound because the old body's row for a project depends only on that
+-- project and organisation-wide reads: the list only filters (and old = new for no list is itself compared below).
+create function pg_temp.cmp_each(p_ids uuid[]) returns table(diff bigint, n bigint, erp_spent bigint, pmo_spent bigint) language sql as $$
+  with o as materialized (select * from public._ppb_0859(null) where project_id = any(p_ids)),
+       x as materialized (select y.* from unnest(p_ids) v(id) cross join lateral public.project_budget_positions(array[v.id]) y)
+  select (select count(*) from (select * from o except all select * from x) a)
+       + (select count(*) from (select * from x except all select * from o) b),
+         (select count(*) from o),
+         (select count(*) from o where ledger_basis = 'erp' and spent is not null),
+         (select count(*) from o where ledger_basis = 'pmo' and spent is not null) $$;
+create function pg_temp.cmp_core_each(p_ids uuid[]) returns table(diff bigint, n bigint, erp_spent bigint, pmo_spent bigint) language sql as $$
+  with o as materialized (select * from public._core_2769(null) where project_id = any(p_ids)),
+       x as materialized (select y.* from unnest(p_ids) v(id) cross join lateral public.spend_route_project_figures_core(array[v.id]) y)
+  select (select count(*) from (select * from o except all select * from x) a)
+       + (select count(*) from (select * from x except all select * from o) b),
+         (select count(*) from o),
+         (select count(*) from o where figures->>'basis' = 'erp' and figures->'recorded' <> '{}'::jsonb
+                                   and jsonb_path_exists(figures->'recorded', '$.*.amount ? (@ != null)')),
+         (select count(*) from o where figures->>'basis' = 'pmo' and figures->>'proj_spent' is not null) $$;
 -- the compared domain: every fixture profile and project; per seeded organisation one active profile per role, and its
 -- first four projects by id plus the first with an active budget and the first without
 create temp table _callers on commit drop as
@@ -467,12 +487,26 @@ grant select on _callers, _scope to authenticated;
 -- the chosen callers, each kind of list, as a client or inside definer code
 create function pg_temp.parity(p_kind text, p_internal boolean, p_fn text default 'positions')
 returns table(diff bigint, lists bigint, n bigint, erp_spent bigint, pmo_spent bigint, callers bigint, errors bigint) language plpgsql as $$
-declare c record; v_ids uuid[]; r record; v_other uuid; v_old text; v_new text;
+declare c record; v_ids uuid[]; r record; v_other uuid; v_old text; v_new text; v_batched boolean;
 begin
   errors := 0; diff := 0; lists := 0; n := 0; erp_spent := 0; pmo_spent := 0; callers := 0;
   for c in select cc.id, cc.org_id from _callers cc order by cc.id loop
     callers := callers + 1;
     select p.id into v_other from public.projects p where p.org_id <> c.org_id order by p.id limit 1;
+    -- one-project lists in one pass; if either body raises, fall back to one list at a time (errors compared there)
+    if p_kind = 'single' then
+      select array_agg(s.id order by s.id) || array_remove(array[v_other], null) into v_ids from _scope s where s.org_id = c.org_id;
+      perform pg_temp.as_user(c.id);
+      if not p_internal then execute 'set local role authenticated'; end if;
+      v_batched := true;
+      begin
+        if p_fn = 'positions' then select * into r from pg_temp.cmp_each(v_ids); else select * into r from pg_temp.cmp_core_each(v_ids); end if;
+        diff := diff + r.diff; n := n + r.n; erp_spent := erp_spent + r.erp_spent; pmo_spent := pmo_spent + r.pmo_spent;
+      exception when others then v_batched := false;
+      end;
+      execute 'reset role';
+      if v_batched then lists := lists + coalesce(cardinality(v_ids), 0); continue; end if;
+    end if;
     for v_ids in
       select array[p.id] from public.projects p where p_kind = 'single' and (p.id in (select s.id from _scope s where s.org_id = c.org_id) or p.id = v_other)
       union all select null::uuid[] where p_kind = 'none'
@@ -575,7 +609,8 @@ select ok((select x.callers = (select count(*) from _callers)
               and x.lists >= 7 * 13 + 3 * 4   -- the fixture alone: 7 ledger profiles x (12 + 1), 3 document profiles x (3 + 1)
              from _p x where x.kind = 'single' and not x.internal),
   'parity covered every fixture profile and project, and one profile per role and sampled projects of each seeded organisation');
-select ok((select erp_spent >= 40 from _p where kind = 'single' and not internal),
+-- the fixture alone yields 34 here (the floor was 40 when every seeded project was compared)
+select ok((select erp_spent >= 30 from _p where kind = 'single' and not internal),
   'parity compared ledger-basis rows that carry a spent figure');
 select ok((select pmo_spent >= 3 from _p where kind = 'single' and not internal),
   'parity compared document-basis rows that carry a spent figure');
@@ -644,17 +679,16 @@ analyze public.projects, public.erp_gl_entry_mirror, public.erp_account_mirror, 
   public.cost_attribution_rule_targets, public.erp_actuals_snapshot, public.equipment_usage_entries,
   public.erp_capture_invoice_assignments, public.budget_category_account_map;
 create function pg_temp.parity_one(p_sub uuid, p_fn text default 'positions') returns bigint language plpgsql as $$
-declare v_id uuid; d bigint := 0;
+declare v_ids uuid[]; d bigint := 0;
 begin
   -- Z's twelve fixture projects and the first three bulk ones (the bulk projects are identical in shape)
-  for v_id in select p.id from public.projects p where p.org_id = '27890000-0000-0000-0000-00000000000a' and p.name not like '2789 Z bulk%'
-              union all (select p.id from public.projects p where p.name like '2789 Z bulk%' order by p.id limit 3) loop
-    perform pg_temp.as_user(p_sub);
-    execute 'set local role authenticated';
-    d := d + case when p_fn = 'positions' then (select x.diff from pg_temp.cmp(array[v_id]) x)
-                  else (select x.diff from pg_temp.cmp_core(array[v_id]) x) end;
-    execute 'reset role';
-  end loop;
+  v_ids := array(select p.id from public.projects p where p.org_id = '27890000-0000-0000-0000-00000000000a' and p.name not like '2789 Z bulk%'
+                 union all (select p.id from public.projects p where p.name like '2789 Z bulk%' order by p.id limit 3));
+  perform pg_temp.as_user(p_sub);
+  execute 'set local role authenticated';
+  d := case when p_fn = 'positions' then (select x.diff from pg_temp.cmp_each(v_ids) x)
+            else (select x.diff from pg_temp.cmp_core_each(v_ids) x) end;
+  execute 'reset role';
   return d;
 end $$;
 select is(pg_temp.parity_one('27890000-0000-0000-0000-0000000000a2') + pg_temp.parity_one('27890000-0000-0000-0000-0000000000a4'), 0::bigint,
