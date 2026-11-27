@@ -322,6 +322,9 @@
     "cardItem": "Item",
     "cardInstalled": "Installed",
     "cardPlan": "Planned",
-    "cardThreshold": "Warning at"
+    "cardThreshold": "Warning at",
+    "sourceLoadError": "Could not load the installed material source.",
+    "warningLoadError": "Material usage warnings are unavailable.",
+    "thresholdLoadError": "Could not load usage warning thresholds."
   }
 }
