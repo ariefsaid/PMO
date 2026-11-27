@@ -420,4 +420,34 @@ describe('attendance tick screen (#2528)', () => {
     expect(within(row).getByRole('button', { name: 'Approve' })).toBeEnabled();
     expect(within(row).getByRole('button', { name: 'Return' })).toBeEnabled();
   });
+
+  it('#2976 a failed awaiting-approval read shows Retry instead of vanishing', async () => {
+    const refetch = vi.fn();
+    h.role = 'Project Manager';
+    h.uid = 'pm2';
+    h.awaiting = { data: undefined as unknown as unknown[], isPending: false, isError: true, refetch };
+    renderAt();
+    const region = screen.getByRole('region', { name: 'Weeks waiting for your approval' });
+    expect(within(region).getByRole('alert')).toHaveTextContent("Couldn't load weeks waiting for your approval");
+    await userEvent.setup().click(within(region).getByRole('button', { name: 'Retry' }));
+    expect(refetch).toHaveBeenCalledOnce();
+  });
+
+  it('#2976 a failed awaiting-approval refresh keeps loaded weeks visible alongside Retry', async () => {
+    const refetch = vi.fn();
+    h.role = 'Project Manager';
+    h.uid = 'pm2';
+    h.awaiting = {
+      data: [{ worker_id: 'v1', work_date: '2026-11-17', hours: 8, overtime_hours: null, work_order_title: 'Bridge repair', recorded_by_ids: ['ctl', 'pm1'] }],
+      isPending: false,
+      isError: true,
+      refetch,
+    };
+    renderAt();
+    const region = screen.getByRole('region', { name: 'Weeks waiting for your approval' });
+    expect(within(region).getByRole('alert')).toHaveTextContent("Couldn't load weeks waiting for your approval");
+    expect(within(region).getByRole('row', { name: /Vendor One/ })).toBeInTheDocument();
+    await userEvent.setup().click(within(region).getByRole('button', { name: 'Retry' }));
+    expect(refetch).toHaveBeenCalledOnce();
+  });
 });

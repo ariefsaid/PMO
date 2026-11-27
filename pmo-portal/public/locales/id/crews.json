@@ -82,6 +82,8 @@
   "placedCount": "{{placed}} dari {{headcount}}",
   "placedOf": "Ditempatkan",
   "placements": "Penempatan jadwal kru",
+  "placementsError": "Tidak bisa memuat penempatan jadwal kru",
+  "awaitingError": "Tidak bisa memuat minggu yang menunggu persetujuan Anda",
   "rate": {
     "absent": "Absen",
     "belowTarget": "Di bawah target",

@@ -27,6 +27,7 @@
   "historyEmpty": "Belum ada perubahan.",
   "historyLine": "{{state}} · {{who}} · {{when}}",
   "loadError": "Gagal memuat {{sections}}",
+  "progressError": "Gagal memuat jumlah yang divalidasi",
   "materials": {
     "add": "Tambah",
     "chooseItem": "Pilih barang",
