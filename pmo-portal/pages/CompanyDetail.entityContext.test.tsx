@@ -38,6 +38,7 @@ vi.mock('@/src/hooks/useDomainOwnershipMode', async () => await import('@/test/d
 vi.mock('@/src/hooks/useCompanyPartyMappings', () => ({ useCompanyPartyMappings: () => ({ ids: [], isPending: false, isError: false }) }));
 
 vi.mock('@/src/hooks/useCompanies', () => ({
+  useCompanyTaxNumber: () => ({ query: { data: undefined, isSuccess: false }, save: vi.fn() }),
   useCompany: () => detailState,
   useCompanyMutations: () => mutations,
   useProjectsByClient: () => ({ data: [], isPending: false, isError: false }),

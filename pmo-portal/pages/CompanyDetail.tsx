@@ -28,9 +28,7 @@ import { RelatedProjects, RelatedProcurement } from './company/CompanyRelatedRec
 import { CompanyCollections } from '@/src/components/companies/CompanyCollections';
 import { usePermission } from '@/src/auth/usePermission';
 import { useListReturn } from '@/src/hooks/useListReturn';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useCompany, useCompanyMutations } from '@/src/hooks/useCompanies';
-import { repositories } from '@/src/lib/repositories';
+import { useCompany, useCompanyMutations, useCompanyTaxNumber } from '@/src/hooks/useCompanies';
 import { useContactMutations } from '@/src/hooks/useContacts';
 import { ContactFormModal } from './contact/ContactFormModal';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
@@ -70,22 +68,13 @@ const CompanyDetail: React.FC = () => {
   const externalCompanies = ownership.mode === 'external';
   const mappings = useCompanyPartyMappings(companyId ? [companyId] : [], externalCompanies);
   const { update, setProjectNumberSegment, archive } = useCompanyMutations();
-  const queryClient = useQueryClient();
   // #3025 slice 2: the vendor's tax number lives on its own side table, readable only by the four
   // vendor-edit roles (others get no row, so nothing shows). The form gets the number only once
   // the read succeeded: while it is unknown the form neither offers nor writes it.
   const isVendor = query.data?.type === 'Vendor';
-  const taxNumberQuery = useQuery({
-    queryKey: ['company-tax-number', companyId],
-    queryFn: () => repositories.company.getTaxNumber(companyId!),
-    enabled: isVendor && !!companyId,
-  });
+  const { query: taxNumberQuery, save: saveTaxNumber } = useCompanyTaxNumber(companyId, isVendor);
   const taxNumber = taxNumberQuery.data ?? null;
   const taxNumberKnown = taxNumberQuery.isSuccess ? taxNumber : undefined;
-  const saveTaxNumber = async (id: string, value: string | null) => {
-    await repositories.company.setTaxNumber(id, value);
-    await queryClient.invalidateQueries({ queryKey: ['company-tax-number', companyId] });
-  };
   // The in-context "Add contact" modal (shared contact form) creates through the same seam.
   const { create: createContact } = useContactMutations();
 
