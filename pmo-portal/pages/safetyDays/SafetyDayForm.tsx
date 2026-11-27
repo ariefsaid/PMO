@@ -128,7 +128,7 @@ const SafetyDayRecord: React.FC<{ detail: SafetyDayDetail }> = ({ detail }) => {
         <PermitsPart detail={detail} editable={editable} />
         <OfficerPart detail={detail} mayEnter={mayEnter} />
       </RecordStack>
-      <ConfirmDialog confirmDisabled={!rosterReady} open={locking} tone="default" title={t('lock.title', 'Lock this safety day?')}
+      <ConfirmDialog open={locking} tone="default" title={t('lock.title', 'Lock this safety day?')}
         description={(
           <div className="space-y-2" data-testid="safety-lock-body">
             <p>{t('lock.body', 'After locking, this record cannot be edited. Only a correction with a reason changes it.')}</p>
@@ -140,7 +140,7 @@ const SafetyDayRecord: React.FC<{ detail: SafetyDayDetail }> = ({ detail }) => {
             )}
           </div>
         )}
-        confirmLabel={t('actions.submit', 'Submit and lock')} confirmDisabled={readiness.noWithoutNote.length > 0} loading={m.submitDay.isPending}
+        confirmLabel={t('actions.submit', 'Submit and lock')} confirmDisabled={!rosterReady || readiness.noWithoutNote.length > 0} loading={m.submitDay.isPending}
         error={lockError} onCancel={() => setLocking(false)} onConfirm={() => void submit()} />
       <ReasonDialog open={correcting} kind="return" title={t('correct.title', 'Correct this safety day')} label={t('correct.label', 'Reason for the correction')}
         confirmLabel={t('correct.confirm', 'Start correction')} loading={m.correctDay.isPending} error={dialogError}

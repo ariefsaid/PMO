@@ -392,7 +392,7 @@ export const repositories: Repositories = {
     recordReport: (...args) => import("./thirdPartyInspections").then((module) => module.thirdPartyInspectionRepository.recordReport(...args)),
     waive: (...args) => import("./thirdPartyInspections").then((module) => module.thirdPartyInspectionRepository.waive(...args)),
     cancel: (...args) => import("./thirdPartyInspections").then((module) => module.thirdPartyInspectionRepository.cancel(...args)),
-    listFiles: (...args) => import("./thirdPartyInspections").then((module) => module.thirdPartyInspectionRepository.listFiles(...args)),
+    listFilesBatch: (...args) => import("./thirdPartyInspections").then((module) => module.thirdPartyInspectionRepository.listFilesBatch(...args)),
     addFile: (...args) => import("./thirdPartyInspections").then((module) => module.thirdPartyInspectionRepository.addFile(...args)),
     fileUrl: (...args) => import("./thirdPartyInspections").then((module) => module.thirdPartyInspectionRepository.fileUrl(...args)),
   },
@@ -449,6 +449,7 @@ export const repositories: Repositories = {
     deleteTaskGroup: (...args) => import("./workOrders").then((module) => module.milestoneRepository.deleteTaskGroup(...args)),
   },
   workOrder: {
+    listOpenForHome: (...args) => import("./workOrders").then((module) => module.workOrderRepository.listOpenForHome(...args)),
     claimDocuments: (...args) => import("./workOrders").then((module) => module.workOrderRepository.claimDocuments(...args)),
     list: (...args) => import("./workOrders").then((module) => module.workOrderRepository.list(...args)),
     listAll: (...args) => import("./workOrders").then((module) => module.workOrderRepository.listAll(...args)),
@@ -653,6 +654,7 @@ export const repositories: Repositories = {
   },
   stock: {
     master: {
+      listItemTagNames: (...args) => import("./stock").then((module) => module.stockRepository.master.listItemTagNames(...args)),
       listUnits: (...args) => import("./stock").then((module) => module.stockRepository.master.listUnits(...args)),
       listItems: (...args) => import("./stock").then((module) => module.stockRepository.master.listItems(...args)),
       listWarehouses: (...args) => import("./stock").then((module) => module.stockRepository.master.listWarehouses(...args)),
@@ -845,6 +847,7 @@ export const repositories: Repositories = {
     refileLineage: (...args) => import("./documentCategories").then((module) => module.documentCategoryRepository.refileLineage(...args)),
   },
   equipmentAvailability: {
+    endRentalTerm: (...args) => import("./equipmentAvailability").then((module) => module.equipmentAvailabilityRepository.endRentalTerm(...args)),
     savedRentalChecks: (...args) => import("./equipmentAvailability").then((module) => module.equipmentAvailabilityRepository.savedRentalChecks(...args)),
     rentalInvoiceChoices: (...args) => import("./equipmentAvailability").then((module) => module.equipmentAvailabilityRepository.rentalInvoiceChoices(...args)),
     hourlyRentalCheck: (...args) => import("./equipmentAvailability").then((module) => module.equipmentAvailabilityRepository.hourlyRentalCheck(...args)),

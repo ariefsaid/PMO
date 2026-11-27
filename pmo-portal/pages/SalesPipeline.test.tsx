@@ -128,6 +128,12 @@ async function chooseScope(scope: 'Won' | 'Lost') {
 }
 
 describe('SalesPipeline header + funnel (AC-SP-202)', () => {
+  it('withholds an unknown open value and explains the missing figure', () => {
+    pipelineState.data = { stages: seedStages.map((s) => ({ ...s, total_value: null })), projects: seedProjects.filter((p) => p.currency === 'USD') } as never;
+    renderPage();
+    expect(screen.queryByTestId('pipeline-open-value-figure')).not.toBeInTheDocument();
+    expect(screen.getByTestId('figures-hidden')).toHaveTextContent('Not available');
+  });
   it('renders on the shared ListPage shell and keeps weighted-forecast help in the page help popover', async () => {
     renderPage();
     expect(screen.getByTestId('list-page-header')).toBeInTheDocument();
