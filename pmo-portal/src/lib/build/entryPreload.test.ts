@@ -6,11 +6,11 @@ import { resolve } from 'node:path';
 // CI's verify job builds first. Skipped locally only when dist/ is absent.
 const html = resolve(__dirname, '../../../dist/index.html');
 describe.skipIf(!existsSync(html))('entry modulepreload list', () => {
-  it('#2972 keeps initial scripts at the measured first-step budget', () => {
+  it('#2972 keeps initial scripts at the measured initial-script budget', () => {
     const assets = new Set([...readFileSync(html, 'utf8').matchAll(/(?:href|src)="([^"]+\.js)"/g)].map((m) => m[1]));
     expect(assets.size).toBeGreaterThan(0);
     const bytes = [...assets].reduce((sum, asset) => sum + statSync(resolve(html, '..', asset.replace(/^\//, ''))).size, 0);
-    expect(bytes).toBeLessThanOrEqual(2_155_000);
+    expect(bytes).toBeLessThanOrEqual(1_790_000);
   });
   it('does not preload recharts, markdown or the viewspec compiler', () => {
     const preloads = [...readFileSync(html, 'utf8').matchAll(/<link rel="modulepreload"[^>]*href="([^"]+)"/g)].map((m) => m[1]);
