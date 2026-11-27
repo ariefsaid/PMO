@@ -337,6 +337,7 @@ const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = (
   const [collapsedGroups, setCollapsedGroups] = useState(readCollapsedGroups);
   const scrollRegionRef = useRef<HTMLDivElement>(null);
   const [hasScrollCue, setHasScrollCue] = useState(false);
+  const listExists = Boolean(role);
   useEffect(() => {
     const region = scrollRegionRef.current;
     if (!region || typeof IntersectionObserver === 'undefined') return;
@@ -367,7 +368,7 @@ const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = (
     });
     mutations.observe(region, { childList: true, subtree: true });
     return () => { observer.disconnect(); mutations.disconnect(); };
-  }, []);
+  }, [listExists]);
 
   const railFeatureShape = JSON.stringify(orgFeatures);
   useLayoutEffect(() => {
@@ -380,7 +381,7 @@ const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = (
       return true;
     };
     reveal();
-  }, [location.pathname, location.search, role, userViews?.length, safetyEnabled, leaveEnabled, railFeatureShape, collapsedGroups]);
+  }, [location.pathname, location.search, role, userViews?.length, safetyEnabled, leaveEnabled, railFeatureShape, collapsedGroups, railActiveOverride, mayOrderPurchases, canViewStatements, hasEligibleTimesheets, functionKey]);
   useLayoutEffect(() => {
     const region = scrollRegionRef.current;
     if (!region) return;

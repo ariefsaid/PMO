@@ -179,3 +179,68 @@ it('speed: navigation retains the intersection observer and reveals the active l
     vi.unstubAllGlobals();
   }
 });
+
+it('signing in attaches clipping so offscreen rail links are skipped by keyboard', () => {
+  state.role = '';
+  let intersection: IntersectionObserverCallback | undefined;
+  const observe = vi.fn();
+  vi.stubGlobal('IntersectionObserver', class {
+    constructor(callback: IntersectionObserverCallback) { intersection = callback; }
+    observe = observe;
+    unobserve = vi.fn();
+    disconnect() {}
+  });
+  const tree = () => <AuthContext.Provider value={{ currentUser: { id: 'me', org_id: 'org-1', built_in_role: state.key } } as unknown as AuthContextValue}><MemoryRouter><RailDrawerContext.Provider value><Rail /></RailDrawerContext.Provider></MemoryRouter></AuthContext.Provider>;
+  try {
+    const page = render(tree());
+    expect(intersection).toBeUndefined();
+    state.role = 'Engineer';
+    page.rerender(tree());
+    const link = screen.getByRole('link', { name: 'Work order' });
+    expect(observe).toHaveBeenCalledWith(link);
+    act(() => intersection!([{ target: link, intersectionRatio: 0 } as unknown as IntersectionObserverEntry], {} as IntersectionObserver));
+    expect(link).toHaveAttribute('inert');
+    act(() => intersection!([{ target: link, intersectionRatio: 1 } as unknown as IntersectionObserverEntry], {} as IntersectionObserver));
+    expect(link).not.toHaveAttribute('inert');
+    page.unmount();
+  } finally { vi.unstubAllGlobals(); }
+});
+
+it('the active sales item is brought into view when its project stage arrives', () => {
+  state.key = 'project_manager';
+  const previous = HTMLElement.prototype.scrollIntoView;
+  const reveal = vi.fn();
+  HTMLElement.prototype.scrollIntoView = reveal;
+  const tree = (override: 'salesPipeline' | null) => <MemoryRouter initialEntries={['/projects/example']}><RailDrawerContext.Provider value><Rail railActiveOverride={override} /></RailDrawerContext.Provider></MemoryRouter>;
+  try {
+    const page = render(tree(null));
+    reveal.mockClear();
+    page.rerender(tree('salesPipeline'));
+    const active = document.querySelector('a[href="/sales"][aria-current="page"]');
+    expect(active).not.toBeNull();
+    expect(reveal).toHaveBeenCalledTimes(1);
+    expect(reveal.mock.instances[0]).toBe(active);
+    page.rerender(tree('salesPipeline'));
+    expect(reveal).toHaveBeenCalledTimes(1);
+  } finally { HTMLElement.prototype.scrollIntoView = previous; }
+});
+
+it('an approvals switch arriving late keeps the current item in view', () => {
+  state.key = 'engineer';
+  state.role = 'Engineer';
+  standing.offered = false;
+  const previous = HTMLElement.prototype.scrollIntoView;
+  const reveal = vi.fn();
+  HTMLElement.prototype.scrollIntoView = reveal;
+  const tree = () => <AuthContext.Provider value={{ currentUser: { id: 'me', org_id: 'org-1', built_in_role: state.key } } as unknown as AuthContextValue}><MemoryRouter initialEntries={['/my-tasks']}><RailDrawerContext.Provider value><Rail /></RailDrawerContext.Provider></MemoryRouter></AuthContext.Provider>;
+  try {
+    const page = render(tree());
+    reveal.mockClear();
+    standing.offered = true;
+    page.rerender(tree());
+    expect(reveal).toHaveBeenCalledTimes(1);
+    expect(reveal.mock.instances[0]).toBe(screen.getByRole('link', { name: 'My Tasks' }));
+    page.rerender(tree());
+    expect(reveal).toHaveBeenCalledTimes(1);
+  } finally { standing.offered = true; HTMLElement.prototype.scrollIntoView = previous; }
+});

@@ -100,8 +100,8 @@ export function Tabs<V extends string = string>({
   // Scroll only the tab strip: scrollIntoView also scrolls the page vertically,
   // which can move the record header out of view on arrival.
   const mounted = useRef(false);
-  // Counts arriving after mount widen the tabs, so the selected one is brought back into view then too.
-  const widths = items.map((item) => `${item.count ?? ''}${item.detail ?? ''}`).join('|');
+  // Translated labels and arriving counts/details can widen tabs without resizing the strip.
+  const widths = items.map((item) => `${item.label}\u0000${item.count ?? ''}\u0000${item.detail ?? ''}`).join('|');
   revealActive.current = () => {
     const list = listRef.current;
     if (!list) return;

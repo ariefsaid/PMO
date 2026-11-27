@@ -110,3 +110,23 @@ it('speed: fitting first tab mount skips active-tab geometry work', () => {
     expect(rect).not.toHaveBeenCalled();
   } finally { width.mockRestore(); scrollWidth.mockRestore(); rect.mockRestore(); }
 });
+
+it('changing language reveals the selected tab and scroll controls when translated labels grow', () => {
+  let contentWidth = 390;
+  const width = vi.spyOn(Element.prototype, 'clientWidth', 'get').mockReturnValue(390);
+  const scrollWidth = vi.spyOn(Element.prototype, 'scrollWidth', 'get').mockImplementation(() => contentWidth);
+  const rect = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+    return { left: 0, right: this.getAttribute('role') === 'tab' ? (contentWidth > 390 ? 600 : 250) : 390 } as DOMRect;
+  });
+  const previous = HTMLElement.prototype.scrollBy;
+  const scrollBy = vi.fn();
+  HTMLElement.prototype.scrollBy = scrollBy;
+  try {
+    const page = render(<Tabs items={items} value="b" onChange={() => {}} ariaLabel="Views" idBase="translated" />);
+    scrollBy.mockClear();
+    contentWidth = 700;
+    page.rerender(<Tabs items={[{ value: 'a', label: 'Ringkasan proyek' }, { value: 'b', label: 'Dokumen pendukung' }]} value="b" onChange={() => {}} ariaLabel="Views" idBase="translated" />);
+    expect(screen.getByRole('button', { name: 'Scroll tabs right' })).toBeInTheDocument();
+    expect(scrollBy).toHaveBeenCalledWith(expect.objectContaining({ left: 210 }));
+  } finally { width.mockRestore(); scrollWidth.mockRestore(); rect.mockRestore(); HTMLElement.prototype.scrollBy = previous; }
+});

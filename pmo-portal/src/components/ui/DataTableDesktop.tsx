@@ -123,14 +123,58 @@ function TableOverflowControls({ store, scrollportRef }: { store: SeamStore; scr
     </div>;
 }
 
+// Fitting read-only tables share their page's container watch. A side panel changes
+// <main>'s width without a window resize; observing it once avoids an observer per table.
+const pageResizeWatches = new WeakMap<Element, { listeners: Set<() => void>; dispose: () => void }>();
+function watchPageWidth(container: Element | null, listener: () => void): () => void {
+  if (!container || typeof ResizeObserver === 'undefined') return () => {};
+  let watch = pageResizeWatches.get(container);
+  if (!watch) {
+    const listeners = new Set<() => void>();
+    let width: number | undefined;
+    let frame: number | undefined;
+    const observer = new ResizeObserver(entries => {
+      const next = entries.find(entry => entry.target === container)?.contentRect.width;
+      if (next === undefined || next === width) return;
+      width = next;
+      if (frame !== undefined) return;
+      frame = requestAnimationFrame(() => {
+        frame = undefined;
+        listeners.forEach(refresh => refresh());
+      });
+    });
+    observer.observe(container);
+    watch = { listeners, dispose: () => {
+      observer.disconnect();
+      if (frame !== undefined) cancelAnimationFrame(frame);
+    } };
+    pageResizeWatches.set(container, watch);
+  }
+  watch.listeners.add(listener);
+  const current = watch;
+  return () => {
+    current.listeners.delete(listener);
+    if (!current.listeners.size) {
+      current.dispose();
+      pageResizeWatches.delete(container);
+    }
+  };
+}
+
 function useStickyRowMenuSeam(
   scrollportRef: React.RefObject<HTMLDivElement | null>,
   tableRef: React.RefObject<HTMLTableElement | null>,
   enabled: boolean,
   onOverflowChange?: (overflowing: boolean) => void,
   content?: unknown,
+  columns?: unknown,
+  columnSizing?: unknown,
+  state?: unknown,
 ): SeamStore {
   const [store] = React.useState(createSeamStore);
+  const refresh = useRef<() => void>(() => {});
+  const reportOverflow = useRef(onOverflowChange);
+  reportOverflow.current = onOverflowChange;
 
   React.useLayoutEffect(() => {
     const scrollport = scrollportRef.current;
@@ -143,7 +187,7 @@ function useStickyRowMenuSeam(
       const overflowing = width - viewport - left > 1;
       store.set(width > viewport + 1);
       scrollport.toggleAttribute('data-dt-overflowing', overflowing);
-      onOverflowChange?.(overflowing);
+      reportOverflow.current?.(overflowing);
       return width > viewport + 1;
     };
     let observer: ResizeObserver | undefined;
@@ -154,7 +198,10 @@ function useStickyRowMenuSeam(
         observer.observe(table);
       }
     };
-    observeIfNeeded(measure());
+    refresh.current = () => observeIfNeeded(measure());
+    const stopPageWatch = !enabled ? watchPageWidth(scrollport.closest('main'), () => {
+      if (!observer) refresh.current();
+    }) : () => {};
     let resizeFrame: number | undefined;
     const resize = () => {
       // Observed tables already receive one batched geometry read from ResizeObserver.
@@ -168,12 +215,20 @@ function useStickyRowMenuSeam(
     scrollport.addEventListener('scroll', scroll, { passive: true });
     window.addEventListener('resize', resize);
     return () => {
+      refresh.current = () => {};
+      stopPageWatch();
       scrollport.removeEventListener('scroll', scroll);
       window.removeEventListener('resize', resize);
       if (resizeFrame !== undefined) cancelAnimationFrame(resizeFrame);
       observer?.disconnect();
     };
-  }, [enabled, onOverflowChange, scrollportRef, tableRef, store, content]);
+  }, [enabled, scrollportRef, tableRef, store]);
+
+  // Column resizing/visibility, loading and data changes are explicit measurement events;
+  // they must not tear down the long-lived observer and event listeners.
+  React.useLayoutEffect(() => {
+    refresh.current();
+  }, [content, columns, columnSizing, state, enabled, onOverflowChange]);
 
   return store;
 }
@@ -653,6 +708,9 @@ export function DataTableDesktop<Row>({
     Boolean(rowMenu) || Boolean(onOverflowChange),
     onOverflowChange,
     groupedRows,
+    columns,
+    columnSizing,
+    state,
   );
 
   React.useLayoutEffect(() => {
