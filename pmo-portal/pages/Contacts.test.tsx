@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { act, render, screen, within, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, useLocation } from 'react-router';
 import React from 'react';
@@ -230,6 +230,17 @@ describe('Contacts index — rows + states (AC-CRM-030)', () => {
     expect(screen.getByTestId('liststate-loading')).toBeInTheDocument();
     // …and the toolbar stays mounted, so the person can still clear a filter or search.
     expect(screen.getByLabelText(/Search contacts/i)).toBeInTheDocument();
+  });
+
+  it('keeps all ten intermediate search terms out of the server query', async () => {
+    renderPage();
+    const input = screen.getByLabelText(/Search contacts/i);
+    for (let i = 1; i <= 10; i++) {
+      fireEvent.change(input, { target: { value: 'abcdefghij'.slice(0, i) } });
+      expect(h.lastInput).toMatchObject({ search: '' });
+    }
+    expect(input).toHaveValue('abcdefghij');
+    await waitFor(() => expect(h.lastInput).toMatchObject({ search: 'abcdefghij' }));
   });
 
   it('AC-CRM-030: search filters rows by name — the committed term goes to the server', async () => {
