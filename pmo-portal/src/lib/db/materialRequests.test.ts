@@ -167,6 +167,12 @@ describe('FR-MRQ-019 list', () => {
     expect(h.calls.order).toEqual([['created_at', { ascending: false }], ['id', { ascending: false }]]);
     expect(h.calls.limit).toEqual([51]);
   });
+  it('AC-1128-002 the list read carries each request\'s work order number and title, so a row needs no read of its own', async () => {
+    h.result.value = { data: [{ id: 'r1', created_at: '2026-11-01T00:00:00Z', work_order: { wo_number: 'WO-7', title: 'Slab' } }, { id: 'r2', created_at: '2026-11-01T00:00:00Z', work_order: null }], error: null };
+    const page = await dal.listMaterialRequests({});
+    expect(String(h.calls.select[0])).toContain('work_order:work_orders(wo_number, title)');
+    expect(page.rows.map((r) => r.workOrder)).toEqual([{ wo_number: 'WO-7', title: 'Slab' }, null]);
+  });
   it('FR-MRQ-019 a full page reports a cursor for the next one', async () => {
     const rows = Array.from({ length: 51 }, (_, i) => ({ id: `r${i}`, created_at: `2026-11-${String(30 - (i % 28)).padStart(2, '0')}T00:00:00Z` }));
     h.result.value = { data: rows, error: null };
