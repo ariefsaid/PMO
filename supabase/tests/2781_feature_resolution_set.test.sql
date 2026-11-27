@@ -117,5 +117,9 @@ select is((select count(*) from corpus c cross join lateral public.service_resol
 select is((select count(*) from corpus c cross join lateral public.service_resolved_org_features(c.id) b), (select count(*) from corpus)*(select count(*) from (select feature_key from plan_features where plan_id='enterprise' union all select unnest(core_feature_keys())) k), 'AC-G5-001 service preserves projection multiplicity');
 select ok((select provolatile='s' and prolang=(select oid from pg_language where lanname='plpgsql') from pg_proc where oid='public.resolve_feature_internal(uuid,text)'::regprocedure),'AC-G5-002 scalar stays stable and non-inlinable');
 select ok(not has_function_privilege('authenticated','public.resolve_features_internal(uuid,text[])','execute') and not has_function_privilege('anon','public.resolve_features_internal(uuid,text[])','execute') and not has_function_privilege('service_role','public.resolve_features_internal(uuid,text[])','execute'), 'AC-G5-002 shared core stays internal');
+select set_config('request.jwt.claims',json_build_object('sub',(select id from corpus where i=1),'role','authenticated')::text,true);
+select throws_ok($$select * from public.service_resolved_org_features((select id from corpus where i=1))$$,'42501','service_role_only','AC-G5-002 service projection refuses a non-service caller');
+select set_config('request.jwt.claims','{"role":"service_role"}',true);
+select throws_ok($$select * from public.service_resolved_org_features('27800000-0000-0000-0000-00000000dead')$$,'23503','unknown_org','AC-G5-002 service projection refuses an unknown organisation');
 select * from finish();
 rollback;
