@@ -16,6 +16,7 @@ import { disciplineProfitRepository } from './disciplineProfit';
 import { safetyDayRepository } from './safetyDays';
 import { stockWorkOrderTransferRepository } from './stockWorkOrderTransfer';
 import { billingStagesRepository } from './billingStages';
+import { readOrgColumns } from '@/src/lib/db/orgSettingsBatch';
 
 // ponytail: a literal until database.types.ts is regenerated (typed-client ticket); then derive it from the organizations Row.
 type OrgColumn =
@@ -64,9 +65,9 @@ export const orgSwitch = (key: OrgSwitchKey): OrgSwitch => ORG_SWITCHES[key];
 const organizations = (): any => supabase.from('organizations' as never);
 
 async function readColumn(column: OrgColumn): Promise<boolean> {
-  const { data, error } = await organizations().select(column).limit(1);
+  const { data, error } = await readOrgColumns([column]);
   if (error) throw new AppError(error.message, error.code);
-  return data?.[0]?.[column] === true;
+  return data?.[column] === true;
 }
 
 async function writeColumn(column: OrgColumn, on: boolean): Promise<void> {

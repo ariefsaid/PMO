@@ -94,7 +94,7 @@ describe('writes', () => {
 
 describe('reviewer roles (change-review)', () => {
   it('AC-CHR-005 reads the list (empty when unset) and reports a write that changed no row as not allowed', async () => {
-    h.result.queue = [{ data: { quantity_change_approver_roles: ['project_control_manager'] }, error: null }];
+    h.result.queue = [{ data: [{ quantity_change_approver_roles: ['project_control_manager'] }], error: null }];
     await expect(dal.getApproverRoles()).resolves.toEqual(['project_control_manager']);
     h.result.queue = [{ data: null, error: null }];
     await expect(dal.getApproverRoles()).resolves.toEqual([]);
@@ -197,9 +197,9 @@ describe('AC-QCR detail and derived reads (#2578)', () => {
   });
 
   it('AC-QCR-021 the org limit reads as null when unset; the archive stamps the file row', async () => {
-    h.result.queue = [{ data: { quantity_change_limit: 12 }, error: null }];
+    h.result.queue = [{ data: [{ quantity_change_limit: 12 }], error: null }];
     await expect(dal.getLimit()).resolves.toBe(12);
-    h.result.queue = [{ data: { quantity_change_limit: null }, error: null }];
+    h.result.queue = [{ data: [{ quantity_change_limit: null }], error: null }];
     await expect(dal.getLimit()).resolves.toBeNull();
     h.result.queue = [{ data: null, error: null }];
     await expect(dal.getLimit()).resolves.toBeNull();
