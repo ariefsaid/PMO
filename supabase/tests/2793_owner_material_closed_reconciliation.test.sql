@@ -15,11 +15,12 @@ insert into profiles (id, org_id, full_name, email, role, status) values
   ('30120000-0000-0000-0000-0000000001a1', '30120000-0000-0000-0000-00000000010a', 'OMC Admin', 'omc-admin@example.com', 'Admin', 'active');
 insert into projects (id, org_id, name, status, currency, contract_value, tax_treatment, tax_amount) values
   ('30120000-0000-0000-0000-0000000001c1', '30120000-0000-0000-0000-00000000010a', 'OMC Site', 'Ongoing Project', 'IDR', 100000, 'exclusive', 0);
--- 401 stays Issued (the unchanged baseline), 402 is Closed (reconciliation still records), 403 is Cancelled (frozen).
+-- All three start Issued: sections are created on an open order, then 402 is Closed (reconciliation
+-- still records) and 403 is Cancelled (frozen), as the fixture writer.
 insert into work_orders (id, org_id, project_id, title, status, order_value, tax_treatment, tax_amount, client_po_number) values
-  ('30120000-0000-0000-0000-000000001401', '30120000-0000-0000-0000-00000000010a', '30120000-0000-0000-0000-0000000001c1', 'OMC issued',    'Issued',    10000, 'exclusive', 0, null),
-  ('30120000-0000-0000-0000-000000001402', '30120000-0000-0000-0000-00000000010a', '30120000-0000-0000-0000-0000000001c1', 'OMC closed',    'Closed',    10000, 'exclusive', 0, 'OM-2793'),
-  ('30120000-0000-0000-0000-000000001403', '30120000-0000-0000-0000-00000000010a', '30120000-0000-0000-0000-0000000001c1', 'OMC cancelled', 'Cancelled', 10000, 'exclusive', 0, null);
+  ('30120000-0000-0000-0000-000000001401', '30120000-0000-0000-0000-00000000010a', '30120000-0000-0000-0000-0000000001c1', 'OMC issued',    'Issued', 10000, 'exclusive', 0, null),
+  ('30120000-0000-0000-0000-000000001402', '30120000-0000-0000-0000-00000000010a', '30120000-0000-0000-0000-0000000001c1', 'OMC closed',    'Issued', 10000, 'exclusive', 0, 'OM-2793'),
+  ('30120000-0000-0000-0000-000000001403', '30120000-0000-0000-0000-00000000010a', '30120000-0000-0000-0000-0000000001c1', 'OMC cancelled', 'Issued', 10000, 'exclusive', 0, null);
 insert into stock_units (id, org_id, code, name) values
   ('30120000-0000-0000-0000-000000001301', '30120000-0000-0000-0000-00000000010a', 'M', 'Metre');
 insert into stock_items (id, org_id, code, name, unit_id) values
@@ -29,6 +30,8 @@ insert into work_order_sections (id, org_id, project_id, work_order_id, code, na
   ('30120000-0000-0000-0000-000000002001', '30120000-0000-0000-0000-00000000010a', '30120000-0000-0000-0000-0000000001c1', '30120000-0000-0000-0000-000000001401', 'N', 'North'),
   ('30120000-0000-0000-0000-000000002002', '30120000-0000-0000-0000-00000000010a', '30120000-0000-0000-0000-0000000001c1', '30120000-0000-0000-0000-000000001402', 'S', 'South'),
   ('30120000-0000-0000-0000-000000002003', '30120000-0000-0000-0000-00000000010a', '30120000-0000-0000-0000-0000000001c1', '30120000-0000-0000-0000-000000001403', 'X', 'Cancelled');
+update work_orders set status='Closed' where id='30120000-0000-0000-0000-000000001402';
+update work_orders set status='Cancelled' where id='30120000-0000-0000-0000-000000001403';
 
 create function pg_temp.act_as(p_uid uuid) returns void language sql as $$
   select set_config('request.jwt.claims', json_build_object('sub', p_uid, 'role', 'authenticated')::text, true);
