@@ -443,7 +443,8 @@
       "legend": "Kuantitas per baris",
       "noBoq": "Proyek ini belum punya item BoQ.",
       "line": "{{item}} ({{unit}})",
-      "rate": "Harga {{rate}}"
+      "rate": "Harga {{rate}}",
+      "loadError": "Item BoQ proyek tidak dapat dimuat."
     },
     "attribute": {
       "title": "Atribusikan baris ke tagihan {{number}}",
@@ -468,7 +469,8 @@
       "issueConfirm": "Terbitkan",
       "issued": "Baris BoQ diterbitkan",
       "notOnPoAge_one": "terverifikasi, di luar PO selama {{count}} hari",
-      "notOnPoAge_other": "terverifikasi, di luar PO selama {{count}} hari"
+      "notOnPoAge_other": "terverifikasi, di luar PO selama {{count}} hari",
+      "draftLoadError": "Draf baris BoQ tidak dapat dimuat."
     },
     "exceptions": {
       "reason": {
@@ -948,7 +950,8 @@
     "attachSoon": "Lampirkan berkas (segera hadir)",
     "confirmTitle": "Pilih penawaran ini?",
     "confirmBody": "Penawaran terpilih menentukan nilai dan supplier pengadaan. Jika di atas jumlah yang disetujui, pengadaan kembali untuk persetujuan.",
-    "confirmLabel": "Pilih penawaran"
+    "confirmLabel": "Pilih penawaran",
+    "differentCurrencies": "Selisih tidak tersedia: mata uang berbeda."
   },
   "routeWhy": {
     "exceedsProject": "pengadaan ini akan melampaui batas anggaran proyek, termasuk yang sudah dibelanjakan.",
@@ -1057,7 +1060,9 @@
     "choose": "Pilih kanal",
     "saveChannel": "Simpan kanal",
     "fieldSaved": "Kanal pembayaran tersimpan",
-    "columnHeader": "Kanal pembayaran"
+    "columnHeader": "Kanal pembayaran",
+    "listLoadError": "Saluran pembayaran tidak dapat dimuat.",
+    "currentLoadError": "Saluran pembayaran ini tidak dapat dimuat."
   },
   "linePlanning": {
     "noCategoriesHere": "Belum ada kategori. Admin menambahkannya di Perencanaan baris, dalam Pengaturan akuntansi.",
@@ -1138,6 +1143,10 @@
     "discipline": "Disiplin",
     "differs": "Bukan {{workOrder}} milik permintaan",
     "orderDateHelp": "Wajib untuk mengirim pesanan. Mengisi semua baris.",
-    "noWorkOrders": "Proyek ini belum punya perintah kerja, jadi baris tanpa perintah kerja. Manajer proyek menambahkannya di tab perintah kerja proyek."
+    "noWorkOrders": "Proyek ini belum punya perintah kerja, jadi baris tanpa perintah kerja. Manajer proyek menambahkannya di tab perintah kerja proyek.",
+    "planningChange": "kategori dan tanggal baris",
+    "dateChange": "Tanggal pesanan dan baris: {{lines}}",
+    "attributionChange": "perintah kerja dan disiplin",
+    "partialSave": "Tersimpan: {{saved}}. Belum tersimpan: {{unsaved}}. {{reason}}"
   }
 }

@@ -114,43 +114,51 @@ export const LinePlanPanel: React.FC<LinePlanPanelProps> = ({ procurementId, ite
 
   const save = async () => {
     setSaving(true); setSaved(false); setFailure(null);
+    const writes: { label: string; run: () => Promise<unknown> }[] = planningChanged.map((i) => ({
+      label: `${i.name} (${t('linePlan.planningChange', 'category and line date')})`,
+      run: () => setProcurementLinePlanning(i.id, category[i.id] || null, (orderRule ? i.needed_by : neededBy[i.id]) || null),
+    }));
+    if (orderDateChanged || lineDatesChanged) {
+      const lines = items.flatMap((i) => {
+        const value = neededBy[i.id] ?? '';
+        if (value === (i.needed_by ?? '') && !(orderDateChanged && value !== '' && value === orderDate)) return [];
+        return [{ itemId: i.id, neededBy: value === '' || value === orderDate ? null : value }];
+      });
+      writes.push({
+        label: t('linePlan.dateChange', 'Order and line dates: {{lines}}', { lines: items.filter((i) => orderDateChanged || lines.some((l) => l.itemId === i.id)).map((i) => i.name).join(', ') }),
+        run: () => repositories.procurement.setNeededBy(procurementId, orderDate || null, lines),
+      });
+    }
+    const changed = Object.fromEntries(attributionChanged.map((i) => [i.id, attributionOf(i.id)]));
+    for (const g of groupLinesByAttribution(changed)) {
+      writes.push({
+        label: `${items.filter((i) => g.ids.includes(i.id)).map((i) => i.name).join(', ')} (${t('linePlan.attributionChange', 'work order and discipline')})`,
+        run: async () => {
+          try { return await workOrderCostRepository.setAttribution('procurement_item', g.ids, { workOrderId: g.workOrderId, disciplineId: g.disciplineId }); }
+          catch (e) { throw new Error(refusalLine(e), { cause: e }); }
+        },
+      });
+    }
+    let completed = 0;
     try {
-      try {
-        for (const i of planningChanged) {
-          const date = orderRule ? (i.needed_by ?? '') : (neededBy[i.id] ?? '');
-          await setProcurementLinePlanning(i.id, category[i.id] || null, date || null);
-        }
-        if (orderDateChanged || lineDatesChanged) {
-          const lines = items.flatMap((i) => {
-            const value = neededBy[i.id] ?? '';
-            const current = i.needed_by ?? '';
-            const headerChangedToLineDate = orderDateChanged && value !== '' && value === orderDate;
-            if (value === current && !headerChangedToLineDate) return [];
-            return [{ itemId: i.id, neededBy: value === '' || value === orderDate ? null : value }];
-          });
-          await repositories.procurement.setNeededBy(procurementId, orderDate || null, lines);
-          void header.refetch();
-        }
-      } catch (e) {
-        const error = classifyMutationError(e);
-        throw new Error(error.detail || error.headline, { cause: e });
-      }
-      if (attributionChanged.length > 0) {
-        try {
-          const changed = Object.fromEntries(attributionChanged.map((i) => [i.id, attributionOf(i.id)]));
-          for (const g of groupLinesByAttribution(changed)) {
-            await workOrderCostRepository.setAttribution('procurement_item', g.ids, { workOrderId: g.workOrderId, disciplineId: g.disciplineId });
-          }
-          void qc.invalidateQueries({ queryKey: ['work-order-cost'] });
-        } catch (e) {
-          throw new Error(refusalLine(e), { cause: e });
-        }
+      for (const write of writes) {
+        await write.run();
+        completed += 1;
       }
       setSaved(true);
-      void qc.invalidateQueries({ queryKey: ['procurement'] });
     } catch (e) {
-      setFailure((e as Error).message);
+      const error = classifyMutationError(e);
+      setFailure(t('linePlan.partialSave', 'Saved: {{saved}}. Not saved: {{unsaved}}. {{reason}}', {
+        saved: writes.slice(0, completed).map((w) => w.label).join('; ') || t('linePlanning.none', 'None'),
+        unsaved: writes.slice(completed).map((w) => w.label).join('; '),
+        reason: error.detail || error.headline,
+      }));
     } finally {
+      if (completed > 0) {
+        void qc.invalidateQueries({ queryKey: ['procurement'] });
+        void qc.invalidateQueries({ queryKey: ['work-order-cost'] });
+        if (orderDateChanged || lineDatesChanged) void header.refetch();
+      }
       setSaving(false);
     }
   };
