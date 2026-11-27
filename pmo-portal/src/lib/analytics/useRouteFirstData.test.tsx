@@ -123,4 +123,14 @@ describe('useRouteFirstData', () => {
     act(() => nav('/companies'));
     expect(capture).toHaveBeenCalledTimes(1);
   });
+
+  it('does not rescan every query on each cache event (in-flight count is tracked incrementally)', async () => {
+    const client = new QueryClient();
+    const isFetching = vi.spyOn(client, 'isFetching');
+    mount(client);
+    for (let i = 0; i < 20; i++) await client.fetchQuery({ queryKey: ['churn', i], queryFn: async () => i });
+    await advance(1000);
+    expect(isFetching).not.toHaveBeenCalled();
+    expect(capture).toHaveBeenCalledTimes(1);
+  });
 });
