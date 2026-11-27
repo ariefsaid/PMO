@@ -932,7 +932,7 @@ describe('TimeAndMaterials', () => {
   });
 });
 
-it.each([["id-ID", "1.000", 1000], ["id-ID", "1.000,50", 1000.5], ["en-US", "1,000.50", 1000.5]])("saves a grouped labour rate in %s: %s", async (numberLocale, input, expected) => {
+it.each([["id-ID", "1.000", 1000], ["id-ID", "1.000,50", 1000.5], ["en-US", "1,000.50", 1000.5]] as const)("saves a grouped labour rate in %s: %s", async (numberLocale, input, expected) => {
  setActiveLocale({ locale: numberLocale === "id-ID" ? "id" : "en", numberLocale, timezone: "Asia/Jakarta" });
  const { user } = renderPanel();
  await user.click(screen.getByRole("button", { name: "Add rate" }));
