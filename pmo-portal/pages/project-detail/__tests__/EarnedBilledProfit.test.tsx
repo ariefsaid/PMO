@@ -138,6 +138,37 @@ describe('EarnedBilledProfit', () => {
     } finally { vi.useRealTimers(); }
   });
 
+  it('#2896 a mid-wait re-render with fresh query objects does not cancel the one-shot re-ask', () => {
+    vi.useFakeTimers();
+    try {
+      setData('restricted', []);
+      const view = render(<EarnedBilledProfit projectId="p1" />);
+      vi.advanceTimersByTime(400);
+      // Sibling query or React re-render produces fresh query objects before the 1s timer fires.
+      h.eb = { ...h.eb };
+      h.pva = { ...h.pva };
+      view.rerender(<EarnedBilledProfit projectId="p1" />);
+      vi.advanceTimersByTime(1_000);
+      expect(h.eb.refetch).toHaveBeenCalledTimes(1);
+    } finally { vi.useRealTimers(); }
+  });
+
+  it('#2896 a refused discipline-revenue read is re-asked once, and switching projects resets the re-ask', () => {
+    vi.useFakeTimers();
+    try {
+      setData([ebRow()], 'restricted');
+      const view = render(<EarnedBilledProfit projectId="p1" />);
+      vi.advanceTimersByTime(1_000);
+      expect(h.revenue.refetch).toHaveBeenCalledTimes(1);
+      expect(h.eb.refetch).not.toHaveBeenCalled();
+      // Switching to another project with a refused read gets its own single re-ask.
+      setData('restricted', []);
+      view.rerender(<EarnedBilledProfit projectId="p2" />);
+      vi.advanceTimersByTime(1_000);
+      expect(h.eb.refetch).toHaveBeenCalledTimes(1);
+    } finally { vi.useRealTimers(); }
+  });
+
   it('AC-EBR-001/002 renders nothing, and none of the rollup reads is asked, while the setting is off or the role cannot read work-order money', () => {
     setData([ebRow()]);
     h.setting = { data: false };

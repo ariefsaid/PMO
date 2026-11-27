@@ -80,6 +80,22 @@ describe('DisciplineProfit', () => {
     expect(screen.queryByTestId('discipline-profit-row-civ')).toBeNull();
   });
 
+  it('#2896 re-asks a refused revenue read once and recovers without a reload', () => {
+    vi.useFakeTimers();
+    try {
+      setData('restricted');
+      const view = render(<DisciplineProfit projectId="p1" />);
+      expect(screen.getByRole('status').textContent).toBe('Restricted');
+      vi.advanceTimersByTime(1_000);
+      expect(h.revenue.refetch).toHaveBeenCalledTimes(1);
+      expect(h.pva.refetch).not.toHaveBeenCalled();
+      setData([rev('civ', '100.00')]);
+      view.rerender(<DisciplineProfit projectId="p1" />);
+      expect(screen.getByTestId('discipline-profit-row-civ')).toBeTruthy();
+      expect(screen.queryByRole('status')).toBeNull();
+    } finally { vi.useRealTimers(); }
+  });
+
   it('renders nothing for a role that cannot read work-order money', () => {
     h.role = 'Engineer';
     setData([rev('civ', '1.00')]);
