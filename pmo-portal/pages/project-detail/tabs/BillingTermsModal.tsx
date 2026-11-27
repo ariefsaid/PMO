@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { EntityFormModal, type SubmitError } from '@/src/components/ui/EntityFormModal';
 import { Button } from '@/src/components/ui/Button';
+import { ConfirmDialog, ListState } from '@/src/components/ui';
 import { Checkbox } from '@/src/components/ui/Checkbox';
 import { SelectField, TextArea, TextField, FieldError } from '@/src/components/ui/FormFields';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
@@ -31,24 +32,29 @@ const toStage = (r: StageRow): StageTemplateInput => ({
 });
 
 /** Load an organisation template onto the project's list, or open the template manager (#2680). Absent without a data layer. */
-const TemplateTools: React.FC<{ projectId: string; onLoaded: () => void }> = ({ projectId, onLoaded }) => {
+const TemplateTools: React.FC<{ projectId: string; dirty: boolean; onLoaded: () => void }> = ({ projectId, dirty, onLoaded }) => {
   const { t } = useTranslation('project');
   const templates = useStepTemplates();
   const load = useLoadTemplateOntoProject(projectId);
   const [picked, setPicked] = useState('');
   const [managing, setManaging] = useState(false);
   const [failed, setFailed] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const replace = () => { setConfirming(false); setFailed(false); load.mutateAsync(picked).then(() => { setPicked(''); onLoaded(); }).catch(() => setFailed(true)); };
   return <div className="mt-3 flex flex-wrap items-end gap-2">
     <SelectField compact label={t('projectDetail.billing.steps.template', 'Template')} value={picked} onChange={setPicked}
       placeholder={t('projectDetail.billing.steps.pickTemplate', 'Choose a template')}
       options={(templates.data ?? []).map((tpl) => ({ value: tpl.id, label: tpl.name }))} />
     <Button type="button" variant="outline" size="sm" disabled={!picked || load.isPending}
-      onClick={() => { setFailed(false); load.mutateAsync(picked).then(() => { setPicked(''); onLoaded(); }).catch(() => setFailed(true)); }}>
+      onClick={() => { if (dirty) setConfirming(true); else replace(); }}>
       {t('projectDetail.billing.steps.loadTemplateTerms', 'Replace stages with template')}
     </Button>
     <Button type="button" variant="outline" size="sm" onClick={() => setManaging(true)}>{t('projectDetail.billing.templates.manage', 'Manage templates')}</Button>
+    <p className="w-full text-sm text-muted-foreground">{t('projectDetail.billing.steps.loadTemplateTermsHelp', 'Replaces the saved stages immediately. Other changes use Save billing terms.')}</p>
     {failed && <p role="alert" className="w-full text-sm text-destructive">{t('projectDetail.billing.steps.loadTemplateError', 'The template could not be loaded.')}</p>}
     {managing && <BillingStepTemplatesModal onClose={() => setManaging(false)} />}
+    <ConfirmDialog open={confirming} tone="destructive" title={t('common:entityForm.discardTitle', 'Discard your changes?')} description={t('common:entityForm.discardBody', 'This form has unsaved changes. Discarding will lose them.')}
+      confirmLabel={t('common:entityForm.discard', 'Discard')} cancelLabel={t('common:entityForm.keepEditing', 'Keep editing')} onConfirm={replace} onCancel={() => setConfirming(false)} />
   </div>;
 };
 
@@ -81,6 +87,7 @@ export const BillingTermsModal: React.FC<{ projectId: string; onClose: () => voi
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (rows === null || query.isError || query.isPending) return;
     const dayNum = day.trim() === '' ? null : Number(day);
     const warnNum = Number(warn);
     const pct = Number(retention.replace(',', '.'));
@@ -104,11 +111,13 @@ export const BillingTermsModal: React.FC<{ projectId: string; onClose: () => voi
   return <EntityFormModal open width="lg" title={t('projectDetail.billing.terms.title', 'Billing terms')}
     submitLabel={t('projectDetail.billing.terms.save', 'Save billing terms')}
     onSubmit={(e) => void submit(e)} onClose={onClose} loading={save.isPending} dirty={dirty} submitError={submitError}
-    submitDisabled={rows === null}>
-    {query.isError && <p className="text-sm text-muted-foreground" role="status">{t('projectDetail.billing.terms.loadError', 'The billing terms could not be loaded.')}</p>}
+    submitDisabled={rows === null || query.isError || query.isPending}>
+    {query.isError && <ListState variant="error" title={t('projectDetail.billing.terms.loadError', 'The billing terms could not be loaded.')} onRetry={() => void query.refetch()} />}
+    {query.isPending && <ListState variant="loading" rows={3} />}
+    <fieldset disabled={rows === null || query.isError || query.isPending}>
     <h3 className="text-group font-semibold">{t('projectDetail.billing.terms.stagesTitle', 'Billing stages')}</h3>
     <p className="mt-1 text-sm text-muted-foreground">{t('projectDetail.billing.terms.stagesHelp', 'Each new progress claim must complete these stages, in order, before its invoice can be raised.')}</p>
-    <TemplateTools projectId={projectId} onLoaded={() => { setRows(null); setDirty(false); }} />
+    <TemplateTools projectId={projectId} dirty={dirty} onLoaded={() => { setRows(null); setDirty(false); }} />
     <ol className="mt-3 space-y-4">
       {(rows ?? []).map((row, index) => (
         <li key={row.key}>
@@ -164,6 +173,7 @@ export const BillingTermsModal: React.FC<{ projectId: string; onClose: () => voi
       </div>
     </div>
     <p className="mt-2 text-sm text-muted-foreground">{t('projectDetail.billing.terms.retentionHelp', 'Retention is held from each new progress claim; the invoice and its VAT stay at full value.')}</p>
+    </fieldset>
   </EntityFormModal>;
 };
 

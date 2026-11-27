@@ -453,6 +453,7 @@
         "loadFirst": "Muat langkah dari templat",
         "loadEmpty": "Muat langkah",
         "loadTemplateTerms": "Ganti tahap dengan templat",
+        "loadTemplateTermsHelp": "Langsung mengganti tahap yang tersimpan. Perubahan lain disimpan melalui Simpan ketentuan penagihan.",
         "loadTemplateError": "Templat tidak dapat dimuat.",
         "name": "Nama langkah",
         "newName": "Langkah baru",

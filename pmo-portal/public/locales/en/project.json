@@ -453,6 +453,7 @@
         "loadFirst": "Load steps from a template",
         "loadEmpty": "Load steps",
         "loadTemplateTerms": "Replace stages with template",
+        "loadTemplateTermsHelp": "Replaces the saved stages immediately. Other changes use Save billing terms.",
         "loadTemplateError": "The template could not be loaded.",
         "name": "Step name",
         "newName": "New step",

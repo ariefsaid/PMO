@@ -38,6 +38,35 @@ beforeEach(() => {
 const renderIt = (onClose = vi.fn()) => { render(<QueryClientTestProvider><BillingTermsModal projectId="p1" onClose={onClose} /></QueryClientTestProvider>); return { user: userEvent.setup(), onClose }; };
 
 describe('BillingTermsModal', () => {
+  it('asks before replacing edited terms and keeps them when cancelled', async () => {
+    const { user } = renderIt();
+    await user.type(screen.getAllByRole('textbox', { name: 'Stage name' })[0], ' revised');
+    await user.selectOptions(screen.getByLabelText('Template'), 'tpl-1');
+    await user.click(screen.getByRole('button', { name: 'Replace stages with template' }));
+    expect(h.loadTemplate).not.toHaveBeenCalled();
+    const confirm = screen.getByRole('alertdialog');
+    await user.click(within(confirm).getByRole('button', { name: 'Keep editing' }));
+    expect(screen.getAllByRole('textbox', { name: 'Stage name' })[0]).toHaveValue('Internal measurement revised');
+    await user.click(screen.getByRole('button', { name: 'Replace stages with template' }));
+    await user.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Discard' }));
+    expect(h.loadTemplate).toHaveBeenCalledWith('tpl-1');
+  });
+  it('blocks editing and saving until failed terms are retried successfully', async () => {
+    const existing = h.data;
+    h.data = null;
+    h.state.isError = true;
+    const view = render(<QueryClientTestProvider><BillingTermsModal projectId="p1" onClose={vi.fn()} /></QueryClientTestProvider>);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Add stage' }));
+    expect(screen.queryAllByRole('group', { name: /^Stage \d/ })).toHaveLength(0);
+    expect(screen.getByRole('button', { name: 'Save billing terms' })).toBeDisabled();
+    await user.click(screen.getByRole('button', { name: /try again|retry/i }));
+    expect(h.state.refetch).toHaveBeenCalled();
+    h.data = existing;
+    h.state.isError = false;
+    view.rerender(<QueryClientTestProvider><BillingTermsModal projectId="p1" onClose={vi.fn()} /></QueryClientTestProvider>);
+    expect(screen.getByRole('textbox', { name: 'Retention (%)' })).toHaveValue('5');
+  });
   it('AC-BSX-020 the template tools sit in the modal: pick a template and replace the stages (#2680)', () => {
     renderIt();
     expect(screen.getByRole('button', { name: 'Manage templates' })).toBeInTheDocument();
