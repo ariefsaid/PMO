@@ -1068,6 +1068,43 @@ test('AC-001 (v2.4): section payloads carry skipped_source_rows and distinct ski
   assert.equal(res.exit, 1);
 });
 
+test('AC-001 (v2.4): skipped_source_rows counts DISTINCT source rows, not per-reason entries', async () => {
+  // Real-load finding: one source row can carry several reasons (e.g. a missing formula
+  // cache AND a missing unit on the same cell); the parser emits one skipped entry per
+  // reason, so 2 rows x 2 reasons must still report 2 distinct source rows and 2 codes.
+  const transport = makeFakeTransport({
+    workOrders: [{ id: 'wo-1', wo_number: 'WO-SYN-100', client_po_number: null, title: 'Existing', status: 'Issued' }],
+  });
+  const base = sampleParsed();
+  const twoRowsTwoReasons = {
+    ...base.accepted_sections[0],
+    partial: true,
+    skipped_lines: [
+      { sheet: 'LOC_ONE', row: 9, column: 'D', item_code: '009998', class: 'missing_formula_cache', reason: 'formula cache 1' },
+      { sheet: 'LOC_ONE', row: 9, column: 'D', item_code: '009998', class: 'missing_unit', reason: 'unit 1' },
+      { sheet: 'LOC_ONE', row: 10, column: 'D', item_code: '009997', class: 'missing_formula_cache', reason: 'formula cache 2' },
+      { sheet: 'LOC_ONE', row: 10, column: 'D', item_code: '009997', class: 'missing_unit', reason: 'unit 2' },
+    ],
+  };
+  const res = await runMaterialLoad(
+    { workbookPath: '/fake/wb.xlsx', mappingPath: '/fake/map.json', mapping: baseMapping({ policy: { closing_conflict: 'refuse', duplicate_items: 'sum' } }), projectId: PROJECT_ID, confirm: false, parseWorkbook: async () => sampleParsed({ accepted_sections: [twoRowsTwoReasons, base.accepted_sections[1]] }) },
+    transport,
+  );
+
+  const sent = transport.calls
+    .filter((c) => c.name === 'om_material_import' && c.body.p_payload.kind === 'section')
+    .map((c) => c.body.p_payload.entities[0])
+    .find((e) => e.location_name === 'LOC_ONE');
+  assert.equal(sent.skipped_source_rows, 2, 'payload must count distinct source rows, not reason entries');
+  assert.deepEqual(sent.skipped_reason_codes, ['missing_formula_cache', 'missing_unit'], 'codes stay the distinct set');
+
+  const partial = res.report.partial_sections.find((s) => s.sheet === 'LOC_ONE');
+  assert.equal(partial.skipped_source_rows, 2, 'report partial entry carries the distinct-row count');
+  assert.equal(partial.skipped_lines.length, 4, 'detail stays per-reason (one entry per reason, labeled)');
+  assert.equal(res.report.counts.skipped_lines, 2, 'report counter counts distinct source rows too');
+  assert.equal(res.exit, 1);
+});
+
 test('AC-002 (v2.4): flattenEvidence passes values through unchanged and flags oversized values instead of truncating', () => {
   const big = JSON.stringify({ rows: Array.from({ length: 60 }, (_, i) => ({ row: i, texts: { note: 'Y'.repeat(80) } })) });
   assert.ok(Buffer.byteLength(big, 'utf8') > MAX_EVIDENCE_VALUE_BYTES);

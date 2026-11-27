@@ -126,6 +126,17 @@ function isValidPresenceDecl(decl) {
   return false;
 }
 
+/**
+ * Count DISTINCT skipped source rows (sheet + row number). The parser emits one skipped
+ * entry per REASON, and one source row can carry several reasons (e.g. a missing formula
+ * cache and a missing unit on the same cell), so entry counts would double-count rows.
+ */
+function countDistinctSourceRows(skippedLines) {
+  return new Set(
+    (Array.isArray(skippedLines) ? skippedLines : []).map((s) => `${String(s?.sheet ?? '')}:${String(s?.row ?? '')}`),
+  ).size;
+}
+
 const ALLOWED_WO_DEFAULT_KEYS = new Set([
   'tax_treatment',
   'tax_amount',
@@ -821,9 +832,11 @@ export function buildSectionEntity(section, sourceKey, sectionCode) {
   const sectionEntityKey = `section:${sourceKey}:${orderKey}:${locKey}`;
 
   // Contract v2.4 §1: make partial loads visible on the section payload. Only line-level
-  // skips count (empty lines are reported separately by the parser); reason codes are
-  // distinct, in first-seen order, capped at 20.
+  // skips count, as DISTINCT source rows (one row can carry several reason entries; empty
+  // lines are reported separately by the parser); reason codes are distinct, in first-seen
+  // order, capped at 20.
   const skippedLines = Array.isArray(section.skipped_lines) ? section.skipped_lines : [];
+  const skippedSourceRows = countDistinctSourceRows(skippedLines);
   const skippedReasonCodes = [
     ...new Set(skippedLines.map((s) => String(s?.class ?? '').trim()).filter(Boolean)),
   ].slice(0, 20);
@@ -857,7 +870,7 @@ export function buildSectionEntity(section, sourceKey, sectionCode) {
     as_of: section.as_of,
     closing_conflict: section.closing_conflict ?? 'refuse',
     reconciliation_step: section.reconciliation_step ?? null,
-    skipped_source_rows: skippedLines.length,
+    skipped_source_rows: skippedSourceRows,
     skipped_reason_codes: skippedReasonCodes,
     lines: lines.map((l) => ({ entity_key: l.entity_key, hash: l.hash })),
   };
@@ -875,7 +888,7 @@ export function buildSectionEntity(section, sourceKey, sectionCode) {
     as_of: section.as_of,
     ...(section.closing_conflict ? { closing_conflict: section.closing_conflict } : {}),
     ...(section.reconciliation_step ? { reconciliation_step: section.reconciliation_step } : {}),
-    skipped_source_rows: skippedLines.length,
+    skipped_source_rows: skippedSourceRows,
     skipped_reason_codes: skippedReasonCodes,
     lines,
   };
@@ -1411,9 +1424,12 @@ export async function runMaterialLoad(opts, api) {
       owner_order_number: s.owner_order_number,
       location_name: s.location_name,
       accepted_line_count: s.lines?.length ?? 0,
+      // Distinct source rows skipped at line level; `skipped_lines` below stays the
+      // per-reason detail (one entry per reason, a row can carry several).
+      skipped_source_rows: countDistinctSourceRows(s.skipped_lines),
       skipped_lines: s.skipped_lines ?? [],
     }));
-  const skippedLinesCount = partialSections.reduce((sum, s) => sum + s.skipped_lines.length, 0);
+  const skippedLinesCount = partialSections.reduce((sum, s) => sum + s.skipped_source_rows, 0);
   const emptyLinesCount = eligibleSections.reduce((sum, s) => sum + (s.empty_lines?.length ?? 0), 0);
 
   const policyFlaggedSections = eligibleSections
