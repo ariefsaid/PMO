@@ -1,6 +1,7 @@
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError, assertWriteLanded } from '@/src/lib/appError';
 import { parseExactCents } from '@/src/lib/exactDecimal';
+import { wireValidator, type WireRecord } from '@/src/lib/wireDoc';
 import type { WipInputRow, WipWindowMonth } from '@/src/lib/workInHand';
 
 /**
@@ -32,28 +33,19 @@ export interface WorkInHand {
   rows: WipInputRow[];
 }
 
-const MALFORMED = 'work-in-hand-malformed';
-const fail = (what: string): never => { throw new AppError(`Work in hand: ${what} is missing or malformed`, MALFORMED); };
+const v = wireValidator('Work in hand', 'work-in-hand-malformed');
+const { str, strOrNull, bool, money, moneyOrNull, arr, rec } = v;
+const count = (val: unknown, f: string): number => v.int(val, f, { min: 0 });
 
-type Rec = Record<string, unknown>;
-const isRec = (v: unknown): v is Rec => typeof v === 'object' && v !== null && !Array.isArray(v);
-const str = (v: unknown, f: string): string => (typeof v === 'string' && v !== '' ? v : fail(f));
-const strOrNull = (v: unknown, f: string): string | null => (v === null || v === undefined ? null : typeof v === 'string' ? v : fail(f));
-const bool = (v: unknown, f: string): boolean => (typeof v === 'boolean' ? v : fail(f));
-const count = (v: unknown, f: string): number => (typeof v === 'number' && Number.isInteger(v) && v >= 0 ? v : fail(f));
-const money = (v: unknown, f: string): string => (typeof v === 'string' && /^-?[0-9]+(?:\.[0-9]{1,2})?$/.test(v) ? v : fail(f));
-const arr = (v: unknown, f: string): unknown[] => (Array.isArray(v) ? v : fail(f));
-const rec = (v: unknown, f: string): Rec => (isRec(v) ? v : fail(f));
-
-function months(v: unknown, f: string): WipWindowMonth[] {
-  return arr(v, f).map((m) => {
+function months(val: unknown, f: string): WipWindowMonth[] {
+  return arr(val, f).map((m) => {
     const r = rec(m, f);
     return { month: str(r.month, `${f}.month`), billed: money(r.billed, `${f}.billed`) };
   });
 }
 
 /** The money and month fields shared by contracts and work orders. An incomplete row carries no figures (the database sends none). */
-function figures(r: Rec, f: string) {
+function figures(r: WireRecord, f: string) {
   const incomplete = bool(r.incomplete, `${f}.incomplete`);
   return {
     incomplete,
@@ -106,7 +98,7 @@ export function parseWorkInHand(data: unknown): WorkInHand {
     asOf: str(d.as_of, 'as_of'),
     timezone: str(d.timezone, 'timezone'),
     orgCurrency: str(d.org_currency, 'org_currency'),
-    monthlyCapacity: d.monthly_capacity === undefined || d.monthly_capacity === null ? null : money(d.monthly_capacity, 'monthly_capacity'),
+    monthlyCapacity: moneyOrNull(d.monthly_capacity, 'monthly_capacity'),
     windowFrom: str(d.window_from, 'window_from'),
     windowTo: str(d.window_to, 'window_to'),
     truncated: bool(d.truncated, 'truncated'),

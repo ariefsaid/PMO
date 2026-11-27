@@ -1,6 +1,7 @@
 import { supabase } from '@/src/lib/supabase/client';
 import { nullableArg } from './nullableArg';
 import { AppError, assertWriteLanded, toAppError } from '@/src/lib/appError';
+import { wireValidator } from '@/src/lib/wireDoc';
 import type { PlanLineInput, UsageStandard } from '@/src/lib/consumablePlan';
 
 /**
@@ -119,35 +120,84 @@ export interface ConsumablePlan {
   unplanned: UnplannedItem[];
 }
 
-type J = Record<string, unknown>;
-const str = (v: unknown): string => (v == null ? '' : String(v));
-const strOrNull = (v: unknown): string | null => (v == null ? null : String(v));
+const planValidator = wireValidator('Consumable plan', 'consumable-plan-malformed');
+const PLAN_SOURCES = ['standard', 'adjusted'] as const;
+const UNPLANNED_SOURCES = ['allowance', 'none'] as const;
 
 export function parseConsumablePlan(raw: unknown, approvalRaw?: unknown): ConsumablePlan {
-  const j = (raw ?? {}) as J;
-  const approval = (approvalRaw ?? {}) as J;
-  const arr = (v: unknown): J[] => (Array.isArray(v) ? (v as J[]) : []);
+  const v = planValidator;
+  const j = v.rec(raw, 'response');
+  const approval = approvalRaw === undefined ? null : v.rec(approvalRaw, 'approval');
   return {
-    workOrderId: str(j.work_order_id), workOrderStatus: str(j.work_order_status), generatedAt: strOrNull(j.generated_at), outOfDate: j.out_of_date === true,
-    approval: {
-      authorId: strOrNull(approval.author_id), authorIsPcm: approval.author_is_pcm === true, approved: approval.approved === true,
-      approvedBy: strOrNull(approval.approved_by), approvedAt: strOrNull(approval.approved_at),
-    },
-    lines: arr(j.lines).map((l) => ({
-      itemId: str(l.item_id), itemCode: str(l.item_code), itemName: str(l.item_name), unitCode: str(l.unit_code),
-      generatedQty: str(l.generated_qty), adjustedQty: strOrNull(l.adjusted_qty), adjustReason: strOrNull(l.adjust_reason),
-      adjustedBy: strOrNull(l.adjusted_by), adjustedAt: strOrNull(l.adjusted_at), plannedQty: str(l.planned_qty), priorQty: str(l.prior_qty),
-      source: l.source === 'adjusted' ? 'adjusted' : 'standard',
-      basis: arr(l.basis).map((b) => ({
-        boqItemId: str(b.boq_item_id), code: str(b.boq_code), unit: str(b.unit), workQty: str(b.work_qty), standardId: str(b.standard_id),
-        qtyPerUnit: str(b.qty_per_unit), marginPct: str(b.margin_pct), result: str(b.result),
-      })),
-    })),
-    noStandard: arr(j.no_standard).map((n) => ({ boqItemId: str(n.boq_item_id), itemCode: str(n.item_code), description: str(n.description), unit: str(n.unit), quantity: str(n.quantity) })),
-    unplanned: arr(j.unplanned).map((u) => ({
-      itemId: str(u.item_id), itemCode: str(u.item_code), itemName: str(u.item_name), unitCode: str(u.unit_code),
-      plannedQty: str(u.planned_qty), priorQty: str(u.prior_qty), source: u.source === 'allowance' ? 'allowance' : 'none',
-    })),
+    workOrderId: v.str(j.work_order_id, 'work_order_id'),
+    workOrderStatus: v.str(j.work_order_status, 'work_order_status'),
+    generatedAt: v.strOrNull(j.generated_at, 'generated_at'),
+    outOfDate: v.bool(j.out_of_date, 'out_of_date'),
+    approval: approval === null
+      ? { authorId: null, authorIsPcm: false, approved: false, approvedBy: null, approvedAt: null }
+      : {
+          authorId: v.strOrNull(approval.author_id, 'approval.author_id'),
+          authorIsPcm: v.bool(approval.author_is_pcm, 'approval.author_is_pcm'),
+          approved: v.bool(approval.approved, 'approval.approved'),
+          approvedBy: v.strOrNull(approval.approved_by, 'approval.approved_by'),
+          approvedAt: v.strOrNull(approval.approved_at, 'approval.approved_at'),
+        },
+    lines: v.arr(j.lines, 'lines').map((item, idx) => {
+      const p = `lines[${idx}]`;
+      const l = v.rec(item, p);
+      return {
+        itemId: v.str(l.item_id, `${p}.item_id`),
+        itemCode: v.str(l.item_code, `${p}.item_code`),
+        itemName: v.str(l.item_name, `${p}.item_name`),
+        unitCode: v.str(l.unit_code, `${p}.unit_code`),
+        generatedQty: v.decimal(l.generated_qty, `${p}.generated_qty`),
+        adjustedQty: v.decimalOrNull(l.adjusted_qty, `${p}.adjusted_qty`),
+        adjustReason: v.strOrNull(l.adjust_reason, `${p}.adjust_reason`),
+        adjustedBy: v.strOrNull(l.adjusted_by, `${p}.adjusted_by`),
+        adjustedAt: v.strOrNull(l.adjusted_at, `${p}.adjusted_at`),
+        plannedQty: v.decimal(l.planned_qty, `${p}.planned_qty`),
+        priorQty: v.decimal(l.prior_qty, `${p}.prior_qty`),
+        source: v.oneOf(l.source, PLAN_SOURCES, `${p}.source`),
+        basis: v.arr(l.basis, `${p}.basis`).map((bItem, bIdx) => {
+          const bp = `${p}.basis[${bIdx}]`;
+          const b = v.rec(bItem, bp);
+          return {
+            boqItemId: v.str(b.boq_item_id, `${bp}.boq_item_id`),
+            code: v.str(b.boq_code, `${bp}.boq_code`),
+            unit: v.str(b.unit, `${bp}.unit`),
+            workQty: v.decimal(b.work_qty, `${bp}.work_qty`),
+            standardId: v.str(b.standard_id, `${bp}.standard_id`),
+            qtyPerUnit: v.decimal(b.qty_per_unit, `${bp}.qty_per_unit`),
+            marginPct: v.decimal(b.margin_pct, `${bp}.margin_pct`),
+            result: v.decimal(b.result, `${bp}.result`),
+          };
+        }),
+      };
+    }),
+    noStandard: v.arr(j.no_standard, 'no_standard').map((item, idx) => {
+      const p = `no_standard[${idx}]`;
+      const n = v.rec(item, p);
+      return {
+        boqItemId: v.str(n.boq_item_id, `${p}.boq_item_id`),
+        itemCode: v.str(n.item_code, `${p}.item_code`),
+        description: v.text(n.description, `${p}.description`),
+        unit: v.str(n.unit, `${p}.unit`),
+        quantity: v.decimal(n.quantity, `${p}.quantity`),
+      };
+    }),
+    unplanned: v.arr(j.unplanned, 'unplanned').map((item, idx) => {
+      const p = `unplanned[${idx}]`;
+      const u = v.rec(item, p);
+      return {
+        itemId: v.str(u.item_id, `${p}.item_id`),
+        itemCode: v.str(u.item_code, `${p}.item_code`),
+        itemName: v.str(u.item_name, `${p}.item_name`),
+        unitCode: v.str(u.unit_code, `${p}.unit_code`),
+        plannedQty: v.decimal(u.planned_qty, `${p}.planned_qty`),
+        priorQty: v.decimal(u.prior_qty, `${p}.prior_qty`),
+        source: v.oneOf(u.source, UNPLANNED_SOURCES, `${p}.source`),
+      };
+    }),
   };
 }
 

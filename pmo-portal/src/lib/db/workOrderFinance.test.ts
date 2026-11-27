@@ -74,11 +74,13 @@ describe('listProjectCostAmounts', () => {
     expect(lines.map((item) => item.source)).toEqual(['project_actuals', 'purchase_balance', 'other_revenue']);
   });
 
-  it('a malformed amount or unknown reason is an error, never a figure', async () => {
+  it('a malformed amount, quantity, or unknown reason is an error naming the field, never a blank or figure (#2983)', async () => {
     h.queue.push({ data: [row({ amount: '1e3' })], error: null });
-    await expect(dal.listProjectCostAmounts('p1')).rejects.toBeInstanceOf(AppError);
+    await expect(dal.listProjectCostAmounts('p1')).rejects.toMatchObject({ code: 'malformed-response', message: expect.stringMatching(/amount/) });
     h.queue.push({ data: [row({ reason: 'whatever' })], error: null });
-    await expect(dal.listProjectCostAmounts('p1')).rejects.toBeInstanceOf(AppError);
+    await expect(dal.listProjectCostAmounts('p1')).rejects.toMatchObject({ code: 'malformed-response', message: expect.stringMatching(/reason/) });
+    h.queue.push({ data: [row({ quantity: 'bad' })], error: null });
+    await expect(dal.listProjectCostAmounts('p1')).rejects.toMatchObject({ code: 'malformed-response', message: expect.stringMatching(/quantity/) });
   });
 
   it('labour money for a Project Manager is aggregate: no record id or date, the amounts stay (migration 1298)', async () => {
