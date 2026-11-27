@@ -105,6 +105,17 @@ select lives_ok($$select om_material_set_reconciliation('30100000-0000-0000-0000
 select throws_ok($$select om_material_set_reconciliation('30100000-0000-0000-0000-000000002001',(select id from owner_material_reconciliation_steps where archived_at is null and position=1))$$,'P0001','Moving backwards requires a reason','AC-005 backwards transition requires reason');
 select lives_ok($$select om_material_set_reconciliation('30100000-0000-0000-0000-000000002001',(select id from owner_material_reconciliation_steps where archived_at is null and position=1),'Recheck')$$,'AC-005 backwards transition with reason is audited');
 select is((select count(*) from owner_material_reconciliation_events),2::bigint,'AC-005 status events preserve both changes');
+select throws_ok($$select om_material_set_scale('[{"name":"Renamed","position":1,"percentage":"20"},{"name":"Closed","position":2,"percentage":"100"}]')$$,
+ 'P0001','Scale step is in use','AC-005 v2.2 scale cannot rename a step used by a section');
+select is((select reconciliation_step from om_material_section_rollup('30100000-0000-0000-0000-000000001401') where section_code='N'),'Prepared','AC-005 refused scale change preserves the section step');
+select throws_ok($$select om_material_set_scale('[{"name":"Closed","position":2,"percentage":"100"}]')$$,
+ 'P0001','Scale step is in use','AC-005 scale cannot drop a step used by a section');
+select throws_ok($$select om_material_set_scale('[{"name":"Prepared","position":1,"percentage":"40"},{"name":"Closed","position":2,"percentage":"100"}]')$$,
+ 'P0001','Scale step is in use','AC-005 scale cannot reinterpret a used percentage');
+select throws_ok($$select om_material_set_scale('[{"name":"Prepared","position":3,"percentage":"20"},{"name":"Closed","position":4,"percentage":"100"}]')$$,
+ 'P0001','Scale step is in use','AC-005 scale cannot reorder a used step');
+select lives_ok($$select om_material_set_scale('[{"name":"Prepared","position":1,"percentage":"20"},{"name":"Closed","position":2,"percentage":"100"}]')$$,
+ 'AC-005 identical scale preserves the active step identities');
 select is((select reconciliation_pct::numeric from om_material_rollup('30100000-0000-0000-0000-0000000001d1',1,50,'30100000-0000-0000-0000-000000001401')),0::numeric,'AC-004 work order takes conservative minimum including unrecorded section');
 reset role;
 select throws_ok($$update owner_material_reconciliation_events set reason='Changed'$$,'P0001','CSR_IMMUTABLE: requisition history cannot be changed','AC-005 status history is immutable even for privileged writers');
@@ -182,6 +193,17 @@ insert into material_docs values('issue',create_stock_document(
  jsonb_build_object('kind','issue','warehouse_id','30100000-0000-0000-0000-000000006001','project_id','30100000-0000-0000-0000-0000000001d1'),
  '[{"item_id":"30100000-0000-0000-0000-000000001311","quantity":1,"boq_item_id":"30100000-0000-0000-0000-000000001201"}]',true));
 select set_cost_attribution('stock_document',array[(select id from material_docs where kind='issue')],'30100000-0000-0000-0000-000000001401',null);
+insert into material_docs values('return',create_stock_document(
+ jsonb_build_object('kind','return','warehouse_id','30100000-0000-0000-0000-000000006001'),
+ jsonb_build_array(jsonb_build_object('item_id','30100000-0000-0000-0000-000000001311','quantity','0.5',
+ 'source_line_id',(select l.id from stock_document_lines l join material_docs d on d.id=l.document_id where d.kind='issue'))),true));
+select set_cost_attribution('stock_document',array[(select id from material_docs where kind='return')],'30100000-0000-0000-0000-000000001401',null);
+create temp table material_transfer(id uuid);
+grant all on material_transfer to authenticated;
+insert into material_transfer select post_stock_wo_transfer(
+ jsonb_build_object('warehouse_id','30100000-0000-0000-0000-000000006001','from_work_order_id','30100000-0000-0000-0000-000000001401',
+ 'to_work_order_id','30100000-0000-0000-0000-000000001402'),
+ '[{"item_id":"30100000-0000-0000-0000-000000001311","quantity":"0.25","boq_item_id":"30100000-0000-0000-0000-000000001202"}]');
 insert into material_docs values('unallocated',create_stock_document(
  jsonb_build_object('kind','receive','warehouse_id','30100000-0000-0000-0000-000000006001'),
  '[{"item_id":"30100000-0000-0000-0000-000000001311","quantity":1,"unit_cost":0}]',true));
@@ -189,7 +211,12 @@ select set_cost_attribution('stock_document',array[(select id from material_docs
 reset role;
 insert into owner_material_movement_links(org_id,document_id,stock_line_id,section_material_plan_id,item_id,stage)
 select l.org_id,l.document_id,l.id,'30100000-0000-0000-0000-000000003001',l.item_id,
- case d.kind when 'receive' then 'received' else 'issued' end from stock_document_lines l join material_docs d on d.id=l.document_id where d.kind in ('receive','issue');
+ case d.kind when 'receive' then 'received' when 'return' then 'returned' else 'issued' end from stock_document_lines l join material_docs d on d.id=l.document_id where d.kind in ('receive','issue','return');
+insert into owner_material_movement_links(org_id,document_id,stock_line_id,section_material_plan_id,item_id,stage)
+select l.org_id,l.document_id,l.id,
+ case d.kind when 'return' then '30100000-0000-0000-0000-000000003001'::uuid else '30100000-0000-0000-0000-000000003003'::uuid end,l.item_id,
+ case d.kind when 'return' then 'transfer_out' else 'transfer_in' end
+from stock_document_lines l join stock_documents d on d.id=l.document_id join material_transfer t on t.id=d.wo_transfer_id;
 insert into client_requisitions(id,org_id,number,work_order_id,project_id,status,created_by) values
  ('30100000-0000-0000-0000-000000007001','30100000-0000-0000-0000-00000000010a','OM-LIVE','30100000-0000-0000-0000-000000001401','30100000-0000-0000-0000-0000000001d1','open','30100000-0000-0000-0000-0000000001a1');
 insert into client_requisition_lines(id,org_id,requisition_id,line_no,stock_item_id,takeoff_quantity,requested_quantity,unit_code,section_material_plan_id) values
@@ -207,7 +234,11 @@ select is((select received::numeric from om_material_lines('30100000-0000-0000-0
 select is((select issued::numeric from om_material_lines('30100000-0000-0000-0000-000000001401','30100000-0000-0000-0000-000000002001')),7::numeric,'AC-003 opening 6 plus posted issue 1');
 select is((select requested::numeric from om_material_lines('30100000-0000-0000-0000-000000001401','30100000-0000-0000-0000-000000002001')),7::numeric,'AC-003 live linked request contributes');
 select is((select set_aside::numeric from om_material_lines('30100000-0000-0000-0000-000000001401','30100000-0000-0000-0000-000000002001')),4::numeric,'AC-003 reservation releases net before adding');
-select is((select closing::numeric from om_material_lines('30100000-0000-0000-0000-000000001401','30100000-0000-0000-0000-000000002001')),4::numeric,'AC-003 closing combines opening and live contributions');
+select is((select returned::numeric from om_material_lines('30100000-0000-0000-0000-000000001401','30100000-0000-0000-0000-000000002001')),1.5::numeric,'AC-003 opening return plus live return');
+select is((select transfer_out::numeric from om_material_lines('30100000-0000-0000-0000-000000001401','30100000-0000-0000-0000-000000002001')),2.25::numeric,'AC-003 outbound work-order transfer uses its attributed return half');
+select is((select transfer_in::numeric from om_material_lines('30100000-0000-0000-0000-000000001402') where plan_id='30100000-0000-0000-0000-000000003003'),0.25::numeric,'AC-003 inbound work-order transfer uses its attributed issue half');
+select is((select received::numeric from om_material_lines('30100000-0000-0000-0000-000000001402') where plan_id='30100000-0000-0000-0000-000000003003'),10::numeric,'AC-003 transfer does not become another receipt');
+select is((select closing::numeric from om_material_lines('30100000-0000-0000-0000-000000001401','30100000-0000-0000-0000-000000002001')),4.25::numeric,'AC-003 closing combines opening and all live contributions');
 select is((select unallocated_movement_count from om_material_rollup('30100000-0000-0000-0000-0000000001d1',1,50,'30100000-0000-0000-0000-000000001401')),1::bigint,'AC-003 existing history without a plan link is reported, not allocated');
 select pg_temp.act_as('30100000-0000-0000-0000-0000000001b1');
 select is((select count(*) from owner_material_posted_quantities),0::bigint,'AC-005 foreign tenant cannot read quantity projection');

@@ -77,6 +77,9 @@ select is((select received from owner_material_openings),12::numeric,'AC-006 ref
 insert into results values('flagged',om_material_import('synthetic-opening',2,jsonb_set(pg_temp.payload('v3','400','1','2','-1'),'{entities,0,closing_conflict}','"movements_win"'),true));
 select is((select v->>'complete' from results where k='flagged'),'true','AC-006 explicit movements policy accepts position');
 select is((select v->'results'->0->>'flagged' from results where k='flagged'),'true','AC-006 policy exception is flagged');
+select is((select closing_pct from om_material_lines('30110000-0000-0000-0000-000000001401')),null::text,'AC-004 flagged negative closing has no percentage');
+select is((select closing_pct from om_material_rollup('30110000-0000-0000-0000-0000000001d1',1,50,'30110000-0000-0000-0000-000000001401')),null::text,'AC-004 work-order mean excludes flagged negative closing');
+select is((select closing_pct from om_material_section_rollup('30110000-0000-0000-0000-000000001401')),null::text,'AC-004 section mean excludes flagged negative closing');
 select is(om_material_import('missing-order',2,jsonb_set(pg_temp.payload(),'{entities,0,owner_order_number}','"NO-SUCH-ORDER"'),true)->'results'->0->>'reason','material-work-order-missing','AC-006 missing work order refused without inventing commercial inputs');
 select is(om_material_import('synthetic-opening',2,jsonb_set(jsonb_set(pg_temp.payload('v4','450','5','1','4'),'{entities,0,lines}',
  jsonb_build_array(pg_temp.payload('v4','450','5','1','4')->'entities'->0->'lines'->0,
@@ -94,6 +97,7 @@ select is((select v->>'complete' from results where k='catalogue'),'true','AC-00
 select is((select code from stock_items where code='000-SYN'),'000-SYN','AC-006 item code preserves leading zeros');
 select is(jsonb_array_length(om_material_config()->'categories'),1,'AC-005 categories appear in configuration');
 select is(jsonb_array_length(om_material_config()->'owner_warehouses'),1,'AC-005 owner warehouses appear in configuration');
+select is(jsonb_array_length(om_material_config()->'zero_cost_tags'),1,'AC-005 v2.2 configuration lists live same-org zero-cost tags');
 select is(om_material_import('synthetic-catalogue',2,
  jsonb_build_object('kind','catalogue','project_id','30110000-0000-0000-0000-0000000001d1','entities',jsonb_build_array(
  jsonb_build_object('entity_key','catalogue-category','hash','cat-v2','type','category','code','SYN-CAT','name','Conflicting name'))),true)->>'complete','false','AC-006 catalogue conflict does not overwrite existing names');
@@ -120,9 +124,13 @@ select lives_ok('select api_client_request_guard()','AC-005 Admin CLI can match 
 select set_config('request.method','PATCH',true);
 select throws_ok('select api_client_request_guard()','42501',null,'AC-005 material CLI does not gain work-order direct writes');
 select set_config('request.method','POST',true),set_config('request.path','/rpc/om_material_set_scale',true);
+select lives_ok('select api_client_request_guard()','AC-005 v2.2 Admin CLI may configure reconciliation scale');
+select set_config('request.path','/rpc/om_material_set_reconciliation',true);
 select throws_ok('select api_client_request_guard()','42501',null,'AC-005 sibling material writers are not exposed to CLI');
 select set_config('request.jwt.claims','{"sub":"30110000-0000-0000-0000-0000000001a2","role":"authenticated","client_id":"pmo-cli"}',true);
 select set_config('request.path','/rpc/om_material_import',true);
 select throws_ok('select api_client_request_guard()','42501',null,'AC-005 member CLI cannot import opening stages');
+select set_config('request.path','/rpc/om_material_set_scale',true);
+select throws_ok('select api_client_request_guard()','42501',null,'AC-005 v2.2 member CLI cannot configure reconciliation scale');
 select * from finish();
 rollback;

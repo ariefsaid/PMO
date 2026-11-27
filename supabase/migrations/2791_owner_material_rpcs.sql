@@ -126,7 +126,7 @@ select *,case when planned>0 then least(100,requested/planned*100) end requested
  case when planned>0 then least(100,set_aside/planned*100) end set_aside_pct,
  case when planned>0 then least(100,received/planned*100) end received_pct,
  case when received>0 then least(100,issued/received*100) end issued_pct,
- case when received>0 then least(100,closing/received*100) end closing_pct from closing;
+ case when received>0 and closing>=0 then least(100,closing/received*100) end closing_pct from closing;
 revoke all on public.owner_material_stage_totals from public,anon,authenticated;
 grant select on public.owner_material_stage_totals to authenticated;
 
@@ -180,6 +180,7 @@ begin
  return jsonb_build_object(
  'categories',coalesce((select jsonb_agg(jsonb_build_object('id',id,'code',code,'name',name) order by code,id) from public.stock_material_categories where archived_at is null),'[]'::jsonb),
  'owner_warehouses',coalesce((select jsonb_agg(jsonb_build_object('id',id,'code',code,'name',name) order by code,id) from public.owner_material_warehouses where archived_at is null),'[]'::jsonb),
+ 'zero_cost_tags',coalesce((select jsonb_agg(jsonb_build_object('id',id,'name',name) order by name,id) from public.stock_tags where zero_cost and archived_at is null),'[]'::jsonb),
  'steps',coalesce((select jsonb_agg(jsonb_build_object('id',id,'name',name,'position',position,'percentage',percentage::text) order by position,id) from public.owner_material_reconciliation_steps where archived_at is null),'[]'::jsonb));
 end $$;
 
@@ -405,10 +406,20 @@ begin
  v_previous:=v_pct;
  end loop;
  if v_previous<>100 then raise exception 'Scale must end at 100' using detail='material-invalid';end if;
- update public.owner_material_reconciliation_steps set archived_at=now() where org_id=v_org and archived_at is null;
+ if exists(select 1 from public.owner_material_reconciliation_steps s
+ join public.owner_material_reconciliation r on r.step_id=s.id and r.org_id=s.org_id
+ where s.org_id=v_org and s.archived_at is null and not exists(
+ select 1 from jsonb_array_elements(p_steps) e where btrim(e->>'name')=s.name and (e->>'position')::integer=s.position
+ and (e->>'percentage')::numeric=s.percentage)) then
+ raise exception 'Scale step is in use' using detail='material-conflict';end if;
+ update public.owner_material_reconciliation_steps s set archived_at=now() where s.org_id=v_org and s.archived_at is null
+ and not exists(select 1 from jsonb_array_elements(p_steps) e where btrim(e->>'name')=s.name and (e->>'position')::integer=s.position
+ and (e->>'percentage')::numeric=s.percentage);
  for v_step in select e from jsonb_array_elements(p_steps) e order by (e->>'position')::integer loop
+ if not exists(select 1 from public.owner_material_reconciliation_steps s where s.org_id=v_org and s.archived_at is null
+ and s.name=btrim(v_step->>'name') and s.position=(v_step->>'position')::integer and s.percentage=(v_step->>'percentage')::numeric) then
  insert into public.owner_material_reconciliation_steps(org_id,position,name,percentage)
- values(v_org,(v_step->>'position')::integer,btrim(v_step->>'name'),(v_step->>'percentage')::numeric);
+ values(v_org,(v_step->>'position')::integer,btrim(v_step->>'name'),(v_step->>'percentage')::numeric);end if;
  end loop;
  return jsonb_build_object('count',jsonb_array_length(p_steps));
 end $$;
@@ -483,7 +494,7 @@ declare
   -- ACTIVE-ADMIN `pmo rpc` TIER (#1326) — keep in step with scripts/pmo.mjs ADMIN_RPCS.  -- 0366
   admin_cli_rpcs constant text[] := array['recategorise_budget_lines', 'list_account_reconciliation', 'dispose_account_reconciliation',  -- 0366
     'load_work_order_opening', 'load_stock_opening', 'reverse_opening_balance', 'opening_balance_report',  -- 1047
-    'preview_stock_opening_history', 'load_stock_opening_history', 'import_work_orders', 'om_material_config', 'om_material_import'];  -- 1902
+    'preview_stock_opening_history', 'load_stock_opening_history', 'import_work_orders', 'om_material_config', 'om_material_import', 'om_material_set_scale'];  -- 1902
   -- OPERATOR READ TIER (`pmo get/documents/m365`, #1270) — keep in step with scripts/pmo.mjs.  -- 0367
   operator_read_tables constant text[] := array['budget_versions', 'budget_line_items', 'budget_category_account_map', 'erp_gl_entry_mirror', 'project_documents', 'org_m365_document_settings', 'm365_record_folder_sweeps',  -- 0367
     'contract_rate_lines', 'contract_rate_assignees', 'work_orders'];  -- 0518
