@@ -362,7 +362,7 @@ const BudgetAccountMap: React.FC = () => {
       {categoriesNeedingPosting.length > 0 && <div className="mt-3 border-b border-border pb-3" role="region" aria-label={t('uxs10.proposalsLabel', 'Suggested posting accounts')}>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <p className="text-sm font-semibold">{t('uxs10.proposalsTitle', 'Review suggested posting accounts')}</p>
+            <h3 className="text-sm font-semibold">{t('uxs10.proposalsTitle', 'Review suggested posting accounts')}</h3>
           </div>
           {proposals.length > 0 && canManage && (
             <Button variant="primary" onClick={() => setConfirmProposals(true)}>
@@ -393,6 +393,7 @@ const BudgetAccountMap: React.FC = () => {
           tableId="budget-account-map"
           accessibleName={t('admin.budgetMap.title', 'Budget account map')}
           embedded
+          cardInset="none"
           cardBelow={760}
         />
       </div>
