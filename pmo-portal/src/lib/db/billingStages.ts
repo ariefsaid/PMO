@@ -24,6 +24,8 @@ export interface StageTemplateInput {
   targetDays?: number | null;
   /** An optional stage may be marked not needed (#2592). */
   optional?: boolean;
+  /** The step at which the invoice is raised (#3022): the invoice waits only for the steps before it; at most one per list. */
+  invoiceStep?: boolean;
   /** The role responsible for the stage (#2680); null/absent = nobody in particular. */
   ownerRole?: string | null;
   documents: Array<{ name: string; required: boolean }>;
@@ -45,6 +47,8 @@ export interface ClaimBillingStage {
   /** Copied from the project's list when the claim was made; null = no target (#2592). */
   targetDays?: number | null;
   optional?: boolean;
+  /** The step at which the invoice is raised (#3022); the invoice waits only for the steps before it. */
+  invoiceStep?: boolean;
   startedOn: string | null;
   completedOn: string | null;
   /** Marked not needed on this day, with a reason (#2592); counts as complete for the invoice. */
@@ -120,7 +124,7 @@ const numOrNull = (v: unknown): number | null => (v === null || v === undefined 
 
 const stagesPayload = (stages: StageTemplateInput[]) => stages.map((s) => ({
   name: s.name, client_side: s.clientSide,
-  ...(s.targetDays != null ? { target_days: s.targetDays } : {}), ...(s.optional ? { optional: true } : {}), ...(s.ownerRole ? { owner_role: s.ownerRole } : {}),
+  ...(s.targetDays != null ? { target_days: s.targetDays } : {}), ...(s.optional ? { optional: true } : {}), ...(s.invoiceStep ? { invoice_step: true } : {}), ...(s.ownerRole ? { owner_role: s.ownerRole } : {}),
   documents: s.documents.map((d) => ({ name: d.name, required: d.required })),
 }));
 
@@ -144,7 +148,7 @@ export async function setProjectBillingTerms(projectId: string, stages: StageTem
 
 export async function getBillingStageTemplate(projectId: string): Promise<StageTemplateInput[]> {
   const { data, error } = await supabase.from('billing_stage_templates')
-    .select('position,name,client_side,target_days,optional,owner_role,documents:billing_stage_template_documents(position,name,required)')
+    .select('position,name,client_side,target_days,optional,invoice_step,owner_role,documents:billing_stage_template_documents(position,name,required)')
     .eq('project_id', projectId).order('position').limit(STAGE_LIMIT);
   if (error) fail(error);
   return (data ?? []).map((s) => ({
@@ -152,6 +156,7 @@ export async function getBillingStageTemplate(projectId: string): Promise<StageT
     clientSide: s.client_side,
     targetDays: s.target_days,
     optional: s.optional,
+    ...(s.invoice_step ? { invoiceStep: true } : {}),
     ...(s.owner_role ? { ownerRole: s.owner_role } : {}),
     documents: [...(s.documents ?? [])].sort((a, b) => a.position - b.position).map((d) => ({ name: d.name, required: d.required })),
   }));
@@ -184,7 +189,7 @@ export async function setProjectRetention(projectId: string, pct: number): Promi
 export async function getClaimBillingTrace(claimId: string, projectId: string): Promise<ClaimBillingTrace> {
   const [stagesRes, retentionRes, projectRes] = await Promise.all([
     supabase.from('claim_billing_stages')
-      .select('id,position,name,client_side,target_days,optional,owner_role,target_on,started_on,completed_on,skipped_on,skipped_reason,client_reference,note,documents:claim_billing_stage_documents(id,position,name,required,document_id)')
+      .select('id,position,name,client_side,target_days,optional,invoice_step,owner_role,target_on,started_on,completed_on,skipped_on,skipped_reason,client_reference,note,documents:claim_billing_stage_documents(id,position,name,required,document_id)')
       .eq('claim_id', claimId).order('position').limit(STAGE_LIMIT),
     supabase.from('claim_retention').select('retention_pct,retention_amount,scheduled,released,held').eq('claim_id', claimId).maybeSingle(),
     supabase.from('projects').select('invoice_deadline_day,invoice_deadline_warn_days').eq('id', projectId).maybeSingle(),
@@ -199,6 +204,7 @@ export async function getClaimBillingTrace(claimId: string, projectId: string): 
     clientSide: s.client_side,
     targetDays: s.target_days,
     optional: s.optional,
+    ...(s.invoice_step ? { invoiceStep: true } : {}),
     startedOn: s.started_on,
     completedOn: s.completed_on,
     skippedOn: s.skipped_on,

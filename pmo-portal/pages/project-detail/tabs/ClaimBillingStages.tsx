@@ -99,8 +99,11 @@ export const ClaimBillingStages: React.FC<ClaimBillingStagesProps> = ({ claimId,
   if (!trace) return null;
 
   const open = !invoiced && !withdrawn;
-  const canRecord = open && may('transition', 'billingStage');
-  const canSkip = open && may('edit', 'billingStage');
+  const invoiceStep = trace.stages.find((s) => s.invoiceStep);
+  // With an invoice step, the steps from it on stay open after the invoice and are still recorded (#3022); the list's shape stays frozen.
+  const recordable = !withdrawn && (!invoiced || Boolean(invoiceStep));
+  const canRecord = recordable && may('transition', 'billingStage');
+  const canSkip = recordable && may('edit', 'billingStage');
   const current = currentStageIndex(trace.stages);
   const done = trace.stages.filter((s) => s.completedOn || s.skippedOn).length;
   const hasOpenStages = trace.stages.length === 0 || done < trace.stages.length;
@@ -158,7 +161,9 @@ export const ClaimBillingStages: React.FC<ClaimBillingStagesProps> = ({ claimId,
     </p>}
     {trace.retention && trace.retention.amount > 0 && <RetentionReleases claimId={claimId} projectId={projectId} currency={currency} today={today} withdrawn={withdrawn} />}
     {open && current !== null && <p className="text-sm text-muted-foreground">
-      {t('projectDetail.billing.stages.gate', 'Complete every stage before raising the invoice.')}
+      {invoiceStep
+        ? t('projectDetail.billing.stages.gateBefore', 'Complete the stages before {{stage}} to raise the invoice.', { stage: invoiceStep.name })
+        : t('projectDetail.billing.stages.gate', 'Complete every stage before raising the invoice.')}
     </p>}
     {refusal && <p role="alert" className="mt-2 text-sm text-destructive">{refusal}</p>}
 
@@ -174,6 +179,7 @@ export const ClaimBillingStages: React.FC<ClaimBillingStagesProps> = ({ claimId,
             <span className="min-w-0 break-words font-medium">
               <span className="mr-2 tabular-nums text-muted-foreground">{formatNumberExact(stage.position)}</span>{stage.name}
               {stage.clientSide && <span className="ml-2 text-sm font-normal text-muted-foreground">{t('projectDetail.billing.stages.clientSide', "In the client's system")}</span>}
+              {stage.invoiceStep && <span className="ml-2 text-sm font-normal text-muted-foreground">{t('projectDetail.billing.stages.invoiceStep', 'Invoice step')}</span>}
             </span>
             <span className="flex min-w-0 flex-wrap items-center gap-2 text-sm">
               {age !== null && !skipped && !overdue && pastDate === null && <span className="tabular-nums text-muted-foreground">{t('projectDetail.billing.stages.age', '{{count}} days', { count: age })}</span>}
