@@ -49,6 +49,8 @@ export interface ProcurementListOptions {
   withoutRoutes?: boolean;
   /** Server-side status filter (the approvals queue reads only `Requested`); same row shape as the unfiltered list. */
   status?: Tables<'procurements'>['status'];
+  /** Server-side Project Manager scope: own requests plus purchases on the projects the person manages. */
+  scope?: { userId: string };
 }
 
 export interface ProcurementRepository {

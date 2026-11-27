@@ -4,7 +4,8 @@ import { useOrgQuery } from '@/src/hooks/useOrgQuery';
 import { repositories } from '@/src/lib/repositories';
 
 export const ORDER_JOB_ROLES_KEY = 'order-job-roles';
-export const MAY_ORDER_PURCHASES_KEY = 'may-order-purchases';
+import { MAY_ORDER_PURCHASES_KEY } from '@/src/hooks/approvalsQueryKeys';
+export { MAY_ORDER_PURCHASES_KEY };
 
 /** roles-that-decide FR-RTD-009: the built-in roles the organisation lets raise and send purchase orders. */
 export function useOrderJobRoles() {
