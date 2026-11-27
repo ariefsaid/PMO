@@ -1305,6 +1305,8 @@
         "noPhase": "Tanpa fase"
       },
       "move": {
+        "partial": "{{moved}} dipindahkan. Masih di grup semula: {{names}}. Pilih Pindahkan lagi untuk mencoba ulang tugas ini saja.",
+        "finishRetry": "Coba ulang pemindahan yang belum selesai ke tujuan semula terlebih dahulu.",
         "title": "Pindahkan {{name}}",
         "submit": "Pindahkan",
         "parent": "Di bawah tugas",

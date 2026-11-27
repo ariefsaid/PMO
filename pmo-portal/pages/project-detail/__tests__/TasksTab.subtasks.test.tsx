@@ -179,6 +179,23 @@ describe('TasksTab — Move offers no parent that would make a cycle (AC-SUB-UI-
     await userEvent.click(screen.getByRole('button', { name: 'Clear filters' }));
     expect(screen.getByText('Order task')).toBeInTheDocument();
   });
+  it('reports a partially moved branch and retries only its failed children', async () => {
+    listState.data = [t('p', 'Parent task'), t('c', 'Child task', 'p'), t('d', 'Other child', 'p')];
+    milestoneState.data = [{ id: 'm', name: 'New phase', task_count: 0, calculated_pct: 0, effective_pct: 0 }];
+    mutations.update.mutateAsync.mockImplementation(async ({ id }) => { if (id === 'c') throw new Error('Connection lost'); });
+    renderTab();
+    const dialog = await openEditFor('Parent task');
+    await userEvent.selectOptions(within(dialog).getByLabelText('Group'), 'm:m');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Move', exact: true }));
+    expect(await within(dialog).findByText(/Child task.*retry/i)).toBeInTheDocument();
+    mutations.update.mutateAsync.mockResolvedValue(undefined);
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Move', exact: true }));
+    const writes = mutations.update.mutateAsync.mock.calls.map(([input]) => input.id);
+    expect(writes.filter((id) => id === 'p')).toHaveLength(1);
+    expect(writes.filter((id) => id === 'd')).toHaveLength(1);
+    expect(writes.filter((id) => id === 'c')).toHaveLength(2);
+    expect(writes.at(-1)).toBe('c');
+  });
   const openEditFor = async (taskName: string) => {
     const row = screen.getByText(taskName).closest('tr')!;
     await userEvent.click(within(row).getByRole('button', { name: /row actions/i }));

@@ -531,19 +531,34 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
     await createTree.mutateAsync([root, parent?.id ?? null, drafts, place]);
   }, [canStructure, createTree, projectId]);
 
-  /** Move: the parent on the task; the new place on the task and every subtask, so a branch stays in one group. */
+  const [moveRecovery, setMoveRecovery] = useState<{ taskId: string; parent: string | null; place: string | null; patch: Partial<TaskInput>; failed: string[]; moved: number } | null>(null);
+  /** Retain acknowledged writes so retry never repeats an already moved row. */
   const onMove = useCallback(async (task: TaskWithRefs, parentTaskId: string | null, place: string | null) => {
     const placed = place === null ? null : placePatch(place);
     if (placed && !canStructure) delete placed.task_group_id; // a group write is a structure edit (database-enforced)
-    await update.mutateAsync({ id: task.id, patch: { ...(parentTaskId !== (task.parent_task_id ?? null) ? { parent_task_id: parentTaskId } : {}), ...(placed ?? {}) } });
-    if (placed) {
-      const results = await Promise.allSettled([...collectDescendants(task.id, all)].map((id) => update.mutateAsync({ id, patch: placed })));
-      const failed = results.find((r): r is PromiseRejectedResult => r.status === 'rejected');
-      if (failed) throw failed.reason;
+    let recovery = moveRecovery;
+    if (recovery && (recovery.taskId !== task.id || recovery.parent !== parentTaskId || recovery.place !== place)) {
+      throw new Error(t('projectDetail.tasks.move.finishRetry', 'Retry the unfinished move with its original destination first.'));
     }
+    if (!recovery) {
+      await update.mutateAsync({ id: task.id, patch: { ...(parentTaskId !== (task.parent_task_id ?? null) ? { parent_task_id: parentTaskId } : {}), ...(placed ?? {}) } });
+      recovery = { taskId: task.id, parent: parentTaskId, place, patch: placed ?? {}, failed: placed ? [...collectDescendants(task.id, all)] : [], moved: 1 };
+    }
+    if (recovery.failed.length) {
+      const ids = recovery.failed;
+      const patch = recovery.patch;
+      const results = await Promise.allSettled(ids.map((id) => update.mutateAsync({ id, patch })));
+      recovery.failed = ids.filter((_, index) => results[index].status === 'rejected');
+      recovery.moved += ids.length - recovery.failed.length;
+      setMoveRecovery({ ...recovery });
+      if (recovery.failed.length) throw new Error(t('projectDetail.tasks.move.partial', '{{moved}} moved. Still in the original group: {{names}}. Choose Move again to retry only these tasks.', {
+        moved: recovery.moved, names: recovery.failed.map((id) => all.find((row) => row.id === id)?.name ?? id).join(', '),
+      }));
+    }
+    setMoveRecovery(null);
     toast(t('projectDetail.tasks.toast.moved', 'Task moved'), task.name, 'success');
     setMoveTarget(null);
-  }, [all, canStructure, t, toast, update]);
+  }, [all, canStructure, moveRecovery, t, toast, update]);
 
   return (
     <div className="min-w-0 space-y-[var(--space-section)]">
@@ -791,6 +806,7 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
 
       {moveTarget && canEditTask(moveTarget) && (
         <MoveTaskDialog
+          recovery={moveRecovery?.taskId === moveTarget.id ? moveRecovery : undefined}
           task={moveTarget}
           allTasks={all}
           milestones={milestoneList}

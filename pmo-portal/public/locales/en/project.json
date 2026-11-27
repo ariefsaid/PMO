@@ -1305,6 +1305,8 @@
         "noPhase": "No phase"
       },
       "move": {
+        "partial": "{{moved}} moved. Still in the original group: {{names}}. Choose Move again to retry only these tasks.",
+        "finishRetry": "Retry the unfinished move with its original destination first.",
         "title": "Move {{name}}",
         "submit": "Move",
         "parent": "Under task",
