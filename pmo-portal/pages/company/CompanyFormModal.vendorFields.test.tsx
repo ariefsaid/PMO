@@ -25,7 +25,7 @@ const vendor = {
   created_at: '2026-01-01T00:00:00Z',
 } as unknown as CompanyRow;
 
-const client = { ...vendor, id: 'c1', name: 'Cascade Port Authority', type: 'Client', vendor_code: null, address: null, payment_terms_days: null };
+const client = { ...vendor, id: 'c1', name: 'Cascade Port Authority', type: 'Client', vendor_code: null, address: null, payment_terms_days: null } as unknown as CompanyRow;
 
 const wrap = (ui: React.ReactNode) =>
   render(
