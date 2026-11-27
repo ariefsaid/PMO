@@ -30,6 +30,7 @@ create table public.company_tax_numbers (
 );
 
 alter table public.company_tax_numbers enable row level security;
+alter table public.company_tax_numbers force row level security;
 
 -- The org seam: stamped from the parent company on every write, so the stored org is always
 -- the company's own; updated_at is maintained here rather than trusted to the client.
@@ -54,11 +55,25 @@ create trigger company_tax_numbers_stamp
   before insert or update on public.company_tax_numbers
   for each row execute function public.stamp_company_tax_number();
 
--- Exactly the vendor-edit roles, in the caller's own organisation — for reads and for writes.
-create policy company_tax_numbers_select on public.company_tax_numbers for select
-  using (org_id = auth_org_id() and auth_role() in ('Admin','Executive','Project Manager','Finance'));
-create policy company_tax_numbers_write on public.company_tax_numbers for all
-  using (org_id = auth_org_id() and auth_role() in ('Admin','Executive','Project Manager','Finance'))
-  with check (org_id = auth_org_id() and auth_role() in ('Admin','Executive','Project Manager','Finance'));
+-- Exactly the vendor-edit roles, active members of the caller's own organisation with CRM on
+-- (the companies_write shape, 2778), for reads and for writes. A field account reads nothing.
+create policy company_tax_numbers_select on public.company_tax_numbers for select to authenticated
+  using (org_id = (select public.auth_org_id())
+    and (select public.auth_role()) in ('Admin','Executive','Project Manager','Finance')
+    and (select public.is_active_member())
+    and (select public.org_feature_enabled((select public.auth_org_id()), 'crm')));
+create policy company_tax_numbers_write on public.company_tax_numbers for all to authenticated
+  using (org_id = (select public.auth_org_id())
+    and (select public.auth_role()) in ('Admin','Executive','Project Manager','Finance')
+    and (select public.is_active_member())
+    and (select public.org_feature_enabled((select public.auth_org_id()), 'crm')))
+  with check (org_id = (select public.auth_org_id())
+    and (select public.auth_role()) in ('Admin','Executive','Project Manager','Finance')
+    and (select public.is_active_member())
+    and (select public.org_feature_enabled((select public.auth_org_id()), 'crm')));
+create policy light_account_deny_select on public.company_tax_numbers as restrictive for select to authenticated
+  using ((select public.actor_is_light()) is not true);
 
+revoke all on public.company_tax_numbers from public, anon, authenticated;
 grant select, insert, update, delete on public.company_tax_numbers to authenticated;
+grant all on public.company_tax_numbers to service_role;

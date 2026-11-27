@@ -10,7 +10,7 @@
 -- Isolated orgs; UUID prefix 30250000-… (issue #3025).
 begin;
 create extension if not exists pgtap;
-select plan(17);
+select plan(27);
 
 insert into organizations (id, name) values
   ('30250000-0000-0000-0000-000000000001','Vendor Tax Org A (3025)'),
@@ -22,6 +22,8 @@ insert into auth.users (id, email) values
   ('30250000-0000-0000-0000-0000000000a3','eng-vtax3025@example.com'),
   ('30250000-0000-0000-0000-0000000000a4','fin-vtax3025@example.com'),
   ('30250000-0000-0000-0000-0000000000a5','exec-vtax3025@example.com'),
+  ('30250000-0000-0000-0000-0000000000a6','offfin-vtax3025@example.com'),
+  ('30250000-0000-0000-0000-0000000000a7','field-vtax3025@example.com'),
   ('30250000-0000-0000-0000-0000000000b1','admin-orgb-vtax3025@example.com');
 insert into profiles (id, org_id, full_name, email, role) values
   ('30250000-0000-0000-0000-0000000000a1','30250000-0000-0000-0000-000000000001','Admin VT 3025','admin-vtax3025@example.com','Admin'),
@@ -29,7 +31,14 @@ insert into profiles (id, org_id, full_name, email, role) values
   ('30250000-0000-0000-0000-0000000000a3','30250000-0000-0000-0000-000000000001','Eng VT 3025','eng-vtax3025@example.com','Engineer'),
   ('30250000-0000-0000-0000-0000000000a4','30250000-0000-0000-0000-000000000001','Fin VT 3025','fin-vtax3025@example.com','Finance'),
   ('30250000-0000-0000-0000-0000000000a5','30250000-0000-0000-0000-000000000001','Exec VT 3025','exec-vtax3025@example.com','Executive'),
+  ('30250000-0000-0000-0000-0000000000a6','30250000-0000-0000-0000-000000000001','Off Fin VT 3025','offfin-vtax3025@example.com','Finance'),
+  ('30250000-0000-0000-0000-0000000000a7','30250000-0000-0000-0000-000000000001','Field VT 3025','field-vtax3025@example.com','Project Manager'),
   ('30250000-0000-0000-0000-0000000000b1','30250000-0000-0000-0000-000000000002','Admin B VT 3025','admin-orgb-vtax3025@example.com','Admin');
+
+-- A deactivated Finance member (token still valid) and a field account whose base role is a
+-- vendor-edit role: the active-member and field-account conditions are what must stop them.
+update profiles set status = 'disabled' where id = '30250000-0000-0000-0000-0000000000a6';
+update profiles set built_in_role = 'foreman' where id = '30250000-0000-0000-0000-0000000000a7';
 
 insert into companies (id, org_id, name, type) values
   ('30250000-0000-0000-0000-000000000010','30250000-0000-0000-0000-000000000001','Paku Mas Supply','Vendor'),
@@ -91,15 +100,70 @@ select throws_ok(
   '42501', null,
   'AC-3025: an Engineer cannot write the tax number');
 
-select throws_ok(
+-- RLS on UPDATE/DELETE raises nothing: the statement matches zero rows. The value is checked
+-- afterwards as the Executive, who can read it.
+select lives_ok(
   $$ update company_tax_numbers set tax_number = 'x' where company_id = '30250000-0000-0000-0000-000000000010' $$,
-  '42501', null,
-  'AC-3025: an Engineer cannot update the tax number');
+  'AC-3025: an Engineer''s update of the tax number runs without error');
+
+select lives_ok(
+  $$ delete from company_tax_numbers where company_id = '30250000-0000-0000-0000-000000000010' $$,
+  'AC-3025: an Engineer''s delete of the tax number runs without error');
+
+set local request.jwt.claims = '{"sub":"30250000-0000-0000-0000-0000000000a5","role":"authenticated"}';
+select is(
+  (select tax_number from company_tax_numbers where company_id = '30250000-0000-0000-0000-000000000010'),
+  '02.345.678.9-012.000',
+  'AC-3025: an Engineer cannot update or delete the tax number (zero rows changed, value unchanged)');
+
+-- ── A deactivated member of a vendor-edit role: nothing, per command ────────
+set local request.jwt.claims = '{"sub":"30250000-0000-0000-0000-0000000000a6","role":"authenticated"}';
+
+select is(
+  (select count(*) from company_tax_numbers where company_id = '30250000-0000-0000-0000-000000000010'),
+  0::bigint,
+  'AC-3025: a deactivated Finance member cannot read the tax number');
 
 select throws_ok(
-  $$ delete from company_tax_numbers where company_id = '30250000-0000-0000-0000-000000000010' $$,
+  $$ insert into company_tax_numbers (company_id, tax_number)
+       values ('30250000-0000-0000-0000-000000000010','03.000.000.0-000.000') $$,
   '42501', null,
-  'AC-3025: an Engineer cannot delete the tax number');
+  'AC-3025: a deactivated Finance member cannot write the tax number');
+
+select lives_ok(
+  $$ update company_tax_numbers set tax_number = 'x' where company_id = '30250000-0000-0000-0000-000000000010' $$,
+  'AC-3025: a deactivated Finance member''s update runs without error');
+
+select lives_ok(
+  $$ delete from company_tax_numbers where company_id = '30250000-0000-0000-0000-000000000010' $$,
+  'AC-3025: a deactivated Finance member''s delete runs without error');
+
+set local request.jwt.claims = '{"sub":"30250000-0000-0000-0000-0000000000a5","role":"authenticated"}';
+select is(
+  (select tax_number from company_tax_numbers where company_id = '30250000-0000-0000-0000-000000000010'),
+  '02.345.678.9-012.000',
+  'AC-3025: a deactivated Finance member cannot update or delete the tax number (value unchanged)');
+
+-- ── A field account (base role Project Manager): reads nothing ──────────────
+set local request.jwt.claims = '{"sub":"30250000-0000-0000-0000-0000000000a7","role":"authenticated"}';
+
+select is(
+  (select count(*) from company_tax_numbers where company_id = '30250000-0000-0000-0000-000000000010'),
+  0::bigint,
+  'AC-3025: a field account cannot read the tax number');
+
+-- ── Hard facts the suite guards also hold ───────────────────────────────────
+reset role;
+select ok(
+  (select relforcerowsecurity from pg_class where oid = 'public.company_tax_numbers'::regclass),
+  'AC-3025: row-level security is forced on company_tax_numbers');
+
+select is(
+  (select count(*) from information_schema.role_table_grants
+    where table_schema = 'public' and table_name = 'company_tax_numbers' and grantee = 'anon'),
+  0::bigint,
+  'AC-3025: anon holds no grant on company_tax_numbers');
+set local role authenticated;
 
 -- ── A second organisation: nothing, even as its Admin ───────────────────────
 set local request.jwt.claims = '{"sub":"30250000-0000-0000-0000-0000000000b1","role":"authenticated"}';
