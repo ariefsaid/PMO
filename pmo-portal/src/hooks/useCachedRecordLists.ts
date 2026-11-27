@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useSyncExternalStore } from 'react';
+import { useCallback, useMemo, useSyncExternalStore } from 'react';
 import { useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/src/auth/useAuth';
 import type { RecordLists } from '@/src/components/shell/routeMatch';
@@ -26,18 +26,26 @@ type CachedState = ReturnType<QueryClient['getQueryState']>;
 function useCachedStates(keys: CachedKey[], enabledByOrg: boolean): CachedState[] {
   const qc = useQueryClient();
   const cache = qc.getQueryCache();
-  const last = useRef<CachedState[]>([]);
   const subscribe = useCallback(
     (cb: () => void) => cache.subscribe(() => queueMicrotask(cb)),
     [cache],
   );
-  return useSyncExternalStore(subscribe, () => {
-    const next = keys.map((key) => (key && enabledByOrg ? qc.getQueryState(key) : undefined));
-    const prev = last.current;
-    if (prev.length === next.length && prev.every((state, i) => state === next[i])) return prev;
-    last.current = next;
-    return next;
-  });
+  // ⚑ Each key set gets its own reader with its own memo. During a navigation (a transition) the screen on
+  // display and the incoming route read different keys at the same time; one shared memo made each reader's
+  // snapshot look changed to the other on every cache event, so each event re-rendered the old screen and
+  // restarted the navigation until React's transition expiry (about 5 s before a record page painted).
+  const keysJson = JSON.stringify(keys);
+  const getSnapshot = useMemo(() => {
+    const own = JSON.parse(keysJson) as (readonly unknown[] | null)[];
+    let last: CachedState[] = [];
+    return () => {
+      const next = own.map((key) => (key && enabledByOrg ? qc.getQueryState(key) : undefined));
+      if (last.length === next.length && last.every((state, i) => state === next[i])) return last;
+      last = next;
+      return next;
+    };
+  }, [keysJson, enabledByOrg, qc]);
+  return useSyncExternalStore(subscribe, getSnapshot);
 }
 
 function asCached<T>(state: CachedState) {
