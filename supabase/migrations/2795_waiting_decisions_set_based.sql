@@ -1,6 +1,8 @@
 -- 2795: needs-you list — run each decision helper once per distinct input, not once per row (#1128).
 -- Same rows, same order, same grants, same security-definer + search_path as 2765. Reversible: rollback/2795_waiting_decisions_set_based_down.sql.
--- drops: none — no rule is removed or re-written; daily_report_may_decide, work_order_issue_may_decide and delivery_record_may_decide still decide.
+-- drops: my_waiting_decisions() | "where d.org_id = v_org and d.status = 'submitted' and public.daily_report_may_decide(d.id)" | the helper is called once per distinct (project, author-is-caller) in dr_ok; the row filter becomes the join
+-- drops: my_waiting_decisions() | "and public.work_order_issue_may_decide(w.id)" | once per distinct (value<=0, value set, setter) in wo_ok
+-- drops: my_waiting_decisions() | "and public.delivery_record_may_decide(pr.id)" | once per distinct requester in dl_ok
 
 create or replace function public.my_waiting_decisions()
   returns table (kind text, record_id uuid, project_id uuid, title text, created_at timestamptz)
