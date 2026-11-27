@@ -68,7 +68,8 @@ const groupOf = (task: TaskWithRefs) => (task as TaskWithRefs & WithTaskGroup).t
 /** One place value for the group picker: `m:<phase>`, `g:<group>` or '' (ungrouped). */
 const placeOf = (task: TaskWithRefs) => groupOf(task) ? `g:${groupOf(task)}` : task.milestone_id ? `m:${task.milestone_id}` : '';
 
-export function MoveTaskDialog({ task, allTasks, milestones, taskGroups, canGroup, onClose, onMove, onError }: {
+export function MoveTaskDialog({ task, allTasks, milestones, taskGroups, canGroup, recovery, onClose, onMove, onError }: {
+  recovery?: { parent: string | null; place: string | null };
   task: TaskWithRefs;
   allTasks: TaskWithRefs[];
   milestones: MilestoneWithProgress[];
@@ -81,8 +82,8 @@ export function MoveTaskDialog({ task, allTasks, milestones, taskGroups, canGrou
   onError: (err: unknown) => void;
 }) {
   const { t } = useTranslation('project');
-  const [parent, setParent] = useState<string | null>(task.parent_task_id ?? null);
-  const [place, setPlace] = useState(placeOf(task));
+  const [parent, setParent] = useState<string | null>(recovery ? recovery.parent : task.parent_task_id ?? null);
+  const [place, setPlace] = useState(recovery?.place ?? placeOf(task));
   const [busy, setBusy] = useState(false);
   const [saveError, setSaveError] = useState<SubmitError | null>(null);
   const blocked = useMemo(() => new Set([task.id, ...collectDescendants(task.id, allTasks)]), [allTasks, task.id]);
@@ -96,7 +97,7 @@ export function MoveTaskDialog({ task, allTasks, milestones, taskGroups, canGrou
     ...milestones.map((m) => ({ value: `m:${m.id}`, label: m.name })),
     ...(canGroup ? taskGroups.map((g) => ({ value: `g:${g.id}`, label: g.name })) : []),
   ];
-  const dirty = parent !== (task.parent_task_id ?? null) || shownPlace !== placeOf(task);
+  const dirty = !!recovery || parent !== (task.parent_task_id ?? null) || shownPlace !== placeOf(task);
   const fail = keepError(setSaveError, onError);
   return <EntityFormModal
     open
@@ -110,11 +111,12 @@ export function MoveTaskDialog({ task, allTasks, milestones, taskGroups, canGrou
     onSubmit={(e) => {
       e.preventDefault();
       setBusy(true);
-      onMove(parent, shownPlace !== placeOf(task) ? shownPlace : null).catch(fail).finally(() => setBusy(false));
+      onMove(recovery ? recovery.parent : parent, recovery ? recovery.place : shownPlace !== placeOf(task) ? shownPlace : null).catch(fail).finally(() => setBusy(false));
     }}
   >
     <FormGrid>
     <Combobox
+      disabled={!!recovery}
       label={t('projectDetail.tasks.move.parent', 'Under task')}
       value={parent}
       selectedOption={parentOptions.find((o) => o.value === parent) ?? null}
@@ -128,7 +130,7 @@ export function MoveTaskDialog({ task, allTasks, milestones, taskGroups, canGrou
       label={t('projectDetail.tasks.move.place', 'Group')}
       value={shownPlace}
       onChange={setPlace}
-      disabled={!!parent || (!canGroup && milestones.length === 0)}
+      disabled={!!recovery || !!parent || (!canGroup && milestones.length === 0)}
       options={placeOptions}
       placeholder={t('projectDetail.tasks.ungrouped', 'Ungrouped')}
       helper={parent ? t('projectDetail.tasks.move.followsParent', 'A subtask stays in its parent task\'s group.') : undefined}

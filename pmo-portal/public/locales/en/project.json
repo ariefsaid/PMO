@@ -1269,6 +1269,7 @@
       "statusMix": "Tasks by status",
       "statusMixOther": "Other",
       "taskGroups": {
+        "loadFailed": "Could not load task groups",
         "title": "Task groups",
         "count_one": "{{count}} group",
         "count_other": "{{count}} groups",
@@ -1308,6 +1309,8 @@
         "noPhase": "No phase"
       },
       "move": {
+        "partial": "{{moved}} moved. Still in the original group: {{names}}. Choose Move again to retry only these tasks.",
+        "finishRetry": "Retry the unfinished move with its original destination first.",
         "title": "Move {{name}}",
         "submit": "Move",
         "parent": "Under task",

@@ -37,6 +37,24 @@ function renderModal(overrides: Partial<ProgressClaimModalProps> = {}) {
 const optionTexts = (label: RegExp) => Array.from((screen.getByLabelText(label) as HTMLSelectElement).options).map((o) => o.textContent);
 
 describe('ProgressClaimModal', () => {
+  it('waits for claim sources before applying the selected order quantities', async () => {
+    const props = { workOrders: WOS, contractNet: 1000000, currencySymbolPrefix: 'Rp', allocations: ALLOCATIONS,
+      contractLines: FACTS, hasDownPayment: false, claimedByBoqItem: {}, assessedByBoqItem: { b2: 3 },
+      assessmentMonth: null, initialWorkOrderId: 'wo-1', onClose: vi.fn(), onSave: vi.fn(), onError: vi.fn() };
+    const retry = vi.fn();
+    const view = render(<ProgressClaimModal {...props} boqItems={[]} sources={[{ name: 'contract lines', pending: true, error: false, retry }]} />);
+    expect(screen.getByRole('button', { name: 'Create claim' })).toBeDisabled();
+    view.rerender(<ProgressClaimModal {...props} boqItems={[]} sources={[{ name: 'claims', pending: false, error: true, retry }]} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(retry).toHaveBeenCalledOnce();
+    expect(screen.getByLabelText('Claim type')).toBeDisabled();
+    view.rerender(<ProgressClaimModal {...props} boqItems={BOQ} sources={[]} />);
+    expect(screen.getByLabelText(/STATION/)).toHaveValue('3');
+    await userEvent.clear(screen.getByLabelText(/STATION/));
+    await userEvent.type(screen.getByLabelText(/STATION/), '2');
+    view.rerender(<ProgressClaimModal {...props} boqItems={[...BOQ]} sources={[]} />);
+    expect(screen.getByLabelText(/STATION/)).toHaveValue('2');
+  });
   it('AC-PB-009 a down payment sends the exact amount and percentage, with the proportional percentage as help', async () => {
     const { onSave, user } = renderModal();
     await user.selectOptions(screen.getByLabelText(/Claim type/), 'down_payment');

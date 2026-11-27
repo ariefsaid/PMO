@@ -21,7 +21,7 @@ import type { ProjectDocumentRow } from '@/src/lib/db/documents';
 import { ProjectDocumentLink } from '@/src/components/documents/targets/ProjectDocumentLink';
 import type { ProfileRow } from '@/src/lib/db/profiles';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { formatCurrency, formatDay, formatDayRange, formatNumberExact } from '@/src/lib/format';
+import { formatCurrency, formatDay, formatDayRange, formatNumberExact, formatMoneyInputValue, parseMoneyInputAtScale } from '@/src/lib/format';
 import { orgDayNow } from '@/src/hooks/useOrgToday';
 import type { ComboboxOption } from '@/src/components/ui/Combobox';
 import { DateField } from '@/src/components/ui/DateField';
@@ -586,7 +586,7 @@ const RateLineModal: React.FC<RateLineModalProps> = ({ projectId, currency, line
     initialValues: {
       label: line?.label ?? '',
       unit: line?.unit === 'day' ? 'day' : 'hour',
-      rate: line ? String(line.rate) : '',
+      rate: line ? formatMoneyInputValue(line.rate) : '',
       effectiveFrom: line?.effective_from ?? today(),
     },
     requiredFields: ['label', 'rate', 'effectiveFrom'],
@@ -594,8 +594,8 @@ const RateLineModal: React.FC<RateLineModalProps> = ({ projectId, currency, line
     validate: (values) => {
       const errors: Partial<Record<keyof RateValues, string>> = {};
       if (!values.label.trim()) errors.label = t('rateCard.validation.label', 'Enter a role or work description.');
-      const amount = Number(values.rate.trim().replace(',', '.'));
-      if (!values.rate.trim() || !Number.isFinite(amount) || amount <= 0) errors.rate = t('rateCard.validation.rate', 'Enter a rate greater than zero.');
+      const amount = parseMoneyInputAtScale(values.rate.trim(), 2);
+      if (amount === null || amount <= 0) errors.rate = t('rateCard.validation.rate', 'Enter a rate greater than zero.');
       if (!values.effectiveFrom) errors.effectiveFrom = t('rateCard.validation.date', 'Choose when this rate starts.');
       return errors;
     },
@@ -611,7 +611,7 @@ const RateLineModal: React.FC<RateLineModalProps> = ({ projectId, currency, line
         kind: 'labour',
         label: values.label.trim(),
         unit: values.unit,
-        rate: Number(values.rate.trim().replace(',', '.')),
+        rate: parseMoneyInputAtScale(values.rate.trim(), 2)!,
         currency,
         effective_from: values.effectiveFrom,
       };
