@@ -32,7 +32,7 @@ export interface TimesheetReviewFilters {
 export type TimesheetForReview = TimesheetRow & {
   owner: { id: string; full_name: string } | null;
   entries: Array<
-    TimesheetEntryRow & {
+    Pick<TimesheetEntryRow, 'id' | 'project_id' | 'work_order_id' | 'entry_date' | 'hours'> & Partial<TimesheetEntryRow> & {
       project: { id: string; name: string; short_name?: string | null; code: string | null } | null;
       work_order?: { wo_number: string | null; title: string | null } | null;
     }
@@ -41,7 +41,7 @@ export type TimesheetForReview = TimesheetRow & {
 
 const SELECT = '*, entries:timesheet_entries(*, project:projects(name,short_name,code)), rejecter:profiles!timesheets_rejected_by_fkey(full_name)';
 const SELECT_FOR_REVIEW =
-  '*, owner:profiles!timesheets_user_id_fkey(id,full_name), entries:timesheet_entries(*, project:projects(id,name,short_name,code), work_order:work_orders(wo_number,title))';
+  '*, owner:profiles!timesheets_user_id_fkey(id,full_name), entries:timesheet_entries(id,project_id,work_order_id,entry_date,hours, project:projects(id,name,short_name,code), work_order:work_orders(wo_number,title))';
 
 function shiftIsoDays(iso: string, delta: number): string {
   const [y, m, d] = iso.split('-').map(Number);
@@ -57,7 +57,10 @@ export async function listTimesheetsForReview(
   filters: TimesheetReviewFilters = {},
 ): Promise<TimesheetForReview[]> {
   const data = await fetchAllRowsByKeyset<TimesheetForReview>(async (afterId, limit) => {
-    let q = supabase.from('timesheets').select(SELECT_FOR_REVIEW);
+    // A separate empty inner embed filters parent sheets without trimming their full week entries.
+    const select = filters.projectId ? SELECT_FOR_REVIEW + ', review_match:timesheet_entries!inner()' : SELECT_FOR_REVIEW;
+    let q = supabase.from('timesheets').select(select);
+    if (filters.projectId) q = q.eq('review_match.project_id', filters.projectId);
     if (filters.personId) q = q.eq('user_id', filters.personId);
     if (filters.from) q = q.gte('week_start_date', shiftIsoDays(filters.from, -6));
     if (filters.to) q = q.lte('week_start_date', filters.to);
