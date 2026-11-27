@@ -59,6 +59,8 @@ describe('SectionMaterialModal (FR-WOS-013)', () => {
     await userEvent.type(screen.getByLabelText('Planned quantity'), '40');
     await userEvent.click(screen.getByRole('button', { name: 'Add' }));
     expect(h.set).toHaveBeenCalledWith({ sectionId: 's1', itemId: 'i2', quantity: '40' });
+    expect(screen.getByLabelText('Item')).toHaveValue('');
+    expect(screen.getByLabelText('Planned quantity')).toHaveValue('');
   });
 
   it('refuses a malformed or zero quantity before asking the database', async () => {
@@ -78,6 +80,8 @@ describe('SectionMaterialModal (FR-WOS-013)', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Add' }));
     expect(await screen.findByText('Above the work-order plan')).toBeTruthy();
     expect(screen.getByText('The planned quantities would add up to 110.000 against a work-order plan of 100.000.')).toBeTruthy();
+    expect(screen.getByLabelText('Item')).toHaveValue('i1');
+    expect(screen.getByLabelText('Planned quantity')).toHaveValue('110');
   });
 
   it('removes an allocation', async () => {
