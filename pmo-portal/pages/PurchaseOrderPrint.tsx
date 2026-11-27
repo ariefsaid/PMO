@@ -64,6 +64,10 @@ const PurchaseOrderPrintPage: React.FC = () => {
     );
   }
 
+  if (settingsQuery.isError) {
+    return <ListState variant="error" title={t('purchaseOrderPrint.error')} onRetry={() => void settingsQuery.refetch()} />;
+  }
+
   // Printing is strictly restricted to organisations that turned it on (FR-POP-002 / FR-POP-003).
   if (!settingsQuery.data?.enabled) {
     return (
@@ -182,7 +186,7 @@ const PurchaseOrderPrintPage: React.FC = () => {
       width: '140px',
       render: (item) => (
         <span className="tabular-nums font-mono text-sm">
-          {formatCurrency(Number(item.rate), currency)}
+          {item.rate == null ? t('purchaseOrderPrint.priceMissing', 'Price not recorded') : formatCurrency(Number(item.rate), currency)}
         </span>
       ),
     },
@@ -193,13 +197,14 @@ const PurchaseOrderPrintPage: React.FC = () => {
       width: '160px',
       render: (item) => (
         <span className="tabular-nums font-mono text-sm font-semibold">
-          {formatCurrency(Number(item.amount), currency)}
+          {item.amount == null ? t('purchaseOrderPrint.priceMissing', 'Price not recorded') : formatCurrency(Number(item.amount), currency)}
         </span>
       ),
     },
   ];
 
   const items = procurement.items ?? [];
+  const missingAmounts = items.some((item) => item.amount == null);
   const calculatedTotal = items.reduce((sum, item) => sum + Number(item.amount || 0), 0);
   const totalAmount = po.amount != null ? Number(po.amount) : calculatedTotal;
 
@@ -282,7 +287,7 @@ const PurchaseOrderPrintPage: React.FC = () => {
               <div className="flex items-center justify-between text-sm font-bold text-foreground">
                 <span>{t('purchaseOrderPrint.total', 'Order total')}:</span>
                 <span className="font-mono text-base tabular-nums">
-                  {formatCurrency(totalAmount, currency)}
+                  {po.amount == null && missingAmounts ? t('purchaseOrderPrint.totalUnavailable', 'Total unavailable: some line amounts are missing') : formatCurrency(totalAmount, currency)}
                 </span>
               </div>
             </div>

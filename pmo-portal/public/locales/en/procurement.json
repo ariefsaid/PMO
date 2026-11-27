@@ -992,7 +992,9 @@
     "signatureDate": "Date",
     "section": "Purchase order",
     "off": "Printing the purchase order is off. An Admin turns it on in Administration, Accounting, Purchase order printing.",
-    "discipline": "Discipline"
+    "discipline": "Discipline",
+    "priceMissing": "Price not recorded",
+    "totalUnavailable": "Total unavailable: some line amounts are missing"
   },
   "poSettings": {
     "heading": "Purchase order printing",
@@ -1148,5 +1150,8 @@
     "dateChange": "Order and line dates: {{lines}}",
     "attributionChange": "work order and discipline",
     "partialSave": "Saved: {{saved}}. Save not confirmed: {{unconfirmed}}. Not attempted: {{unattempted}}. {{reason}}"
+  },
+  "linkedDocuments": {
+    "error": "Couldn't load linked accounting documents"
   }
 }

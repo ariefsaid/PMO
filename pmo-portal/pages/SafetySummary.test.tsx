@@ -5,8 +5,8 @@ import { MemoryRouter } from 'react-router';
 import React from 'react';
 
 /** #2596 FR-DSF-011..013: hidden figures say why and never read 0; a count opens the rows behind it. */
-const h = vi.hoisted(() => ({ summary: null as unknown, kinds: [] as unknown[] }));
-vi.mock('@/src/hooks/useOrgSwitch', () => ({ useOrgSwitch: () => ({ data: true, isPending: false }) }));
+const h = vi.hoisted(() => ({ summary: null as unknown, kinds: [] as unknown[], enabled: { data: true as boolean | undefined, isPending: false, isError: false, refetch: vi.fn() } }));
+vi.mock('@/src/hooks/useOrgSwitch', () => ({ useOrgSwitch: () => h.enabled }));
 vi.mock('@/src/hooks/useSafetyDays', () => ({
   useSafetySummary: () => ({ data: h.summary, isPending: false, isError: false, refetch: vi.fn() }),
   useSafetySummaryDetail: (kind: string | null) => { h.kinds.push(kind); return { data: [{ date: '2026-03-12', work_order_id: 'w1', ref_id: null, label: '3' }], isPending: false, isError: false, refetch: vi.fn() }; },
@@ -17,9 +17,17 @@ import SafetySummary from './SafetySummary';
 
 const base = { month: '2026-03-01', timezone: 'Asia/Jakarta', projectId: null, workedMinutes: 1200, safeMinutes: 600, lostTimeIncidents: 1, recordableIncidents: 0, nearMisses: 2, toolboxTalks: 4, completeDays: 3, daysWithoutRecord: 1, hidden: {} };
 const renderAt = (url = '/safety') => render(<MemoryRouter initialEntries={[url]}><SafetySummary /></MemoryRouter>);
-beforeEach(() => { h.summary = base; h.kinds.length = 0; });
+beforeEach(() => { h.enabled.data = true; h.enabled.isError = false; h.summary = base; h.kinds.length = 0; });
 
 describe('SafetySummary', () => {
+  it('retries a failed module setting instead of saying safety is disabled', async () => {
+    h.enabled.data = undefined;
+    h.enabled.isError = true;
+    renderAt();
+    expect(screen.queryByText(/Safety records are turned off/)).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /retry|try again/i }));
+    expect(h.enabled.refetch).toHaveBeenCalled();
+  });
   it('shows hours as hours and minutes and the counts as counts', () => {
     renderAt();
     expect(screen.getByTestId('safety-figure-workedMinutes')).toHaveTextContent('20 h 0 min');

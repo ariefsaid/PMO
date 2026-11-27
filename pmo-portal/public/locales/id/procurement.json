@@ -992,7 +992,9 @@
     "signatureDate": "Tanggal",
     "section": "Pesanan pembelian",
     "off": "Cetak pesanan pembelian belum aktif. Admin mengaktifkannya di Administrasi, Akuntansi, Cetak pesanan pembelian.",
-    "discipline": "Disiplin"
+    "discipline": "Disiplin",
+    "priceMissing": "Harga belum dicatat",
+    "totalUnavailable": "Total belum tersedia: sebagian nilai baris belum dicatat"
   },
   "poSettings": {
     "heading": "Pencetakan pesanan pembelian",
@@ -1148,5 +1150,8 @@
     "dateChange": "Tanggal pesanan dan baris: {{lines}}",
     "attributionChange": "perintah kerja dan disiplin",
     "partialSave": "Tersimpan: {{saved}}. Penyimpanan belum terkonfirmasi: {{unconfirmed}}. Belum dicoba: {{unattempted}}. {{reason}}"
+  },
+  "linkedDocuments": {
+    "error": "Gagal memuat dokumen akuntansi terkait"
   }
 }

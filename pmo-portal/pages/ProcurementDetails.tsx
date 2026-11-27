@@ -141,7 +141,7 @@ const TimelineWithReadableOrders: React.FC<TimelineWithOrdersProps & { records: 
 };
 
 const ProcurementDetails: React.FC = () => {
-  const { t } = useTranslation(['common', 'waitingList', 'walkMoney']);
+  const { t } = useTranslation(['common', 'waitingList', 'walkMoney', 'procurement']);
   const { procurementId, tab: tabParam } = useParams<{ procurementId: string; tab?: string }>();
   // Active tab from the URL :tab param (deep-linkable, role-invariant default Overview).
   const tab = tabFromParam(tabParam);
@@ -767,6 +767,9 @@ const ProcurementDetails: React.FC = () => {
     status={p.status}
     currency={p.currency}
   /> : null;
+
+  if (linkedErpQuery.isError) return <ListState variant="error" title={t('procurement:linkedDocuments.error', "Couldn't load linked accounting documents")} onRetry={() => void linkedErpQuery.refetch()} />;
+  if (linkedErpQuery.isPending) return <ListState variant="loading" rows={4} />;
 
   if (inspectionOnly) return <FigureScope><RecordStack>
     <BackBar label={t('procurementDetail.backToProcurement', 'Procurement')} onBack={goBack} />

@@ -66,7 +66,7 @@ const mockListArchiveTargets = vi.hoisted(() => vi.fn().mockResolvedValue([]));
 archiveTargetsState.refetch.mockImplementation(() => Promise.resolve({ data: archiveTargetsState.data, error: null }));
 const positionState = {
   isPending: false, isError: false, refetch: vi.fn(), hasBudget: true, canSeeActual: true, rows: [] as unknown[], unknown: 0,
-  ledgerBasis: 'erp' as 'erp' | 'pmo' | null, spent: null as number | null, openCommitment: null as string | null,
+  spendCurrency: 'USD', ledgerBasis: 'erp' as 'erp' | 'pmo' | null, spent: null as number | null, openCommitment: null as string | null,
   consumption: null as string | null, consumptionVariance: null as string | null, budgetComparisonKnown: false,
   usedPercent: null as number | null, atRisk: false, uncategorized: null as { amount: number | null } | null,
 };
@@ -482,6 +482,20 @@ describe('ProjectBudget (AC-726, NFR-BV-UI-001)', () => {
     expect(screen.getAllByText(/USD/).length).toBeGreaterThan(0);
     expect(screen.getByTestId('tax-basis')).toBeInTheDocument();
     resetState();
+  });
+
+  it('keeps the ledger currency when opening category spending', async () => {
+    budgetState.data = activeVersion.total;
+    versionsState.data = [activeVersion];
+    positionState.spendCurrency = 'IDR';
+    positionState.rows = [{ category: 'Labor', budget: 2000000, actual: 55000 }];
+    renderPage();
+    const table = screen.getByRole('table', { name: 'Budget vs actual by category' });
+    const row = within(table).getByRole('row', { name: /Labor/ });
+    expect(row).toHaveTextContent(/IDR/);
+    await userEvent.click(within(row).getByRole('button', { name: 'Open Labor budget details' }));
+    expect(screen.getByRole('dialog')).toHaveTextContent(/IDR.*55[,.]000/);
+    positionState.spendCurrency = 'USD';
   });
 
   it('AC-1530 renders PMO paid category spending without the ledger-link prompt', () => {

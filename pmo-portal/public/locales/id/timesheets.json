@@ -95,7 +95,8 @@
     "week": "Minggu",
     "projects": "Proyek",
     "hours": "Jam",
-    "status": "Status"
+    "status": "Status",
+    "projectsError": "Gagal memuat proyek"
   },
   "weekHours": {
     "project": "Proyek",
