@@ -1,13 +1,12 @@
 import { getVisibleOrganizationId } from './organizations';
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError, assertWriteLanded } from '@/src/lib/appError';
-import { readOrgColumnsStrict } from './orgSettingsBatch';
 
 /** survey-cap-stop: what the database does with a claim line above the claimable quantity. `warn` (default) lets it through. */
 export type ClaimOverCapMode = 'warn' | 'block';
 
 export async function getClaimOverCap(): Promise<ClaimOverCapMode> {
-  const { data, error } = await readOrgColumnsStrict(['claim_quantity_over_cap']);
+  const { data, error } = await supabase.from('organizations').select('claim_quantity_over_cap').maybeSingle();
   if (error) throw new AppError(error.message, error.code);
   return data?.claim_quantity_over_cap === 'block' ? 'block' : 'warn';
 }

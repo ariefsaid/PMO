@@ -1,7 +1,6 @@
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError } from '@/src/lib/appError';
 import { fetchAllRowsByKeyset } from '@/src/lib/pagedRead';
-import { readOrgColumns } from './orgSettingsBatch';
 
 /**
  * Crew loans (#2704, migrations 1245 to 1249): a worker lent from a home crew to a host crew for an inclusive date
@@ -59,9 +58,9 @@ export async function correctCrewLoan(id: string, version: number, patch: Pick<C
 
 /** Whether the organisation shows crew loans on the Crews page (default off). */
 export async function getCrewLoansEnabled(): Promise<boolean> {
-  const { data, error } = await readOrgColumns(['crew_loans_enabled']);
+  const { data, error } = await supabase.from('organizations').select('crew_loans_enabled').limit(1);
   fail(error);
-  return data?.crew_loans_enabled === true;
+  return data?.[0]?.crew_loans_enabled === true;
 }
 
 /** Admin only; the server enforces it and audits the change. */

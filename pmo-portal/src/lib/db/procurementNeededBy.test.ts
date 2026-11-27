@@ -12,8 +12,6 @@ for (const method of ['select', 'limit', 'eq'] as const) {
   h.chain[method] = vi.fn((...args: unknown[]) => { if (method === 'select') h.calls.select.push(String(args[0])); return h.chain; });
 }
 h.chain.maybeSingle = vi.fn(async () => h.row);
-// The organisation setting read is awaited directly (the shared two-row read), so the chain resolves like a query.
-h.chain.then = (resolve: (v: unknown) => unknown) => resolve(h.row);
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { rpc: h.rpc, from: h.from } }));
 import { getPoNeededByRequired, getProcurementNeededBy, setPoNeededByRequired, setProcurementNeededBy } from './procurementNeededBy';
 
@@ -25,7 +23,7 @@ afterEach(() => setHidePricesActive(false));
 describe('procurementNeededBy DAL (1124d)', () => {
   it('AC-NBY-008 the rule reads off when no moment is stored and on when one is', async () => {
     expect(await getPoNeededByRequired()).toBe(false);
-    h.row = { data: [{ po_needed_by_required_from: '2026-11-24T00:00:00Z' }], error: null };
+    h.row = { data: { po_needed_by_required_from: '2026-11-24T00:00:00Z' }, error: null };
     expect(await getPoNeededByRequired()).toBe(true);
   });
   it('AC-NBY-008 the setting is written through the Admin RPC', async () => {

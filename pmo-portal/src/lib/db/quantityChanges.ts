@@ -6,7 +6,6 @@ import { fetchAllPages } from '@/src/lib/pagedRead';
 import { sanitizeFilename } from '@/src/lib/storageKey';
 import { SIGNED_URL_EXPIRY_SECONDS } from '@/src/lib/fileConstants';
 import type { ProgressSource, QuantityVersion, RequestStatus, TriggerKind } from '@/src/lib/quantityChangeRules';
-import { readOrgColumnsStrict } from './orgSettingsBatch';
 
 /**
  * Quantity change request DAL (#2578, migrations 1125..1129). Reads are RLS-scoped selects; every write is a
@@ -250,7 +249,7 @@ export async function recordForecast(boqItemId: string, quantity: string, note?:
 
 /** FR-QCR-021: the organisation's request limit (null = none). The write is a column-granted, Admin-only update. */
 export async function getLimit(): Promise<number | null> {
-  const { data, error } = await readOrgColumnsStrict<{ quantity_change_limit: number | null }>(['quantity_change_limit']);
+  const { data, error } = await supabase.from('organizations').select('quantity_change_limit').maybeSingle();
   if (error) fail(error);
   return data?.quantity_change_limit ?? null;
 }
@@ -264,7 +263,7 @@ export async function setLimit(limit: number | null): Promise<void> {
 
 /** FR-CHR-001: built-in role keys that may review a request in addition to the base approver levels (empty = today). Admin-only column grant. */
 export async function getApproverRoles(): Promise<string[]> {
-  const { data, error } = await readOrgColumnsStrict<{ quantity_change_approver_roles: string[] | null }>(['quantity_change_approver_roles']);
+  const { data, error } = await supabase.from('organizations').select('quantity_change_approver_roles').maybeSingle();
   if (error) fail(error);
   return data?.quantity_change_approver_roles ?? [];
 }

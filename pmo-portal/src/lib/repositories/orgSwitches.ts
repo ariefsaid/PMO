@@ -10,7 +10,6 @@ import type { Entity } from '@/src/auth/policy';
 import type { Role } from '@/src/auth/AuthContext';
 import { getVisibleOrganizationId } from '@/src/lib/db/organizations';
 import { wrap } from './repositoryErrors';
-import { readOrgColumns } from '@/src/lib/db/orgSettingsBatch';
 
 // The repositories behind a switch load on first read/write, not with the shell: this module sits in the entry chunk
 // (Rail hooks), and six whole domain repositories would ride along with it. Same functions, same registry data.
@@ -68,9 +67,9 @@ export const orgSwitch = (key: OrgSwitchKey): OrgSwitch => ORG_SWITCHES[key];
 const organizations = (): any => supabase.from('organizations' as never);
 
 async function readColumn(column: OrgColumn): Promise<boolean> {
-  const { data, error } = await readOrgColumns([column]);
+  const { data, error } = await organizations().select(column).limit(1);
   if (error) throw new AppError(error.message, error.code);
-  return data?.[column] === true;
+  return data?.[0]?.[column] === true;
 }
 
 async function writeColumn(column: OrgColumn, on: boolean): Promise<void> {

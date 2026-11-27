@@ -1,7 +1,6 @@
 import { supabase } from '@/src/lib/supabase/client';
 import { nullableArg } from './nullableArg';
 import { AppError } from '@/src/lib/appError';
-import { readOrgColumnsStrict } from './orgSettingsBatch';
 
 /**
  * Leave and sick requests (#2708, migrations 1240-1242). Every write is an RPC; the database owns the rules:
@@ -43,7 +42,7 @@ export interface LeaveRequestRow {
 export interface LeaveRequestInput { person_id: string; leave_type_id: string; start_date: string; end_date: string; reason?: string | null }
 
 export async function getLeaveSettings(): Promise<LeaveSettings> {
-  const { data, error } = await readOrgColumnsStrict<{ leave_requests_enabled: boolean | null; leave_approver_role: string | null }>(['leave_requests_enabled', 'leave_approver_role']);
+  const { data, error } = await supabase.from('organizations').select('leave_requests_enabled, leave_approver_role').maybeSingle();
   fail(error);
   return { enabled: data?.leave_requests_enabled === true, approver_role: data?.leave_approver_role ?? null };
 }
