@@ -83,7 +83,9 @@ export interface CompanyFormModalProps {
   onUpdate: (id: string, input: CompanyInput, segment: string | null) => Promise<CompanySaveOutcome | void>;
   /** #3025 slice 2: present only where the caller can save the vendor's tax number (edit paths
    *  with repository access); the sensitive value rides its own side table, so it is a follow-up
-   *  write after the company row, reported as a partial save when it fails. */
+   *  write after the company row, reported as a partial save when it fails.
+   *  `undefined` means unknown (not loaded, or the read failed): the form then neither shows nor
+   *  writes it, because unknown is not empty and writing it would delete the stored number. */
   taxNumber?: string | null;
   onTaxNumberUpdate?: (companyId: string, taxNumber: string | null) => Promise<void>;
   onError: (err: unknown) => void;
@@ -140,6 +142,11 @@ export const CompanyFormModal: React.FC<CompanyFormModalProps> = ({
   const addressField = form.fieldProps('address');
   const paymentTermsDaysField = form.fieldProps('paymentTermsDays');
   const taxNumberField = form.fieldProps('taxNumber');
+  // What the dialog knew when it opened (a later load does not reach the seeded field), and the
+  // value last stored: the tax number is written only when the user changed it from that.
+  const [taxNumberAtOpen] = useState(taxNumber);
+  const taxNumberStored = React.useRef(taxNumberAtOpen ?? '');
+  const taxNumberEditable = !!onTaxNumberUpdate && taxNumberAtOpen !== undefined;
 
   // AC-ERR-001: a rejected save gets PERSISTENT in-dialog evidence, not only the corner
   // toast (which auto-dismisses, leaving the modal indistinguishable from a pristine form
@@ -207,9 +214,12 @@ export const CompanyFormModal: React.FC<CompanyFormModalProps> = ({
         // caller gave the form the means (edit paths with repository access). A failure is a
         // partial save, exactly like the segment: the company row committed, the tax number did
         // not, and the dialog must say so instead of claiming nothing was saved.
-        if (isEdit && company && onTaxNumberUpdate && values.type === 'Vendor') {
+        const nextTaxNumber = values.taxNumber.trim();
+        if (isEdit && company && onTaxNumberUpdate && taxNumberEditable && values.type === 'Vendor'
+            && nextTaxNumber !== taxNumberStored.current) {
           try {
-            await onTaxNumberUpdate(company.id, values.taxNumber.trim() || null);
+            await onTaxNumberUpdate(company.id, nextTaxNumber || null);
+            taxNumberStored.current = nextTaxNumber;
           } catch (taxErr) {
             const { detail } = classifyMutationError(taxErr, undefined, {
               module: 'companies',
@@ -347,7 +357,7 @@ export const CompanyFormModal: React.FC<CompanyFormModalProps> = ({
               error={paymentTermsDaysField.error}
               inputMode="numeric"
             />
-            {onTaxNumberUpdate && (
+            {taxNumberEditable && (
               <TextField
                 id={taxNumberField.id}
                 label={t('companies.form.taxNumber.label', 'Tax number')}

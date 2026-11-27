@@ -71,9 +71,9 @@ const CompanyDetail: React.FC = () => {
   const mappings = useCompanyPartyMappings(companyId ? [companyId] : [], externalCompanies);
   const { update, setProjectNumberSegment, archive } = useCompanyMutations();
   const queryClient = useQueryClient();
-  // #3025 slice 2: the vendor's tax number lives on its own side table whose read rule is the
-  // four vendor-edit roles — the same set that can even open this record — so the page may show
-  // it plainly once loaded.
+  // #3025 slice 2: the vendor's tax number lives on its own side table, readable only by the four
+  // vendor-edit roles (others get no row, so nothing shows). The form gets the number only once
+  // the read succeeded: while it is unknown the form neither offers nor writes it.
   const isVendor = query.data?.type === 'Vendor';
   const taxNumberQuery = useQuery({
     queryKey: ['company-tax-number', companyId],
@@ -81,6 +81,7 @@ const CompanyDetail: React.FC = () => {
     enabled: isVendor && !!companyId,
   });
   const taxNumber = taxNumberQuery.data ?? null;
+  const taxNumberKnown = taxNumberQuery.isSuccess ? taxNumber : undefined;
   const saveTaxNumber = async (id: string, value: string | null) => {
     await repositories.company.setTaxNumber(id, value);
     await queryClient.invalidateQueries({ queryKey: ['company-tax-number', companyId] });
@@ -337,7 +338,7 @@ const CompanyDetail: React.FC = () => {
           company={company}
           ownership={ownership.mode}
           onClose={() => setEditOpen(false)}
-          taxNumber={taxNumber}
+          taxNumber={taxNumberKnown}
           onTaxNumberUpdate={saveTaxNumber}
           onUpdate={async (id, input, segment) => {
             await update.mutateAsync({ id, input });

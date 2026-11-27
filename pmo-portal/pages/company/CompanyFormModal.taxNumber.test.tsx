@@ -58,10 +58,12 @@ describe('AC-3025 slice 2: the tax number on the company form', () => {
     wrap(
       <CompanyFormModal company={vendor} ownership="pmo" taxNumber="01.234.567.8-901.000" onTaxNumberUpdate={onTaxNumberUpdate} onClose={vi.fn()} onUpdate={onUpdate} onError={vi.fn()} />,
     );
+    await userEvent.clear(screen.getByLabelText(/Tax number/i));
+    await userEvent.type(screen.getByLabelText(/Tax number/i), '  02.345.678.9-012.000 ');
     await userEvent.click(screen.getByRole('button', { name: /^Save company$/i }));
     await waitFor(() => expect(onUpdate).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(onTaxNumberUpdate).toHaveBeenCalledTimes(1));
-    expect(onTaxNumberUpdate).toHaveBeenCalledWith('v1', '01.234.567.8-901.000');
+    expect(onTaxNumberUpdate).toHaveBeenCalledWith('v1', '02.345.678.9-012.000');
 
     await userEvent.clear(screen.getByLabelText(/Tax number/i));
     await userEvent.click(screen.getByRole('button', { name: /^Save company$/i }));
@@ -75,6 +77,7 @@ describe('AC-3025 slice 2: the tax number on the company form', () => {
     wrap(
       <CompanyFormModal company={vendor} ownership="pmo" taxNumber="01.234.567.8-901.000" onTaxNumberUpdate={onTaxNumberUpdate} onClose={vi.fn()} onUpdate={vi.fn().mockResolvedValue(undefined)} onError={onError} />,
     );
+    await userEvent.type(screen.getByLabelText(/Tax number/i), '9');
     await userEvent.click(screen.getByRole('button', { name: /^Save company$/i }));
     const note = await screen.findByTestId('company-partial-save');
     expect(note).toHaveTextContent(/saved/i);
@@ -92,5 +95,56 @@ describe('AC-3025 slice 2: the tax number on the company form', () => {
     expect(screen.queryByLabelText(/Tax number/i)).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: /^Save company$/i }));
     await waitFor(() => expect(onTaxNumberUpdate).not.toHaveBeenCalled());
+  });
+
+  // Unknown is not empty: a tax number the page has not read (still loading, or the read failed)
+  // must never be written, or saving any other change would delete the stored number.
+  it('does not offer or write the tax number while it is unknown (not loaded or read failed)', async () => {
+    const onTaxNumberUpdate = vi.fn().mockResolvedValue(undefined);
+    const onUpdate = vi.fn().mockResolvedValue(undefined);
+    wrap(
+      <CompanyFormModal company={vendor} ownership="pmo" taxNumber={undefined} onTaxNumberUpdate={onTaxNumberUpdate} onClose={vi.fn()} onUpdate={onUpdate} onError={vi.fn()} />,
+    );
+    expect(screen.queryByLabelText(/Tax number/i)).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /^Save company$/i }));
+    await waitFor(() => expect(onUpdate).toHaveBeenCalledTimes(1));
+    expect(onTaxNumberUpdate).not.toHaveBeenCalled();
+  });
+
+  it('a tax number that loads after the dialog opened is not written by that dialog', async () => {
+    const onTaxNumberUpdate = vi.fn().mockResolvedValue(undefined);
+    const onUpdate = vi.fn().mockResolvedValue(undefined);
+    const props = { company: vendor, ownership: 'pmo' as const, onTaxNumberUpdate, onClose: vi.fn(), onUpdate, onError: vi.fn() };
+    const { rerender } = wrap(<CompanyFormModal {...props} taxNumber={undefined} />);
+    rerender(
+      <MemoryRouter>
+        <ToastProvider><CompanyFormModal {...props} taxNumber="01.234.567.8-901.000" /></ToastProvider>
+      </MemoryRouter>,
+    );
+    await userEvent.click(screen.getByRole('button', { name: /^Save company$/i }));
+    await waitFor(() => expect(onUpdate).toHaveBeenCalledTimes(1));
+    expect(onTaxNumberUpdate).not.toHaveBeenCalled();
+  });
+
+  it('saving other changes leaves an unchanged tax number alone', async () => {
+    const onTaxNumberUpdate = vi.fn().mockResolvedValue(undefined);
+    const onUpdate = vi.fn().mockResolvedValue(undefined);
+    wrap(
+      <CompanyFormModal company={vendor} ownership="pmo" taxNumber="01.234.567.8-901.000" onTaxNumberUpdate={onTaxNumberUpdate} onClose={vi.fn()} onUpdate={onUpdate} onError={vi.fn()} />,
+    );
+    await userEvent.type(screen.getByLabelText(/Address/i), 'Jl. Raya 12');
+    await userEvent.click(screen.getByRole('button', { name: /^Save company$/i }));
+    await waitFor(() => expect(onUpdate).toHaveBeenCalledTimes(1));
+    expect(onTaxNumberUpdate).not.toHaveBeenCalled();
+  });
+
+  it('a vendor with no tax number yet (read succeeded, none stored) can be given one', async () => {
+    const onTaxNumberUpdate = vi.fn().mockResolvedValue(undefined);
+    wrap(
+      <CompanyFormModal company={vendor} ownership="pmo" taxNumber={null} onTaxNumberUpdate={onTaxNumberUpdate} onClose={vi.fn()} onUpdate={vi.fn().mockResolvedValue(undefined)} onError={vi.fn()} />,
+    );
+    await userEvent.type(screen.getByLabelText(/Tax number/i), '01.234.567.8-901.000');
+    await userEvent.click(screen.getByRole('button', { name: /^Save company$/i }));
+    await waitFor(() => expect(onTaxNumberUpdate).toHaveBeenCalledWith('v1', '01.234.567.8-901.000'));
   });
 });
