@@ -278,6 +278,8 @@ const MilestoneStrip: React.FC<MilestoneStripProps> = ({ projectId, compactWhenE
                       totalWeight={totalWeight}
                       canEdit={canEdit}
                       onEdit={() => setFormTarget({ milestone })}
+                      canDelete={canDelete}
+                      onDelete={() => setDeleteTarget(milestone)}
                     />
                   ))}
                 </div>
@@ -377,6 +379,8 @@ interface MilestoneMobileRowProps {
   totalWeight: number;
   canEdit: boolean;
   onEdit: () => void;
+  canDelete: boolean;
+  onDelete: () => void;
 }
 
 const MilestoneMobileRow: React.FC<MilestoneMobileRowProps> = ({
@@ -385,6 +389,8 @@ const MilestoneMobileRow: React.FC<MilestoneMobileRowProps> = ({
   totalWeight,
   canEdit,
   onEdit,
+  canDelete,
+  onDelete,
 }) => {
   const { t } = useTranslation('project');
   const today = useOrgToday();
@@ -444,6 +450,9 @@ const MilestoneMobileRow: React.FC<MilestoneMobileRowProps> = ({
       </div>
 
       <div className="flex shrink-0 items-center gap-2">
+        {canDelete && <Button variant="ghost" size="sm" aria-label={`${t('projectDetail.milestones.deleteMilestone', 'Delete phase')} ${milestone.name}`} onClick={onDelete}>
+          {t('projectDetail.milestones.deleteMilestone', 'Delete phase')}
+        </Button>}
         <span className="text-[14px] font-bold tabular text-foreground">{pct(milestone.effective_pct)}</span>
         {canEdit && (
           <button
