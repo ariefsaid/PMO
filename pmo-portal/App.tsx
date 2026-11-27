@@ -73,7 +73,7 @@ import { buildSettingsPaletteItems } from '@/src/lib/orgSettingsPalette';
 import { contextualListReturnNavigation } from '@/src/lib/listReturnContext';
 import { useReturnNavigate } from '@/src/hooks/useListReturn';
 import { lazyWithPreload } from '@/src/lib/lazyWithPreload';
-import { i18next } from '@/src/lib/i18n';
+import { i18next, preloadNamespaces } from '@/src/lib/i18n';
 import { preloadMinutesEditor } from '@/src/components/meetings/minutesEditorChunk';
 import { PROJECT_TAB_CHUNKS, ProjectSCurve } from './pages/project-detail/lazyProjectChunks';
 // A2 (ADR-0040): AssistantPanel + provider + hotkey — flag-gated, absent when off.
@@ -300,12 +300,12 @@ const PRELOAD_RULES: PreloadRule[] = [
       chunks,
       namespaces: PROJECT_TAB_NAMESPACES[path.split('/').pop() ?? ''] ?? ['project'],
     })),
-  { path: '/projects/:projectId/overview', chunks: [ProjectDetail, ProjectSCurve], namespaces: ['project'] },
+  { path: '/projects/:projectId/overview', chunks: [ProjectDetail, ProjectSCurve], namespaces: ['project', 'projects', 'recordFolders', 'status', 'workOrderPva'] },
   { path: '/projects/:projectId/:tab', chunks: [ProjectDetail], namespaces: ['project', 'supplyRisk', 'workOrders', 'status'] },
-  { path: '/projects/:projectId', chunks: [ProjectDetail, ProjectSCurve], namespaces: ['project'] },
+  { path: '/projects/:projectId', chunks: [ProjectDetail, ProjectSCurve], namespaces: ['project', 'projects', 'recordFolders', 'status', 'workOrderPva'] },
   { path: '/sales', chunks: [SalesPipeline], namespaces: ['sales'] },
   // /sales/:id redirects to /projects/:projectId — start that download now.
-  { path: '/sales/:opportunityId', chunks: [ProjectDetail, ProjectSCurve], namespaces: ['project'] },
+  { path: '/sales/:opportunityId', chunks: [ProjectDetail, ProjectSCurve], namespaces: ['project', 'projects', 'recordFolders', 'status', 'workOrderPva'] },
   { path: '/procurement', chunks: [ProcurementPage], namespaces: ['procurement', 'procurementList'] },
   { path: '/procurement/new', chunks: [ProcurementCreate], namespaces: ['procurementCreate', 'purchaseTypes'] },
   { path: '/procurement/:procurementId/purchase-orders/:orderId/print', chunks: [PurchaseOrderPrintPage], namespaces: ['procurement'] },
@@ -459,7 +459,7 @@ export function namespacesForPath(pathname: string): readonly string[] {
 export function preloadForPath(pathname: string, context?: RouteDataContext): void {
   const rule = preloadRuleForPath(pathname);
   if (!rule) return;
-  if (rule.namespaces?.length) void i18next.loadNamespaces(rule.namespaces);
+  if (rule.namespaces?.length) void preloadNamespaces(rule.namespaces);
   for (const chunk of rule.chunks) void chunk.preload();
   if (context && rule.data) {
     const match = matchPath(rule.path, normalizePath(pathname));
@@ -989,7 +989,7 @@ export const ShellChrome: React.FC = () => {
   // Records only show while the user is searching, Navigate always shows.
   // AC-W3-N3: only modules visible to the real role are included (modulesForRole).
   const paletteItems = useMemo<PaletteItem[]>(
-    () => [
+    () => (!paletteOpen ? [] : [
       ...recordSearch.records,
       ...(realRole ? modulesForRoleWithOperator(realRole as UserRole, isOperator) : [])
         .filter((module) => !module.feature || (orgFeatures?.[module.feature] ?? FEATURE_ENV_DEFAULT[module.feature]) === true)
@@ -1020,8 +1020,8 @@ export const ShellChrome: React.FC = () => {
       ...(userViewsEntitled
         ? buildViewsPaletteItems(userViewsList, navigate)
         : []),
-    ],
-    [navigate, recordSearch.records, realRole, isOperator, needsOperatorRecovery, orgFeatures, t, userViewsList, userViewsEntitled]
+    ]),
+    [paletteOpen, navigate, recordSearch.records, realRole, isOperator, needsOperatorRecovery, orgFeatures, t, userViewsList, userViewsEntitled]
   );
 
   return (

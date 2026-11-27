@@ -33,6 +33,30 @@ export const DEFAULT_NS = 'common';
  */
 export const BOOT_NAMESPACES: readonly string[] = [DEFAULT_NS];
 
+/**
+ * Namespaces rendered by the authenticated shell chrome (`Rail`, `ContextBar`, `NotificationBell`,
+ * `PhoneNavBar`, `AccountMenu`). Requested in the same single boot wave as `common` and the
+ * destination route so mounted shell components do not trigger trailing waves.
+ */
+export const SHELL_NAMESPACES: readonly string[] = [
+  DEFAULT_NS,
+  'home',
+  'incidents',
+  'notifications',
+  'projects',
+  'equipment',
+  'safety',
+  'siteReport',
+  'crews',
+  'financeHub',
+  'finance',
+  'journals',
+  'imprest',
+  'materialRequests',
+  'workInHand',
+  'profilePreferences',
+];
+
 // Indonesian phrases whose English equivalent omits or paraphrases the term need an explicit number.
 const INDONESIAN_NUMBER_HINTS: Record<string, TermNumberHints> = {
   'common:uxs03.pmoPurchasing': { purchaseRequest: 'plural' },
@@ -212,6 +236,16 @@ export function createParseMissingKeyHandler(
     // 'Companies')`-through-a-bare-`useTranslation()` case, which is most of the app.)
     loadOnDemand(namespace);
     if (defaultValue != null && defaultValue !== '') return defaultValue;
+    // If the English fallback was deferred for a non-English boot and a genuinely missing key is
+    // rendered without a call-site default, pull the English fallback immediately.
+    if (
+      instance.isInitialized &&
+      instance.options?.fallbackLng === false &&
+      instance.language &&
+      instance.language !== FALLBACK_LOCALE
+    ) {
+      void loadEnglishFallback(instance);
+    }
     // ⚑ `getResource` does not exist on the instance until `init()` has run, and this handler CAN be
     // reached during boot — a component rendering a key before the first catalogue resolves. Calling
     // it unguarded throws a TypeError out of a render, turning a missing translation (a cosmetic
@@ -232,6 +266,140 @@ export function createParseMissingKeyHandler(
 export const parseMissingKeyHandler = createParseMissingKeyHandler(i18next);
 
 let initPromise: Promise<I18nInstance> | null = null;
+const queuedPreloadNamespaces = new Set<string>();
+const englishFallbackStarted = new WeakSet<I18nInstance>();
+const CATALOGUES_LOADED_EVENT = 'catalogues-loaded';
+const coalescedLoadedInstances = new WeakSet<I18nInstance>();
+
+// Any component rendering `useTranslation()` while `I18nProvider` waits for the profile's language
+// calls `i18next.getFixedT()` before `i18next.init()` has populated `options`. Ensure the standard
+// overload handler and `react.bindI18n` are present so pre-init `t(key, defaultValue, vars)` never
+// throws or drops interpolation vars, and components mounted pre-init still re-render once catalogues land.
+function ensurePreInitSafeOptions(instance: I18nInstance): void {
+  installCoalescedLoadedEvent(instance);
+  const opts = (instance.options ?? {}) as Record<string, unknown>;
+  if (typeof opts.overloadTranslationOptionHandler !== 'function') {
+    opts.overloadTranslationOptionHandler = (args: unknown[]) => {
+      let ret: Record<string, unknown> = {};
+      if (typeof args[1] === 'object' && args[1] !== null) ret = { ...(args[1] as Record<string, unknown>) };
+      if (typeof args[1] === 'string') ret.defaultValue = args[1];
+      if (typeof args[2] === 'string') ret.tDescription = args[2];
+      const extra = (typeof args[3] === 'object' && args[3] !== null)
+        ? (args[3] as Record<string, unknown>)
+        : (typeof args[2] === 'object' && args[2] !== null ? (args[2] as Record<string, unknown>) : null);
+      if (extra) Object.assign(ret, extra);
+      if (!instance.isInitialized && typeof ret.defaultValue === 'string') {
+        ret.defaultValue = ret.defaultValue.replace(/\{\{\s*([^}\s]+)\s*\}\}/g, (match, token: string) =>
+          ret[token] !== undefined && ret[token] !== null ? String(ret[token]) : match,
+        );
+      }
+      return ret;
+    };
+  }
+  const reactOpts = (opts.react ?? {}) as Record<string, unknown>;
+  opts.react = {
+    ...reactOpts,
+    useSuspense: false,
+    bindI18n: `languageChanged ${CATALOGUES_LOADED_EVENT}`,
+  };
+  instance.options = opts as I18nInstance['options'];
+}
+ensurePreInitSafeOptions(i18next);
+
+/**
+ * Queue route namespaces before `initI18n` runs (so cold boot never fetches catalogues before the
+ * profile's language is known) or load them immediately once i18next is initialized.
+ */
+export function preloadNamespaces(namespaces: readonly string[]): Promise<unknown> | void {
+  if (namespaces.length === 0) return;
+  if (!i18next.isInitialized) {
+    for (const ns of namespaces) queuedPreloadNamespaces.add(ns);
+    return;
+  }
+  return i18next.loadNamespaces(namespaces);
+}
+
+/**
+ * Enable and load the English fallback for a non-English session after first paint (or on demand
+ * if a key without a default string is missing). Idempotent per instance.
+ */
+export async function loadEnglishFallback(instance: I18nInstance = i18next): Promise<void> {
+  if (!instance.isInitialized || englishFallbackStarted.has(instance)) return;
+  englishFallbackStarted.add(instance);
+  instance.options.fallbackLng = FALLBACK_LOCALE;
+  try {
+    await instance.loadLanguages(FALLBACK_LOCALE);
+  } catch {
+    // A failed background fallback degrades to FR-L10N-041's default string; never throw.
+  }
+}
+
+/**
+ * Defer loading the English fallback for a non-English user until after first paint so it never
+ * competes with the active language's boot wave or delays first paint.
+ */
+export function scheduleEnglishFallback(instance: I18nInstance = i18next): () => void {
+  if (englishFallbackStarted.has(instance)) return () => {};
+  let cancelled = false;
+  let rafId: number | null = null;
+  let idleId: number | null = null;
+  let timerId: ReturnType<typeof setTimeout> | null = null;
+
+  const run = () => {
+    if (cancelled) return;
+    void loadEnglishFallback(instance);
+  };
+
+  const afterPaint = () => {
+    if (cancelled) return;
+    const win = typeof window !== 'undefined'
+      ? (window as unknown as {
+        requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
+        cancelIdleCallback?: (id: number) => void;
+      })
+      : undefined;
+    if (typeof win?.requestIdleCallback === 'function') {
+      idleId = win.requestIdleCallback(run, { timeout: 2000 });
+    } else {
+      timerId = setTimeout(run, 0);
+    }
+  };
+
+  if (typeof requestAnimationFrame === 'function') {
+    rafId = requestAnimationFrame(afterPaint);
+  } else {
+    timerId = setTimeout(run, 0);
+  }
+
+  return () => {
+    cancelled = true;
+    if (rafId !== null && typeof cancelAnimationFrame === 'function') cancelAnimationFrame(rafId);
+    const win = typeof window !== 'undefined'
+      ? (window as unknown as { cancelIdleCallback?: (id: number) => void })
+      : undefined;
+    if (idleId !== null && typeof win?.cancelIdleCallback === 'function') win.cancelIdleCallback(idleId);
+    if (timerId !== null) clearTimeout(timerId);
+  };
+}
+
+/** Test-only reset for isolated boot tests using a fresh mocked i18next instance. */
+export function resetI18nForTests(): void {
+  initPromise = null;
+  queuedPreloadNamespaces.clear();
+  englishFallbackStarted.delete(i18next);
+  const internal = i18next as unknown as {
+    isInitialized?: boolean;
+    language?: string;
+    languages?: string[];
+    services?: { resourceStore?: { data?: Record<string, unknown> }; backendConnector?: { state?: Record<string, unknown> } };
+  };
+  internal.isInitialized = false;
+  internal.language = undefined;
+  internal.languages = [];
+  if (internal.services?.resourceStore) internal.services.resourceStore.data = {};
+  if (internal.services?.backendConnector) internal.services.backendConnector.state = {};
+  ensurePreInitSafeOptions(i18next);
+}
 
 /**
  * Coalesce i18next's raw `loaded` event into one `catalogues-loaded` event per completed burst.
@@ -243,9 +411,6 @@ let initPromise: Promise<I18nInstance> | null = null;
  * empty intermediate emissions and coalescing non-empty completions per macrotask keeps on-demand
  * translations live while eliminating the main-thread stall.
  */
-const CATALOGUES_LOADED_EVENT = 'catalogues-loaded';
-const coalescedLoadedInstances = new WeakSet<I18nInstance>();
-
 function installCoalescedLoadedEvent(instance: I18nInstance): void {
   if (coalescedLoadedInstances.has(instance) || typeof instance.on !== 'function') return;
   coalescedLoadedInstances.add(instance);
@@ -271,17 +436,23 @@ function installCoalescedLoadedEvent(instance: I18nInstance): void {
 export function i18nInitOptions(
   locale: string = FALLBACK_LOCALE,
   instance: I18nInstance = i18next,
+  extraNamespaces: readonly string[] = [],
 ): Record<string, unknown> {
   installCoalescedLoadedEvent(instance);
   const bootLocale = locale && isUsableLocaleTag(locale) ? locale : FALLBACK_LOCALE;
+  const namespaces = [...new Set([...BOOT_NAMESPACES, ...extraNamespaces])];
   return {
     lng: bootLocale,
-    fallbackLng: FALLBACK_LOCALE,
+    // For a non-English boot, defer English fallback until after first paint so the first wave
+    // fetches only the user's resolved language (`scheduleEnglishFallback` restores `en`).
+    fallbackLng: bootLocale === FALLBACK_LOCALE ? FALLBACK_LOCALE : false,
     fallbackNS: DEFAULT_NS,
-    // #2097: the shell's catalogue only. Feature catalogues are fetched on demand (BOOT_NAMESPACES)
-    // — this list is what every cold load used to pay for, on every route.
-    ns: [...BOOT_NAMESPACES],
+    // #2097 + P3: boot with `common` plus the shell and destination route namespaces in one wave.
+    ns: namespaces,
     defaultNS: DEFAULT_NS,
+    // Allow all boot + shell + destination namespaces to dispatch in a single wave instead of
+    // i18next's default cap of 10 concurrent backend reads.
+    maxParallelReads: 32,
     // An empty translation is a MISSING one, not a deliberate blank — otherwise an untranslated
     // key in a partly-filled catalogue renders as nothing at all instead of falling back.
     returnEmptyString: false,
@@ -317,13 +488,18 @@ export function i18nInitOptions(
  * The instance is a singleton: a later call with a different locale does NOT re-init; it returns
  * the existing promise, and `I18nProvider` switches language on the live instance.
  */
-export function initI18n(locale: string = FALLBACK_LOCALE): Promise<I18nInstance> {
+export function initI18n(
+  locale: string = FALLBACK_LOCALE,
+  extraNamespaces: readonly string[] = [],
+): Promise<I18nInstance> {
   if (!initPromise) {
+    const merged = [...extraNamespaces, ...queuedPreloadNamespaces];
+    queuedPreloadNamespaces.clear();
     initPromise = i18next
       .use(catalogueBackend)
       .use(orgTermsPlugin)
       .use(initReactI18next)
-      .init(i18nInitOptions(locale))
+      .init(i18nInitOptions(locale, i18next, merged))
       .then(() => i18next);
   }
   return initPromise;

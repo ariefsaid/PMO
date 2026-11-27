@@ -18,6 +18,7 @@
 
 import type { Repositories } from './types';
 import { lazyRepository } from './lazyRepository';
+import { orgDefaultsRepository } from './orgDefaults';
 
 // BLOCK 2 (MONEY-CRITICAL): `newCommandIntent()` lives in ./commandIntent (a leaf module) and is
 // re-exported here so the public seam is unchanged — see that file for the full rationale.
@@ -176,6 +177,7 @@ export const repositories: Repositories = {
     { getOrgUsageSummary: true, getOperatorUsageSummary: true, listOperatorOrgs: true, getOrgAgentRunStats: true, getOperatorAgentRunStats: true }),
   orgFeature: lazyRepository(() => import('./admin').then((module) => module.orgFeatureRepository),
     { listOwn: true, listForOrg: true, listOverrides: true, getPlanCatalogue: true, getOrgPlan: true, getOwnPlan: true, toggle: true, clearOverride: true, setOrgPlan: true, setGlobal: true, setPlanFeature: true, setPlanLimits: true, setFeedbackSurveys: true, currentPlan: true }),
+  orgDefaults: orgDefaultsRepository,
   orgSettings: lazyRepository(() => import('./admin').then((module) => module.orgSettingsRepository),
     { getSetupWorkflowsEnabled: true, setSetupWorkflowsEnabled: true, getDefaultCurrency: true, getLocaleDefaults: true, getLifecycleState: true, getProjectNumberPattern: true, getProjectNumberTimezone: true, setProjectNumberPattern: true, getWithholdingAccounts: true, setWithholdingAccounts: true, getVendorTaxAccounts: true, setVendorTaxAccounts: true, getDownPaymentItem: true, getProcurementGates: true, setProcurementGates: true, setDownPaymentItem: true, getProjectClassificationOptions: true, setProjectClassificationOptions: true, getTaxDefault: true, setTaxDefault: true, getFiscalYearSetting: true, setFiscalYearStartMonth: true, listSpendApprovers: true, addSpendApprover: true, removeSpendApprover: true }),
   credits: lazyRepository(() => import('./admin').then((module) => module.creditsRepository),
@@ -242,6 +244,7 @@ export type {
   OperatorRepository,
   UsageRepository,
   OrgFeatureRepository,
+  OrgDefaultsRepository,
   OrgSettingsRepository,
   CreditsRepository,
   ExternalDomainOwnershipRepository,
