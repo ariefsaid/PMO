@@ -25,6 +25,25 @@ export const MAX_SECTION_LINES = 200;
 export const MAX_WORK_ORDER_CHUNK = 500;
 export const MAX_EVIDENCE_VALUE_BYTES = 4096;
 const EVIDENCE_TRUNCATION_MARKER = ' ...[truncated]';
+
+/** Column length & byte limits mirrored from migrations 0412, 1169, and 2790. */
+export const DB_LIMITS = Object.freeze({
+  section_code: 20,
+  section_name: 120,
+  owner_cost_code: 200,
+  item_code: 40,
+  item_name: 200,
+  unit_code: 20,
+  unit_name: 80,
+  category_code: 40,
+  category_name: 200,
+  owner_warehouse_code: 40,
+  owner_warehouse_name: 200,
+  reconciliation_step_name: 100,
+  source_key: 200,
+  entity_key: 500,
+  evidence_total_bytes: 32768,
+});
 export const DEFAULT_PYTHON_BIN = '/tmp/owner-material-loader-venv/bin/python';
 export const MATERIAL_LOAD_RPCS = Object.freeze([
   'om_material_config',
@@ -168,6 +187,8 @@ export function validateMapping(mapping) {
   }
   if (typeof mapping.source_key !== 'string' || !mapping.source_key.trim()) {
     problems.push('source_key must be a non-empty string');
+  } else if (mapping.source_key.trim().length > DB_LIMITS.source_key) {
+    problems.push(`source_key exceeds ${DB_LIMITS.source_key} characters (${mapping.source_key.trim().length})`);
   }
   if (
     typeof mapping.zero_cost_tag_name !== 'string' ||
@@ -207,9 +228,17 @@ export function validateMapping(mapping) {
       for (const [header, target] of Object.entries(mapping.owner_warehouses)) {
         if (typeof target === 'string') {
           if (!target.trim()) problems.push(`owner_warehouses['${header}'] must be non-empty`);
+          else if (target.trim().length > DB_LIMITS.owner_warehouse_code) {
+            problems.push(`owner_warehouses['${header}'] code exceeds ${DB_LIMITS.owner_warehouse_code} characters`);
+          }
         } else if (isPlainObject(target)) {
           if (typeof target.code !== 'string' || !target.code.trim()) {
             problems.push(`owner_warehouses['${header}'].code must be a non-empty string`);
+          } else if (target.code.trim().length > DB_LIMITS.owner_warehouse_code) {
+            problems.push(`owner_warehouses['${header}'].code exceeds ${DB_LIMITS.owner_warehouse_code} characters`);
+          }
+          if (typeof target.name === 'string' && target.name.trim().length > DB_LIMITS.owner_warehouse_name) {
+            problems.push(`owner_warehouses['${header}'].name exceeds ${DB_LIMITS.owner_warehouse_name} characters`);
           }
         } else {
           problems.push(`owner_warehouses['${header}'] must be a string code or {code, name}`);
@@ -222,6 +251,9 @@ export function validateMapping(mapping) {
       problems.push('units must be an object');
     } else {
       for (const [code, cfg] of Object.entries(mapping.units)) {
+        if (String(code).trim().length > DB_LIMITS.unit_code) {
+          problems.push(`units['${code}'] code exceeds ${DB_LIMITS.unit_code} characters`);
+        }
         if (!isPlainObject(cfg)) {
           problems.push(`units['${code}'] must be an object`);
           continue;
@@ -233,6 +265,8 @@ export function validateMapping(mapping) {
         }
         if (cfg.name !== undefined && (typeof cfg.name !== 'string' || !cfg.name.trim())) {
           problems.push(`units['${code}'].name must be a non-empty string`);
+        } else if (typeof cfg.name === 'string' && cfg.name.trim().length > DB_LIMITS.unit_name) {
+          problems.push(`units['${code}'].name exceeds ${DB_LIMITS.unit_name} characters`);
         }
         if (cfg.whole_only !== undefined && typeof cfg.whole_only !== 'boolean') {
           problems.push(`units['${code}'].whole_only must be a boolean`);
@@ -287,6 +321,21 @@ export function validateMapping(mapping) {
         if (cfg.as_of !== undefined && (typeof cfg.as_of !== 'string' || !ISO_DATE_RE.test(cfg.as_of))) {
           problems.push(`sheets['${sheetName}'].as_of must be YYYY-MM-DD`);
         }
+        if (cfg.section_code !== undefined) {
+          const sc = String(cfg.section_code).trim();
+          if (!sc || sc.length > DB_LIMITS.section_code) {
+            problems.push(`sheets['${sheetName}'].section_code must be 1..${DB_LIMITS.section_code} characters`);
+          }
+        }
+        if (cfg.location_name !== undefined && String(cfg.location_name).trim().length > DB_LIMITS.section_name) {
+          problems.push(`sheets['${sheetName}'].location_name exceeds ${DB_LIMITS.section_name} characters`);
+        }
+        if (cfg.owner_cost_code !== undefined && String(cfg.owner_cost_code).length > DB_LIMITS.owner_cost_code) {
+          problems.push(`sheets['${sheetName}'].owner_cost_code exceeds ${DB_LIMITS.owner_cost_code} characters`);
+        }
+        if (cfg.reconciliation_step !== undefined && String(cfg.reconciliation_step).trim().length > DB_LIMITS.reconciliation_step_name) {
+          problems.push(`sheets['${sheetName}'].reconciliation_step exceeds ${DB_LIMITS.reconciliation_step_name} characters`);
+        }
       }
     }
   }
@@ -304,6 +353,9 @@ export function validateMapping(mapping) {
         if (!isPlainObject(s) || typeof s.name !== 'string' || !s.name.trim()) {
           problems.push(`reconciliation_scale[${i}].name must be a non-empty string`);
           continue;
+        }
+        if (s.name.trim().length > DB_LIMITS.reconciliation_step_name) {
+          problems.push(`reconciliation_scale[${i}].name exceeds ${DB_LIMITS.reconciliation_step_name} characters`);
         }
         const key = s.name.trim().toLowerCase();
         if (seenNames.has(key)) problems.push(`reconciliation_scale duplicate step '${s.name}'`);
@@ -365,22 +417,27 @@ export function parseWorkbookWithPython(workbookPath, mappingPath, { pythonBin }
   });
 }
 
-/** Deterministic collision-checked section code from location name. */
+/**
+ * Deterministic collision-checked section code bounded to `DB_LIMITS.section_code` (20 chars)
+ * including any collision suffix, without altering `location_name` (migration 1169).
+ */
 export function deriveSectionCode(locationName, usedCodes) {
-  const base =
+  const maxLen = DB_LIMITS.section_code;
+  const rawBase =
     String(locationName || 'SECTION')
       .trim()
       .toUpperCase()
       .replace(/[^A-Z0-9]+/g, '_')
-      .replace(/^_+|_+$/g, '')
-      .slice(0, 28) || 'SECTION';
-  let candidate = base;
+      .replace(/^_+|_+$/g, '') || 'SECTION';
+  let candidate = rawBase.slice(0, maxLen).replace(/_+$/, '') || 'SECTION';
   let suffix = 2;
-  while (usedCodes.has(candidate)) {
-    candidate = `${base.slice(0, 24)}_${suffix}`;
+  while (usedCodes.has(candidate.toLowerCase())) {
+    const tag = `_${suffix}`;
+    const prefix = rawBase.slice(0, maxLen - tag.length).replace(/_+$/, '') || 'S';
+    candidate = `${prefix}${tag}`;
     suffix += 1;
   }
-  usedCodes.add(candidate);
+  usedCodes.add(candidate.toLowerCase());
   return candidate;
 }
 
@@ -861,7 +918,135 @@ export async function runMaterialLoad(opts, api) {
   const eligibleSections = [];
   const missingOrdersMap = new Map(); // owner_order_number -> { title, sheetCfg }
 
-  for (const sec of parsed.accepted_sections ?? []) {
+  for (const rawSec of parsed.accepted_sections ?? []) {
+    const secSheetCfg = mapping.sheets?.[rawSec.sheet] ?? mapping.sheets?.[rawSec.sheet.trim()] ?? {};
+    const orderKey = String(rawSec.owner_order_number ?? '').trim();
+    const locName = String(rawSec.location_name ?? '').trim();
+    const secLimitRefusals = [];
+
+    if (!locName || locName.length > DB_LIMITS.section_name) {
+      secLimitRefusals.push({
+        sheet: rawSec.sheet,
+        row: rawSec.header_row ?? 7,
+        column: 'A',
+        class: 'field_length_exceeded',
+        reason: `Section location_name length (${locName.length}) must be 1..${DB_LIMITS.section_name} characters.`,
+      });
+    }
+    if (rawSec.owner_cost_code && String(rawSec.owner_cost_code).length > DB_LIMITS.owner_cost_code) {
+      secLimitRefusals.push({
+        sheet: rawSec.sheet,
+        row: rawSec.header_row ?? 7,
+        column: 'A',
+        class: 'field_length_exceeded',
+        reason: `Section owner_cost_code length (${String(rawSec.owner_cost_code).length}) exceeds ${DB_LIMITS.owner_cost_code} characters.`,
+      });
+    }
+    if (rawSec.reconciliation_step && String(rawSec.reconciliation_step).trim().length > DB_LIMITS.reconciliation_step_name) {
+      secLimitRefusals.push({
+        sheet: rawSec.sheet,
+        row: rawSec.header_row ?? 7,
+        column: 'A',
+        class: 'field_length_exceeded',
+        reason: `Section reconciliation_step length (${String(rawSec.reconciliation_step).trim().length}) exceeds ${DB_LIMITS.reconciliation_step_name} characters.`,
+      });
+    }
+    if (secSheetCfg.section_code !== undefined) {
+      const explicitCode = String(secSheetCfg.section_code).trim();
+      if (!explicitCode || explicitCode.length > DB_LIMITS.section_code) {
+        secLimitRefusals.push({
+          sheet: rawSec.sheet,
+          row: rawSec.header_row ?? 7,
+          column: 'A',
+          class: 'field_length_exceeded',
+          reason: `Mapped section_code '${explicitCode}' length (${explicitCode.length}) must be 1..${DB_LIMITS.section_code} characters.`,
+        });
+      }
+    }
+    const secKeyPreview = `section:${sourceKey}:${orderKey}:${locName.toLowerCase()}`;
+    if (secKeyPreview.length > DB_LIMITS.entity_key) {
+      secLimitRefusals.push({
+        sheet: rawSec.sheet,
+        row: rawSec.header_row ?? 7,
+        column: 'A',
+        class: 'field_length_exceeded',
+        reason: `Section entity_key length (${secKeyPreview.length}) exceeds ${DB_LIMITS.entity_key} characters.`,
+      });
+    }
+    if (secLimitRefusals.length > 0) {
+      refusedSections.push({
+        sheet: rawSec.sheet,
+        owner_order_number: rawSec.owner_order_number,
+        location_name: rawSec.location_name,
+        refusals: secLimitRefusals,
+      });
+      continue;
+    }
+
+    // Line-level DB column length checks (skip over-limit lines rather than silently truncating)
+    const validLines = [];
+    const extraSkipped = [];
+    for (const line of rawSec.lines ?? []) {
+      const codeStr = String(line.item_code ?? '').trim();
+      const nameStr = String(line.item_name ?? '').trim();
+      const unitStr = String(line.unit ?? '').trim();
+      const catStr = line.category_code != null ? String(line.category_code).trim() : '';
+      const lineKey = `line:${sourceKey}:${orderKey}:${locName.toLowerCase()}:${codeStr}`;
+      const lineProblems = [];
+      if (codeStr.length > DB_LIMITS.item_code) {
+        lineProblems.push(`item_code length (${codeStr.length}) exceeds ${DB_LIMITS.item_code} characters`);
+      }
+      if (nameStr.length > DB_LIMITS.item_name) {
+        lineProblems.push(`item_name length (${nameStr.length}) exceeds ${DB_LIMITS.item_name} characters`);
+      }
+      if (unitStr.length > DB_LIMITS.unit_code) {
+        lineProblems.push(`unit code length (${unitStr.length}) exceeds ${DB_LIMITS.unit_code} characters`);
+      }
+      if (catStr.length > DB_LIMITS.category_code) {
+        lineProblems.push(`category_code length (${catStr.length}) exceeds ${DB_LIMITS.category_code} characters`);
+      }
+      if (lineKey.length > DB_LIMITS.entity_key) {
+        lineProblems.push(`line entity_key length (${lineKey.length}) exceeds ${DB_LIMITS.entity_key} characters`);
+      }
+      const { evidence: flatEv } = flattenEvidence(line.evidence);
+      const evBytes = Buffer.byteLength(JSON.stringify(flatEv), 'utf8');
+      if (evBytes > DB_LIMITS.evidence_total_bytes) {
+        lineProblems.push(`serialized evidence size (${evBytes} bytes) exceeds ${DB_LIMITS.evidence_total_bytes} bytes`);
+      }
+      if (lineProblems.length > 0) {
+        extraSkipped.push({
+          sheet: rawSec.sheet,
+          row: line.row,
+          column: 'B',
+          item_code: codeStr,
+          class: 'field_length_exceeded',
+          reason: lineProblems.join('; '),
+        });
+      } else {
+        validLines.push(line);
+      }
+    }
+
+    if (validLines.length === 0 && extraSkipped.length > 0) {
+      refusedSections.push({
+        sheet: rawSec.sheet,
+        owner_order_number: rawSec.owner_order_number,
+        location_name: rawSec.location_name,
+        refusals: [...(rawSec.skipped_lines ?? []), ...extraSkipped],
+      });
+      continue;
+    }
+
+    const sec =
+      extraSkipped.length > 0
+        ? {
+            ...rawSec,
+            partial: true,
+            lines: validLines,
+            skipped_lines: [...(rawSec.skipped_lines ?? []), ...extraSkipped],
+          }
+        : rawSec;
+
     if ((sec.lines ?? []).length > MAX_SECTION_LINES) {
       refusedSections.push({
         sheet: sec.sheet,
@@ -1030,7 +1215,7 @@ export async function runMaterialLoad(opts, api) {
       }
       const sheetCfg = mapping.sheets?.[sec.sheet] ?? mapping.sheets?.[sec.sheet.trim()] ?? {};
       const sectionCode = sheetCfg.section_code ? String(sheetCfg.section_code).trim() : deriveSectionCode(sec.location_name, used);
-      used.add(sectionCode);
+      used.add(sectionCode.toLowerCase());
 
       const entity = buildSectionEntity(sec, sourceKey, sectionCode, truncatedEvidence);
       const sectionDeps = buildSectionCatalogueDependencies(sec, catalogueByKey);

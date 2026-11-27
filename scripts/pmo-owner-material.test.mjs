@@ -14,11 +14,13 @@ import path from 'node:path';
 import test from 'node:test';
 
 import {
+  DB_LIMITS,
   MATERIAL_LOAD_RPCS,
   MATERIAL_SCHEMA_VERSION,
   MaterialLoadError,
   MaterialOutcomeUnknown,
   buildSectionEntity,
+  deriveSectionCode,
   runMaterialLoad,
   validateMapping,
 } from './lib/pmo-owner-material.mjs';
@@ -809,6 +811,94 @@ test('AC-002 (v2.3): evidence values are flattened to scalar strings <= 4KB with
   assert.equal(res.report.closed_work_order_refusals[0].reason_code, 'material-conflict');
   assert.match(res.report.closed_work_order_refusals[0].reason, /Completed/);
   assert.equal(res.report.counts.server_refused, 0);
+});
+
+test('AC-001: deriveSectionCode bounds complete generated code (with collision suffixes) to 20 chars without altering location_name', () => {
+  const used = new Set();
+  const longName = 'Very_Long_Location_Name_Exceeding_Twenty_Characters_2026';
+  const codes = [];
+  for (let i = 0; i < 12; i += 1) {
+    codes.push(deriveSectionCode(longName, used));
+  }
+  assert.equal(new Set(codes.map((c) => c.toLowerCase())).size, 12, 'all 12 codes must be unique');
+  for (const code of codes) {
+    assert.ok(code.length >= 1 && code.length <= DB_LIMITS.section_code, `code '${code}' exceeds ${DB_LIMITS.section_code} chars`);
+  }
+  assert.equal(codes[0], 'VERY_LONG_LOCATION_N');
+  assert.equal(codes[1], 'VERY_LONG_LOCATION_2');
+  assert.equal(codes[9], 'VERY_LONG_LOCATIO_10');
+
+  // Re-running with fresh set is deterministic
+  const used2 = new Set();
+  assert.equal(deriveSectionCode(longName, used2), codes[0]);
+  assert.equal(deriveSectionCode(longName, used2), codes[1]);
+});
+
+test('AC-002: loader refuses over-limit mapping, section, and line fields instead of silently truncating', async () => {
+  // 1. Mapping limits
+  const mapProblems = validateMapping(
+    baseMapping({
+      source_key: 'K'.repeat(201),
+      owner_warehouses: { WH: { code: 'W'.repeat(41), name: 'N'.repeat(201) } },
+      units: { ['U'.repeat(21)]: { name: 'U'.repeat(81), whole_only: false } },
+      reconciliation_scale: [{ name: 'S'.repeat(101), position: 1, percentage: 100 }],
+      sheets: { LOC_ONE: { section_code: 'C'.repeat(21), location_name: 'L'.repeat(121), owner_cost_code: 'O'.repeat(201) } },
+    }),
+  );
+  for (const needle of ['source_key', 'owner_warehouses', 'units', 'reconciliation_scale', 'section_code', 'location_name', 'owner_cost_code']) {
+    assert.ok(mapProblems.some((p) => p.includes(needle)), `expected mapping problem mentioning ${needle}`);
+  }
+
+  // 2. Section-level & line-level limits in runMaterialLoad
+  const transport = makeFakeTransport({
+    workOrders: [{ id: 'wo-1', wo_number: 'WO-SYN-100', client_po_number: null, title: 'Existing', status: 'Issued' }],
+  });
+  const base = sampleParsed();
+  const longSectionName = {
+    ...base.accepted_sections[0],
+    sheet: 'SEC_LONG_NAME',
+    location_name: 'L'.repeat(121),
+  };
+  const badLineSection = {
+    ...base.accepted_sections[0],
+    sheet: 'SEC_MIXED_LINES',
+    location_name: 'Very_Long_Location_Name_Exceeding_Twenty_Characters_2026',
+    lines: [
+      base.accepted_sections[0].lines[0],
+      { ...base.accepted_sections[0].lines[0], row: 9, item_code: 'I'.repeat(41) },
+      { ...base.accepted_sections[0].lines[0], row: 10, item_code: '001099', item_name: 'N'.repeat(201) },
+      { ...base.accepted_sections[0].lines[0], row: 11, item_code: '001098', unit: 'U'.repeat(21) },
+      { ...base.accepted_sections[0].lines[0], row: 12, item_code: '001097', category_code: 'C'.repeat(41) },
+    ],
+  };
+
+  const res = await runMaterialLoad(
+    {
+      workbookPath: '/fake/wb.xlsx',
+      mappingPath: '/fake/map.json',
+      mapping: baseMapping(),
+      projectId: PROJECT_ID,
+      confirm: false,
+      parseWorkbook: async () => sampleParsed({ accepted_sections: [longSectionName, badLineSection] }),
+    },
+    transport,
+  );
+
+  assert.equal(res.exit, 1);
+  assert.equal(res.report.refused_sections.length, 1);
+  assert.equal(res.report.refused_sections[0].sheet, 'SEC_LONG_NAME');
+  assert.equal(res.report.refused_sections[0].refusals[0].class, 'field_length_exceeded');
+
+  assert.equal(res.report.partial_sections.length, 1);
+  assert.equal(res.report.partial_sections[0].sheet, 'SEC_MIXED_LINES');
+  assert.equal(res.report.partial_sections[0].accepted_line_count, 1);
+  assert.equal(res.report.partial_sections[0].skipped_lines.length, 4);
+  assert.ok(res.report.partial_sections[0].skipped_lines.every((s) => s.class === 'field_length_exceeded'));
+
+  // Sent section keeps full location_name while generated section_code is <= 20 chars
+  const secCall = transport.calls.find((c) => c.name === 'om_material_import' && c.body.p_payload.kind === 'section');
+  assert.equal(secCall.body.p_payload.entities[0].location_name, 'Very_Long_Location_Name_Exceeding_Twenty_Characters_2026');
+  assert.ok(secCall.body.p_payload.entities[0].section_code.length <= 20);
 });
 
 test('AC-001: CLI `pmo material load` wires ordinary session, Admin check, preview default, and never prints tokens', async () => {
