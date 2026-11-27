@@ -4,6 +4,7 @@ drop trigger owner_material_movement_parent on public.owner_material_movement_li
 drop function public.om_material_seed_scale();
 drop function public.om_material_check_parent();
 drop function public.om_material_import(text,integer,jsonb,boolean);
+drop function public.om_material_catalogue_entity(jsonb);
 drop function public.om_material_set_scale(jsonb);
 drop function public.om_material_set_reconciliation(uuid,uuid,text);
 drop function public.om_material_section_rollup(uuid);

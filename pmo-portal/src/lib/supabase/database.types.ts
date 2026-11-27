@@ -40271,6 +40271,7 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      om_material_catalogue_entity: { Args: { p_entity: Json }; Returns: Json }
       om_material_config: { Args: never; Returns: Json }
       om_material_import: {
         Args: {

@@ -1,5 +1,6 @@
 {
   "definer_functions": [
+    "om_material_catalogue_entity(jsonb)",
     "om_material_import(text,integer,jsonb,boolean)",
     "om_material_set_reconciliation(uuid,uuid,text)",
     "om_material_set_scale(jsonb)"

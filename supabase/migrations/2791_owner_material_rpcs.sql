@@ -213,6 +213,78 @@ revoke all on function public.om_material_section_rollup(uuid) from public,anon,
 grant execute on function public.om_material_section_rollup(uuid) to authenticated;
 
 -- No client flag confers the allocation exception: only this function owns the witness.
+create function public.om_material_catalogue_entity(p_entity jsonb) returns jsonb
+language plpgsql volatile security definer set search_path=public,pg_temp as $$
+declare v_org uuid:=public.auth_org_id();v_kind text:=p_entity->>'type';v_code text;v_name text;v_unit uuid;v_tag uuid;v_id uuid;
+ v_item public.stock_items;v_existing_unit text;v_field text:='entity_key';v_value text:=p_entity->>'entity_key';v_rule text:='Invalid catalogue identity';
+ v_status text:='create';v_note text;v_ids jsonb:='{}';v_error text;v_mismatch boolean:=false;
+begin
+ perform public.assert_is_active_member();perform public.assert_not_light();
+ if public.auth_role() is distinct from 'Admin' then raise exception 'Admin required' using errcode='42501';end if;
+ begin
+ if length(coalesce(p_entity->>'entity_key','')) not between 1 and 500 or length(coalesce(p_entity->>'hash','')) not between 1 and 200 then
+ raise exception using detail='material-invalid';end if;
+ v_code:=btrim(p_entity->>'code');v_name:=btrim(p_entity->>'name');v_field:='code';v_value:=v_code;v_rule:='Code must be nonempty and within its column limit';
+ if coalesce(v_code,'')='' or length(v_code)>(case when v_kind='unit' then 20 else 40 end) then raise exception using detail='material-invalid';end if;
+ v_field:='name';v_value:=v_name;v_rule:='Name must be nonempty and within its column limit';
+ if v_kind<>'item' and (coalesce(v_name,'')='' or length(v_name)>(case when v_kind='unit' then 80 else 200 end)) then raise exception using detail='material-invalid';end if;
+ if v_kind='unit' then
+ v_code:=upper(v_code);v_field:='whole_only';v_value:=p_entity->>'whole_only';v_rule:='Unit whole_only must be boolean';
+ if jsonb_typeof(p_entity->'whole_only') is distinct from 'boolean' then raise exception using detail='material-invalid';end if;
+ v_field:='code';v_value:=v_code;v_rule:='Unit code must match one live unit';
+ if (select count(*) from public.stock_units u where u.org_id=v_org and upper(btrim(u.code))=v_code)>1 then raise exception using detail='material-conflict';end if;
+ select u.id into v_id from public.stock_units u where u.org_id=v_org and upper(btrim(u.code))=v_code and u.archived_at is null;
+ if v_id is null then insert into public.stock_units(org_id,code,name,whole_only) values(v_org,v_code,v_name,(p_entity->>'whole_only')::boolean) returning id into v_id;
+ else v_status:='skip';end if;
+ v_ids:=jsonb_build_object('unit_id',v_id);
+ elsif v_kind in ('category','owner_warehouse') then
+ v_field:='code';v_value:=v_code;v_rule:='Catalogue code must retain its existing name';
+ if v_kind='category' then
+ select c.id into v_id from public.stock_material_categories c where c.org_id=v_org and c.code=v_code and c.archived_at is null;
+ if v_id is null then insert into public.stock_material_categories(org_id,code,name) values(v_org,v_code,v_name) returning id into v_id;
+ elsif not exists(select 1 from public.stock_material_categories c where c.id=v_id and c.name=v_name) then raise exception using detail='material-conflict';else v_status:='skip';end if;
+ v_ids:=jsonb_build_object('category_id',v_id);
+ else
+ select c.id into v_id from public.owner_material_warehouses c where c.org_id=v_org and c.code=v_code and c.archived_at is null;
+ if v_id is null then insert into public.owner_material_warehouses(org_id,code,name) values(v_org,v_code,v_name) returning id into v_id;
+ elsif not exists(select 1 from public.owner_material_warehouses c where c.id=v_id and c.name=v_name) then raise exception using detail='material-conflict';else v_status:='skip';end if;
+ v_ids:=jsonb_build_object('owner_warehouse_id',v_id);
+ end if;
+ elsif v_kind='item' then
+ v_field:='code';v_value:=v_code;v_rule:='Item code must match one live item';
+ if (select count(*) from public.stock_items i where i.org_id=v_org and btrim(i.code)=v_code)>1 then raise exception using detail='material-conflict';end if;
+ select * into v_item from public.stock_items i where i.org_id=v_org and btrim(i.code)=v_code;
+ if v_item.archived_at is not null then raise exception using detail='material-conflict';end if;
+ v_field:='unit';v_value:=btrim(p_entity->>'unit');v_rule:='Unit must exist as a live organisation unit';
+ if v_item.id is not null then
+ select upper(btrim(u.code)) into v_existing_unit from public.stock_units u where u.id=v_item.unit_id and u.org_id=v_org;
+ if upper(v_value) is distinct from v_existing_unit then v_mismatch:=true;v_rule:='Unit differs from the existing item unit '||quote_literal(v_existing_unit);raise exception using detail='material-conflict';end if;
+ end if;
+ if (select count(*) from public.stock_units u where u.org_id=v_org and upper(btrim(u.code))=upper(v_value) and u.archived_at is null)<>1 then raise exception using detail='material-invalid';end if;
+ select u.id into v_unit from public.stock_units u where u.org_id=v_org and upper(btrim(u.code))=upper(v_value) and u.archived_at is null;
+ v_field:='zero_cost_tag_id';v_value:=p_entity->>'zero_cost_tag_id';v_rule:='Tag must be a live zero-cost tag of the organisation';
+ v_tag:=(p_entity->>'zero_cost_tag_id')::uuid;
+ if not exists(select 1 from public.stock_tags t where t.id=v_tag and t.org_id=v_org and t.zero_cost and t.archived_at is null) then raise exception using detail='material-invalid';end if;
+ if v_item.id is null then
+ v_field:='name';v_value:=v_name;v_rule:='New item name must be nonempty and at most 200 characters';
+ if coalesce(v_name,'')='' or length(v_name)>200 then raise exception using detail='material-invalid';end if;
+ insert into public.stock_items(org_id,code,name,unit_id,tag_id) values(v_org,v_code,v_name,v_unit,v_tag) returning * into v_item;
+ else
+ v_status:='skip';
+ if v_item.name is distinct from v_name then v_note:='Existing name retained for code='||to_jsonb(v_code)::text;end if;
+ end if;
+ v_ids:=jsonb_build_object('item_id',v_item.id);
+ else v_field:='type';v_value:=v_kind;v_rule:='Unknown catalogue type';raise exception using detail='material-invalid';end if;
+ return jsonb_build_object('entity_key',p_entity->>'entity_key','status',v_status,'ids',v_ids,'reason_code',null,'reason',null,'note',v_note);
+ exception when others then
+ get stacked diagnostics v_error=PG_EXCEPTION_DETAIL;
+ if coalesce(v_error,'') not in ('material-invalid','material-conflict') then v_error:='material-invalid';end if;
+ return jsonb_build_object('entity_key',p_entity->>'entity_key','status','refused','ids','{}'::jsonb,'reason_code',v_error,
+ 'reason',left(v_rule,160)||': '||v_field||'='||coalesce(to_jsonb(left(v_value,120))::text,'null'),'_unit_mismatch',v_mismatch);
+ end;
+end $$;
+revoke all on function public.om_material_catalogue_entity(jsonb) from public,anon,authenticated,service_role;
+
 create function public.om_material_import(p_source_key text,p_schema_version integer,p_payload jsonb,p_confirm boolean default false)
 returns jsonb language plpgsql volatile security definer set search_path=public,pg_temp as $$
 declare
@@ -222,6 +294,7 @@ declare
  v_item public.stock_items;v_category uuid;v_id uuid;v_unit uuid;v_tag uuid;v_type text;v_status text;
  v_hash text;v_old_hash text;v_old_ids jsonb;v_before jsonb;v_after jsonb;v_quantity numeric;v_q numeric;
  v_requested numeric;v_reserved numeric;v_received numeric;v_issued numeric;v_returned numeric;v_in numeric;v_out numeric;v_owner numeric;
+ v_complete boolean:=true;v_partial boolean:=false;v_dependency jsonb;v_scale jsonb;v_expected_scale jsonb;v_section_note text;v_reason_override text;v_field text:='entities';v_value text;v_rule text:='Invalid material import';
  v_closing numeric;v_flag boolean;v_asof date;v_count integer;v_key text;v_code text;v_name text;v_err text;v_message text;
 begin
  perform public.assert_is_active_member();perform public.assert_not_light();
@@ -242,7 +315,7 @@ begin
  -- Locks outside the preview subtransaction are retained through the validation decision.
  if p_payload->>'kind'='section' then
  perform pg_advisory_xact_lock(hashtextextended('om-order:'||v_project::text||':'||btrim(p_payload->'entities'->0->>'owner_order_number'),0));
- if nullif(p_payload->'entities'->0->>'reconciliation_step','') is not null then
+ if nullif(p_payload->'entities'->0->>'reconciliation_step','') is not null or p_payload ? 'reconciliation_scale' then
  perform pg_advisory_xact_lock(hashtextextended('om-scale:'||v_org::text,0));end if;
  end if;
  begin
@@ -252,92 +325,127 @@ begin
  values(v_org,p_source_key,p_schema_version,v_uid,p_payload->>'source_digest') returning id into v_batch;
  end if;
  insert into public.owner_material_import_witness values(txid_current(),pg_backend_pid(),v_org,v_uid,v_batch);
- for v_entity in select e from jsonb_array_elements(p_payload->'entities') e order by e->>'entity_key' loop
- v_key:=v_entity->>'entity_key';v_hash:=v_entity->>'hash';
+ if p_payload->>'kind'='section' then
+ v_field:='catalogue_entities';v_value:=coalesce(jsonb_typeof(p_payload->'catalogue_entities'),'null');v_rule:='Projected catalogue must be an array of at most 500 entries';
+ if p_payload ? 'catalogue_entities' and (jsonb_typeof(p_payload->'catalogue_entities') is distinct from 'array' or jsonb_array_length(p_payload->'catalogue_entities')>500) then raise exception using detail='material-invalid';end if;
+ for v_dependency in select e from jsonb_array_elements(coalesce(p_payload->'catalogue_entities','[]')) e
+ order by case when e->>'type'='unit' then 0 else 1 end,e->>'entity_key' loop
+ v_result:=public.om_material_catalogue_entity(v_dependency);
+ if v_result->>'status'='refused' and not coalesce((v_result->>'_unit_mismatch')::boolean,false) then
+ v_key:=v_result->>'entity_key';v_reason_override:=v_result->>'reason';
+ raise exception using detail=v_result->>'reason_code';end if;
+ end loop;
+ if p_payload ? 'reconciliation_scale' then
+ v_field:='reconciliation_scale';v_value:=(p_payload->'reconciliation_scale')::text;v_rule:='Projected scale must match confirmed configuration';
+ if not p_confirm then perform public.om_material_set_scale(p_payload->'reconciliation_scale');
+ else
+ select jsonb_agg(jsonb_build_object('name',name,'position',position,'percentage',percentage) order by position) into v_scale
+ from public.owner_material_reconciliation_steps where org_id=v_org and archived_at is null;
+ select jsonb_agg(jsonb_build_object('name',btrim(e->>'name'),'position',(e->>'position')::integer,'percentage',(e->>'percentage')::numeric) order by (e->>'position')::integer)
+ into v_expected_scale from jsonb_array_elements(p_payload->'reconciliation_scale') e;
+ if v_scale is distinct from v_expected_scale then raise exception using detail='material-conflict';end if;
+ end if;
+ end if;
+ end if;
+ for v_entity in select e from jsonb_array_elements(p_payload->'entities') e order by case when e->>'type'='unit' then 0 else 1 end,e->>'entity_key' loop
+ v_key:=v_entity->>'entity_key';v_hash:=v_entity->>'hash';v_field:='entity_key';v_value:=v_key;v_rule:='Entity key and hash must identify the imported row';
  if length(coalesce(v_key,'')) not between 1 and 500 or length(coalesce(v_hash,'')) not between 1 and 200 then
  raise exception 'Entity identity required' using errcode='P0001',detail='material-invalid';end if;
  select r.payload_hash,r.result_ids into v_old_hash,v_old_ids from public.owner_material_import_rows r where r.batch_id=v_batch and r.entity_key=v_key;
- if v_old_hash=v_hash then
+ if v_old_hash=v_hash and p_payload->>'kind'='section' then
  v_results:=v_results||jsonb_build_array(jsonb_build_object('entity_key',v_key,'status','skip','ids',v_old_ids));continue;
  end if;
  v_status:=case when v_old_hash is null then 'create' else 'update' end;
  if p_payload->>'kind'='catalogue' then
- v_type:=v_entity->>'type';v_code:=btrim(v_entity->>'code');v_name:=btrim(v_entity->>'name');
- if coalesce(v_code,'')='' or coalesce(v_name,'')='' then raise exception 'Code and name required' using detail='material-invalid';end if;
- if v_type='category' then
- select c.id into v_id from public.stock_material_categories c where c.org_id=v_org and c.code=v_code and c.archived_at is null;
- if v_id is null then insert into public.stock_material_categories(org_id,code,name) values(v_org,v_code,v_name) returning id into v_id;
- elsif not exists(select 1 from public.stock_material_categories c where c.id=v_id and c.name=v_name) then raise exception 'Catalogue conflict' using detail='material-conflict';end if;
- v_ids:=jsonb_build_object('category_id',v_id);
- elsif v_type='owner_warehouse' then
- select c.id into v_id from public.owner_material_warehouses c where c.org_id=v_org and c.code=v_code and c.archived_at is null;
- if v_id is null then insert into public.owner_material_warehouses(org_id,code,name) values(v_org,v_code,v_name) returning id into v_id;
- elsif not exists(select 1 from public.owner_material_warehouses c where c.id=v_id and c.name=v_name) then raise exception 'Catalogue conflict' using detail='material-conflict';end if;
- v_ids:=jsonb_build_object('owner_warehouse_id',v_id);
- elsif v_type='item' then
- select u.id into v_unit from public.stock_units u where u.org_id=v_org and u.code=btrim(v_entity->>'unit') and u.archived_at is null;
- v_tag:=(v_entity->>'zero_cost_tag_id')::uuid;
- if v_unit is null or not exists(select 1 from public.stock_tags t where t.id=v_tag and t.org_id=v_org and t.zero_cost and t.archived_at is null) then
- raise exception 'Existing unit and zero-cost tag required' using detail='material-invalid';end if;
- select * into v_item from public.stock_items i where i.org_id=v_org and btrim(i.code)=v_code;
- if v_item.id is null then
- insert into public.stock_items(org_id,code,name,unit_id,tag_id) values(v_org,v_code,v_name,v_unit,v_tag) returning * into v_item;
- elsif v_item.name<>v_name or v_item.unit_id<>v_unit or v_item.tag_id is distinct from v_tag or v_item.archived_at is not null then
- raise exception 'Item conflicts with existing catalogue' using detail='material-conflict';end if;
- v_ids:=jsonb_build_object('item_id',v_item.id);
- else raise exception 'Unknown catalogue type' using detail='material-invalid';end if;
- v_results:=v_results||jsonb_build_array(jsonb_build_object('entity_key',v_key,'status',v_status,'ids',v_ids));
+ v_result:=public.om_material_catalogue_entity(v_entity);
+ v_results:=v_results||jsonb_build_array(v_result-'_unit_mismatch');
+ if v_result->>'status'='refused' then v_complete:=false;continue;end if;
+ v_ids:=v_result->'ids';
  else
+ v_field:='as_of';v_value:=v_entity->>'as_of';v_rule:='Section requires an ISO as_of date, 1 to 200 lines and a supported closing policy';v_partial:=false;v_section_note:=null;
  if jsonb_typeof(v_entity->'lines') is distinct from 'array' or jsonb_array_length(v_entity->'lines') not between 1 and 200
  or v_entity->>'as_of' is null or v_entity->>'as_of' !~ '^\d{4}-\d{2}-\d{2}$'
  or coalesce(v_entity->>'closing_conflict','refuse') not in ('refuse','movements_win') then
  raise exception 'Invalid section' using detail='material-invalid';end if;
  v_asof:=(v_entity->>'as_of')::date;
+ v_field:='owner_order_number';v_value:=v_entity->>'owner_order_number';v_rule:='Work order must already exist and match exactly one order';
  select count(*) into v_count from public.work_orders w where w.org_id=v_org and w.project_id=v_project and
  (btrim(w.wo_number)=btrim(v_entity->>'owner_order_number') or btrim(w.client_po_number)=btrim(v_entity->>'owner_order_number'));
  if v_count=0 then raise exception 'Work order must exist before material import' using detail='material-work-order-missing';end if;
  if v_count<>1 then raise exception 'Ambiguous work order' using detail='material-conflict';end if;
  select * into v_wo from public.work_orders w where w.org_id=v_org and w.project_id=v_project and
  (btrim(w.wo_number)=btrim(v_entity->>'owner_order_number') or btrim(w.client_po_number)=btrim(v_entity->>'owner_order_number')) for update;
+ v_field:='status';v_value:=v_wo.status::text;v_rule:='Work order state does not allow material import';
  if v_wo.status not in ('Draft','Issued') then raise exception 'Work order is frozen' using detail='material-conflict';end if;
+ v_field:='location_name';v_value:=v_entity->>'location_name';v_rule:='Location must match one live section';
  select count(*) into v_count from public.work_order_sections s where s.work_order_id=v_wo.id and lower(btrim(s.name))=lower(btrim(v_entity->>'location_name'));
  if v_count>1 then raise exception 'Ambiguous section' using detail='material-conflict';end if;
  select * into v_section from public.work_order_sections s where s.work_order_id=v_wo.id and lower(btrim(s.name))=lower(btrim(v_entity->>'location_name')) for update;
  if v_section.id is null then
+ v_field:='section_code';v_value:=v_entity->>'section_code';v_rule:='Section code must contain 1 to 20 trimmed characters';
+ if length(coalesce(btrim(v_value),'')) not between 1 and 20 then raise exception using detail='material-invalid';end if;
+ v_field:='location_name';v_value:=v_entity->>'location_name';v_rule:='Section name must contain 1 to 120 trimmed characters';
+ if length(coalesce(btrim(v_value),'')) not between 1 and 120 then raise exception using detail='material-invalid';end if;
+ v_field:='owner_cost_code';v_value:=v_entity->>'owner_cost_code';v_rule:='Owner cost code must be at most 200 characters';
+ if length(v_value)>200 then raise exception using detail='material-invalid';end if;
  insert into public.work_order_sections(org_id,project_id,work_order_id,code,name,owner_cost_code)
  values(v_org,v_project,v_wo.id,v_entity->>'section_code',btrim(v_entity->>'location_name'),v_entity->>'owner_cost_code') returning * into v_section;
  elsif v_section.archived_at is not null then raise exception 'Section is archived' using detail='material-conflict';
- else update public.work_order_sections set owner_cost_code=v_entity->>'owner_cost_code' where id=v_section.id;end if;
- if (select count(distinct e->>'item_code') from jsonb_array_elements(v_entity->'lines') e)<>jsonb_array_length(v_entity->'lines')
+ else
+ if nullif(btrim(v_section.owner_cost_code),'') is null then
+ v_field:='owner_cost_code';v_value:=v_entity->>'owner_cost_code';v_rule:='Owner cost code must be at most 200 characters';
+ if length(v_value)>200 then raise exception using detail='material-invalid';end if;
+ update public.work_order_sections set owner_cost_code=v_entity->>'owner_cost_code' where id=v_section.id;
+ elsif nullif(btrim(v_entity->>'owner_cost_code'),'') is not null and v_section.owner_cost_code is distinct from v_entity->>'owner_cost_code' then
+ v_section_note:='Existing owner_cost_code retained: owner_cost_code='||to_jsonb(left(v_section.owner_cost_code,120))::text;end if;end if;
+ v_rule:='Each material code and line identity must occur once';v_field:='lines';v_value:='duplicate identity';
+ if (select count(distinct btrim(e->>'item_code')) from jsonb_array_elements(v_entity->'lines') e)<>jsonb_array_length(v_entity->'lines')
  or (select count(distinct e->>'entity_key') from jsonb_array_elements(v_entity->'lines') e)<>jsonb_array_length(v_entity->'lines') then
  raise exception 'Repeated material identity' using detail='material-conflict';end if;
  for v_line in select l from jsonb_array_elements(v_entity->'lines') l order by l->>'entity_key' loop
- if length(coalesce(v_line->>'entity_key','')) not between 1 and 500 or length(coalesce(v_line->>'hash','')) not between 1 and 200
- or jsonb_typeof(v_line->'opening') is distinct from 'object' or jsonb_typeof(v_line->'evidence') is distinct from 'object'
- or octet_length((v_line->'evidence')::text)>32768 then raise exception 'Invalid line identity or evidence' using detail='material-invalid';end if;
- select * into v_item from public.stock_items i where i.org_id=v_org and i.code=btrim(v_line->>'item_code') and i.archived_at is null;
- if v_item.id is null or not exists(select 1 from public.stock_units u where u.id=v_item.unit_id and u.org_id=v_org and u.code=btrim(v_line->>'unit'))
- or not exists(select 1 from public.stock_tags t where t.id=v_item.tag_id and t.org_id=v_org and t.zero_cost) then
- raise exception 'Item or unit unavailable' using detail='material-invalid';end if;
+ v_field:='entity_key';v_value:=v_line->>'entity_key';v_rule:='Line entity key must contain 1 to 500 characters';
+ if length(coalesce(v_value,'')) not between 1 and 500 then raise exception using detail='material-invalid';end if;
+ v_field:='hash';v_value:=v_line->>'hash';v_rule:='Line hash must contain 1 to 200 characters';
+ if length(coalesce(v_value,'')) not between 1 and 200 then raise exception using detail='material-invalid';end if;
+ v_field:='opening';v_value:=(v_line->'opening')::text;v_rule:='Opening must be an object';
+ if jsonb_typeof(v_line->'opening') is distinct from 'object' then raise exception using detail='material-invalid';end if;
+ v_field:='evidence';v_value:=(v_line->'evidence')::text;v_rule:='Evidence must be an object of at most 32768 bytes';
+ if jsonb_typeof(v_line->'evidence') is distinct from 'object' or octet_length(v_value)>32768 then raise exception using detail='material-invalid';end if;
+ v_field:='item_code';v_value:=btrim(v_line->>'item_code');v_rule:='Material code must identify one live item';
+ if (select count(*) from public.stock_items i where i.org_id=v_org and btrim(i.code)=v_value and i.archived_at is null)<>1 then raise exception using detail='material-invalid';end if;
+ select * into v_item from public.stock_items i where i.org_id=v_org and btrim(i.code)=v_value and i.archived_at is null;
+ v_field:='unit';v_value:=btrim(v_line->>'unit');v_rule:='Line unit differs from existing item unit';
+ if not exists(select 1 from public.stock_units u where u.id=v_item.unit_id and u.org_id=v_org and upper(btrim(u.code))=upper(v_value) and u.archived_at is null) then
+ v_results:=v_results||jsonb_build_array(jsonb_build_object('entity_key',v_line->>'entity_key','status','refused','ids','{}'::jsonb,
+ 'reason_code','material-conflict','reason',v_rule||': unit='||coalesce(to_jsonb(left(v_value,120))::text,'null'),'sheet',v_entity->>'sheet','row',v_line->'row'));
+ v_complete:=false;v_partial:=true;continue;end if;
+ v_field:='item_code';v_value:=v_item.code;v_rule:='Material item must carry a live zero-cost tag';
+ if not exists(select 1 from public.stock_tags t where t.id=v_item.tag_id and t.org_id=v_org and t.zero_cost and t.archived_at is null) then raise exception using detail='material-invalid';end if;
+ select r.payload_hash,r.result_ids into v_old_hash,v_old_ids from public.owner_material_import_rows r where r.batch_id=v_batch and r.entity_key=v_line->>'entity_key';
+ if v_old_hash=v_line->>'hash' then v_results:=v_results||jsonb_build_array(jsonb_build_object('entity_key',v_line->>'entity_key','status','skip','ids',v_old_ids,'note',v_section_note));continue;end if;
  v_category:=null;
+ v_field:='category_code';v_value:=v_line->>'category_code';v_rule:='Material category must be a live organisation category';
  if nullif(v_line->>'category_code','') is not null then
  select c.id into v_category from public.stock_material_categories c where c.org_id=v_org and c.code=v_line->>'category_code' and c.archived_at is null;
  if v_category is null then raise exception 'Category unavailable' using detail='material-invalid';end if;end if;
+ v_field:='planned';v_value:=v_line->>'planned';v_rule:='Planned quantity must be positive with at most three decimals';
  if coalesce(v_line->>'planned','') !~ '^\d{1,11}(\.\d{1,3})?$' then raise exception 'Invalid planned quantity' using detail='material-invalid';end if;
  v_quantity:=(v_line->>'planned')::numeric;
  if v_quantity<=0 then raise exception 'Planned quantity must be positive' using detail='material-invalid';end if;
  v_open:=v_line->'opening';
  foreach v_type in array array['requested','set_aside','received','issued','returned','transfer_in','transfer_out','owner_return'] loop
+ v_field:='opening.'||v_type;v_value:=v_open->>v_type;v_rule:='Opening quantity must be nonnegative with at most three decimals';
  if coalesce(v_open->>v_type,'') !~ '^\d{1,11}(\.\d{1,3})?$' then raise exception 'Invalid opening quantity' using detail='material-invalid';end if;
  end loop;
  v_requested:=(v_open->>'requested')::numeric;v_reserved:=(v_open->>'set_aside')::numeric;
  v_received:=(v_open->>'received')::numeric;v_issued:=(v_open->>'issued')::numeric;v_returned:=(v_open->>'returned')::numeric;
  v_in:=(v_open->>'transfer_in')::numeric;v_out:=(v_open->>'transfer_out')::numeric;v_owner:=(v_open->>'owner_return')::numeric;
  v_closing:=v_received+v_in-v_issued+v_returned-v_out-v_owner;
+ v_field:='expected.closing';v_value:=v_line->'expected'->>'closing';v_rule:='Closing quantity must agree with movement totals unless movements_win is explicit';
  v_flag:=v_closing<0 or (v_line->'expected'->>'closing') is null or (v_line->'expected'->>'closing')::numeric<>v_closing;
  if v_flag and coalesce(v_entity->>'closing_conflict','refuse')<>'movements_win' then raise exception 'Closing totals disagree' using detail='material-invalid';end if;
  select * into v_plan from public.work_order_section_material_plan p where p.section_id=v_section.id and p.item_id=v_item.id for update;
- v_before:=null;
+ v_before:=null;v_field:='item_code';v_value:=v_item.code;v_rule:='Opening must retain its owning source and avoid overlapping live history';
  if v_plan.id is not null then
  select to_jsonb(o) into v_existing from public.owner_material_openings o where o.section_material_plan_id=v_plan.id;
  if v_existing is not null and (v_existing->>'import_batch_id')::uuid<>v_batch then raise exception 'Opening belongs to another source' using detail='material-overlap';end if;
@@ -358,10 +466,12 @@ begin
  v_ids:=jsonb_build_object('work_order_id',v_wo.id,'section_id',v_section.id,'plan_id',v_plan.id,'document_ids','[]'::jsonb);
  v_after:=jsonb_build_object('planned',v_quantity::text,'opening',v_open,'closing',v_closing::text);
  v_results:=v_results||jsonb_build_array(jsonb_build_object('entity_key',v_line->>'entity_key','status',case when v_before is null then 'create' else 'update' end,
- 'ids',v_ids,'before',v_before,'after',v_after,'flagged',v_flag,'sheet',v_entity->>'sheet','row',v_line->'row'));
+ 'ids',v_ids,'note',v_section_note,'before',v_before,'after',v_after,'flagged',v_flag,'sheet',v_entity->>'sheet','row',v_line->'row'));
  insert into public.owner_material_import_rows(batch_id,org_id,entity_key,payload_hash,result_ids) values(v_batch,v_org,v_line->>'entity_key',v_line->>'hash',v_ids)
- on conflict(batch_id,entity_key) do update set payload_hash=excluded.payload_hash,result_ids=excluded.result_ids;
+ on conflict(batch_id,entity_key) do update set payload_hash=excluded.payload_hash,result_ids=excluded.result_ids
+ where public.owner_material_import_rows.payload_hash is distinct from excluded.payload_hash or public.owner_material_import_rows.result_ids is distinct from excluded.result_ids;
  end loop;
+ v_field:='reconciliation_step';v_value:=v_entity->>'reconciliation_step';v_rule:='Reconciliation step must exist in the active scale';
  if nullif(v_entity->>'reconciliation_step','') is not null then
  select s.id into v_id from public.owner_material_reconciliation_steps s where s.org_id=v_org and s.archived_at is null
  and (s.name=v_entity->>'reconciliation_step' or s.id::text=v_entity->>'reconciliation_step');
@@ -369,8 +479,10 @@ begin
  perform public.om_material_set_reconciliation(v_section.id,v_id,'Imported opening position');
  end if;
  end if;
+ if v_partial then continue;end if;
  insert into public.owner_material_import_rows(batch_id,org_id,entity_key,payload_hash,result_ids) values(v_batch,v_org,v_key,v_hash,v_ids)
- on conflict(batch_id,entity_key) do update set payload_hash=excluded.payload_hash,result_ids=excluded.result_ids;
+ on conflict(batch_id,entity_key) do update set payload_hash=excluded.payload_hash,result_ids=excluded.result_ids
+ where public.owner_material_import_rows.payload_hash is distinct from excluded.payload_hash or public.owner_material_import_rows.result_ids is distinct from excluded.result_ids;
  end loop;
  delete from public.owner_material_import_witness where transaction_id=txid_current() and backend_pid=pg_backend_pid();
  if not p_confirm then raise exception using errcode='MTPRV',message='Preview rollback';end if;
@@ -379,9 +491,10 @@ begin
  get stacked diagnostics v_err=PG_EXCEPTION_DETAIL,v_message=MESSAGE_TEXT;
  if v_err not in ('material-invalid','material-conflict','material-overlap','material-work-order-missing') or v_err is null or v_err='' then v_err:='material-invalid';end if;
  return jsonb_build_object('batch_id',null,'complete',false,'results',jsonb_build_array(jsonb_build_object('entity_key',coalesce(v_key,''),'status','refused','ids','{}'::jsonb,
- 'reason',v_err,'sheet',v_entity->>'sheet','row',coalesce(v_line->'row',v_entity->'row'))));
+ 'reason_code',v_err,'reason',coalesce(v_reason_override,left(v_rule,160)||': '||v_field||'='||coalesce(to_jsonb(left(v_value,120))::text,'null')),'sheet',v_entity->>'sheet','row',coalesce(v_line->'row',v_entity->'row'))));
  end;
- return jsonb_build_object('batch_id',v_batch,'results',v_results,'complete',true);
+ select coalesce(jsonb_agg(jsonb_build_object('reason_code',null,'reason',null)||r order by r->>'entity_key'),'[]') into v_results from jsonb_array_elements(v_results) r;
+ return jsonb_build_object('batch_id',v_batch,'results',v_results,'complete',v_complete);
 end $$;
 revoke all on function public.om_material_import(text,integer,jsonb,boolean) from public,anon,authenticated;
 grant execute on function public.om_material_import(text,integer,jsonb,boolean) to authenticated;
