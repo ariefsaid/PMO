@@ -77,7 +77,7 @@ describe('monthly work capacity setting (M8)', () => {
     expect(screen.getByText('Give monthly capacity at most two decimals.')).toBeInTheDocument();
 
     await user.clear(field);
-    await user.type(field, '2,500,000');
+    await user.type(field, '2,50,000');
     await user.click(screen.getByRole('button', { name: 'Save capacity' }));
     expect(h.mutateAsync).not.toHaveBeenCalled();
     expect(screen.getByText('Enter a valid amount.')).toBeInTheDocument();
@@ -104,4 +104,36 @@ describe('monthly work capacity setting (M8)', () => {
     renderPanel();
     expect(screen.queryByText('Monthly work capacity')).toBeNull();
   });
+});
+
+it('accepts decimal comma monthly capacity in the organisation number locale', async () => {
+  const { setActiveLocale } = await import('@/src/lib/locale/activeLocale');
+  setActiveLocale({ locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' });
+  renderPanel();
+  const field = screen.getByLabelText('Monthly capacity (IDR)');
+  await userEvent.clear(field); await userEvent.type(field, '1.234,56');
+  await userEvent.click(screen.getByRole('button', { name: 'Save capacity' }));
+  expect(h.mutateAsync).toHaveBeenCalledWith(1234.56);
+});
+
+it.each([['en', 'en-US', '2,500,000'], ['id', 'id-ID', '2.500.000']])('accepts grouped monthly capacity in %s', async (locale, numberLocale, input) => {
+  const { setActiveLocale } = await import('@/src/lib/locale/activeLocale');
+  setActiveLocale({ locale: locale as 'en' | 'id', numberLocale, timezone: 'Asia/Jakarta' });
+  h.capacity = 100;
+  renderPanel();
+  const field = screen.getByLabelText('Monthly capacity (IDR)');
+  await userEvent.clear(field); await userEvent.type(field, input);
+  await userEvent.click(screen.getByRole('button', { name: 'Save capacity' }));
+  expect(h.mutateAsync).toHaveBeenCalledWith(2500000);
+});
+
+it('explains malformed input when monthly capacity has not been set', async () => {
+  const { setActiveLocale } = await import('@/src/lib/locale/activeLocale');
+  setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'Asia/Jakarta' });
+  h.capacity = null;
+  renderPanel();
+  await userEvent.type(screen.getByLabelText('Monthly capacity (IDR)'), '2,50,000');
+  await userEvent.click(screen.getByRole('button', { name: 'Save capacity' }));
+  expect(screen.getByText('Enter a valid amount.')).toBeInTheDocument();
+  expect(h.mutateAsync).not.toHaveBeenCalled();
 });

@@ -9,7 +9,7 @@ vi.mock('@/src/hooks/useContacts', () => ({
   useContactsByCompany: () => ({ data: h.contacts, isPending: false, isError: false, refetch: vi.fn() }),
 }));
 
-import { CompanyContactsList } from './CompanyContacts';
+import { CompanyContactsList, PrimaryContactField } from './CompanyContacts';
 
 function Where() {
   return <output data-testid="where">{useLocation().pathname}</output>;
@@ -26,4 +26,11 @@ describe('CompanyContactsList rows (#2077)', () => {
     expect(click.defaultPrevented).toBe(true);
     expect(screen.getByTestId('where')).toHaveTextContent('/contacts/c1');
   });
+});
+
+it('labels the alphabetically first contact neutrally without claiming primary status', () => {
+  h.contacts = [{ id: 'a', full_name: 'Alpha', title: '' }, { id: 'z', full_name: 'Zeta', title: '' }];
+  render(<MemoryRouter><PrimaryContactField companyId="c" /></MemoryRouter>);
+  expect(screen.queryByText('Primary contact')).not.toBeInTheDocument();
+  expect(screen.getByRole('link', { name: 'Alpha' })).toHaveAttribute('href', '/contacts/a');
 });

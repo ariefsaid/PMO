@@ -69,6 +69,7 @@ describe('IssueClosingReportSettings (AC-CTR-006, AC-CTR-007)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockCanManage = true;
+    settingsState.isError = false; groupsState.isError = false;
     settingsState.data = { org_id: 'org1', enabled: false, grouping_mode: 'type', created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z', updated_by: null };
     groupsState.data = [
       {
@@ -127,4 +128,24 @@ describe('IssueClosingReportSettings (AC-CTR-006, AC-CTR-007)', () => {
 
     expect(removeGroupMutation.mutateAsync).toHaveBeenCalledWith('g1');
   });
+});
+
+it('keeps the comma while an administrator adds another type to an existing group', async () => {
+  renderSettings();
+  await userEvent.click(screen.getByRole('button', { name: 'Edit' }));
+  await userEvent.type(screen.getAllByLabelText(/Issue types/)[0], ', Second');
+  await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+  expect(saveGroupMutation.mutateAsync).toHaveBeenCalledWith(expect.objectContaining({ issue_types: ['Near Miss', 'Injury', 'Second'] }));
+});
+it('shows retry instead of a saved grouping after the settings read fails', () => {
+  settingsState.isError = true;
+  renderSettings();
+  expect(screen.queryByLabelText('Default grouping')).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /Retry/i })).toBeInTheDocument();
+});
+it('shows retry instead of an empty group list after the groups read fails', () => {
+  settingsState.isError = false; groupsState.isError = true; groupsState.data = [];
+  renderSettings();
+  expect(screen.queryByText(/No department groups configured/)).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /Retry/i })).toBeInTheDocument();
 });

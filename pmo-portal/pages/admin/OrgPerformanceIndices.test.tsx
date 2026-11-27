@@ -45,7 +45,7 @@ describe('OrgPerformanceIndices', () => {
     fireEvent.change(screen.getByLabelText(/Lower limit/), { target: { value: '0.8' } });
     fireEvent.change(screen.getByLabelText(/Upper limit/), { target: { value: '1,25' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
-    await waitFor(() => expect(h.save).toHaveBeenCalledWith({ enabled: true, low: 0.8, high: 1.25 }));
+    await waitFor(() => expect(h.save).toHaveBeenCalledWith({ low: 0.8, high: 1.25 }));
   });
   it('will not save an invalid band', () => {
     renderCard();
@@ -58,4 +58,15 @@ describe('OrgPerformanceIndices', () => {
     expect(screen.getByTestId('org-performance-indices-readonly').textContent).toContain('Only an Admin can change this.');
     expect(screen.queryByRole('checkbox')).toBeNull();
   });
+});
+
+it('renders configured bands without silently hiding behind provider presence', () => {
+  render(<ToastProvider><OrgPerformanceIndices /></ToastProvider>);
+  expect(screen.getByLabelText(/Lower limit/)).toHaveValue('0.90');
+});
+it('saves only edited bands without writing the unreviewed enable flag', async () => {
+  renderCard();
+  fireEvent.change(screen.getByLabelText(/Lower limit/), { target: { value: '0.8' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+  await waitFor(() => expect(h.save).toHaveBeenCalledWith({ low: 0.8, high: 1.1 }));
 });

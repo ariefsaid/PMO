@@ -7,7 +7,7 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
-import { Button, Card, CardHead, CardPad, FieldError, SelectField, StatusPill, TextArea, useToast } from '@/src/components/ui';
+import { Button, Card, CardHead, CardPad, FieldError, ListState, SelectField, StatusPill, TextArea, useToast } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { useSetSupplyRiskStatus, useSupplierExposure, useSupplyRiskSetterName, useSupplyRiskSuggestion } from '@/src/hooks/useSupplyRisk';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
@@ -147,7 +147,7 @@ export const SupplyRiskCard: React.FC<{ company: CompanyRow }> = ({ company }) =
       <Card variant="bare" className="mb-4" data-testid="supply-risk-exposure">
         <CardHead>{t('exposure.title', 'Work orders with open orders from this supplier')}</CardHead>
         <CardPad>
-          {exposure.isPending ? (
+          {exposure.isError ? <ListState variant="error" title={t('administration:orgSwitch.loadError', "Couldn't load this setting")} onRetry={() => void exposure.refetch()} /> : exposure.isPending ? (
             <p className="text-control text-muted-foreground">{t('exposure.loading', 'Loading…')}</p>
           ) : workOrders.length === 0 ? (
             <p className="text-control text-muted-foreground">{t('exposure.empty', 'No work order has an open order from this supplier.')}</p>

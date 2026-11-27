@@ -91,3 +91,12 @@ describe('OrgThreeWayMatch (AC-TWM-022)', () => {
     expect(screen.getByRole('switch', { name: SWITCH })).toHaveAttribute('aria-checked', 'true');
   });
 });
+
+it.each(['pending', 'failed'])('keeps switching off unsavable while the held count is %s', async (state) => {
+  h.settings.mockResolvedValue({ enabled: true, quantityTolerancePct: '5.00', amountTolerancePct: '2.00' });
+  h.held.mockImplementation(() => state === 'pending' ? new Promise(() => {}) : Promise.reject(new Error('offline')));
+  renderIt();
+  await userEvent.click(await screen.findByRole('switch', { name: SWITCH }));
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled());
+  expect(h.save).not.toHaveBeenCalled();
+});
