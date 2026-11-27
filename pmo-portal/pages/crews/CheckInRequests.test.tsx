@@ -24,6 +24,12 @@ function mount() {
 beforeEach(() => { vi.clearAllMocks(); h.decide.mockResolvedValue(undefined); });
 
 describe('AC-PCI-015 check-in decision list', () => {
+  it('retries a failed request read and restores pending decisions', async () => {
+    h.requests.mockRejectedValueOnce(new Error('Unavailable')).mockResolvedValue([row]);
+    mount();
+    await userEvent.click(await screen.findByRole('button', { name: /retry|try again/i }));
+    expect(await screen.findByText(/Sari/)).toBeInTheDocument();
+  });
   it('renders nothing when no request waits', async () => {
     h.requests.mockResolvedValue([]);
     mount();
