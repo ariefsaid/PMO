@@ -66,6 +66,9 @@ export const CASES = [
   { id: 'min_history',   fn: 'public.get_reorder_suggestions(uuid,uuid)', from: /(if )v_history < prm\.min_history_days or v_moves < prm\.min_movements or v_usage <= 0( then\s*-- mut:min_history_v3)/, to: '$1false$2', test: 'supabase/tests/stock_reorder.test.sql' },
   { id: 'central_excl',  fn: 'public.get_reorder_suggestions(uuid,uuid)', from: /(l\.qty_delta < 0 and )not coalesce\(coalesce\(fw\.kind, dw\.kind\) in \('central', 'vendor'\), false\)(\) as m,\s*-- mut:central_excl)/, to: '$1true$2', test: 'supabase/tests/stock_reorder.test.sql' },
   { id: 'below_cmp',     fn: 'public.get_stock_below_reorder()', from: /coalesce\(b\.qty_on_hand, 0\) <= r\.reorder_level(\), '\[\]'::jsonb\);\s*-- mut:below_cmp)/, to: 'coalesce(b.qty_on_hand, 0) < r.reorder_level$1', test: 'supabase/tests/stock_reorder.test.sql' },
+  { id: 'vendor_name',   fn: 'public.get_stock_on_hand(uuid,uuid,boolean)', from: /(case when )w\.kind = 'vendor'( then jsonb_build_object\('vendor_name', vc\.name\) else '\{\}'::jsonb end\s*-- mut:vendor_name)/, to: '$1false$2', test: 'supabase/tests/1300_stock_vendor_location.test.sql' },
+  { id: 'paper',         fn: 'public.stock_post_core(uuid)', from: /t\.zero_cost and t\.paper_required(\)\s*-- mut:paper)/, to: 't.zero_cost and false$1', test: 'supabase/tests/1309_stock_movement_proof_status.test.sql' },
+  { id: 'timing_block',  fn: 'public.stock_post_core(uuid)', from: /stock_proof_timing_of\(d\.org_id\) = 'before_posting'(\s*-- mut:timing_block)/, to: "stock_proof_timing_of(d.org_id) is not null$1", test: 'supabase/tests/1309_stock_movement_proof_status.test.sql' },
   { id: 'below_org',     fn: 'public.get_stock_below_reorder()', from: /where r\.org_id = v_org( \/\* mut:below_org \*\/)/, to: 'where true$1', test: 'supabase/tests/stock_tenant_isolation.test.sql' },
 ];
 // S2b / S4 / S5 / S6 append their cases to this table in their own slice (ids named in each slice's mutation task).
