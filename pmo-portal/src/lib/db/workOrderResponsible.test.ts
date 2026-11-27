@@ -4,7 +4,7 @@ const h = vi.hoisted(() => ({ rows: [] as unknown[] }));
 vi.mock('@/src/lib/supabase/client', () => {
   const q: Record<string, unknown> = {};
   for (const k of ['select', 'eq', 'order']) q[k] = () => q;
-  q.limit = () => Promise.resolve({ data: h.rows, error: null });
+  q.range = () => Promise.resolve({ data: h.rows, error: null });
   return { supabase: { from: () => q } };
 });
 

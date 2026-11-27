@@ -165,6 +165,16 @@
     "count": "Stock count",
     "opening": "Opening balance"
   },
+  "unitNames": {
+    "bag": "Bag",
+    "m": "Metre",
+    "pcs": "Piece",
+    "L": "Litre"
+  },
+  "unitCodes": {
+    "bag": "bag",
+    "pcs": "pcs"
+  },
   "empty": {
     "noStock": "No stock yet",
     "itemPicker": "No stock items yet: add one in Stock setup."

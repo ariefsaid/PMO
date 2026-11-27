@@ -24,6 +24,7 @@ export interface EquipmentAvailabilityRepository {
   setTargets: typeof dal.setTargets;
   listRentalTerms: typeof dal.listRentalTerms;
   saveRentalTerm: typeof dal.saveRentalTerm;
+  endRentalTerm: typeof dal.endRentalTerm;
   changeRentalRate: typeof dal.changeRentalRate;
 }
 
@@ -49,5 +50,6 @@ export const equipmentAvailabilityRepository: EquipmentAvailabilityRepository = 
   setTargets: (t) => wrap(() => dal.setTargets(t)),
   listRentalTerms: (a) => wrap(() => dal.listRentalTerms(a)),
   saveRentalTerm: (t) => wrap(() => dal.saveRentalTerm(t)),
+  endRentalTerm: (id, date) => wrap(() => dal.endRentalTerm(id, date)),
   changeRentalRate: (a, e, r) => wrap(() => dal.changeRentalRate(a, e, r)),
 };

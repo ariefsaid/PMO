@@ -19,12 +19,6 @@ create function pg_temp.q825_bare(expr text) returns integer language sql immuta
 
 -- ── §1 constant-argument guard ──
 create temporary table q825_pending_tables (t text primary key);
-insert into q825_pending_tables values
-  ('boq_items'),('budget_projections'),('companies'),('contacts'),('crm_activities'),('external_reference_items'),('fx_rates'),
-  ('imprest_plan_lines'),('imprest_plans'),('incident_reports'),('incoming_payments'),('payment_files'),('payments'),
-  ('procurement_invoice_files'),('procurement_quotation_files'),('procurement_receipt_files'),('progress_assessment_quantities'),
-  ('project_progress_entries'),('purchase_order_files'),('purchase_request_files'),('rfq_files'),('sales_invoices'),
-  ('stock_items'),('stock_units'),('stock_warehouses'),('timesheet_entries'),('timesheets'),('user_views');
 grant select on q825_pending_tables to public;
 
 select is_empty(

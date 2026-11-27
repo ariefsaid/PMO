@@ -8,7 +8,7 @@
 -- Every denial asserts the errcode AND the message.
 begin;
 create extension if not exists pgtap;
-select plan(79);
+select plan(83);
 
 -- ── Fixtures: org A (several roles), org B (another tenant). Written as the table owner. ─────────────────
 insert into organizations (id, name, default_currency) values
@@ -133,6 +133,15 @@ select is(public.set_cost_attribution('vendor_bill', array['25190000-0000-0000-0
   '25190000-0000-0000-0000-000000000402', null), 2, 'fixture: VI-B1 and the stocked bill name WO-B');
 select is(public.set_cost_attribution('timesheet_entry', array['25190000-0000-0000-0000-000000000711']::uuid[],
   '25190000-0000-0000-0000-000000000401', null), 1, 'fixture: the timesheet line names WO-A');
+
+select is(
+  (select (row ->> 'direct')::numeric from jsonb_array_elements(public.work_order_dashboard_costs(array[
+    '25190000-0000-0000-0000-0000000000d1', '25190000-0000-0000-0000-0000000000d2',
+    '25190000-0000-0000-0000-0000000000d9']::uuid[])) row
+    where row ->> 'workOrderId' = '25190000-0000-0000-0000-000000000401'),
+  (select sum(amount::numeric) from public.work_order_cost_amounts('25190000-0000-0000-0000-0000000000d1')
+    where work_order_id = '25190000-0000-0000-0000-000000000401' and currency = 'IDR' and reason in ('counted', 'unresolved-direct')),
+  'AC-2826-002 batch direct cost matches the single-project source');
 
 -- ── AC-WPVA-003 / 004 / 012: the read ─────────────────────────────────────────────────────────────────
 create temp table wpva_rows as select * from public.work_order_cost_amounts('25190000-0000-0000-0000-0000000000d1');
@@ -472,6 +481,28 @@ select is((select amount::numeric from public.work_order_cost_amounts('25190000-
 select is((select (x->>'work_revenue')::numeric from jsonb_array_elements(public.get_project_finances('25190000-0000-0000-0000-0000000000d1')->'invoices') x
             where x->>'currency' = 'IDR'), 200::numeric,
   'project work revenue still includes both contract and other billing');
+reset role;
+
+set local role authenticated;
+select pg_temp.act_as('25190000-0000-0000-0000-0000000000a2');
+select is(
+  (select (row ->> 'plan')::numeric from jsonb_array_elements(public.work_order_dashboard_costs(array[
+    '25190000-0000-0000-0000-0000000000d1', '25190000-0000-0000-0000-0000000000d2']::uuid[])) row
+    where row ->> 'workOrderId' = '25190000-0000-0000-0000-000000000401'),
+  (select sum(value) from public.work_order_plan_lines
+    where work_order_id = '25190000-0000-0000-0000-000000000401' and kind = 'direct_budget'),
+  'AC-2826-002 batch budget matches the single-project plan lines');
+
+select is(
+  (select jsonb_agg(row ->> 'workOrderId' order by row ->> 'workOrderId')
+    from jsonb_array_elements(public.work_order_dashboard_costs(array[
+    '25190000-0000-0000-0000-0000000000d2', '25190000-0000-0000-0000-0000000000d2',
+    '25190000-0000-0000-0000-0000000000d9']::uuid[])) row),
+  '["25190000-0000-0000-0000-000000000404"]'::jsonb,
+  'AC-2826-002 duplicate projects yield one copy and another organisation yields none');
+select pg_temp.act_as('25190000-0000-0000-0000-0000000000a4');
+select throws_ok($$select public.work_order_dashboard_costs(array['25190000-0000-0000-0000-0000000000d1']::uuid[])$$,
+  '42501', 'not authorized', 'AC-2826-003 a reader without the plan right receives no money');
 reset role;
 
 -- Mutation check: a wrong project total must be distinguishable from the authoritative read.

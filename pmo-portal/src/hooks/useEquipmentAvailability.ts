@@ -63,6 +63,15 @@ export function useRentalTerms() {
     onSuccess: async () => { await Promise.all([qc.invalidateQueries({ queryKey: [KEY] }), qc.invalidateQueries({ queryKey: ['equipment-assets'] })]); } });
 }
 
+export function useEndRentalTerm() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ termId, date }: { termId: string; date: string }) =>
+      repositories.equipmentAvailability.endRentalTerm(termId, date),
+    onSuccess: () => qc.invalidateQueries({ queryKey: [KEY] }),
+  });
+}
+
 export function useEquipmentOwnership() {
   const qc = useQueryClient();
   return useMutation({ mutationFn: (v: { assetId: string; ownership: 'owned' | 'rented'; inServiceOn: string | null }) => repositories.equipmentAvailability.setOwnership(v.assetId, v.ownership, v.inServiceOn),

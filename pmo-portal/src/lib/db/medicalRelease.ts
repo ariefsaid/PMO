@@ -1,3 +1,4 @@
+import { fetchAllPages } from '@/src/lib/pagedRead';
 import { supabase } from '@/src/lib/supabase/client';
 import { nullableArg } from './nullableArg';
 import { AppError } from '@/src/lib/appError';
@@ -51,9 +52,7 @@ export async function canEnterMedicalRelease(): Promise<boolean> {
 }
 
 export async function listReleasePeople(): Promise<ReleasePerson[]> {
-  const { data, error } = await supabase.from('people').select('id, name').is('archived_at', null).order('name').limit(500);
-  fail(error);
-  return data ?? [];
+  return fetchAllPages((from, to) => supabase.from('people').select('id, name').is('archived_at', null).order('name').order('id').range(from, to));
 }
 
 export async function createMedicalRelease(personId: string, date: string, note: string | null): Promise<string> {

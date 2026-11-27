@@ -5,7 +5,7 @@ import {
   Button, ConfirmDialog, DataTable, EntityFormModal, FormGrid, NumberField, RecordMenu, RecordSection, SelectField, TextField, useToast, type Column,
 } from '@/src/components/ui';
 import { useCompanyOptions } from '@/src/hooks/useCompanies';
-import { useRentalTerms, useRentalTermHistory, useEquipmentOwnership, useChangeRentalRate } from '@/src/hooks/useEquipmentAvailability';
+import { useRentalTerms, useRentalTermHistory, useEquipmentOwnership, useChangeRentalRate, useEndRentalTerm } from '@/src/hooks/useEquipmentAvailability';
 import type { RentalTermRow } from '@/src/lib/db/equipmentAvailability';
 import { formatExactMoney, formatIsoDay, normalizeLocalizedDecimal } from '@/src/lib/format';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
@@ -26,6 +26,9 @@ export function EquipmentRentalTerms({ asset }: { asset: Asset }) {
   const vendors = useCompanyOptions({ enabled: true }, 'Vendor');
   const saveTerm = useRentalTerms(); const saveOwnership = useEquipmentOwnership(); const changeRate = useChangeRentalRate();
   const terms = useRentalTermHistory(termAsset, true);
+  const endTerm = useEndRentalTerm();
+  const [endingTermId, setEndingTermId] = useState<string | null>(null);
+  const [lastRentalDay, setLastRentalDay] = useState('');
   const [dialog, setDialog] = useState<Dialog>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const [inService, setInService] = useState(asset.in_service_on ?? '');
@@ -64,6 +67,15 @@ export function EquipmentRentalTerms({ asset }: { asset: Asset }) {
     catch (err) { setProblem(classifyMutationError(err).headline); }
   };
 
+  const submitEnd = async (termId: string) => {
+    setProblem(null);
+    try {
+      await endTerm.mutateAsync({ termId, date: lastRentalDay });
+      setEndingTermId(null);
+      toast(t('equipment:availability.periodEnded', 'Rental period ended'), undefined, 'success');
+    } catch (err) { setProblem(classifyMutationError(err).headline); }
+  };
+
   const rows = terms.data ?? [];
   const columns: Column<RentalTermRow>[] = [
     { key: 'from', header: t('equipment:availability.rentedFrom', 'Rental start'), kind: 'primary', rowHeader: true, cell: (term) => <span className="whitespace-nowrap">{formatIsoDay(term.rented_from)}</span> },
@@ -72,6 +84,7 @@ export function EquipmentRentalTerms({ asset }: { asset: Asset }) {
     { key: 'rate', header: t('equipment:availability.rate', 'Rate'), align: 'num', kind: 'money',
       cell: (term) => <span className="whitespace-nowrap tabular-nums">{formatExactMoney(String(term.rate), term.currency, getNumberLocale(), { trimZeroFraction: true }) ?? '—'}</span> },
     { key: 'basis', header: t('equipment:availability.per', 'Per'), cell: (term) => basisName(term.basis) },
+    { key: 'actions', kind: 'actions', header: <span className="sr-only">{t('equipment:expiryEdit.actions', 'Actions')}</span>, cell: (term) => term.rented_to === null ? <Button variant="outline" onClick={() => { setEndingTermId(term.id); setLastRentalDay(''); setProblem(null); }}>{t('equipment:availability.endPeriod', 'End rental period')}</Button> : null },
   ];
   const menu = [
     { key: 'rate', label: t('equipment:availability.changeRate', 'Change rate from date'), onSelect: () => open('rate') },
@@ -86,13 +99,19 @@ export function EquipmentRentalTerms({ asset }: { asset: Asset }) {
         <Button variant="outline" size="sm" onClick={() => open('terms')}>{t('equipment:availability.addTerms', 'Add rental terms')}</Button>
         <RecordMenu items={menu} ariaLabel={t('equipment:availability.otherAssetActions', 'Other asset actions')} />
       </>}>
-      {problem && dialog === null && <p role="alert" className="px-[var(--panel-inset)] pb-3 text-sm text-destructive-text">{problem}</p>}
+      {problem && dialog === null && !endingTermId && <p role="alert" className="px-[var(--panel-inset)] pb-3 text-sm text-destructive-text">{problem}</p>}
       <DataTable<RentalTermRow> embedded rows={rows} columns={columns} rowKey={(term) => term.id} tableId="equipment-rental-terms"
         accessibleName={t('equipment:availability.terms', 'Rental terms')}
         state={terms.isError ? 'error' : terms.isPending ? 'loading' : rows.length === 0 ? 'empty' : undefined}
         errorTitle={t('equipment:availability.termsError', 'Could not load rental terms')} onRetry={() => void terms.refetch()}
         emptyTitle={t('equipment:availability.noTerms', 'No rental terms')} />
 
+      {endingTermId && <EntityFormModal open title={t('equipment:availability.endPeriod', 'End rental period')} submitLabel={t('equipment:availability.confirmEnd', 'Confirm end date')}
+        onSubmit={(e) => { e.preventDefault(); void submitEnd(endingTermId); }} onClose={() => { setEndingTermId(null); setProblem(null); }}
+        submitDisabled={!lastRentalDay || lastRentalDay < (rows.find((term) => term.id === endingTermId)?.rented_from ?? '') || endTerm.isPending}
+        loading={endTerm.isPending} submitError={problem ? { headline: problem } : null}>
+        <DateField label={t('equipment:availability.lastRentalDay', 'Last rental day')} value={lastRentalDay} onChange={setLastRentalDay} min={rows.find((term) => term.id === endingTermId)?.rented_from} disabled={endTerm.isPending} />
+      </EntityFormModal>}
       {dialog === 'terms' && (
         <EntityFormModal open title={t('equipment:availability.terms', 'Rental terms')} submitLabel={t('equipment:availability.saveTerms', 'Save rental terms')}
           onSubmit={(e) => { e.preventDefault(); void submitTerm(); }} onClose={close} dirty={Boolean(vendor || rate || rentedFrom)}

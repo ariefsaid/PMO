@@ -46,8 +46,8 @@ export function useStockMasterMutations() {
   return {
     createUnit: useMutation({ mutationFn: (i: StockUnitInput) => m.createUnit(i), onSuccess: refresh('stock-units') }),
     updateUnit: useMutation({ mutationFn: (a: { id: string; input: StockUnitInput }) => m.updateUnit(a.id, a.input), onSuccess: refresh('stock-units', 'stock-items') }),
-    createItem: useMutation({ mutationFn: (i: StockItemInput) => m.createItem(i), onSuccess: refresh('stock-items') }),
-    updateItem: useMutation({ mutationFn: (a: { id: string; input: StockItemInput }) => m.updateItem(a.id, a.input), onSuccess: refresh('stock-items') }),
+    createItem: useMutation({ mutationFn: (i: StockItemInput) => m.createItem(i), onSuccess: refresh('stock-items', 'stock-tags') }),
+    updateItem: useMutation({ mutationFn: (a: { id: string; input: StockItemInput }) => m.updateItem(a.id, a.input), onSuccess: refresh('stock-items', 'stock-tags') }),
     createWarehouse: useMutation({ mutationFn: (i: StockWarehouseInput) => m.createWarehouse(i), onSuccess: refresh('stock-warehouses') }),
     updateWarehouse: useMutation({ mutationFn: (a: { id: string; input: StockWarehouseInput }) => m.updateWarehouse(a.id, a.input), onSuccess: refresh('stock-warehouses') }),
     archive: useMutation({
@@ -70,18 +70,31 @@ export function useStockKeeperCandidates() {
   });
 }
 
+function useReadStockItemTags() {
+  const { currentUser } = useAuth();
+  const qc = useQueryClient();
+  return () => qc.fetchQuery({
+    queryKey: ['stock-tags', currentUser?.org_id, 'item-names', currentUser?.id],
+    queryFn: () => repositories.stock.master.listItemTagNames(),
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
+}
+
 const DOC_PAGE = 50;
 
 /** Stock reads and document writes (#1512 S3). Quantities and money are decimal strings. */
 export function useStockOnHand(f: { warehouseId?: string; itemId?: string; includeZero?: boolean }, enabled = true) {
+  const readTags = useReadStockItemTags();
   const orgId = useAuth().currentUser?.org_id;
-  return useQuery({ queryKey: ['stock-on-hand', orgId, f], queryFn: () => repositories.stock.reports.onHand(f), enabled: Boolean(orgId) && enabled });
+  return useQuery({ queryKey: ['stock-on-hand', orgId, f], queryFn: () => repositories.stock.reports.onHand(f, readTags), enabled: Boolean(orgId) && enabled });
 }
 export function useStockLedger(f: StockLedgerFilters) {
+  const readTags = useReadStockItemTags();
   const orgId = useAuth().currentUser?.org_id;
   return useInfiniteQuery({
     queryKey: ['stock-ledger', orgId, f],
-    queryFn: ({ pageParam }) => repositories.stock.reports.ledgerPage({ ...f, beforeSeq: pageParam, limit: 100 }),
+    queryFn: ({ pageParam }) => repositories.stock.reports.ledgerPage({ ...f, beforeSeq: pageParam, limit: 100 }, readTags),
     initialPageParam: undefined as number | undefined,
     getNextPageParam: (last) => last.nextBeforeSeq ?? undefined,
     enabled: Boolean(orgId),
@@ -191,8 +204,9 @@ export function useReorderSuggestion(warehouseId: string | undefined, itemId: st
   });
 }
 export function useBelowReorder(enabled = true) {
+  const readTags = useReadStockItemTags();
   const orgId = useAuth().currentUser?.org_id;
-  return useQuery({ queryKey: ['stock-below-reorder', orgId], queryFn: () => repositories.stock.reorder.worklist(), enabled: enabled && Boolean(orgId) });
+  return useQuery({ queryKey: ['stock-below-reorder', orgId], queryFn: () => repositories.stock.reorder.worklist(readTags), enabled: enabled && Boolean(orgId) });
 }
 export function useSetReorderLevel() {
   const qc = useQueryClient();

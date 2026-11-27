@@ -51,4 +51,17 @@ describe('AccessDenied — shared page-level denied surface (A-8)', () => {
     render(<AccessDenied onBack={() => {}} backLabel="Return home" />);
     expect(screen.getByRole('button', { name: 'Return home' })).toBeInTheDocument();
   });
+
+  it('not-found variant: names the missing thing and a back link that names the parent page', async () => {
+    const onBack = vi.fn();
+    render(<AccessDenied variant="notFound" title="Expense not found" sub="It may have been removed." parent="Expenses" onBack={onBack} />);
+    expect(screen.getByRole('heading', { level: 1, name: 'Expense not found' })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Back to Expenses' }));
+    expect(onBack).toHaveBeenCalledTimes(1);
+  });
+
+  it('no-access variant: the back link names the parent page too', () => {
+    render(<AccessDenied parent="Approvals" onBack={() => {}} />);
+    expect(screen.getByRole('button', { name: 'Back to Approvals' })).toBeInTheDocument();
+  });
 });

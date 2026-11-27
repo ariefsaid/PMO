@@ -116,7 +116,7 @@ describe('labour cost IO (#2670)', () => {
     }]);
     expect(h.calls.is).toContainEqual(['archived_at', null]);
     expect(h.calls.order).toContainEqual(['effective_from', { ascending: false }]);
-    expect(h.calls.limit).toContainEqual(500);
+    expect(h.calls.range).toContainEqual([0, 999]);
   });
 
   it('listLabourRates keeps the person name beside a person-scoped rate', async () => {

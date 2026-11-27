@@ -5,7 +5,10 @@ const h = vi.hoisted(() => ({ rpc: vi.fn(), update: vi.fn(), select: vi.fn() }))
 vi.mock('@/src/lib/supabase/client', () => ({
   supabase: {
     rpc: h.rpc,
-    from: () => ({ select: () => ({ eq: () => ({ eq: () => ({ order: () => ({ limit: () => h.select() }) }) }) }), update: (v: unknown) => ({ eq: (c: string, id: string) => ({ select: () => h.update(v, c, id) }) }) }),
+    from: () => {
+      const read = { eq: () => read, order: () => read, range: () => h.select() };
+      return { select: () => read, update: (v: unknown) => ({ eq: (c: string, id: string) => ({ select: () => h.update(v, c, id) }) }) };
+    },
   },
 }));
 import { myHomeRepository } from './myHome';

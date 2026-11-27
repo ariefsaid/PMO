@@ -39326,6 +39326,7 @@ export type Database = {
         Args: { p_date?: string; p_work_order: string }
         Returns: boolean
       }
+      work_order_dashboard_costs: { Args: { p_project_ids: string[] }; Returns: Json }
       work_order_cost_amounts: {
         Args: { p_project_id: string }
         Returns: {

@@ -234,7 +234,7 @@ export function KPITile({
         />
         <div className={cn('relative z-10 flex min-w-0 flex-1 flex-col gap-2.5 pointer-events-none', row === 'panel' && PANEL_TILE_LINES)}>
           {head}
-          {loading ? (
+          {loading && !error ? (
             <div data-testid="kpi-skeleton" className="skel h-9 w-2/3" />
           ) : error ? null : (
             <div
@@ -247,7 +247,7 @@ export function KPITile({
               <FigureContent value={shownValue} exactValue={exactValue} unavailableReason={shownReason} />
             </div>
           )}
-          {caption && <Caption wrap={captionWrap} note={captionNote} action={kept ? hiddenLink : undefined}>{caption}</Caption>}
+          {caption && !error && <Caption wrap={captionWrap} note={captionNote} action={kept ? hiddenLink : undefined}>{caption}</Caption>}
         </div>
       </div>
     );
@@ -257,7 +257,7 @@ export function KPITile({
     <div data-testid={testId} className={rootClass}>
       {head}
 
-      {loading ? (
+      {loading && !error ? (
         <div data-testid="kpi-skeleton" className="skel h-9 w-2/3" />
       ) : error ? null : (
         <div
@@ -271,7 +271,7 @@ export function KPITile({
         </div>
       )}
 
-      {caption && <Caption wrap={captionWrap} note={captionNote} action={kept ? hiddenLink : undefined}>{caption}</Caption>}
+      {caption && !error && <Caption wrap={captionWrap} note={captionNote} action={kept ? hiddenLink : undefined}>{caption}</Caption>}
     </div>
   );
 }
