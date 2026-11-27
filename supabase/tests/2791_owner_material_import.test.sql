@@ -37,6 +37,9 @@ insert into boq_material_allowances (id, org_id, boq_item_id, item_id, planned_q
 update work_orders set client_po_number='OMI-ORDER' where id='30110000-0000-0000-0000-000000001401';
 insert into stock_tags(id,org_id,name,zero_cost) values('30110000-0000-0000-0000-000000005001','30110000-0000-0000-0000-00000000010a','Owner material',true);
 update stock_items set tag_id='30110000-0000-0000-0000-000000005001' where id='30110000-0000-0000-0000-000000001311';
+insert into auth.users(id,email) values('30110000-0000-0000-0000-0000000001a4','omi-second-admin@example.com');
+insert into profiles(id,org_id,full_name,email,role,status) values
+ ('30110000-0000-0000-0000-0000000001a4','30110000-0000-0000-0000-00000000010a','OMI Second Admin','omi-second-admin@example.com','Admin','active');
 create function pg_temp.act_as(p_uid uuid) returns void language sql as $$
  select set_config('request.jwt.claims',json_build_object('sub',p_uid,'role','authenticated')::text,true);
 $$;
@@ -68,6 +71,9 @@ select is((select evidence->>'reference' from om_material_lines('30110000-0000-0
 select is((select count(*) from stock_documents where work_order_id='30110000-0000-0000-0000-000000001401'),0::bigint,'AC-006 material import posts no stock document');
 select is((select count(*) from client_requisitions where work_order_id='30110000-0000-0000-0000-000000001401'),0::bigint,'AC-006 material import creates no requisition');
 select is(om_material_import('synthetic-opening',2,pg_temp.payload(),true)->'results'->0->>'status','skip','AC-006 identical source repeat skips');
+select pg_temp.act_as('30110000-0000-0000-0000-0000000001a4');
+select is(om_material_import('synthetic-opening',2,pg_temp.payload(),true)->'results'->0->>'status','skip','AC-006 another Admin resumes the same source');
+select pg_temp.act_as('30110000-0000-0000-0000-0000000001a1');
 select throws_ok($$update work_order_section_material_plan set quantity=251$$,'23514',null,'AC-005 later live edit of imported plan retains cap');
 select throws_ok($$insert into owner_material_import_witness values(txid_current(),pg_backend_pid(),'30110000-0000-0000-0000-00000000010a','30110000-0000-0000-0000-0000000001a1',(select id from owner_material_import_batches))$$,'42501',null,'AC-005 even Admin cannot create witness directly');
 insert into results values('update',om_material_import('synthetic-opening',2,pg_temp.payload('v2','300','12','2','10'),true));
@@ -83,10 +89,34 @@ insert into results values('flagged',om_material_import('synthetic-opening',2,js
 select is((select v->>'complete' from results where k='flagged'),'true','AC-006 explicit movements policy accepts position');
 select is((select v->'results'->0->>'flagged' from results where k='flagged'),'true','AC-006 policy exception is flagged');
 select is(om_material_import('missing-order',2,jsonb_set(pg_temp.payload(),'{entities,0,owner_order_number}','"NO-SUCH-ORDER"'),true)->'results'->0->>'reason','material-work-order-missing','AC-006 missing work order refused without inventing commercial inputs');
+select is(om_material_import('synthetic-opening',2,jsonb_set(jsonb_set(pg_temp.payload('v4','450','5','1','4'),'{entities,0,lines}',
+ jsonb_build_array(pg_temp.payload('v4','450','5','1','4')->'entities'->0->'lines'->0,
+ jsonb_set(jsonb_set(pg_temp.payload()->'entities'->0->'lines'->0,'{entity_key}','"zz-failing"'),'{item_code}','"NO-SUCH-ITEM"'))),'{entities,0,reconciliation_step}','"Prepared"'),true)->>'complete','false','AC-006 failing later line refuses the complete section');
+select is((select quantity from work_order_section_material_plan),400::numeric,'AC-006 failure after first line restores earlier plan update');
+select is((select received from owner_material_openings),1::numeric,'AC-006 failure after first line restores earlier opening update');
+select is(om_material_import('synthetic-opening',2,jsonb_set(pg_temp.payload('v5','450','5','1','4'),'{entities,0,reconciliation_step}','"Prepared"'),true)->>'complete','true','AC-006 opening imports optional reconciliation step');
+select is((select reconciliation_step from om_material_section_rollup('30110000-0000-0000-0000-000000001401')),'Prepared','AC-006 imported reconciliation is readable by location');
 select pg_temp.act_as('30110000-0000-0000-0000-0000000001a2');
 select throws_ok($$select om_material_import('denied',2,pg_temp.payload(),true)$$,'42501','Admin required','AC-005 member cannot import');
 select pg_temp.act_as('30110000-0000-0000-0000-0000000001b1');
 select throws_ok($$select om_material_import('foreign',2,pg_temp.payload(),true)$$,'42501','Project unavailable','AC-005 foreign Admin cannot import into project');
 select is((select count(*) from owner_material_openings),0::bigint,'AC-005 foreign Admin cannot see opening');
+select set_config('request.jwt.claims','{"sub":"30110000-0000-0000-0000-0000000001a1","role":"authenticated","client_id":"pmo-cli"}',true);
+select set_config('request.method','POST',true),set_config('request.headers','{}',true);
+select set_config('request.path','/rpc/import_work_orders',true);
+select lives_ok('select api_client_request_guard()','AC-005 Admin CLI can prepare work orders');
+select set_config('request.path','/rpc/om_material_config',true);
+select lives_ok('select api_client_request_guard()','AC-005 Admin CLI can resolve material configuration');
+select set_config('request.path','/rpc/om_material_import',true);
+select lives_ok('select api_client_request_guard()','AC-005 Admin CLI can import opening stages');
+select set_config('request.method','GET',true),set_config('request.path','/work_orders',true);
+select lives_ok('select api_client_request_guard()','AC-005 Admin CLI can match existing work orders');
+select set_config('request.method','PATCH',true);
+select throws_ok('select api_client_request_guard()','42501',null,'AC-005 material CLI does not gain work-order direct writes');
+select set_config('request.method','POST',true),set_config('request.path','/rpc/om_material_set_scale',true);
+select throws_ok('select api_client_request_guard()','42501',null,'AC-005 sibling material writers are not exposed to CLI');
+select set_config('request.jwt.claims','{"sub":"30110000-0000-0000-0000-0000000001a2","role":"authenticated","client_id":"pmo-cli"}',true);
+select set_config('request.path','/rpc/om_material_import',true);
+select throws_ok('select api_client_request_guard()','42501',null,'AC-005 member CLI cannot import opening stages');
 select * from finish();
 rollback;

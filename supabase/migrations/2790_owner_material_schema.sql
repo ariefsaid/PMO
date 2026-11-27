@@ -14,7 +14,8 @@ create unique index owner_material_warehouses_code on public.owner_material_ware
 create table public.owner_material_import_batches (
  id uuid primary key default gen_random_uuid(), org_id uuid not null references public.organizations(id),
  source_key text not null check(length(btrim(source_key)) between 1 and 200), schema_version integer not null check(schema_version=2),
- created_by uuid not null, created_at timestamptz not null default now(), unique(org_id,source_key),unique(id,org_id)
+ created_by uuid not null, created_at timestamptz not null default now(), source_digest text check(length(source_digest)<=200),
+ unique(org_id,source_key),unique(id,org_id)
 );
 create table public.owner_material_import_rows (
  batch_id uuid not null, org_id uuid not null references public.organizations(id), entity_key text not null check(length(entity_key) between 1 and 500),

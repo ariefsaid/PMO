@@ -64,6 +64,22 @@ select is((select received_pct::numeric from om_material_section_rollup('3010000
 select is((select received_pct::numeric from om_material_section_rollup('30100000-0000-0000-0000-000000001401') where section_code='S'),0::numeric,'AC-004 South retains its different mean');
 select throws_ok($$select * from om_material_lines('30100000-0000-0000-0000-000000001401',null,0,50)$$,'P0001','Invalid pagination','AC-004 reject invalid pagination');
 reset role;
+insert into stock_items(id,org_id,code,name,unit_id) values
+ ('30100000-0000-0000-0000-000000001312','30100000-0000-0000-0000-00000000010a','ALT','Synthetic alternate','30100000-0000-0000-0000-000000001301');
+insert into boq_material_allowances(org_id,boq_item_id,item_id,planned_quantity) values
+ ('30100000-0000-0000-0000-00000000010a','30100000-0000-0000-0000-000000001202','30100000-0000-0000-0000-000000001312',100);
+insert into work_order_sections(id,org_id,project_id,work_order_id,code,name) values
+ ('30100000-0000-0000-0000-000000002003','30100000-0000-0000-0000-00000000010a','30100000-0000-0000-0000-0000000001d1','30100000-0000-0000-0000-000000001402','P','Uneven north'),
+ ('30100000-0000-0000-0000-000000002004','30100000-0000-0000-0000-00000000010a','30100000-0000-0000-0000-0000000001d1','30100000-0000-0000-0000-000000001402','Q','Uneven south');
+insert into work_order_section_material_plan(id,org_id,work_order_id,section_id,item_id,quantity) values
+ ('30100000-0000-0000-0000-000000003003','30100000-0000-0000-0000-00000000010a','30100000-0000-0000-0000-000000001402','30100000-0000-0000-0000-000000002003','30100000-0000-0000-0000-000000001311',1),
+ ('30100000-0000-0000-0000-000000003004','30100000-0000-0000-0000-00000000010a','30100000-0000-0000-0000-000000001402','30100000-0000-0000-0000-000000002003','30100000-0000-0000-0000-000000001312',100),
+ ('30100000-0000-0000-0000-000000003005','30100000-0000-0000-0000-00000000010a','30100000-0000-0000-0000-000000001402','30100000-0000-0000-0000-000000002004','30100000-0000-0000-0000-000000001311',1);
+insert into owner_material_openings(org_id,section_material_plan_id,as_of,received,import_batch_id,created_by) values
+ ('30100000-0000-0000-0000-00000000010a','30100000-0000-0000-0000-000000003003','2026-11-01',1,'30100000-0000-0000-0000-000000004001','30100000-0000-0000-0000-0000000001a1');
+set local role authenticated;
+select is((select round(received_pct::numeric,3) from om_material_rollup('30100000-0000-0000-0000-0000000001d1',1,50,'30100000-0000-0000-0000-000000001402')),33.333::numeric,'AC-004 three eligible lines across uneven sections average to one third, not one quarter');
+reset role;
 update owner_material_openings set received=10,issued=6,returned=1,transfer_out=2;
 set local role authenticated;
 select pg_temp.act_as('30100000-0000-0000-0000-0000000001a2');
@@ -91,6 +107,10 @@ select lives_ok($$select om_material_set_reconciliation('30100000-0000-0000-0000
 select is((select count(*) from owner_material_reconciliation_events),2::bigint,'AC-005 status events preserve both changes');
 select is((select reconciliation_pct::numeric from om_material_rollup('30100000-0000-0000-0000-0000000001d1',1,50,'30100000-0000-0000-0000-000000001401')),0::numeric,'AC-004 work order takes conservative minimum including unrecorded section');
 reset role;
+select throws_ok($$update owner_material_reconciliation_events set reason='Changed'$$,'P0001','CSR_IMMUTABLE: requisition history cannot be changed','AC-005 status history is immutable even for privileged writers');
+select throws_ok($$insert into owner_material_openings(org_id,section_material_plan_id,as_of,import_batch_id,created_by)
+ values('30100000-0000-0000-0000-00000000010b','30100000-0000-0000-0000-000000003004','2026-11-01','30100000-0000-0000-0000-000000004001','30100000-0000-0000-0000-0000000001b1')$$,
+ '23503',null,'AC-005 opening cannot spoof parent organisation');
 update organizations set built_in_roles_enabled=true where id='30100000-0000-0000-0000-00000000010a';
 insert into auth.users(id,email) values
  ('30100000-0000-0000-0000-0000000001a4','om-material@example.com'),('30100000-0000-0000-0000-0000000001a5','om-keeper@example.com');
@@ -102,7 +122,7 @@ select pg_temp.act_as('30100000-0000-0000-0000-0000000001a4');
 select lives_ok($$select om_material_set_reconciliation('30100000-0000-0000-0000-000000002002',(select id from owner_material_reconciliation_steps where archived_at is null and position=1))$$,'AC-005 Material Coordinator at Engineer access reconciles');
 select throws_ok($$select om_material_import('mc',2,'{}',true)$$,'42501','Admin required','AC-005 Material Coordinator cannot bulk import');
 select throws_ok($$select om_material_set_scale('[]')$$,'42501','Admin required','AC-005 Material Coordinator cannot configure scale');
-select is((with changed as (update work_order_section_material_plan set quantity=500 where id='30100000-0000-0000-0000-000000003001' returning id) select count(*) from changed),0::bigint,'AC-005 Material Coordinator cannot bypass direct-plan rights');
+with changed as (update work_order_section_material_plan set quantity=500 where id='30100000-0000-0000-0000-000000003001' returning id) select is((select count(*) from changed),0::bigint,'AC-005 Material Coordinator cannot bypass direct-plan rights');
 select pg_temp.act_as('30100000-0000-0000-0000-0000000001a5');
 select throws_ok($$select om_material_set_reconciliation('30100000-0000-0000-0000-000000002002',(select id from owner_material_reconciliation_steps where archived_at is null and position=1))$$,'42501',null,'AC-005 keeper does not inherit coordinator status rights');
 select throws_ok($$select om_material_import('keeper',2,'{}',true)$$,'42501','Admin required','AC-005 keeper cannot bulk import');
@@ -116,5 +136,72 @@ select ok(c.relrowsecurity and c.relforcerowsecurity,'AC-005 RLS enabled and for
 select ok(not has_table_privilege('authenticated',c.oid,'INSERT') and not has_table_privilege('authenticated',c.oid,'UPDATE')
  and not has_table_privilege('authenticated',c.oid,'DELETE'),'AC-005 no direct client writes: '||c.relname)
  from pg_class c where c.relnamespace='public'::regnamespace and (c.relname like 'owner_material_%' and c.relkind='r' or c.relname='stock_material_categories');
+
+set local role authenticated;
+select pg_temp.act_as('30100000-0000-0000-0000-0000000001b1');
+select is((select count(*) from stock_material_categories where org_id='30100000-0000-0000-0000-00000000010a'),0::bigint,'AC-005 foreign tenant cannot read stock_material_categories');
+select is((select count(*) from owner_material_warehouses where org_id='30100000-0000-0000-0000-00000000010a'),0::bigint,'AC-005 foreign tenant cannot read owner_material_warehouses');
+select is((select count(*) from owner_material_import_batches where org_id='30100000-0000-0000-0000-00000000010a'),0::bigint,'AC-005 foreign tenant cannot read owner_material_import_batches');
+select is((select count(*) from owner_material_import_rows where org_id='30100000-0000-0000-0000-00000000010a'),0::bigint,'AC-005 foreign tenant cannot read owner_material_import_rows');
+select is((select count(*) from owner_material_openings where org_id='30100000-0000-0000-0000-00000000010a'),0::bigint,'AC-005 foreign tenant cannot read owner_material_openings');
+select is((select count(*) from owner_material_reconciliation_steps where org_id='30100000-0000-0000-0000-00000000010a'),0::bigint,'AC-005 foreign tenant cannot read owner_material_reconciliation_steps');
+select is((select count(*) from owner_material_reconciliation where org_id='30100000-0000-0000-0000-00000000010a'),0::bigint,'AC-005 foreign tenant cannot read owner_material_reconciliation');
+select is((select count(*) from owner_material_reconciliation_events where org_id='30100000-0000-0000-0000-00000000010a'),0::bigint,'AC-005 foreign tenant cannot read owner_material_reconciliation_events');
+select is((select count(*) from owner_material_movement_links where org_id='30100000-0000-0000-0000-00000000010a'),0::bigint,'AC-005 foreign tenant cannot read owner_material_movement_links');
+select throws_ok($$select om_material_set_reconciliation('30100000-0000-0000-0000-000000002001',(select id from owner_material_reconciliation_steps limit 1))$$,'42501','Section unavailable','AC-005 foreign Admin cannot reconcile section');
+reset role;
+select set_config('request.jwt.claims','{}',true);
+update profiles set status='disabled' where id='30100000-0000-0000-0000-0000000001a1';
+set local role authenticated;
+select pg_temp.act_as('30100000-0000-0000-0000-0000000001a1');
+select throws_ok('select om_material_config()','42501','Active membership required','AC-005 inactive Admin cannot read configuration');
+select throws_ok($$select om_material_import('inactive',2,'{}',true)$$,'42501',null,'AC-005 inactive Admin cannot import');
+select throws_ok($$select om_material_set_scale('[]')$$,'42501',null,'AC-005 inactive Admin cannot configure');
+select throws_ok($$select om_material_set_reconciliation('30100000-0000-0000-0000-000000002001',null)$$,'42501',null,'AC-005 inactive Admin cannot reconcile');
+reset role;
+select set_config('request.jwt.claims','{}',true);
+update profiles set status='active' where id='30100000-0000-0000-0000-0000000001a1';
+set local role anon;
+select throws_ok($$select om_material_config()$$,'42501',null,'AC-005 anonymous config denied');
+select throws_ok($$select om_material_import('anon',2,'{}',true)$$,'42501',null,'AC-005 anonymous import denied');
+reset role;
+-- Actual document -> document line -> ledger.line_id, plus explicit plan attribution.
+select pg_temp.act_as('30100000-0000-0000-0000-0000000001a1');
+insert into stock_warehouses(id,org_id,code,name,kind,project_id) values
+ ('30100000-0000-0000-0000-000000006001','30100000-0000-0000-0000-00000000010a','OM-SITE','Synthetic site','site','30100000-0000-0000-0000-0000000001d1');
+-- A legacy free receipt fixture uses the supported organisation setting, not a posting exception.
+update order_receiving_settings set enabled=false where org_id='30100000-0000-0000-0000-00000000010a';
+create temp table material_docs(kind text,id uuid);
+grant all on material_docs to authenticated;
+set local role authenticated;
+insert into material_docs values('receive',create_stock_document(
+ jsonb_build_object('kind','receive','warehouse_id','30100000-0000-0000-0000-000000006001'),
+ '[{"item_id":"30100000-0000-0000-0000-000000001311","quantity":2,"unit_cost":0}]',true));
+select set_cost_attribution('stock_document',array[(select id from material_docs where kind='receive')],'30100000-0000-0000-0000-000000001401',null);
+insert into material_docs values('issue',create_stock_document(
+ jsonb_build_object('kind','issue','warehouse_id','30100000-0000-0000-0000-000000006001','project_id','30100000-0000-0000-0000-0000000001d1'),
+ '[{"item_id":"30100000-0000-0000-0000-000000001311","quantity":1,"boq_item_id":"30100000-0000-0000-0000-000000001201"}]',true));
+select set_cost_attribution('stock_document',array[(select id from material_docs where kind='issue')],'30100000-0000-0000-0000-000000001401',null);
+reset role;
+insert into owner_material_movement_links(org_id,document_id,stock_line_id,section_material_plan_id,item_id,stage)
+select l.org_id,l.document_id,l.id,'30100000-0000-0000-0000-000000003001',l.item_id,
+ case d.kind when 'receive' then 'received' else 'issued' end from stock_document_lines l join material_docs d on d.id=l.document_id;
+insert into client_requisitions(id,org_id,number,work_order_id,project_id,status,created_by) values
+ ('30100000-0000-0000-0000-000000007001','30100000-0000-0000-0000-00000000010a','OM-LIVE','30100000-0000-0000-0000-000000001401','30100000-0000-0000-0000-0000000001d1','open','30100000-0000-0000-0000-0000000001a1');
+insert into client_requisition_lines(id,org_id,requisition_id,line_no,stock_item_id,takeoff_quantity,requested_quantity,unit_code,section_material_plan_id) values
+ ('30100000-0000-0000-0000-000000007002','30100000-0000-0000-0000-00000000010a','30100000-0000-0000-0000-000000007001',1,'30100000-0000-0000-0000-000000001311',7,7,'M','30100000-0000-0000-0000-000000003001');
+insert into client_requisition_events(org_id,requisition_id,line_id,kind,quantity) values
+ ('30100000-0000-0000-0000-00000000010a','30100000-0000-0000-0000-000000007001','30100000-0000-0000-0000-000000007002','reserved',5),
+ ('30100000-0000-0000-0000-00000000010a','30100000-0000-0000-0000-000000007001','30100000-0000-0000-0000-000000007002','released',1);
+set local role authenticated;
+select is((select received::numeric from om_material_lines('30100000-0000-0000-0000-000000001401','30100000-0000-0000-0000-000000002001')),12::numeric,'AC-003 opening 10 plus posted receipt 2');
+select is((select issued::numeric from om_material_lines('30100000-0000-0000-0000-000000001401','30100000-0000-0000-0000-000000002001')),7::numeric,'AC-003 opening 6 plus posted issue 1');
+select is((select requested::numeric from om_material_lines('30100000-0000-0000-0000-000000001401','30100000-0000-0000-0000-000000002001')),7::numeric,'AC-003 live linked request contributes');
+select is((select set_aside::numeric from om_material_lines('30100000-0000-0000-0000-000000001401','30100000-0000-0000-0000-000000002001')),4::numeric,'AC-003 reservation releases net before adding');
+select is((select closing::numeric from om_material_lines('30100000-0000-0000-0000-000000001401','30100000-0000-0000-0000-000000002001')),4::numeric,'AC-003 closing combines opening and live contributions');
+select pg_temp.act_as('30100000-0000-0000-0000-0000000001b1');
+select is((select count(*) from owner_material_posted_quantities),0::bigint,'AC-005 foreign tenant cannot read quantity projection');
+select is((select count(*) from owner_material_unallocated_totals),0::bigint,'AC-005 foreign tenant cannot read unallocated projection');
+reset role;
 select * from finish();
 rollback;

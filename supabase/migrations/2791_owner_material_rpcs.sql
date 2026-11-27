@@ -1,4 +1,5 @@
 -- Owner material reads and bounded opening import (#3010).
+-- drops: guard_section_material_plan() | "if v_others + new.quantity > v_plan then" | FR-017 adds the active Admin import's private transaction witness to the quantity-cap decision; all other checks remain.
 create or replace function public.guard_section_material_plan() returns trigger
   language plpgsql security definer set search_path = public, pg_temp as $$
 declare
@@ -48,7 +49,9 @@ begin
  else
  select d.work_order_id,d.kind into v_wo,v_kind from public.stock_documents d where d.id=new.document_id and d.org_id=new.org_id;
  if (new.stage='received' and v_kind is distinct from 'receive') or (new.stage='issued' and v_kind is distinct from 'issue')
- or (new.stage='returned' and v_kind is distinct from 'return') then raise exception 'Movement stage mismatch' using errcode='23514';end if;
+ or (new.stage='returned' and v_kind is distinct from 'return')
+ or (new.stage in ('transfer_in','transfer_out') and coalesce(v_kind,'') not in ('transfer','issue','return'))
+ then raise exception 'Movement stage mismatch' using errcode='23514';end if;
  end if;
  if v_plan.id is null or v_wo is distinct from v_plan.work_order_id then
  raise exception 'Material parent mismatch' using errcode='23514';end if;
@@ -60,6 +63,28 @@ create trigger owner_material_requisition_parent before insert or update on publ
 create trigger owner_material_movement_parent before insert or update on public.owner_material_movement_links
  for each row execute function public.om_material_check_parent();
 
+-- Quantity-only projections of the private ledger. No valuation columns or client write grants.
+-- Explicit actor and work-order scope is required because their owner reads the private stock tables.
+create view public.owner_material_posted_quantities with (security_barrier=true) as
+select x.section_material_plan_id plan_id,x.stage,d.kind,g.qty_delta
+from public.owner_material_movement_links x
+join public.work_order_section_material_plan p on p.id=x.section_material_plan_id and p.org_id=x.org_id
+join public.stock_documents d on d.id=x.document_id and d.org_id=x.org_id and d.status='Posted'
+join public.stock_ledger g on g.document_id=d.id and g.line_id=x.stock_line_id and g.org_id=x.org_id
+where x.org_id=(select public.auth_org_id()) and (select public.is_active_member())
+and ((select public.actor_is_light()) is not true or public.light_can_see_work_order(p.work_order_id))
+and not exists(select 1 from public.order_receiving_requests r join public.order_receiving_reversals v on v.request_id=r.id where r.stock_document_id=d.id)
+and not exists(select 1 from public.dsr_stock_postings s where s.issue_document_id=d.id and s.reversed_at is not null);
+create view public.owner_material_unallocated_totals with (security_barrier=true) as
+select d.work_order_id,count(distinct g.line_id) n
+from public.stock_documents d join public.stock_ledger g on g.document_id=d.id and g.org_id=d.org_id
+where d.org_id=(select public.auth_org_id()) and (select public.is_active_member()) and d.status='Posted'
+and ((select public.actor_is_light()) is not true or public.light_can_see_work_order(d.work_order_id))
+and not exists(select 1 from public.owner_material_movement_links x where x.stock_line_id=g.line_id)
+group by d.work_order_id;
+revoke all on public.owner_material_posted_quantities,public.owner_material_unallocated_totals from public,anon,authenticated;
+grant select on public.owner_material_posted_quantities,public.owner_material_unallocated_totals to authenticated;
+
 create view public.owner_material_stage_totals with (security_invoker=true) as
 with requests as (
  select l.section_material_plan_id plan_id,sum(l.requested_quantity) requested,
@@ -69,19 +94,14 @@ with requests as (
  from public.client_requisition_events e where e.line_id=l.id and e.org_id=l.org_id) e on true
  where r.status='open' and l.section_material_plan_id is not null group by l.section_material_plan_id
 ), movements as (
- select x.section_material_plan_id plan_id,
- sum(abs(g.qty_delta)) filter(where x.stage='received' and d.kind='receive' and g.qty_delta>0) received,
- sum(abs(g.qty_delta)) filter(where x.stage='issued' and d.kind='issue' and g.qty_delta<0) issued,
- sum(abs(g.qty_delta)) filter(where x.stage='returned' and d.kind='return' and g.qty_delta>0) returned,
- sum(abs(g.qty_delta)) filter(where x.stage='transfer_in' and g.qty_delta>0) transfer_in,
- sum(abs(g.qty_delta)) filter(where x.stage='transfer_out' and g.qty_delta<0) transfer_out,
- sum(abs(g.qty_delta)) filter(where x.stage='owner_return' and g.qty_delta<0) owner_return
- from public.owner_material_movement_links x
- join public.stock_documents d on d.id=x.document_id and d.org_id=x.org_id and d.status='Posted'
- join public.stock_ledger g on g.document_id=d.id and g.line_id=x.stock_line_id and g.org_id=x.org_id
- where not exists(select 1 from public.order_receiving_requests r join public.order_receiving_reversals v on v.request_id=r.id where r.stock_document_id=d.id)
- and not exists(select 1 from public.dsr_stock_postings s where s.issue_document_id=d.id and s.reversed_at is not null)
- group by x.section_material_plan_id
+ select x.plan_id,
+ sum(abs(x.qty_delta)) filter(where x.stage='received' and x.kind='receive' and x.qty_delta>0) received,
+ sum(abs(x.qty_delta)) filter(where x.stage='issued' and x.kind='issue' and x.qty_delta<0) issued,
+ sum(abs(x.qty_delta)) filter(where x.stage='returned' and x.kind='return' and x.qty_delta>0) returned,
+ sum(abs(x.qty_delta)) filter(where x.stage='transfer_in' and (x.kind<>'transfer' or x.qty_delta>0)) transfer_in,
+ sum(abs(x.qty_delta)) filter(where x.stage='transfer_out' and (x.kind<>'transfer' or x.qty_delta<0)) transfer_out,
+ sum(abs(x.qty_delta)) filter(where x.stage='owner_return' and x.qty_delta<0) owner_return
+ from public.owner_material_posted_quantities x group by x.plan_id
 ), quantities as (
  select p.id plan_id,p.section_id,p.item_id,p.work_order_id,w.project_id,i.code item_code,i.name item_name,u.code unit,
  c.code category_code,s.owner_cost_code,p.quantity planned,
@@ -144,14 +164,10 @@ begin
  from public.work_order_sections s left join public.owner_material_reconciliation c on c.section_id=s.id
  left join public.owner_material_reconciliation_steps r on r.id=c.step_id
  where s.archived_at is null group by s.work_order_id
- ), unallocated as (
- select d.work_order_id,count(distinct g.line_id) n from public.stock_documents d join public.stock_ledger g on g.document_id=d.id
- where d.status='Posted' and not exists(select 1 from public.owner_material_movement_links x where x.stock_line_id=g.line_id)
- group by d.work_order_id
  ) select w.id,coalesce(w.wo_number,w.client_po_number),w.title,coalesce(s.n,0),t.requested::text,t.reserved::text,t.received::text,
  t.issued::text,t.closing::text,r.name,s.pct::text,coalesce(u.n,0),count(*) over()
  from public.work_orders w join public.projects j on j.id=w.project_id
- left join totals t on t.work_order_id=w.id left join sections s on s.work_order_id=w.id left join unallocated u on u.work_order_id=w.id
+ left join totals t on t.work_order_id=w.id left join sections s on s.work_order_id=w.id left join public.owner_material_unallocated_totals u on u.work_order_id=w.id
  left join public.owner_material_reconciliation_steps r on r.org_id=w.org_id and r.percentage=s.pct and r.archived_at is null
  where w.project_id=p_project_id and (p_work_order_id is null or w.id=p_work_order_id)
  and w.org_id=(select public.auth_org_id()) and (select public.is_active_member())
@@ -216,6 +232,8 @@ begin
  or jsonb_array_length(p_payload->'entities')<1
  or jsonb_array_length(p_payload->'entities')>(case when p_payload->>'kind'='catalogue' then 500 else 1 end) then
  raise exception 'Invalid import envelope' using errcode='P0001',detail='material-invalid';end if;
+ if coalesce(p_payload->>'project_id','') !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+ or length(coalesce(p_payload->>'source_digest',''))>200 then raise exception 'Invalid project or digest' using detail='material-invalid';end if;
  v_project:=(p_payload->>'project_id')::uuid;
  if not exists(select 1 from public.projects j where j.id=v_project and j.org_id=v_org and j.archived_at is null) then
  raise exception 'Project unavailable' using errcode='42501';end if; -- mut:material_import_org
@@ -223,12 +241,14 @@ begin
  -- Locks outside the preview subtransaction are retained through the validation decision.
  if p_payload->>'kind'='section' then
  perform pg_advisory_xact_lock(hashtextextended('om-order:'||v_project::text||':'||btrim(p_payload->'entities'->0->>'owner_order_number'),0));
+ if nullif(p_payload->'entities'->0->>'reconciliation_step','') is not null then
+ perform pg_advisory_xact_lock(hashtextextended('om-scale:'||v_org::text,0));end if;
  end if;
  begin
  select b.id into v_batch from public.owner_material_import_batches b where b.org_id=v_org and b.source_key=p_source_key for update;
  if v_batch is null then
- insert into public.owner_material_import_batches(org_id,source_key,schema_version,created_by)
- values(v_org,p_source_key,p_schema_version,v_uid) returning id into v_batch;
+ insert into public.owner_material_import_batches(org_id,source_key,schema_version,created_by,source_digest)
+ values(v_org,p_source_key,p_schema_version,v_uid,p_payload->>'source_digest') returning id into v_batch;
  end if;
  insert into public.owner_material_import_witness values(txid_current(),pg_backend_pid(),v_org,v_uid,v_batch);
  for v_entity in select e from jsonb_array_elements(p_payload->'entities') e order by e->>'entity_key' loop
@@ -341,6 +361,12 @@ begin
  insert into public.owner_material_import_rows(batch_id,org_id,entity_key,payload_hash,result_ids) values(v_batch,v_org,v_line->>'entity_key',v_line->>'hash',v_ids)
  on conflict(batch_id,entity_key) do update set payload_hash=excluded.payload_hash,result_ids=excluded.result_ids;
  end loop;
+ if nullif(v_entity->>'reconciliation_step','') is not null then
+ select s.id into v_id from public.owner_material_reconciliation_steps s where s.org_id=v_org and s.archived_at is null
+ and (s.name=v_entity->>'reconciliation_step' or s.id::text=v_entity->>'reconciliation_step');
+ if v_id is null then raise exception 'Reconciliation step unavailable' using detail='material-invalid';end if;
+ perform public.om_material_set_reconciliation(v_section.id,v_id,'Imported opening position');
+ end if;
  end if;
  insert into public.owner_material_import_rows(batch_id,org_id,entity_key,payload_hash,result_ids) values(v_batch,v_org,v_key,v_hash,v_ids)
  on conflict(batch_id,entity_key) do update set payload_hash=excluded.payload_hash,result_ids=excluded.result_ids;
@@ -393,9 +419,11 @@ declare v_org uuid:=public.auth_org_id();v_section public.work_order_sections;v_
  v_step public.owner_material_reconciliation_steps;v_old public.owner_material_reconciliation;v_old_pct numeric;
 begin
  perform public.assert_is_active_member();perform public.assert_not_light();perform public.csr_assert_recorder();
- select * into v_section from public.work_order_sections s where s.id=p_section_id and s.org_id=v_org for update;
+ perform pg_advisory_xact_lock(hashtextextended('om-scale:'||v_org::text,0));
+ select * into v_section from public.work_order_sections s where s.id=p_section_id and s.org_id=v_org;
  if v_section.id is null then raise exception 'Section unavailable' using errcode='42501';end if; -- mut:material_reconciliation_org
  select * into v_wo from public.work_orders w where w.id=v_section.work_order_id and w.org_id=v_org for update;
+ select * into v_section from public.work_order_sections s where s.id=p_section_id and s.org_id=v_org for update;
  if v_wo.id is null or v_wo.status not in ('Draft','Issued') or v_section.archived_at is not null then
  raise exception 'Section is frozen' using detail='material-conflict';end if;
  select * into v_step from public.owner_material_reconciliation_steps s where s.id=p_step_id and s.org_id=v_org and s.archived_at is null;
@@ -425,3 +453,280 @@ revoke all on function public.om_material_seed_scale() from public,anon,authenti
 create trigger owner_material_seed_scale after insert on public.organizations for each row execute function public.om_material_seed_scale();
 insert into public.owner_material_reconciliation_steps(org_id,position,name,percentage)
 select o.id,p,n,p*20 from public.organizations o cross join (values(1,'Prepared'),(2,'Checked'),(3,'Submitted'),(4,'Agreed'),(5,'Closed')) t(p,n);
+
+-- CLI material loader: retain every existing endpoint and role fence.
+-- drops: api_client_request_guard() | "'preview_stock_opening_history', 'load_stock_opening_history'];" | Append the three Admin material-loader RPCs.
+-- drops: api_client_request_guard() | "'contract_rate_lines', 'contract_rate_assignees'];" | Append the work-order read for the existing operator tier.
+create or replace function public.api_client_request_guard()
+  returns void
+  language plpgsql
+  security invoker
+  set search_path = ''
+as $$
+declare
+  -- API CLIENT SURFACE — keep in step with scripts/pmo.mjs.
+  write_tables constant text[] := array['projects', 'project_milestones', 'tasks', 'meetings', 'crm_activities', 'companies', 'contacts'];
+  read_only_tables constant text[] := array['profiles', 'external_domain_ownership'];
+  rpcs constant text[] := array['get_project_milestones'];
+  -- ACTIVE-ADMIN TIER (`pmo load`, #796) — keep in step with scripts/pmo.mjs LOAD_TABLES / LOAD_RPCS.
+  admin_write_tables constant text[] := array['budget_versions', 'budget_line_items', 'boq_items'];
+  admin_rpcs constant text[] := array['set_project_contract_value', 'transition_project', 'import_budget_line_v2'];
+  -- #1835 stage-date correction tier: exact RPC + read endpoint, active Admin only.
+  stage_admin_rpcs constant text[] := array['redate_stage_entry'];
+  stage_admin_tables constant text[] := array['project_stage_entries'];
+  -- PROCUREMENT-WRITER TIER (`pmo purchases`, #1319) — keep in step with scripts/lib/pmo-purchases.mjs.
+  purchase_rpcs constant text[] := array['link_erp_purchase_documents', 'link_procurement_sharepoint_item',
+    'attach_erp_journal_lines', 'project_erp_journal_lines', 'create_record_only_journal_purchase', 'undo_captured_purchase'];  -- 0688 (#1919)
+  purchase_read_views constant text[] := array['erp_purchase_orphans', 'erp_purchase_orphans_all'];  -- 0364
+  -- ADMIN/FINANCE TIER (`pmo purchases set-aside`, #1319 AC-13)  -- 0364
+  set_aside_rpcs constant text[] := array['mark_erp_purchase_documents'];  -- 0364
+  -- ACTIVE-ADMIN `pmo rpc` TIER (#1326) — keep in step with scripts/pmo.mjs ADMIN_RPCS.  -- 0366
+  admin_cli_rpcs constant text[] := array['recategorise_budget_lines', 'list_account_reconciliation', 'dispose_account_reconciliation',  -- 0366
+    'load_work_order_opening', 'load_stock_opening', 'reverse_opening_balance', 'opening_balance_report',  -- 1047
+    'preview_stock_opening_history', 'load_stock_opening_history', 'import_work_orders', 'om_material_config', 'om_material_import'];  -- 1902
+  -- OPERATOR READ TIER (`pmo get/documents/m365`, #1270) — keep in step with scripts/pmo.mjs.  -- 0367
+  operator_read_tables constant text[] := array['budget_versions', 'budget_line_items', 'budget_category_account_map', 'erp_gl_entry_mirror', 'project_documents', 'org_m365_document_settings', 'm365_record_folder_sweeps',  -- 0367
+    'contract_rate_lines', 'contract_rate_assignees', 'work_orders'];  -- 0518
+  operator_read_rpcs constant text[] := array['project_mapped_actuals', 'link_m365_documents_batch'];  -- 0367
+  -- BUDGET OPS TIER (`pmo budgets`, #1270 B): the activation check. Same role set as the RPC's own check. A Draft's source
+  -- file goes through link_m365_documents_batch (0367 tier, host-pinned). activate_budget_version is deliberately NOT here
+  -- (owner has not ruled).  -- 0370
+  budget_ops_rpcs constant text[] := array['budget_activation_mode'];  -- 0370
+  -- ACTIVE-ADMIN ACCOUNT-MAP TIER (`pmo accounts map set`, #1270 B) — the same Admin rule as the table's own policy.  -- 0370
+  account_map_tables constant text[] := array['budget_category_account_map'];  -- 0370
+  account_map_rpcs constant text[] := array['set_budget_push_account'];  -- 0370
+  -- COST ATTRIBUTION TIER (`pmo attribution`, #1271): preview/save/end for active Admin/Finance; list for the
+  -- project-actuals audience. Same role sets as the RPCs' own checks.  -- 0376
+  cost_attribution_write_rpcs constant text[] := array['preview_cost_attribution', 'save_cost_attribution_rule', 'end_cost_attribution_rule'];  -- 0376
+  cost_attribution_read_rpcs constant text[] := array['list_cost_attribution_rules'];  -- 0376
+  -- EQUIPMENT TIER (`pmo equipment`, #1519): costing preview/save/end for active Admin/Finance; costing and allocation
+  -- reads for the amounts audience; usage totals for any active member. Same role sets as the RPCs' own checks.  -- 0497
+  equipment_write_rpcs constant text[] := array['preview_equipment_costing', 'save_equipment_costing', 'end_equipment_costing'];  -- 0497
+  equipment_read_rpcs constant text[] := array['list_equipment_costing', 'list_equipment_allocations'];  -- 0497
+  equipment_usage_rpcs constant text[] := array['list_equipment_usage_totals'];  -- 0497
+  -- TIME-AND-MATERIALS TIER (`pmo tm`, #1514): the rate and sign-off writers for active Admin/Finance; the claim list and
+  -- preview for the amounts audience. Same role sets as the RPCs' own checks. The rate card itself is a table read, so
+  -- `contract_rate_lines` and `contract_rate_assignees` join the operator read tier below; RLS stays the tenancy rule.  -- 0518
+  tm_write_rpcs constant text[] := array['save_contract_rate_line', 'end_contract_rate_line', 'set_contract_rate_assignee', 'end_contract_rate_assignee', 'assemble_tm_claim', 'deselect_tm_source', 'prepare_tm_signoff', 'withdraw_tm_signoff', 'confirm_tm_signoff'];  -- 0518
+  tm_read_rpcs constant text[] := array['list_tm_claims', 'preview_tm_claim', 'list_tm_claim_source_details'];  -- 0588
+  -- NATIVE RECEIPT TIER (`pmo purchases receive` on a PMO-owned org, #1866): same role set as the RPC's own check.  -- 0702
+  native_receipt_rpcs constant text[] := array['create_procurement_receipt'];  -- 0702
+  -- ACTIVE-ADMIN CAPTURE-READ TIER (`pmo purchases capture`, #2276) — keep in step with supabase/functions/purchase-capture.  -- 0872
+  capture_read_rpcs constant text[] := array['purchase_capture_source_page', 'purchase_capture_ledger_page', 'purchase_capture_feed_health'];  -- 0872
+  -- DISPATCH-READ TIER (`pmo purchases receive|pay-captured`, external `pmo companies create`, #2278) — keep in step with
+  -- supabase/functions/adapter-dispatch/authGuard.ts and pmo-portal/src/lib/adapterSeam/cutoverGate.ts.  -- 0876
+  dispatch_read_rpcs constant text[] := array['domain_owned_by_tier', 'actor_authorization_state'];  -- 0876
+  dispatch_read_procurement_rpcs constant text[] := array['pre_cutover_procurement'];  -- 0876
+  -- ACTIVE-ADMIN CAPTURE-ASSIGNMENT TIER (`pmo purchases assign`, #2195) — keep in step with supabase/functions/purchase-capture.  -- 0882
+  capture_assign_rpcs constant text[] := array['assign_capture_invoices', 'purchase_capture_assignment_report'];  -- 0882
+  -- DOCUMENT-REGISTER WRITE TIER (`pmo documents create|upload`, #1857) — keep in step with scripts/pmo.mjs DOCUMENT_WRITE_TABLES.  -- 0884
+  document_write_tables constant text[] := array['project_documents'];  -- 0884
+  -- OPERATOR ONBOARDING TIER (`pmo org add`, #2280) — keep in step with scripts/lib/pmo-org.mjs and supabase/functions/operator-org.  -- 0894
+  operator_onboard_rpcs constant text[] := array['is_operator', 'is_active_member', 'operator_plan_catalogue', 'operator_org_plan',  -- 0894
+    'operator_create_org_with_setup'];  -- 0894
+  -- PURCHASE-HISTORY IMPORT TIER (`pmo purchases import-history`, #1855) — active Admin, as the RPC's own check; keep in step with scripts/lib/pmo-purchases.mjs.  -- 0899
+  history_import_rpcs constant text[] := array['import_purchase_history'];  -- 0899
+  -- PURCHASE-HISTORY UNDO TIER (`pmo purchases undo-import`, #2321) — active Admin, as the RPC's own check; keep in step with scripts/lib/pmo-purchases.mjs.  -- 1141
+  history_undo_rpcs constant text[] := array['undo_imported_purchase'];  -- 1141
+  -- ACTIVE-ADMIN CORRECTION TIER (`pmo correct contract-line|budget-line`, #1858) — PATCH on these two tables only, one row per request;  -- 0899
+  -- the columns a token may change are fixed by the api_client_restrict_patch_columns() trigger on each table. Keep in step with scripts/lib/pmo-correct.mjs.  -- 0899
+  correction_patch_tables constant text[] := array['boq_items', 'budget_line_items'];  -- 0899
+  claims jsonb := nullif(current_setting('request.jwt.claims', true), '')::jsonb;
+  headers jsonb := coalesce(nullif(current_setting('request.headers', true), '')::jsonb, '{}'::jsonb);
+  method text := current_setting('request.method', true);
+  path text := coalesce(current_setting('request.path', true), '');
+  -- Tokens of the Prefer value the guard receives: split on commas, each trimmed at its ends only, case-sensitive.  -- 0899
+  prefer_tokens text[] := (select coalesce(array_agg(btrim(t, E' \t\n\v\f\r')), '{}') from unnest(string_to_array(coalesce(headers ->> 'prefer', ''), ',')) t);  -- 0899
+  target text;
+begin
+  if claims is null or not (claims ? 'client_id') then
+    return; -- not an OAuth API client: nothing to decide here
+  end if;
+
+  if coalesce(headers ->> 'accept-profile', 'public') <> 'public'
+     or coalesce(headers ->> 'content-profile', 'public') <> 'public' then
+    raise exception using errcode = '42501',
+      message = 'OAuth API clients may use the public schema only';
+  end if;
+
+  -- `Prefer: resolution=merge-duplicates|ignore-duplicates` turns a POST into an upsert (an UPDATE on
+  -- conflict), which would let a POST-only grant edit rows. The CLI never sends it; refuse it everywhere.
+  if coalesce(headers ->> 'prefer', '') ilike '%resolution=%' then
+    raise exception using errcode = '42501',
+      message = 'OAuth API clients may not upsert (Prefer: resolution=)';
+  end if;
+
+  if path like '/rpc/%' then
+    target := substr(path, 6);
+    if method = 'POST' and target = any (rpcs) then
+      return;
+    end if;
+    if method = 'POST' and target = any (admin_rpcs) then
+      if coalesce(public.auth_role() = 'Admin'::public.user_role and public.is_active_member(), false) then
+        return;
+      end if;
+    end if;
+    if method = 'POST' and target = any (stage_admin_rpcs) then  -- 0585
+      if coalesce(public.auth_role() = 'Admin'::public.user_role and public.is_active_member(), false) then
+        return;
+      end if;
+    end if;
+    if method = 'POST' and target = any (purchase_rpcs) then
+      if coalesce(public.auth_role()::text in ('Admin', 'Executive', 'Project Manager', 'Finance') and public.is_active_member(), false) then
+        return;
+      end if;
+    end if;
+    if method = 'POST' and target = any (operator_read_rpcs) then  -- 0367
+      if coalesce(public.auth_role()::text in ('Admin', 'Executive', 'Project Manager', 'Finance') and public.is_active_member(), false) then  -- 0367
+        return;  -- 0367
+      end if;  -- 0367
+    end if;  -- 0367
+    if method = 'POST' and target = any (budget_ops_rpcs) then  -- 0370
+      if coalesce(public.auth_role()::text in ('Admin', 'Executive', 'Project Manager', 'Finance') and public.is_active_member(), false) then  -- 0370
+        return;  -- 0370
+      end if;  -- 0370
+    end if;  -- 0370
+    if method = 'POST' and target = any (account_map_rpcs) then  -- 0370
+      if coalesce(public.auth_role() = 'Admin'::public.user_role and public.is_active_member(), false) then  -- 0370
+        return;  -- 0370
+      end if;  -- 0370
+    end if;  -- 0370
+    if method = 'POST' and target = any (cost_attribution_write_rpcs) then  -- 0376
+      if coalesce(public.auth_role()::text in ('Admin', 'Finance') and public.is_active_member(), false) then  -- 0376
+        return;  -- 0376
+      end if;  -- 0376
+    end if;  -- 0376
+    if method = 'POST' and target = any (cost_attribution_read_rpcs) then  -- 0376
+      if coalesce(public.auth_role()::text in ('Admin', 'Executive', 'Project Manager', 'Finance') and public.is_active_member(), false) then  -- 0376
+        return;  -- 0376
+      end if;  -- 0376
+    end if;  -- 0376
+    if method = 'POST' and target = any (equipment_write_rpcs) then  -- 0497
+      if coalesce(public.auth_role()::text in ('Admin', 'Finance') and public.is_active_member(), false) then  -- 0497
+        return;  -- 0497
+      end if;  -- 0497
+    end if;  -- 0497
+    if method = 'POST' and target = any (equipment_read_rpcs) then  -- 0497
+      if coalesce(public.auth_role()::text in ('Admin', 'Executive', 'Project Manager', 'Finance') and public.is_active_member(), false) then  -- 0497
+        return;  -- 0497
+      end if;  -- 0497
+    end if;  -- 0497
+    if method = 'POST' and target = any (equipment_usage_rpcs) then  -- 0497
+      if coalesce(public.is_active_member(), false) then  -- 0497
+        return;  -- 0497
+      end if;  -- 0497
+    end if;  -- 0497
+    if method = 'POST' and target = any (tm_write_rpcs) then  -- 0518
+      if coalesce(public.auth_role()::text in ('Admin', 'Finance') and public.is_active_member(), false) then  -- 0518
+        return;  -- 0518
+      end if;  -- 0518
+    end if;  -- 0518
+    if method = 'POST' and target = any (tm_read_rpcs) then  -- 0518
+      if coalesce(public.auth_role()::text in ('Admin', 'Executive', 'Project Manager', 'Finance') and public.is_active_member(), false) then  -- 0518
+        return;  -- 0518
+      end if;  -- 0518
+    end if;  -- 0518
+    if method = 'POST' and target = any (native_receipt_rpcs) then  -- 0702
+      if coalesce(public.auth_role()::text in ('Admin', 'Project Manager') and public.is_active_member(), false) then  -- 0702
+        return;  -- 0702
+      end if;  -- 0702
+    end if;  -- 0702
+    if method = 'POST' and target = any (set_aside_rpcs) then  -- 0364
+      if coalesce(public.auth_role()::text in ('Admin', 'Finance') and public.is_active_member(), false) then  -- 0364
+        return;  -- 0364
+      end if;  -- 0364
+    end if;  -- 0364
+    if method = 'POST' and target = any (capture_read_rpcs) then  -- 0872
+      if coalesce(public.auth_role() = 'Admin'::public.user_role and public.is_active_member(), false) then  -- 0872
+        return;  -- 0872
+      end if;  -- 0872
+    end if;  -- 0872
+    if method = 'POST' and target = any (dispatch_read_rpcs) then  -- 0876
+      if coalesce(public.is_active_member(), false) then  -- 0876
+        return;  -- 0876
+      end if;  -- 0876
+    end if;  -- 0876
+    if method = 'POST' and target = any (dispatch_read_procurement_rpcs) then  -- 0876
+      if coalesce(public.auth_role()::text in ('Admin', 'Executive', 'Project Manager', 'Finance') and public.is_active_member(), false) then  -- 0876
+        return;  -- 0876
+      end if;  -- 0876
+    end if;  -- 0876
+    if method = 'POST' and target = any (capture_assign_rpcs) then  -- 0882
+      if coalesce(public.auth_role() = 'Admin'::public.user_role and public.is_active_member(), false) then  -- 0882
+        return;  -- 0882
+      end if;  -- 0882
+    end if;  -- 0882
+    if method = 'POST' and target = any (operator_onboard_rpcs) then  -- 0894
+      if coalesce(public.is_operator() and public.is_active_member(), false) then  -- 0894
+        return;  -- 0894
+      end if;  -- 0894
+    end if;  -- 0894
+    if method = 'POST' and target = any (history_import_rpcs) then  -- 0899
+      if coalesce(public.auth_role() = 'Admin'::public.user_role and public.is_active_member(), false) then  -- 0899
+        return;  -- 0899
+      end if;  -- 0899
+    end if;  -- 0899
+    if method = 'POST' and target = any (history_undo_rpcs) then  -- 1141
+      if coalesce(public.auth_role() = 'Admin'::public.user_role and public.is_active_member(), false) then  -- 1141
+        return;  -- 1141
+      end if;  -- 1141
+    end if;  -- 1141
+    if method = 'POST' and target = any (admin_cli_rpcs) then  -- 0366
+      if coalesce(public.auth_role() = 'Admin'::public.user_role and public.is_active_member(), false) then  -- 0366
+        return;  -- 0366
+      end if;  -- 0366
+    end if;  -- 0366
+  else
+    target := substr(path, 2); -- exact table name; anything longer matches no list entry
+    if method = 'GET' and (target = any (write_tables) or target = any (read_only_tables)) then
+      return;
+    end if;
+    if method in ('POST', 'PATCH') and target = any (write_tables) then
+      return;
+    end if;
+    if method in ('GET', 'POST') and target = any (admin_write_tables) then
+      if coalesce(public.auth_role() = 'Admin'::public.user_role and public.is_active_member(), false) then
+        return;
+      end if;
+    end if;
+    if method in ('GET', 'POST') and target = any (account_map_tables) then  -- 0370
+      if coalesce(public.auth_role() = 'Admin'::public.user_role and public.is_active_member(), false) then  -- 0370
+        return;  -- 0370
+      end if;  -- 0370
+    end if;  -- 0370
+    if method = 'GET' and target = any (stage_admin_tables) then  -- 0585
+      if coalesce(public.auth_role() = 'Admin'::public.user_role and public.is_active_member(), false) then
+        return;
+      end if;
+    end if;
+    if method = 'GET' and target = any (operator_read_tables) then  -- 0367
+      if coalesce(public.auth_role()::text in ('Admin', 'Executive', 'Project Manager', 'Finance') and public.is_active_member(), false) then  -- 0367
+        return;  -- 0367
+      end if;  -- 0367
+    end if;  -- 0367
+    if method = 'GET' and target = any (purchase_read_views) then
+      if coalesce(public.auth_role()::text in ('Admin', 'Executive', 'Project Manager', 'Finance') and public.is_active_member(), false) then
+        return;
+      end if;
+    end if;
+    if method in ('POST', 'PATCH') and target = any (document_write_tables) then  -- 0884
+      if coalesce(public.auth_role()::text in ('Admin', 'Executive', 'Project Manager', 'Finance') and public.is_active_member(), false) then  -- 0884
+        return;  -- 0884
+      end if;  -- 0884
+    end if;  -- 0884
+    -- The guard cannot see the filter; it asks for `handling=strict` and `max-affected=1` once each, spelled exactly. The one-row  -- 0899
+    -- cap is the statement trigger's, whatever the header says.  -- 0899
+    if method = 'PATCH' and target = any (correction_patch_tables) then  -- 0899
+      if coalesce(public.auth_role() = 'Admin'::public.user_role and public.is_active_member(), false)  -- 0899
+         and (select count(*) from unnest(prefer_tokens) t where t like 'handling%') = 1 and 'handling=strict' = any (prefer_tokens)  -- 0899
+         and (select count(*) from unnest(prefer_tokens) t where t like 'max-affected%') = 1 and 'max-affected=1' = any (prefer_tokens) then  -- 0899
+        return;  -- 0899
+      end if;  -- 0899
+    end if;  -- 0899
+  end if;
+
+  raise exception using errcode = '42501',
+    message = format('%s %s is not available to OAuth API clients', method, path),
+    hint = 'The API client surface is documented in docs/runbooks/pmo-cli.md';
+end;
+$$;
