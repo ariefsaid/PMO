@@ -112,7 +112,7 @@ describe('AC-008 OwnerMaterialPipeline', () => {
     h.sections = ok([stage({ skippedSourceRows: 6, skippedReasonCodes: ['field_length_exceeded', 'unknown_unit'] })]);
     view();
     expect(screen.getByTestId('om-skipped')).toHaveTextContent('6 source rows were not loaded');
-    expect(screen.getByTestId('om-skipped-why')).toHaveTextContent('Field too long, unknown unit');
+    expect(screen.getByTestId('om-skipped-why')).toHaveTextContent('A value was too long, Other reason');
     cleanup();
     h.sections = ok([stage({ skippedSourceRows: 1, skippedReasonCodes: [] })]);
     view();
@@ -129,6 +129,35 @@ describe('AC-008 OwnerMaterialPipeline', () => {
     view();
     expect(screen.getByTestId('om-skipped')).toHaveTextContent('6 baris sumber tidak dimuat');
     expect(screen.getByTestId('om-skipped-why')).toHaveTextContent('Isian terlalu panjang');
+  });
+
+  it('AC-008 every line-level loader reason has its own words in both languages; an unknown code reads as other reason, never raw', async () => {
+    const words: Record<string, string> = {
+      missing_formula_cache: 'A formula had no saved value', excel_error: 'A cell held a spreadsheet error', check_cell: 'A check marker was in the item code',
+      missing_unit: 'The unit was missing', invalid_numeric: 'A quantity was not a number', invalid_numeric_precision: 'A quantity had too many decimals',
+      negative_quantity: 'A quantity was negative', conflicting_cache: 'A workbook total disagreed with its parts',
+      closing_stock_conflict: 'The closing stock disagreed with the movements', conflicting_duplicate_unit: 'A repeated item had a different unit',
+      duplicate_section_item: 'An item appeared twice in the location', zero_planned_with_movements: 'No planned quantity, but there were movements',
+      field_length_exceeded: 'A value was too long',
+    };
+    i18n.addResourceBundle('en', 'ownerMaterial', ownerMaterialEn, true, true);
+    for (const [code, text] of Object.entries(words)) {
+      h.sections = ok([stage({ skippedSourceRows: 1, skippedReasonCodes: [code] })]);
+      view();
+      expect(screen.getByTestId('om-skipped-why')).toHaveTextContent(text);
+      cleanup();
+    }
+    h.sections = ok([stage({ skippedSourceRows: 1, skippedReasonCodes: ['brand_new_code'] })]);
+    view();
+    expect(screen.getByTestId('om-skipped-why')).toHaveTextContent('Other reason');
+    expect(screen.getByTestId('om-skipped-why')).not.toHaveTextContent('brand_new_code');
+    cleanup();
+    expect(Object.keys(ownerMaterialId.skipReason).sort()).toEqual([...Object.keys(words), 'other'].sort());
+    i18n.addResourceBundle('id', 'ownerMaterial', ownerMaterialId, true, true);
+    await i18n.changeLanguage('id');
+    h.sections = ok([stage({ skippedSourceRows: 1, skippedReasonCodes: ['brand_new_code'] })]);
+    view();
+    expect(screen.getByTestId('om-skipped-why')).toHaveTextContent('Alasan lain');
   });
 
   it('AC-008 owner return shows with Returned only when it is non-zero', () => {

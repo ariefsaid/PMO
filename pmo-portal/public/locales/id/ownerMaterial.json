@@ -22,7 +22,20 @@
   "skipped_one": "{{count}} baris sumber tidak dimuat",
   "skipped_other": "{{count}} baris sumber tidak dimuat",
   "skipReason": {
-    "field_length_exceeded": "Isian terlalu panjang"
+    "missing_formula_cache": "Rumus tidak punya nilai tersimpan",
+    "excel_error": "Sel berisi kesalahan spreadsheet",
+    "check_cell": "Ada tanda pemeriksaan di kode barang",
+    "missing_unit": "Satuan kosong",
+    "invalid_numeric": "Kuantitas bukan angka",
+    "invalid_numeric_precision": "Kuantitas punya terlalu banyak desimal",
+    "negative_quantity": "Kuantitas negatif",
+    "conflicting_cache": "Total di workbook tidak sama dengan bagiannya",
+    "closing_stock_conflict": "Stok akhir tidak sama dengan pergerakannya",
+    "conflicting_duplicate_unit": "Barang yang berulang punya satuan berbeda",
+    "duplicate_section_item": "Barang muncul dua kali di lokasi",
+    "zero_planned_with_movements": "Tidak ada kuantitas rencana, tetapi ada pergerakan",
+    "field_length_exceeded": "Isian terlalu panjang",
+    "other": "Alasan lain"
   },
   "transferIn": "masuk {{n}}",
   "transferOut": "keluar {{n}}",
