@@ -163,9 +163,10 @@ describe('#2528 crews DAL', () => {
     await crews.listOpenWorkOrders();
     expect(h.calls.from).toEqual(['people_directory', 'crew_members', 'crew_standard_roles', 'work_order_crews', 'work_orders']);
     expect(h.calls.neq).toEqual([['status', 'Cancelled']]);
-    h.result.queue = [{ data: { id: 'p' }, error: null }, { data: null, error: null }, { data: null, error: null }];
+    h.result.queue = [{ data: { id: 'p' }, error: null }, { data: null, error: null }, { data: [{ id: 'c' }], error: null }];
     await crews.createCrewWorker({ kind: 'vendor', display_name: 'V', id_reference: null, profile_id: null, vendor_company_id: null });
     await crews.placeCrewMember({ crew_id: 'c', worker_id: 'p', standard_role_id: null, valid_from: '2026-11-01', valid_to: null });
+    h.result.value = { data: [{ id: 'c' }], error: null };
     await crews.updateCrew('c', { archived_at: '2026-11-19T00:00:00Z' });
   });
 });
@@ -209,4 +210,9 @@ describe('#2528 attendance DAL', () => {
     expect(h.calls.upload[0]).toEqual(['org1/wo1/p1/crew_photo.jpg', file, { upsert: false, contentType: 'image/jpeg' }]);
     expect(h.calls.insert).toEqual([{ id: 'p1', work_order_id: 'wo1', crew_id: 'c1', work_date: '2026-11-18', file_path: 'org1/wo1/p1/crew_photo.jpg' }]);
   });
+});
+
+it("refuses a crew edit that did not land", async () => {
+ h.result.value = { data: [], error: null };
+ await expect(crews.updateCrew("c", { name: "Changed" })).rejects.toMatchObject({ code: "42501" });
 });

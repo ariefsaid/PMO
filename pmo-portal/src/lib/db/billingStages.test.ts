@@ -130,3 +130,11 @@ describe('billing stage targets and optional stages DAL (#2592)', () => {
     expect(trace.stages[0]).toMatchObject({ targetDays: 5, optional: true, skippedOn: '2026-03-03', skippedReason: 'Not needed here' });
   });
 });
+
+it('AC-READ-002 maps every reconciliation page including tied and null keys', async () => {
+ const fixture = Array.from({ length: 2002 }, (_, i) => ({ boq_item_id: String(i), item_code: i < 1001 ? 'same' : null, line_no: null, status: 'unbilled' }));
+ h.rpc.mockReturnValue({ range: (from: number, to: number) => Promise.resolve({ data: fixture.slice(from, to + 1), error: null }) });
+ const rows = await getBillingReconciliation('p1', null);
+ expect(rows.map(r => r.boqItemId)).toEqual(fixture.map(r => r.boq_item_id));
+ expect(new Set(rows.map(r => r.boqItemId)).size).toBe(2002);
+});

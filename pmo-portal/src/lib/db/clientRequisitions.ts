@@ -1,3 +1,4 @@
+import { fetchAllPages } from '@/src/lib/pagedRead';
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError } from '@/src/lib/appError';
 import type { Json } from '@/src/lib/supabase/database.types';
@@ -76,10 +77,6 @@ export interface WorkOrderClientMaterial {
 
 const fail = (error: { message: string; code?: string }): never => { throw new AppError(error.message, error.code); };
 
-/** Bounded reads: one work order carries few requisitions; these caps are far above any real figure. */
-const REQUISITION_LIMIT = 200;
-const LINE_LIMIT = 2000;
-const EVENT_LIMIT = 5000;
 
 const num = (v: unknown): string => String(v);
 
@@ -89,12 +86,11 @@ const num = (v: unknown): string => String(v);
  * strings so the pure rollup stays exact.
  */
 export async function getWorkOrderClientMaterial(workOrderId: string): Promise<WorkOrderClientMaterial> {
-  const reqRes = await (supabase.from('client_requisitions')
+  const reqRows = await fetchAllPages((from, to) => supabase.from('client_requisitions')
     .select('id, number, work_order_id, project_id, client_reference, status, created_by, created_at, sent_at')
     .eq('work_order_id', workOrderId).order('created_at', { ascending: false }).order('id', { ascending: false })
-    .limit(REQUISITION_LIMIT));
-  if (reqRes.error) fail(reqRes.error);
-  const requisitions = (reqRes.data ?? []).map((r): ClientRequisitionRow => ({
+    .range(from, to));
+  const requisitions = reqRows.map((r): ClientRequisitionRow => ({
     id: String(r.id), number: String(r.number), workOrderId: String(r.work_order_id), projectId: String(r.project_id),
     clientReference: (r.client_reference as string | null) ?? null, status: r.status as ClientRequisitionStatus,
     createdBy: String(r.created_by), createdAt: String(r.created_at), sentAt: (r.sent_at as string | null) ?? null,
@@ -102,35 +98,33 @@ export async function getWorkOrderClientMaterial(workOrderId: string): Promise<W
   if (requisitions.length === 0) return { requisitions, lines: [], events: [], pickups: [] };
   const ids = requisitions.map((r) => r.id);
   const [rollup, events, pickups] = await Promise.all([
-    supabase.rpc('csr_work_order_rollup', { p_work_order_id: workOrderId }),
-    supabase.from('client_requisition_events')
+    fetchAllPages((from, to) => supabase.rpc('csr_work_order_rollup', { p_work_order_id: workOrderId }).range(from, to)),
+    fetchAllPages((from, to) => supabase.from('client_requisition_events')
       .select('id, requisition_id, line_id, kind, quantity, client_reference, event_on, reason, recorded_by, created_at')
-      .in('requisition_id', ids).order('seq', { ascending: true }).limit(EVENT_LIMIT),
-    supabase.from('client_requisition_pickups')
+      .in('requisition_id', ids).order('seq', { ascending: true }).order('id').range(from, to)),
+    fetchAllPages((from, to) => supabase.from('client_requisition_pickups')
       .select('id, requisition_id, line_id, quantity, picked_up_on, collector, paper_reference, warehouse_id, stock_document_id')
       .in('requisition_id', ids).order('picked_up_on', { ascending: true }).order('created_at', { ascending: true })
-      .limit(EVENT_LIMIT),
+      .order('id').range(from, to)),
   ]);
-  for (const r of [rollup, events, pickups]) if (r.error) fail(r.error);
-  const allocations = await supabase.from('client_requisition_lines')
-    .select('id, work_order_line_id').in('requisition_id', ids).limit(LINE_LIMIT);
-  if (allocations.error) fail(allocations.error);
-  const allocationByLine = new Map((allocations.data ?? []).map((l) => [l.id, l.work_order_line_id]));
+  const allocations = await fetchAllPages((from, to) => supabase.from('client_requisition_lines')
+    .select('id, work_order_line_id').in('requisition_id', ids).order('id').range(from, to));
+  const allocationByLine = new Map(allocations.map((l) => [l.id, l.work_order_line_id]));
   return {
     requisitions,
-    lines: (rollup.data ?? []).slice(0, LINE_LIMIT).map((l): ClientRequisitionLineRow => ({
+    lines: rollup.map((l): ClientRequisitionLineRow => ({
       id: l.line_id, requisitionId: l.requisition_id, requisitionNumber: l.requisition_number,
       workOrderLineId: allocationByLine.get(l.line_id) ?? null,
       requisitionStatus: l.requisition_status as ClientRequisitionStatus, itemId: l.stock_item_id, itemCode: l.item_code,
       itemName: l.item_name, unit: l.unit_code, takeoffQuantity: num(l.takeoff_quantity), requestedQuantity: num(l.requested_quantity),
     })),
-    events: (events.data ?? []).map((e): ClientRequisitionEvent => ({
+    events: events.map((e): ClientRequisitionEvent => ({
       id: String(e.id), requisitionId: String(e.requisition_id), lineId: (e.line_id as string | null) ?? null,
       kind: e.kind as CsrEventKind, quantity: e.quantity == null ? null : num(e.quantity),
       clientReference: (e.client_reference as string | null) ?? null, eventOn: (e.event_on as string | null) ?? null,
       reason: (e.reason as string | null) ?? null, recordedBy: (e.recorded_by as string | null) ?? null, createdAt: String(e.created_at),
     })),
-    pickups: (pickups.data ?? []).map((p): ClientRequisitionPickup => ({
+    pickups: pickups.map((p): ClientRequisitionPickup => ({
       id: String(p.id), requisitionId: String(p.requisition_id), lineId: String(p.line_id), quantity: num(p.quantity),
       pickedUpOn: String(p.picked_up_on), collector: (p.collector as string | null) ?? null,
       paperReference: (p.paper_reference as string | null) ?? null, warehouseId: String(p.warehouse_id),

@@ -10,7 +10,7 @@
 -- Every denial asserts the errcode AND the message.
 begin;
 create extension if not exists pgtap;
-select plan(87);
+select plan(88);
 
 -- ── Fixtures ─────────────────────────────────────────────────────────────────────────────────────────────
 insert into organizations (id, name, default_currency) values
@@ -350,5 +350,9 @@ select results_eq(
   $$ values (2, 1) $$,
   'AC-WOS-020: the site engineer sees one done task out of two live leaves');
 
+select pg_temp.act_as('25760000-0000-0000-0000-0000000000a1');
+update public.tasks set tombstoned_at = now() where name = $$Finished subtask$$ and parent_task_id = $$25760000-0000-0000-0000-000000001001$$;
+select pg_temp.act_as($$25760000-0000-0000-0000-0000000000a4$$);
+select results_eq($$select tasks_total, tasks_done from public.work_order_section_rollup('25760000-0000-0000-0000-000000000402') where code = 'P'$$, $$values (1, 0)$$, $$AC-WOS-020 deleted leaves contribute to neither total$$);
 select * from finish();
 rollback;

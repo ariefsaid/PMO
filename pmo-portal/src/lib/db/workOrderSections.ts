@@ -146,9 +146,10 @@ export async function setSectionReadiness(id: string, readiness: Readiness, note
 }
 
 export async function setSectionArchived(id: string, archived: boolean): Promise<void> {
-  const { error } = await supabase.from('work_order_sections')
-    .update({ archived_at: archived ? new Date().toISOString() : null }).eq('id', id);
+  const { data, error } = await supabase.from('work_order_sections')
+    .update({ archived_at: archived ? new Date().toISOString() : null }).eq('id', id).select('id');
   if (error) throw new AppError(error.message, error.code);
+  if (!data?.length) throw new AppError('You cannot archive this section.', '42501');
 }
 
 export async function deleteSection(id: string): Promise<void> {
