@@ -98,17 +98,18 @@ fingerprint not listed; `docs/ux/layout-baseline.md` carries counts for reading 
 reaches an empty list.
 **Five fixed rules** (owner, 16 Nov) fail whatever any baseline says; `scripts/ux-proof.sh --rules-only /route ...` prints
 them at 1440, 1024 and 390 with no baseline or word budget touched, and a plain run prints them as warnings until the screens are fixed.
-R1 card inset: in a card with a heading, every direct block starts at the heading's left x (±1), except a table or media spanning the card edge to edge. R2 trailing tag: in a list, menu or picker row a tag is one line and the tags of one list share a right edge (±1). R3 section frame: tab bars with the same labels keep one left x, top y and width across routes at a viewport (±1). R4 no lone centring: one item in a container over twice its height (and 64px) starts within the container's top padding. R5 shared ends: stacked bars share start and end x (±1); right-aligned figures of one column share their right x (±1). The numbers are `RULE_NUMBERS` in `scripts/ux-proof-metrics.mjs`.
+R1 card inset: in a card with a heading, every direct block starts at the heading's left x (±1), except a table or media spanning the card edge to edge. R2 trailing tag: in a list, menu or picker row a tag is one line and the tags of one list share a right edge (±1). A definition-list value tag may follow its value inline or stack at the value-column left edge (±2). R3 section frame: tab bars with the same labels keep one left x, top y and width across routes at a viewport (±1). R4 no lone centring: one item in a container over twice its height (and 64px) starts within the container's top padding. R5 shared ends: stacked bars share start and end x (±1); right-aligned figures of one column share their right x (±1). The numbers are `RULE_NUMBERS` in `scripts/ux-proof-metrics.mjs`.
 1. One left edge per surface (measured): every block in a panel starts at the same x (the panel inset); on the
    page, flat content and panels share the gutter. Tables stay flush; their cells keep the 16px cell inset.
+   Selectable record text shares a rail within its card; the selection control and gutter belong to the card inset.
    A KPI tile is its own surface with a 16px inset (DESIGN.md), so its inset is not a page-column edge.
    Structural indents (table columns after the first, nested list levels, trees, chart internals, a chip's or
    field's own padding, a row's leading checkbox, avatar or swatch, a centred or right-aligned control) are exempt; mark one deliberate exception `data-layout-ignore`. The proof reports the
    markers per route and fails one that covers a panel or more than 30% of `main`. `data-layout-surface` makes
    an element count as a panel when it has no border or shadow of its own.
 2. Spacing follows the relationship (measured, between painted content, not box edges): a heading sits 12 to
-   16px above its content (±2); sibling sections or panels sit 16, 24 or 32px apart (±2): panels 24px on
-   desktop and 16px on a phone, sections 32px; no block is more than 48px of white space from the next while
+   16px above its content (±2); intervening prose or notices are content, not part of the heading; sibling sections or panels sit 16, 24 or 32px apart (±2): panels 24px on
+   desktop and 16px on a phone, sections 32px; divided-group siblings may also use gaps from 24 to 48px; no block is more than 48px of white space from the next while
    content follows. Gaps under 12px inside one group (label to value, icon to text) are not judged. Paddings
    never stack: a panel inside a panel, or a padded wrapper around a panel, adds no second inset; stacked
    padding shows up as one gap above 48px.
