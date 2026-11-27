@@ -31,11 +31,6 @@ export function priceSource<T extends MaskableTable>(table: T): T | `${T}_masked
   return hidePricesActive ? (`${table}_masked` as `${T}_masked`) : table;
 }
 
-/** Embed name for a PostgREST select: `alias:view(cols)` while masked, `table(cols)` otherwise. */
-export function priceEmbed(table: MaskableTable, cols: string, alias: string = table): string {
-  return hidePricesActive ? `${alias}:${table}_masked(${cols})` : alias === table ? `${table}(${cols})` : `${alias}:${table}(${cols})`;
-}
-
 const MASKABLE: readonly MaskableTable[] = [
   'procurements', 'procurement_items', 'procurement_invoices', 'purchase_orders', 'purchase_requests', 'payments',
   'purchase_order_lines', 'po_variation_lines', 'stock_document_lines', 'stock_ledger', 'stock_balances', 'equipment_plan_lines',
