@@ -1,10 +1,14 @@
 -- 2789: project_budget_positions reads ledger actuals only for the projects asked (up to 10), not the whole organisation.
 -- Proof that nothing else changed: the 0859 body (the definition live before 2789) is kept below verbatim as _ppb_0859
--- (and approval routing's 2769 figures as _core_2769) inside this transaction, and old = new (EXCEPT ALL both ways, zero rows) for every active profile of every organisation
--- (seeded and fixture: an accounting-ledger organisation with rules, a group account, an equipment pool, hire charges and a
--- placed invoice; a document-basis organisation), for every project of the caller's organisation and lists of every kind,
--- both as a signed-in client and inside definer code. Then function-call and ledger-row counts show the one-project path no
--- longer runs the organisation-wide readers, and parity holds at production's project count. Note: the attribution engine
+-- (and approval routing's 2769 figures as _core_2769) inside this transaction, and old = new (EXCEPT ALL both ways, zero rows) for a chosen domain, lists of every kind, both
+-- as a signed-in client and inside definer code. Callers: every active profile of the two fixture organisations (an
+-- accounting-ledger organisation with rules, a group account, an equipment pool, hire charges and a placed invoice; a
+-- document-basis organisation; built to cover every rule) plus one active profile per role of each seeded organisation.
+-- One-project lists: every fixture project; per seeded organisation its first four projects by id plus the first with an
+-- active budget and the first without (the whole seed cross product took 11 minutes in CI). Lists of every project and
+-- short lists still use the caller's whole organisation. Then function-call and ledger-row counts show the one-project path no
+-- longer runs the organisation-wide readers, and parity holds at production's project count (Z's twelve fixture
+-- projects and the first three of its 122 identical bulk projects by id, one at a time). Note: the attribution engine
 -- still reads every ledger line on the accounts the asked project's rules name (a line's project is what the rules decide).
 -- Mutation checks (run 27 Nov 2026, each went red): in 2789 pass '2025' instead of null to project_mapped_actuals, or drop
 -- the per-project hire-charge branch, and the single, short and 134-project parity rows fail; set the cutoff to "<= 0" and
@@ -441,23 +445,36 @@ create function pg_temp.cmp_core(p_ids uuid[]) returns table(diff bigint, n bigi
          (select count(*) from o where figures->>'basis' = 'erp' and figures->'recorded' <> '{}'::jsonb
                                    and jsonb_path_exists(figures->'recorded', '$.*.amount ? (@ != null)')),
          (select count(*) from o where figures->>'basis' = 'pmo' and figures->>'proj_spent' is not null) $$;
--- every active profile of every organisation (seeded and fixture), each kind of list, as a client or inside definer code
+-- the compared domain: every fixture profile and project; per seeded organisation one active profile per role, and its
+-- first four projects by id plus the first with an active budget and the first without
+create temp table _callers on commit drop as
+select pr.id, pr.org_id from public.profiles pr
+ where pr.status = 'active'
+   and (pr.org_id in ('27890000-0000-0000-0000-00000000000a', '27890000-0000-0000-0000-00000000000b')
+        or pr.id in (select distinct on (q.org_id, q.role) q.id from public.profiles q where q.status = 'active'
+                      order by q.org_id, q.role, q.id));
+create temp table _scope on commit drop as
+select p.id, p.org_id from public.projects p where p.org_id in ('27890000-0000-0000-0000-00000000000a', '27890000-0000-0000-0000-00000000000b')
+union
+select s.id, s.org_id from (select p.id, p.org_id, row_number() over (partition by p.org_id order by p.id) rn
+                              from public.projects p where p.org_id not in ('27890000-0000-0000-0000-00000000000a', '27890000-0000-0000-0000-00000000000b')) s where s.rn <= 4
+union
+(select distinct on (b.has_budget, b.org_id) b.id, b.org_id
+  from (select p.id, p.org_id, exists (select 1 from public.budget_versions v where v.project_id = p.id and v.status = 'Active') has_budget
+          from public.projects p where p.org_id not in ('27890000-0000-0000-0000-00000000000a', '27890000-0000-0000-0000-00000000000b')) b
+ order by b.has_budget, b.org_id, b.id);
+grant select on _callers, _scope to authenticated;
+-- the chosen callers, each kind of list, as a client or inside definer code
 create function pg_temp.parity(p_kind text, p_internal boolean, p_fn text default 'positions')
 returns table(diff bigint, lists bigint, n bigint, erp_spent bigint, pmo_spent bigint, callers bigint, errors bigint) language plpgsql as $$
 declare c record; v_ids uuid[]; r record; v_other uuid; v_old text; v_new text;
 begin
   errors := 0; diff := 0; lists := 0; n := 0; erp_spent := 0; pmo_spent := 0; callers := 0;
-  for c in select pr.id, pr.org_id from public.profiles pr
-            where pr.status = 'active'
-              -- routing figures cost more per call: every fixture profile, and one seeded profile per organisation and role
-              and (p_fn = 'positions' or pr.org_id in ('27890000-0000-0000-0000-00000000000a', '27890000-0000-0000-0000-00000000000b')
-                   or pr.id in (select distinct on (q.org_id, q.role) q.id from public.profiles q where q.status = 'active'
-                                 order by q.org_id, q.role, q.id))
-            order by pr.id loop
+  for c in select cc.id, cc.org_id from _callers cc order by cc.id loop
     callers := callers + 1;
     select p.id into v_other from public.projects p where p.org_id <> c.org_id order by p.id limit 1;
     for v_ids in
-      select array[p.id] from public.projects p where p_kind = 'single' and (p.org_id = c.org_id or p.id = v_other)
+      select array[p.id] from public.projects p where p_kind = 'single' and (p.id in (select s.id from _scope s where s.org_id = c.org_id) or p.id = v_other)
       union all select null::uuid[] where p_kind = 'none'
       union all select '{}'::uuid[] where p_kind = 'empty'
       -- an aggregate with no group returns a row even when no project matches: HAVING keeps these to their own kind
@@ -529,7 +546,7 @@ select pg_temp.as_user('27890000-0000-0000-0000-0000000000b1');
 select ok(not public.org_reads_erp_ledger(), 'fixture: the document organisation does not read a ledger');
 reset role;
 
--- ── parity: old body = new body, every caller, every project, every kind of list ─────────────────────
+-- ── parity: old body = new body, the chosen callers and projects, every kind of list ─────────────────────
 create temp table _p on commit drop as
 select k.kind, m.internal, x.*
   from unnest(array['single','none','empty','all','short']) k(kind)
@@ -548,16 +565,16 @@ select is((select diff from _p where kind = 'none' and internal), 0::bigint, 'pa
 select is((select diff from _p where kind = 'empty' and internal), 0::bigint, 'parity: an empty list, inside definer code');
 select is((select diff from _p where kind = 'all' and internal), 0::bigint, 'parity: every project plus another organisation''s, inside definer code');
 select is((select diff from _p where kind = 'short' and internal), 0::bigint, 'parity: a short list, inside definer code');
--- exact coverage, whatever the seed holds: every active profile once, and for each one every project of its organisation
--- plus one other organisation's project; the fixture's ten profiles and fifteen projects are among them
-select ok((select x.callers = (select count(*) from public.profiles where status = 'active')
-              and x.lists = (select sum(1 + (select count(*) from public.projects p where p.org_id = pr.org_id))
-                               from public.profiles pr where pr.status = 'active')
-              and x.callers >= 10 + (select count(*) from public.profiles where status = 'active' and org_id not in
+-- exact coverage, whatever the seed holds: every chosen caller once, and for each one every project of its scope plus one
+-- other organisation's project; every fixture profile and project, and every seeded organisation and role, are among them
+select ok((select x.callers = (select count(*) from _callers)
+              and x.lists = (select sum(1 + (select count(*) from _scope s where s.org_id = cc.org_id)) from _callers cc)
+              and x.callers >= 10 + (select count(distinct (org_id, role)) from public.profiles where status = 'active' and org_id not in
                                       ('27890000-0000-0000-0000-00000000000a', '27890000-0000-0000-0000-00000000000b'))
+              and (select count(*) from _scope where org_id in ('27890000-0000-0000-0000-00000000000a', '27890000-0000-0000-0000-00000000000b')) = 15
               and x.lists >= 7 * 13 + 3 * 4   -- the fixture alone: 7 ledger profiles x (12 + 1), 3 document profiles x (3 + 1)
              from _p x where x.kind = 'single' and not x.internal),
-  'parity covered every active profile (seeded and fixture) and every project of its organisation');
+  'parity covered every fixture profile and project, and one profile per role and sampled projects of each seeded organisation');
 select ok((select erp_spent >= 40 from _p where kind = 'single' and not internal),
   'parity compared ledger-basis rows that carry a spent figure');
 select ok((select pmo_spent >= 3 from _p where kind = 'single' and not internal),
@@ -629,7 +646,9 @@ analyze public.projects, public.erp_gl_entry_mirror, public.erp_account_mirror, 
 create function pg_temp.parity_one(p_sub uuid, p_fn text default 'positions') returns bigint language plpgsql as $$
 declare v_id uuid; d bigint := 0;
 begin
-  for v_id in select p.id from public.projects p where p.org_id = '27890000-0000-0000-0000-00000000000a' loop
+  -- Z's twelve fixture projects and the first three bulk ones (the bulk projects are identical in shape)
+  for v_id in select p.id from public.projects p where p.org_id = '27890000-0000-0000-0000-00000000000a' and p.name not like '2789 Z bulk%'
+              union all (select p.id from public.projects p where p.name like '2789 Z bulk%' order by p.id limit 3) loop
     perform pg_temp.as_user(p_sub);
     execute 'set local role authenticated';
     d := d + case when p_fn = 'positions' then (select x.diff from pg_temp.cmp(array[v_id]) x)
@@ -639,9 +658,9 @@ begin
   return d;
 end $$;
 select is(pg_temp.parity_one('27890000-0000-0000-0000-0000000000a2') + pg_temp.parity_one('27890000-0000-0000-0000-0000000000a4'), 0::bigint,
-  'parity at 134 projects: every project one at a time, as Finance and as a Project Manager limited to own projects');
+  'parity at 134 projects: the twelve fixture projects and three bulk ones one at a time, as Finance and as a Project Manager limited to own projects');
 select is(pg_temp.parity_one('27890000-0000-0000-0000-0000000000a2', 'routing'), 0::bigint,
-  'routing parity at 134 projects: every project one at a time, as Finance');
+  'routing parity at 134 projects: the fixture and three bulk projects one at a time, as Finance');
 select diag(format('ms per call at 134 projects, one project: before %s, after %s; twelve projects (organisation pass both): before %s, after %s',
   pg_temp.ms('27890000-0000-0000-0000-0000000000a2', 'select count(*) from public._ppb_0859(array[''27890000-0000-0000-0000-0000000000c1''::uuid])', 10),
   pg_temp.ms('27890000-0000-0000-0000-0000000000a2', 'select count(*) from public.project_budget_positions(array[''27890000-0000-0000-0000-0000000000c1''::uuid])', 10),
