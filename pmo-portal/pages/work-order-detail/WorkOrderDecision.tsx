@@ -8,27 +8,34 @@ import { isOverCommitmentRefusal, type WorkOrderRow } from '@/src/lib/db/workOrd
 import { OpenChecksWarning } from './OpenChecksWarning';
 
 /**
- * The work order's decision on its own page (#2898): Issue a Draft (the header's one filled action) or Cancel it with a
- * reason (the header menu). Open checks never block Issue. Issue shows only while the server's issue eligibility says the
- * reader may (the value SoD); an over-ceiling refusal is re-offered as an explicit acknowledgement, as on the contract's
- * work orders. `can('transition', 'workOrder')` is the UX gate; transition_work_order and cancel_work_order decide.
+ * The work order's decision on its own page (#2898, #3024): Issue a Draft (the header's one filled action), Cancel it
+ * with a reason, or (Admin only, #3024) Reopen a Closed work order that has no confirmed final acceptance. Open checks
+ * never block Issue. `can('transition', 'workOrder')` and `can('reopen', 'workOrder', …)` are UX gates;
+ * transition_work_order, cancel_work_order and reopen_work_order decide.
  */
-export function useWorkOrderDecision(row: Pick<WorkOrderRow, 'id' | 'project_id' | 'status' | 'title' | 'issue_eligibility'> | null) {
+export function useWorkOrderDecision(
+  row: (Pick<WorkOrderRow, 'id' | 'project_id' | 'status' | 'title' | 'issue_eligibility'> & {
+    closing_acceptance_id?: string | null;
+  }) | null,
+) {
   const { t } = useTranslation(['workOrders', 'project']);
   const may = usePermission();
   const { toast } = useToast();
   const projectId = row?.project_id ?? '';
   const canTransition = Boolean(row) && may('transition', 'workOrder');
+  const canReopen = Boolean(row)
+    && may('reopen', 'workOrder', { record: { status: row?.status, closing_acceptance_id: row?.closing_acceptance_id } });
   const isDraft = row?.status === 'Draft';
-  const { transition, cancel } = useWorkOrderMutations(projectId);
+  const { transition, cancel, reopen } = useWorkOrderMutations(projectId);
   const [issueOpen, setIssueOpen] = useState(false);
   const [overCommit, setOverCommit] = useState<string | null>(null);
   const [cancelOpen, setCancelOpen] = useState(false);
+  const [reopenOpen, setReopenOpen] = useState(false);
   const [error, setError] = useState<string>();
 
   const eligible = row?.issue_eligibility === 'allowed';
   const message = (err: unknown) => { const { headline, detail } = classifyMutationError(err, undefined, { suppressCapture: true }); return detail ? `${headline} ${detail}` : headline; };
-  const close = () => { setIssueOpen(false); setOverCommit(null); setCancelOpen(false); setError(undefined); };
+  const close = () => { setIssueOpen(false); setOverCommit(null); setCancelOpen(false); setReopenOpen(false); setError(undefined); };
 
   const issue = (ack: boolean) => {
     if (!row) return;
@@ -42,9 +49,14 @@ export function useWorkOrderDecision(row: Pick<WorkOrderRow, 'id' | 'project_id'
   const primaryAction = canTransition && isDraft && eligible
     ? <Button variant="primary" onClick={() => setIssueOpen(true)}>{t('project:projectDetail.workOrders.action.issue', 'Issue')}</Button>
     : undefined;
-  const menuItems: RecordMenuItem[] = canTransition && (isDraft || row?.status === 'Issued')
-    ? [{ key: 'cancel', label: t('decision.cancel', 'Cancel work order'), danger: true, onSelect: () => setCancelOpen(true) }]
-    : [];
+  const menuItems: RecordMenuItem[] = [
+    ...(canTransition && (isDraft || row?.status === 'Issued')
+      ? [{ key: 'cancel', label: t('decision.cancel', 'Cancel work order'), danger: true, onSelect: () => setCancelOpen(true) }]
+      : []),
+    ...(canReopen
+      ? [{ key: 'reopen', label: t('decision.reopen', 'Reopen work order'), onSelect: () => setReopenOpen(true) }]
+      : []),
+  ];
 
   const dialogs = row && (
     <>
@@ -69,6 +81,14 @@ export function useWorkOrderDecision(row: Pick<WorkOrderRow, 'id' | 'project_id'
         confirmLabel={t('project:projectDetail.workOrders.confirm.cancel.confirm', 'Cancel work order')}
         loading={cancel.isPending} error={error}
         onConfirm={(reason) => { setError(undefined); cancel.mutate({ id: row.id, reason }, { onSuccess: () => { toast(t('project:projectDetail.workOrders.toast.transitioned', 'Work order updated'), row.title, 'success'); close(); }, onError: (err) => setError(message(err)) }); }}
+        onCancel={close} />
+      <ReasonDialog open={reopenOpen} kind="return" maxLength={500}
+        title={t('decision.reopenTitle', 'Reopen this work order?')}
+        label={t('decision.reopenReason', 'Reason for reopening')}
+        helper={t('decision.reopenHelper', 'Returns this work order to Issued. The reason is recorded in the audit trail.')}
+        confirmLabel={t('decision.reopenConfirm', 'Reopen work order')}
+        loading={reopen.isPending} error={error}
+        onConfirm={(reason) => { setError(undefined); reopen.mutate({ id: row.id, reason }, { onSuccess: () => { toast(t('decision.reopenedToast', 'Work order reopened'), row.title, 'success'); close(); }, onError: (err) => setError(message(err)) }); }}
         onCancel={close} />
     </>
   );

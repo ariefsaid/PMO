@@ -106,7 +106,7 @@ export const repositories: Repositories = {
   milestone: lazyRepository(() => import('./workOrders').then((module) => module.milestoneRepository),
     { list: true, deliveryForProjects: true, deliverySummaryForProjects: true, managementOverviewForProjects: true, milestoneDatesForProjects: true, create: true, update: true, delete: true, setTaskMilestone: true, listTaskGroups: true, createTaskGroup: true, updateTaskGroup: true, deleteTaskGroup: true }),
   workOrder: lazyRepository(() => import('./workOrders').then((module) => module.workOrderRepository),
-    { listOpenForHome: true, claimDocuments: true, list: true, listAll: true, get: true, create: true, importBatch: true, update: true, setValue: true, transition: true, cancel: true, listCandidateRecords: true, drawdown: true, billing: true, billedMonths: true, unbilled: true, acceptanceAge: true }),
+    { listOpenForHome: true, claimDocuments: true, list: true, listAll: true, get: true, create: true, importBatch: true, update: true, setValue: true, transition: true, cancel: true, reopen: true, listCandidateRecords: true, drawdown: true, billing: true, billedMonths: true, unbilled: true, acceptanceAge: true }),
   progressBilling: lazyRepository(() => import('./workOrders').then((module) => module.progressBillingRepository),
     { listBoq: true, createBoq: true, updateBoq: true, deleteBoq: true, recordAssessment: true, listClaims: true, createClaim: true, attachEvidence: true, withdrawClaim: true, raiseInvoice: true, raiseNativeInvoice: true, summary: true }),
   rateCatalogue: lazyRepository(() => import('./rateCatalogue').then((module) => module.rateCatalogueRepository),
