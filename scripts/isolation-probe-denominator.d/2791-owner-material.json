@@ -1,0 +1,9 @@
+{
+  "definer_functions": [
+    "om_material_check_parent()",
+    "om_material_import(text,integer,jsonb,boolean)",
+    "om_material_seed_scale()",
+    "om_material_set_reconciliation(uuid,uuid,text)",
+    "om_material_set_scale(jsonb)"
+  ]
+}

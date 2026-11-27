@@ -2966,6 +2966,7 @@ export type Database = {
       }
       client_requisition_events: {
         Row: {
+          owner_warehouse_id: string | null
           client_reference: string | null
           client_request_id: string | null
           created_at: string
@@ -3039,6 +3040,7 @@ export type Database = {
       }
       client_requisition_lines: {
         Row: {
+          section_material_plan_id: string | null
           id: string
           line_no: number
           org_id: string
@@ -3188,6 +3190,7 @@ export type Database = {
       }
       client_requisitions: {
         Row: {
+          import_batch_id: string | null
           cancelled_at: string | null
           cancelled_by: string | null
           client_reference: string | null
@@ -21923,6 +21926,7 @@ export type Database = {
       }
       stock_items: {
         Row: {
+          material_category_id: string | null
           archived_at: string | null
           code: string
           consumable: boolean
@@ -26660,6 +26664,8 @@ export type Database = {
       }
       work_order_section_material_plan: {
         Row: {
+          category_id: string | null
+          import_batch_id: string | null
           created_at: string
           created_by: string | null
           id: string
@@ -26811,6 +26817,7 @@ export type Database = {
       }
       work_order_sections: {
         Row: {
+          owner_cost_code: string | null
           archived_at: string | null
           code: string
           created_at: string
@@ -29211,6 +29218,49 @@ export type Database = {
       _erp_ack_statement_dirty_dates: {
         Args: { p_company: string; p_cutoff: number; p_org_id: string }
         Returns: undefined
+      }
+      om_material_config: {
+        Args: Record<PropertyKey, never>
+        Returns: Json
+      }
+      om_material_import: {
+        Args: { p_source_key: string; p_schema_version: number; p_payload: Json; p_confirm?: boolean }
+        Returns: Json
+      }
+      om_material_set_scale: {
+        Args: { p_steps: Json }
+        Returns: Json
+      }
+      om_material_set_reconciliation: {
+        Args: { p_section_id: string; p_step_id: string; p_reason?: string }
+        Returns: Json
+      }
+      om_material_lines: {
+        Args: { p_work_order_id: string; p_section_id?: string; p_page?: number; p_page_size?: number }
+        Returns: {
+          plan_id: string; section_id: string; item_id: string; item_code: string; item_name: string; unit: string
+          category_code: string | null; owner_cost_code: string | null; planned: string; requested: string; set_aside: string
+          received: string; issued: string; returned: string; transfer_in: string; transfer_out: string; owner_return: string; closing: string
+          requested_pct: string | null; set_aside_pct: string | null; received_pct: string | null; issued_pct: string | null
+          closing_pct: string | null; total_count: number; as_of: string | null; evidence: Json | null
+        }[]
+      }
+      om_material_rollup: {
+        Args: { p_project_id: string; p_page?: number; p_page_size?: number; p_work_order_id?: string }
+        Returns: {
+          work_order_id: string; number: string | null; title: string; section_count: number; requested_pct: string | null
+          set_aside_pct: string | null; received_pct: string | null; issued_pct: string | null; closing_pct: string | null
+          reconciliation_step: string | null; reconciliation_pct: string | null; unallocated_movement_count: number; total_count: number
+        }[]
+      }
+      om_material_section_rollup: {
+        Args: { p_work_order_id: string }
+        Returns: {
+          section_id: string; section_code: string; section_name: string; owner_cost_code: string | null; line_count: number
+          requested_pct: string | null; set_aside_pct: string | null; received_pct: string | null; issued_pct: string | null
+          closing_pct: string | null; reconciliation_step_id: string | null; reconciliation_step: string | null
+          reconciliation_pct: string | null; as_of: string | null
+        }[]
       }
       _erp_statement_change_context: {
         Args: {
