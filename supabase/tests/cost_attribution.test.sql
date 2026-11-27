@@ -28,6 +28,8 @@ insert into projects (id, org_id, name, status) values
   ('03760000-0000-0000-0000-0000000000c2','03760000-0000-0000-0000-00000000000a','Second','Ongoing Project'),
   ('03760000-0000-0000-0000-0000000000c3','03760000-0000-0000-0000-00000000000a','Third','Ongoing Project'),
   ('03760000-0000-0000-0000-0000000000cb','03760000-0000-0000-0000-00000000000b','B project','Ongoing Project');
+-- A Project Manager reads project money for their own projects (2750): this Project Manager manages the project under test.
+update projects set project_manager_id = '03760000-0000-0000-0000-0000000000a3' where org_id = '03760000-0000-0000-0000-00000000000a' and project_manager_id is null;
 
 -- chart: Payroll group {Salary, Bonus}; Rent; Office group {Utilities}
 insert into erp_account_mirror (org_id, company, erp_name, account_name, root_type, report_type, parent_account, is_group, account_currency, lft, rgt, refresh_id) values

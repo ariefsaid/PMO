@@ -25,6 +25,8 @@ insert into profiles (id, org_id, full_name, email, role, status) values
   ('17220000-0000-0000-0000-0000000000a4', '17220000-0000-0000-0000-00000000000a', 'Eng', 'hcc-eng@example.com', 'Engineer', 'active'),
   ('17220000-0000-0000-0000-0000000000a5', '17220000-0000-0000-0000-00000000000a', 'Admin', 'hcc-admin@example.com', 'Admin', 'active');
 insert into projects (id, org_id, name, status, currency) values ('17220000-0000-0000-0000-0000000000d1', '17220000-0000-0000-0000-00000000000a', 'HCC Site', 'Ongoing Project', 'IDR');
+-- A Project Manager reads project money for their own projects (2750): this Project Manager manages the project under test.
+update projects set project_manager_id = '17220000-0000-0000-0000-0000000000a3' where org_id = '17220000-0000-0000-0000-00000000000a' and project_manager_id is null;
 insert into work_orders (id, org_id, project_id, wo_number, title, status, order_value, tax_treatment, tax_amount, currency) values
   ('17220000-0000-0000-0000-000000000401', '17220000-0000-0000-0000-00000000000a', '17220000-0000-0000-0000-0000000000d1', 'WO-1', 'One', 'Issued', 10000, 'exclusive', 0, 'IDR');
 insert into crews (id, org_id, code, name) values ('17220000-0000-0000-0000-000000000c01', '17220000-0000-0000-0000-00000000000a', 'HCC-A', 'Crew A');

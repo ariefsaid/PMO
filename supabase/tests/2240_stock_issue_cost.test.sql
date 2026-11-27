@@ -181,8 +181,9 @@ select throws_ok($$select set_stock_issue_cost_date('2026-11-16')$$,'23514','sto
 select is((select count(*) from stock_issue_cost_lines('25190000-0000-0000-0000-0000000000d1')),0::bigint,'AC-ISC-005 ERP has no extra PMO stock cost');
 reset role;
 do $restore$ begin execute (select definition from issue_cost_function_backups where name='erp_case'); end $restore$;
-insert into issue_cost_function_backups values ('stock_mutation',pg_get_functiondef('public.stock_issue_cost_lines(uuid)'::regprocedure));
-do $mut$ begin execute replace(pg_get_functiondef('public.stock_issue_cost_lines(uuid)'::regprocedure),'-sum(l.value_delta)','sum(l.value_delta)'); end $mut$;
+-- The cost logic lives in stock_issue_cost_lines_core since 2751 (the public name chooses the internal or the scoped read).
+insert into issue_cost_function_backups values ('stock_mutation',pg_get_functiondef('public.stock_issue_cost_lines_core(uuid)'::regprocedure));
+do $mut$ begin execute replace(pg_get_functiondef('public.stock_issue_cost_lines_core(uuid)'::regprocedure),'-sum(l.value_delta)','sum(l.value_delta)'); end $mut$;
 set local role authenticated;
 select pg_temp.act_as('25190000-0000-0000-0000-0000000000a1');
 select isnt((select sum(amount) from stock_issue_cost_lines('25190000-0000-0000-0000-0000000000d1')),450::numeric,'AC-ISC-002 mutation: broken sign fails the same cost oracle');

@@ -173,6 +173,10 @@ select is((public.get_project_finances('02900000-0000-0000-0000-0000000000d1')->
           'AC-PFIN-014 Finance (spend-approval rank) sees totals that do not exclude restricted rows');
 set local request.jwt.claims='{"sub":"02900000-0000-0000-0000-0000000000a3","role":"authenticated"}';
 select lives_ok($$select public.get_project_finances('02900000-0000-0000-0000-0000000000d1')$$,'AC-PFIN-014 Executive can read project finances');
+reset role;
+-- A Project Manager reads project money for their own projects (2750): this Project Manager manages the project under test.
+update public.projects set project_manager_id = '02900000-0000-0000-0000-0000000000a4' where org_id = '02900000-0000-0000-0000-000000000001' and project_manager_id is null;
+set local role authenticated;
 set local request.jwt.claims='{"sub":"02900000-0000-0000-0000-0000000000a4","role":"authenticated"}';
 select lives_ok($$select public.get_project_finances('02900000-0000-0000-0000-0000000000d1')$$,'AC-PFIN-014 Project Manager can read project finances');
 set local request.jwt.claims='{"sub":"02900000-0000-0000-0000-0000000000a5","role":"authenticated"}';

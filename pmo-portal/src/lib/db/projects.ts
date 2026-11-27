@@ -139,6 +139,8 @@ interface CreateProjectBase extends ProjectClassification {
    *  without it; the create form supplies it explicitly (undefined → not sent → NULL). */
   end_client_id?: string | null;
   project_manager_id: string | null;
+  /** DD-R1125-15: reads this project's money as its manager does. Omitted leaves it unset. */
+  deputy_manager_id?: string | null;
   start_date: string | null;
   end_date: string | null;
 }
@@ -186,6 +188,8 @@ export interface ProjectHeaderInput extends ProjectClassification {
   /** The end customer, nullable (#758) — editable alongside the client. */
   end_client_id?: string | null;
   project_manager_id: string | null;
+  /** DD-R1125-15: the project's deputy project manager; omitted preserves it. */
+  deputy_manager_id?: string | null;
   start_date: string | null;
   end_date: string | null;
   /** #1275: the client's default tax article for this project's receipts (pre-fill only). Omitted preserves it. */
@@ -331,6 +335,7 @@ export async function createProject(input: CreateProjectInput): Promise<ProjectR
       client_id: input.client_id,
       end_client_id: input.end_client_id,
       project_manager_id: input.project_manager_id,
+      ...(input.deputy_manager_id !== undefined ? { deputy_manager_id: input.deputy_manager_id } : {}),
       contract_value: input.contract_value,
       start_date: input.start_date,
       end_date: input.end_date,
@@ -389,6 +394,7 @@ export async function updateProjectHeader(id: string, input: ProjectHeaderInput)
       client_id: input.client_id,
       end_client_id: input.end_client_id,
       project_manager_id: input.project_manager_id,
+      ...(input.deputy_manager_id !== undefined ? { deputy_manager_id: input.deputy_manager_id } : {}),
       start_date: input.start_date,
       end_date: input.end_date,
       ...(input.service_line !== undefined ? { service_line: input.service_line } : {}),

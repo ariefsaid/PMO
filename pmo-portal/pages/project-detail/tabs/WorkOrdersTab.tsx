@@ -1,5 +1,6 @@
 import { BillingReconciliation } from './BillingReconciliation';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { ProjectMoneyScopeContext, useMayViewProjectMoney } from '@/src/hooks/useProjectMoneyScope';
+import React, { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useSearchParams } from 'react-router';
 import {
@@ -242,8 +243,10 @@ const WorkOrdersTabInner: React.FC<WorkOrdersTabProps> = ({ projectId, currency,
   //    past-the-value invoices before any write (0262), ERP or native.
   const revenueMode = useRevenueMode();
   const revenueRouteReady = useRevenueRouteReady(revenueMode);
-  const canViewBilling = may('view', 'salesInvoice');
-  const canReadClaims = may('view', 'progressClaim');
+  const canViewBilling = useMayViewProjectMoney();
+  const moneyInScope = useContext(ProjectMoneyScopeContext);
+  // Claims carry billing money: withheld on a project outside the person's money scope (DD-R1125-14).
+  const canReadClaims = may('view', 'progressClaim') && moneyInScope;
   const canInvoice = may('create', 'salesInvoice') && revenueRouteReady && Boolean(clientId);
   const erp = useErpItemOptions('sales');
   const invoicesQuery = useSalesInvoices(projectId, { enabled: canViewBilling });

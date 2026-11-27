@@ -1,4 +1,5 @@
 import FxEquivalent from '@/src/components/fx/FxEquivalent';
+import { useMayViewProjectMoney } from '@/src/hooks/useProjectMoneyScope';
 import React, { useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
@@ -69,7 +70,7 @@ const MoneyBlockView: React.FC<{ project: ProjectWithRefs; fillRow?: boolean; /*
   const [financeDetailsOpen, setFinanceDetailsOpen] = useState(false);
   const q = useProjectFinances(project.id);
   const may = usePermission();
-  const canViewMoney = may('view', 'salesInvoice');
+  const canViewMoney = useMayViewProjectMoney();
   const boq = useBoqItems(project.id);
   const billing = useProjectBilling(project.id);
   const invoices = useSalesInvoices(project.id, { enabled: canViewMoney });

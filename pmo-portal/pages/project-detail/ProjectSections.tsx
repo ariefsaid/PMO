@@ -8,6 +8,7 @@ import { Button, ListState, MobileActionBar, SelectField, Tabs, Tooltip, tabId, 
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { usePermission } from '@/src/auth/usePermission';
+import { ProjectMoneyScopeContext, useMayViewProjectMoney } from '@/src/hooks/useProjectMoneyScope';
 import { useProjectFinances } from '@/src/hooks/useProjectFinances';
 import { useProjectBilling } from '@/src/hooks/useProgressBilling';
 import {
@@ -42,6 +43,8 @@ type ProjectTabCounts = Partial<Record<CountedArea, number>>;
 
 function useLens(): Lens {
   const { realRole } = useEffectiveRole();
+  // A Project Manager on a project not their own reads it like a role with no money (DD-R1125-14).
+  if (!React.useContext(ProjectMoneyScopeContext)) return 'delivery';
   if (realRole === 'Admin' || realRole === 'Executive' || realRole === 'Finance') return 'money';
   if (realRole === 'Project Manager') return 'money';
   return 'delivery';
@@ -70,7 +73,6 @@ const PipelineRecordBlocks: React.FC<{ project: ProjectWithRefs }> = ({ project 
 const OverviewContent: React.FC<{ project: ProjectWithRefs; isPipeline: boolean; onOpen: (a: Area) => void; /** The Activity panel (delivery projects only). */ activity?: React.ReactNode }> = ({ project, isPipeline, onOpen, activity }) => {
   const { t } = useTranslation('project');
   const lens = useLens();
-  const may = usePermission();
   const attention = useProjectAttention(project, lens);
   const attentionProps = { items: attention.items, isPending: attention.isPending, pendingSources: attention.pendingSources, error: attention.error, excludeKeys: lens === 'delivery' ? attention.myVisibleTaskKeys : undefined };
   const visibleDeliveryAttention = lens === 'delivery'
@@ -83,7 +85,7 @@ const OverviewContent: React.FC<{ project: ProjectWithRefs; isPipeline: boolean;
     ? <React.Suspense fallback={<div className="h-72" />}><ProjectSCurve projectId={project.id} /></React.Suspense>
     : null, [isPipeline, project.id]);
   const openBudget = useCallback(() => onOpen('budget'), [onOpen]);
-  const canSeeMoney = may('view', 'salesInvoice');
+  const canSeeMoney = useMayViewProjectMoney();
   if (isPipeline) {
     if (lens === 'delivery') {
       return (
@@ -206,7 +208,10 @@ function useAreaLabels(): Record<Area, string> {
 function useVisibleAreas(isPipeline: boolean): Area[] {
   const may = usePermission();
   const lens = useLens();
+  const moneyInScope = React.useContext(ProjectMoneyScopeContext);
   return AREAS.filter((a) => {
+    // Another project's contract and purchases are money; its delivery areas stay (DD-R1125-14).
+    if ((a === 'contract' || a === 'procurement') && !moneyInScope) return false;
     // A deal not yet won has no orders, billing or purchases (brief addendum, #1402).
     if (a === 'contract') return !isPipeline && (lens !== 'delivery' || may('view', 'progressClaim')) && may('view', 'workOrder');
     if (a === 'orders') return !isPipeline && may('view', 'workOrder');
