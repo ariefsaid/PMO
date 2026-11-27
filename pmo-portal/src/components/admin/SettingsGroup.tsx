@@ -24,10 +24,10 @@ export function SettingsGroup({ id, title, note, children }: { id: string; title
       <div
         className={[
           'min-w-0 divide-y divide-border px-4 sm:px-6',
-          // every setting: 32px of painted space between settings (14 + hairline + 14 + line leading), 12px under the group title, no margin of its own
-          '[&>*]:py-3.5 [&>*]:mt-0 [&>*:first-child]:pt-3',
+          // Shared 8px setting insets and 12px under the group title; settings supply no outer margin.
+          '[&>*]:py-2 [&>*]:mt-0 [&>*:first-child]:pt-3',
           // a heading sits 12px above what it heads (screen-rules Layout 2)
-          '[&_h2+p]:mt-3 [&_h3+p]:mt-3 [&_h2+div]:mt-3 [&_h3+ul]:mt-3',
+          '[&_h2+p]:mt-3 [&_h3+p]:mt-3 [&_h2+div]:mt-3 [&_h3+ul]:mt-1',
           // a setting's own heading (and a list heading inside it) sits one step below the group title
           '[&_h2]:text-control [&_h2]:font-semibold [&_h2]:tracking-normal [&_h3]:text-control [&_h3]:font-semibold [&_h3]:tracking-normal',
         ].join(' ')}

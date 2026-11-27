@@ -203,7 +203,7 @@ export function Tabs<V extends string = string>({
                 ? 'first:ps-[calc(var(--panel-inset)+1px)]'
                 : insetFirstTab
                   ? 'first:ps-[calc(var(--space-content-inset)+1px)]'
-                  : 'first:ps-0',
+                  : 'first:ps-0 first:pe-0',
               active
                 // AC-RAM-004 (#688): raw text-primary as small text is ~3.5:1 on the dark canvas
                 // (sub-AA, DESIGN.md accessibility posture). text-primary-text is the AA on-canvas
