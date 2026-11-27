@@ -6,13 +6,14 @@ import React from 'react';
 
 const h = vi.hoisted(() => ({
   may: vi.fn(),
+  isError: false, isPending: false, refetch: vi.fn(),
   groups: [] as Array<{ id: string; name: string; milestone_id: string | null; archived_at: string | null }>,
   create: vi.fn(async () => undefined),
   update: vi.fn(async () => undefined),
 }));
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => h.may }));
 vi.mock('@/src/hooks/useTaskGroups', () => ({
-  useTaskGroups: () => ({ data: h.groups }),
+  useTaskGroups: () => ({ data: h.groups, isError: h.isError, isPending: h.isPending, refetch: h.refetch }),
   useTaskGroupMutations: () => ({
     create: { mutateAsync: h.create, isPending: false },
     update: { mutateAsync: h.update, isPending: false },
@@ -32,12 +33,26 @@ const tasks = [task('a', 'Done', 'G1'), task('b', 'To Do', 'G1')];
 
 beforeEach(() => {
   h.groups = [];
+  h.isError = false;
+  h.isPending = false;
   h.may.mockReset();
   h.create.mockClear();
   h.update.mockClear();
 });
 
 describe('TaskGroupsPanel', () => {
+  it('retries a failed group read before showing an empty manager', async () => {
+    h.may.mockReturnValue(true);
+    h.isError = true;
+    const view = render(<TaskGroupsPanel projectId="p" tasks={tasks} milestones={phases} requested />);
+    expect(screen.queryByText(/No task groups yet/)).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(h.refetch).toHaveBeenCalled();
+    h.isError = false;
+    h.groups = [{ id: 'G1', name: 'Foundations', milestone_id: null, archived_at: null }];
+    view.rerender(<TaskGroupsPanel projectId="p" tasks={tasks} milestones={phases} requested />);
+    expect(screen.getByText('Foundations')).toBeInTheDocument();
+  });
   it('AC-TGM-010: renders nothing while the project has no group, even for a manager, until asked from the menu', () => {
     h.may.mockReturnValue(true);
     const { container } = render(<TaskGroupsPanel projectId="p" tasks={tasks} milestones={phases} />);

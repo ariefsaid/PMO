@@ -6,7 +6,7 @@
  */
 import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button, ConfirmDialog, ProgressBar, SelectField, TextField, useToast } from '@/src/components/ui';
+import { Button, ConfirmDialog, ListState, ProgressBar, SelectField, TextField, useToast } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { useTaskGroups, useTaskGroupMutations } from '@/src/hooks/useTaskGroups';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
@@ -37,7 +37,7 @@ const TaskGroupsPanel: React.FC<TaskGroupsPanelProps> = ({ projectId, tasks, mil
   const { toast } = useToast();
   const may = usePermission();
   const canManage = may('edit', 'milestone');
-  const { data } = useTaskGroups(projectId);
+  const { data, isPending, isError, refetch } = useTaskGroups(projectId);
   const { create, update, remove } = useTaskGroupMutations(projectId);
   const [open, setOpen] = useState(requested);
   useEffect(() => { if (requested) setOpen(true); }, [requested]);
@@ -50,6 +50,9 @@ const TaskGroupsPanel: React.FC<TaskGroupsPanelProps> = ({ projectId, tasks, mil
     () => milestones.map((m) => ({ value: m.id, label: m.name })),
     [milestones],
   );
+
+  if (isError) return <ListState variant="error" title={t("projectDetail.tasks.taskGroups.loadFailed", "Could not load task groups")} onRetry={() => { void refetch(); }} />;
+  if (isPending) return <ListState variant="loading" rows={2} />;
 
   // Tasks tab stays identical for an organisation with no groups unless a manager opens the manager from the menu.
   if (groups.length === 0 && !(canManage && requested)) return null;

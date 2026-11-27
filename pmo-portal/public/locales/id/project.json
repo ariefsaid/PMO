@@ -1265,6 +1265,7 @@
       "statusMix": "Tugas menurut status",
       "statusMixOther": "Lainnya",
       "taskGroups": {
+        "loadFailed": "Grup tugas tidak dapat dimuat",
         "title": "Grup tugas",
         "count_one": "{{count}} grup",
         "count_other": "{{count}} grup",

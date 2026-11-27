@@ -1265,6 +1265,7 @@
       "statusMix": "Tasks by status",
       "statusMixOther": "Other",
       "taskGroups": {
+        "loadFailed": "Could not load task groups",
         "title": "Task groups",
         "count_one": "{{count}} group",
         "count_other": "{{count}} groups",
