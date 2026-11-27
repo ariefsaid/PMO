@@ -1316,7 +1316,6 @@
       "title": "Couldn't load company"
     },
     "field": {
-      "primaryContact": "Primary contact",
       "clientNumberSegment": "Client number segment"
     },
     "notFound": {

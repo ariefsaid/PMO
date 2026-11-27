@@ -1316,7 +1316,6 @@
       "title": "Gagal memuat perusahaan"
     },
     "field": {
-      "primaryContact": "Kontak utama",
       "clientNumberSegment": "Segmen nomor klien"
     },
     "notFound": {
