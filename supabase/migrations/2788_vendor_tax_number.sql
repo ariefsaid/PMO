@@ -62,12 +62,22 @@ create policy company_tax_numbers_select on public.company_tax_numbers for selec
     and (select public.auth_role()) in ('Admin','Executive','Project Manager','Finance')
     and (select public.is_active_member())
     and (select public.org_feature_enabled((select public.auth_org_id()), 'crm')));
-create policy company_tax_numbers_write on public.company_tax_numbers for all to authenticated
+create policy company_tax_numbers_insert on public.company_tax_numbers for insert to authenticated
+  with check (org_id = (select public.auth_org_id())
+    and (select public.auth_role()) in ('Admin','Executive','Project Manager','Finance')
+    and (select public.is_active_member())
+    and (select public.org_feature_enabled((select public.auth_org_id()), 'crm')));
+create policy company_tax_numbers_update on public.company_tax_numbers for update to authenticated
   using (org_id = (select public.auth_org_id())
     and (select public.auth_role()) in ('Admin','Executive','Project Manager','Finance')
     and (select public.is_active_member())
     and (select public.org_feature_enabled((select public.auth_org_id()), 'crm')))
   with check (org_id = (select public.auth_org_id())
+    and (select public.auth_role()) in ('Admin','Executive','Project Manager','Finance')
+    and (select public.is_active_member())
+    and (select public.org_feature_enabled((select public.auth_org_id()), 'crm')));
+create policy company_tax_numbers_delete on public.company_tax_numbers for delete to authenticated
+  using (org_id = (select public.auth_org_id())
     and (select public.auth_role()) in ('Admin','Executive','Project Manager','Finance')
     and (select public.is_active_member())
     and (select public.org_feature_enabled((select public.auth_org_id()), 'crm')));
