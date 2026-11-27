@@ -16,12 +16,11 @@ import { FormErrorStrip } from '@/src/components/ui/FormFields';
 import { useFxOrgDay } from '@/src/hooks/useFxOrgDay';
 import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
-import { useAuth } from '@/src/auth/useAuth';
 import { useIsTwoStep } from '@/src/hooks/useStockTransfers';
 import { useStockTags } from '@/src/hooks/useStockSiteWork';
 import { useUnsavedChangesGuard } from '@/src/hooks/useUnsavedChangesGuard';
 import {
-  useIssuableProjects, useIssuableWorkItems, useProjectIssueLines, useStockDocumentMutations, useStockItems, useStockKeepers, useStockUnits, useStockWarehouses,
+  useIssuableProjects, useIssuableWorkItems, useProjectIssueLines, useStockDocumentMutations, useStockItems, useMyStockLocations, useStockUnits, useStockWarehouses,
 } from '@/src/hooks/useStock';
 import { parseRefusal } from '@/src/lib/refusals';
 import { isPositiveDecimal, isWholeQuantity, normalizeDecimal } from '@/src/lib/stockFormat';
@@ -67,7 +66,6 @@ const StockMovementForm: React.FC = () => {
   const { toast } = useToast();
   const may = usePermission();
   const { realRole, effectiveRole } = useEffectiveRole();
-  const me = useAuth().currentUser?.id;
   const errorText = useStockErrorText();
   const notify = useStockFailureNotice();
   const today = useFxOrgDay(true).day; // org-timezone today: the server refuses a later date (stock_assert_dates)
@@ -75,7 +73,6 @@ const StockMovementForm: React.FC = () => {
   const twoStep = useIsTwoStep(); // #2690: a two-step organisation sends a transfer instead of posting it
 
   const warehouses = useStockWarehouses(false);
-  const keepers = useStockKeepers();
   const items = useStockItems(false);
   const units = useStockUnits(true);
   const tags = useStockTags(true);
@@ -106,8 +103,8 @@ const StockMovementForm: React.FC = () => {
   const viewOnly = realRole !== effectiveRole; // view-as shares the real login, so the page stays read-only (FR-STK-064)
   const isAdmin = realRole === 'Admin';
   const canSeeCost = may('create', 'stockItem'); // rank >= 20 reads cost back (FR-STK-063)
-  const keptIds = useMemo(() => new Set((keepers.data ?? []).filter((k) => k.user_id === me).map((k) => k.warehouse_id)), [keepers.data, me]);
-  const usable = useMemo(() => (warehouses.data ?? []).filter((w) => isAdmin || keptIds.has(w.id)), [warehouses.data, isAdmin, keptIds]);
+  const mine = useMyStockLocations();
+  const usable = useMemo(() => (warehouses.data ?? []).filter((w) => isAdmin || mine.keeps(w.id)), [warehouses.data, isAdmin, mine]);
   const itemById = useMemo(() => new Map((items.data ?? []).map((i) => [i.id, i])), [items.data]);
   // Client-supplied material carries a zero-cost tag: it is marked on the line and its cost is fixed at zero, never asked.
   const clientTag = (l: LineState) => { const tagId = l.itemId ? itemById.get(l.itemId)?.tag_id : null; return tagId ? (tags.data ?? []).find((g) => g.id === tagId && g.zero_cost) : undefined; };
@@ -121,14 +118,14 @@ const StockMovementForm: React.FC = () => {
   }
   // AC-NBR-033: the header needs warehouses + keepers (+ projects where the kind picks one); the line editor needs
   // items + units. Submit waits for all four.
-  const headerError = warehouses.isError || keepers.isError || (kind !== 'receive' && kind !== 'transfer' && projects.isError);
-  const headerPending = warehouses.isPending || keepers.isPending;
+  const headerError = warehouses.isError || mine.isError || (kind !== 'receive' && kind !== 'transfer' && projects.isError);
+  const headerPending = warehouses.isPending || mine.isPending;
   const linesError = items.isError || units.isError;
   const linesPending = items.isPending || units.isPending;
   const linesSettled = !linesPending && !linesError;
-  const retryHeader = () => { for (const q of [warehouses, keepers, projects]) if (q.isError) void q.refetch(); };
+  const retryHeader = () => { for (const q of [warehouses, mine, projects]) if (q.isError) void q.refetch(); };
   const retryLines = () => { for (const q of [items, units]) if (q.isError) void q.refetch(); };
-  const canSubmit = may('create', 'stockDocument', { record: { isKeeper: keptIds.has(warehouseId), viewOnly } });
+  const canSubmit = may('create', 'stockDocument', { record: { isKeeper: mine.keeps(warehouseId), viewOnly } });
   const needsProject = kind === 'issue' || kind === 'return';
   // #2517: an issue goes to its project's work order; a transfer to a site goes to the work order of that site's project.
   const destination = (warehouses.data ?? []).find((w) => w.id === toWarehouseId);

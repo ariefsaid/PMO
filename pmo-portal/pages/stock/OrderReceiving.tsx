@@ -10,7 +10,7 @@ import { useAuth } from '@/src/auth/useAuth';
 import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useOrderReceiving, useOrderReceivingEnabled, useReceivingOrders } from '@/src/hooks/useOrderReceiving';
-import { useStockKeepers, useStockWarehouses } from '@/src/hooks/useStock';
+import { useMyStockLocations, useStockWarehouses } from '@/src/hooks/useStock';
 import { useFxOrgDay } from '@/src/hooks/useFxOrgDay';
 import { useRefusalLine } from '@/src/lib/refusals';
 import { orderReceivingRepository as repository } from '@/src/lib/repositories/orderReceiving';
@@ -56,7 +56,7 @@ export default function OrderReceiving() {
   const orders = useReceivingOrders(true);
   const order = useOrderReceiving(orderId);
   const warehouses = useStockWarehouses();
-  const keepers = useStockKeepers();
+  const mine = useMyStockLocations();
   const user = useAuth().currentUser;
   const { realRole, effectiveRole } = useEffectiveRole();
   const viewOnly = realRole !== effectiveRole;
@@ -78,7 +78,7 @@ export default function OrderReceiving() {
   const [reason, setReason] = useState('');
   const data = order.data;
   const editable = may('edit', 'orderReceiving', { record: { viewOnly, receivingPurchaser: data?.purchaser } });
-  const canReceive = may('create', 'stockDocument', { record: { viewOnly, isKeeper: (keepers.data ?? []).some((k) => k.warehouse_id === warehouse && k.user_id === user?.id) } });
+  const canReceive = may('create', 'stockDocument', { record: { viewOnly, isKeeper: mine.keeps(warehouse) } });
   const refresh = async () => {
     await qc.invalidateQueries({ queryKey: ['order-receiving'] });
     await qc.invalidateQueries({ queryKey: ['stock'] });
@@ -108,8 +108,8 @@ export default function OrderReceiving() {
     setProblems(found);
     if (Object.values(found).every((p) => p === null)) setConfirm(true);
   };
-  const pending = orders.isPending || warehouses.isPending || keepers.isPending;
-  const failure = orders.isError || warehouses.isError || keepers.isError;
+  const pending = orders.isPending || warehouses.isPending || mine.isPending;
+  const failure = orders.isError || warehouses.isError || mine.isError;
   const lineName = (id: string) => data?.lines.find((l) => l.id === id);
   const receiptRows: ReceiptRow[] = (data?.requests ?? []).flatMap((count) => count.lines.map((line, index) => ({ key: `${count.id}-${line.item_id}`, count, line, first: index === 0 })));
   const receiptState = (count: ReceiptCount) => count.reversed ? 'reversed' : count.document_id ? 'posted' : count.approved ? 'approved' : 'waiting';
@@ -128,7 +128,7 @@ export default function OrderReceiving() {
   const canRecord = !!warehouse && !!(date || day.day) && Object.values(quantities).some((q) => isPositiveDecimal(normalizeDecimal(q))) && !Object.values(quantities).some((q) => q !== '' && !isPositiveDecimal(normalizeDecimal(q)));
   return <div className="space-y-6 pb-24 md:pb-0">
     <PageHeader title={t('receiving.title')} action={<OrderReceivingSetting />} />
-    {pending ? <ListState variant="loading" rows={3} /> : failure ? <div role="alert" className="space-y-2"><p>{t('receiving.loadError')}</p><Button variant="outline" onClick={() => { void orders.refetch(); void warehouses.refetch(); void keepers.refetch(); }}>{t('receiving.retry')}</Button></div> : <>
+    {pending ? <ListState variant="loading" rows={3} /> : failure ? <div role="alert" className="space-y-2"><p>{t('receiving.loadError')}</p><Button variant="outline" onClick={() => { void orders.refetch(); void warehouses.refetch(); void mine.refetch(); }}>{t('receiving.retry')}</Button></div> : <>
       <div className="grid gap-4 md:grid-cols-3">
         <SelectField id="receipt-order" label={t('receiving.order')} value={orderId} onChange={(id) => { setSearch(id ? { order: id } : {}); setQuantities({}); setChecks({}); setProblems({}); setRequestId(crypto.randomUUID()); }} options={(orders.data ?? []).map((o) => ({ value: o.id, label: o.number }))} placeholder={t('receiving.chooseOrder')} />
         <SelectField id="receipt-warehouse" label={t('form.warehouse')} placeholder={t('form.warehousePlaceholder')} value={warehouse} onChange={setWarehouse} options={(warehouses.data ?? []).filter((w) => !w.archived_at).map((w) => ({ value: w.id, label: w.name }))} />

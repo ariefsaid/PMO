@@ -21,7 +21,7 @@ vi.mock('@/src/lib/refusals', () => ({ useRefusalLine: () => (e: unknown) => e i
 vi.mock('@/src/hooks/useFxOrgDay', () => ({ useFxOrgDay: () => ({ day: '2026-11-24' }) }));
 vi.mock('@/src/hooks/useStock', () => ({
   useStockWarehouses: () => ({ data: [{ id: 'wh', name: 'Warehouse A' }], isPending: false, isError: false, refetch: h.retry }),
-  useStockKeepers: () => ({ data: [{ warehouse_id: 'wh', user_id: 'me' }], isPending: false, isError: false, refetch: h.retry }),
+  useMyStockLocations: () => ((rows: { user_id: string; warehouse_id: string }[], me: string) => { const ids = new Set(rows.filter((k) => k.user_id === me).map((k) => k.warehouse_id)); return { ids, keeps: (id?: string | null) => !!id && ids.has(id), keepsAny: ids.size > 0, isError: false, isPending: false, refetch: h.retry }; })([{ warehouse_id: 'wh', user_id: 'me' }], 'me'),
 }));
 vi.mock('@/src/hooks/useOrderReceiving', () => ({
   useOrderReceivingEnabled: () => ({ data: true, isPending: false, isError: false }),

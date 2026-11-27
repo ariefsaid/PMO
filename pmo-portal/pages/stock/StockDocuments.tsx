@@ -7,8 +7,7 @@ import { menuItemClass, menuPopupClass, menuPopupOrigin } from '@/src/components
 import { StockFilters, StockTabs } from '@/src/components/stock/StockTabs';
 import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
-import { useAuth } from '@/src/auth/useAuth';
-import { useStockDocuments, useStockKeepers } from '@/src/hooks/useStock';
+import { useStockDocuments, useMyStockLocations } from '@/src/hooks/useStock';
 import { useOrgSwitch } from '@/src/hooks/useOrgSwitch';
 import { formatDay } from '@/src/lib/format';
 import { statusLabel } from '@/src/lib/status/statusMap';
@@ -35,9 +34,7 @@ const StockDocuments: React.FC = () => {
   const navigate = useNavigate();
   const may = usePermission();
   const { realRole, effectiveRole } = useEffectiveRole();
-  const me = useAuth().currentUser?.id;
-  const keepers = useStockKeepers();
-  const isKeeper = (keepers.data ?? []).some((keeper) => keeper.user_id === me);
+  const isKeeper = useMyStockLocations().keepsAny;
   const canMove = may('create', 'stockDocument', { record: { isKeeper, viewOnly: realRole !== effectiveRole } });
   // #2691: the work-order transfer entry shows only when an Admin turned the setting on AND the person is a stock writer.
   const woTransfers = useOrgSwitch('stockWoTransfers').data === true;

@@ -32,6 +32,7 @@ vi.mock('@/src/hooks/useStock', () => ({
   useStockUnits: () => ok([{ id: 'un1', code: 'BAG' }]),
   useStockWarehouses: () => ok([{ id: 'w1', code: 'S1', name: 'Site', kind: 'site', project_id: 'p1' }, { id: 'w2', code: 'C', name: 'Central', kind: 'central', project_id: null }]),
   useStockKeepers: () => ok([{ user_id: 'u-keeper', warehouse_id: 'w1' }]),
+  useMyStockLocations: () => ((rows: { user_id: string; warehouse_id: string }[], me: string) => { const ids = new Set(rows.filter((k) => k.user_id === me).map((k) => k.warehouse_id)); return { ids, keeps: (id?: string | null) => !!id && ids.has(id), keepsAny: ids.size > 0, isError: false, isPending: false, refetch: () => undefined }; })([{ user_id: 'u-keeper', warehouse_id: 'w1' }], h.userId),
 }));
 vi.mock('@/src/hooks/useStockSiteWork', () => ({ useStockTags: () => ok([{ id: 't1', name: 'Free issue', zero_cost: true }, { id: 't2', name: 'Own', zero_cost: false }]) }));
 
