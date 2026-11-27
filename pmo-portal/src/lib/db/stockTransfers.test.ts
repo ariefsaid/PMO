@@ -48,7 +48,7 @@ describe('stockTransfers DAL', () => {
   it('AC-TST-026 the settings read defaults to one_step and before_posting when nothing is set', async () => {
     h.queue.push({ data: null, error: null });
     expect(await getTransferSettings()).toEqual({ mode: 'one_step', proofTiming: 'before_posting', handoverScope: 'transfers' });
-    h.queue.push({ data: [{ stock_transfer_mode: 'two_step', stock_proof_timing: 'may_follow', stock_handover_scope: 'transfers_and_issues' }], error: null });
+    h.queue.push({ data: { stock_transfer_mode: 'two_step', stock_proof_timing: 'may_follow', stock_handover_scope: 'transfers_and_issues' }, error: null });
     expect(await getTransferSettings()).toEqual({ mode: 'two_step', proofTiming: 'may_follow', handoverScope: 'transfers_and_issues' });
   });
   it('AC-HSC-008 the handover scope is written through the Admin RPC', async () => {

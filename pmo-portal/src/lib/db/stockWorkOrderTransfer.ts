@@ -26,7 +26,7 @@ interface ReturnableRpcLine {
 
 /** Whether the organisation turned work-order transfers on (default off). A failed read reads as off: nothing new shows. */
 export async function getWoTransfersEnabled(): Promise<boolean> {
-  const { data, error } = await readOrgColumnsStrict(['stock_wo_transfers']);
+  const { data, error } = await readOrgColumnsStrict(['stock_wo_transfers'], { limit: true });
   if (error) throw toAppError(error);
   return data?.stock_wo_transfers === true;
 }

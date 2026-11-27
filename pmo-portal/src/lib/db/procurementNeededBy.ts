@@ -16,7 +16,7 @@ function fail(error: { message: string; code?: string } | null): void {
 }
 
 export async function getPoNeededByRequired(): Promise<boolean> {
-  const { data, error } = await readOrgColumnsStrict(['po_needed_by_required_from']);
+  const { data, error } = await readOrgColumnsStrict(['po_needed_by_required_from'], { limit: true });
   fail(error);
   return Boolean((data as { po_needed_by_required_from?: string | null } | null)?.po_needed_by_required_from);
 }

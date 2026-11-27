@@ -60,7 +60,7 @@ describe('getAttendanceTarget', () => {
     await expect(getAttendanceTarget()).resolves.toBe(92.5);
     expect(h.calls.from).toEqual(['organizations']);
     expect(h.calls.select).toEqual(['attendance_target_rate']);
-    expect(h.calls.limit).toEqual([2]); // the shared organisation read asks for two rows; the reader takes the first
+    expect(h.calls.limit).toEqual([1]);
     expect(h.calls.eq).toEqual([]);
   });
 
