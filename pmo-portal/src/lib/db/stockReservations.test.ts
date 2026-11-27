@@ -37,7 +37,7 @@ describe('stockReservations DAL', () => {
   it('AC-RSV-007 settings read as off when absent, and write the mode, role and label', async () => {
     h.queue.push({ data: null, error: null });
     expect(await getReservationSettings()).toEqual({ enabled: false, borrowMode: 'approve', borrowRole: null, borrowLabel: null });
-    h.queue.push({ data: { stock_reservations: true, reservation_borrow_mode: 'warn', reservation_borrow_role: 'Executive', reservation_borrow_label: 'Borrowing' }, error: null });
+    h.queue.push({ data: [{ stock_reservations: true, reservation_borrow_mode: 'warn', reservation_borrow_role: 'Executive', reservation_borrow_label: 'Borrowing' }], error: null });
     expect(await getReservationSettings()).toEqual({ enabled: true, borrowMode: 'warn', borrowRole: 'Executive', borrowLabel: 'Borrowing' });
     await setReservationSettings({ enabled: true, borrowMode: 'approve', borrowRole: 'Executive', borrowLabel: ' Borrowing ' });
     expect(h.rpc).toHaveBeenCalledWith('set_stock_reservations', { p_on: true, p_borrow_mode: 'approve', p_borrow_role: 'Executive', p_borrow_label: 'Borrowing' });

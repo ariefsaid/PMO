@@ -214,7 +214,16 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       sizeObserver ??= new ResizeObserver(sync);
       sizeObserver.observe(header);
     };
-    const onMutation = () => { sync(); watchHeader(); };
+    // With no overlay open, only a mutation that adds/removes (or re-marks) an aria-modal element can change the answer, so unrelated
+    // commits skip the whole-document scan; while one is open every mutation re-measures, exactly as before.
+    const isModal = (node: Node) => node instanceof Element && (node.matches('[aria-modal="true"]') || node.querySelector('[aria-modal="true"]') !== null);
+    let anyOpen = false;
+    const onMutation = (records?: MutationRecord[]) => {
+      if (records && !anyOpen && !records.some((r) => r.type === 'attributes' || [...r.addedNodes, ...r.removedNodes].some(isModal))) return;
+      sync();
+      anyOpen = document.querySelector('[aria-modal="true"]') !== null;
+      watchHeader();
+    };
     onMutation();
     const observer = new MutationObserver(onMutation);
     observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['aria-modal'] });

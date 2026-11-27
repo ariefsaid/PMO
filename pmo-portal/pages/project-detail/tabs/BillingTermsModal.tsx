@@ -17,17 +17,17 @@ import type { StageTemplateInput } from '@/src/lib/db/billingStages';
  * invoice deadline and the retention percentage. Finance/Admin only; the database refuses anyone else. Claims already made
  * keep the stage plan they were made with.
  */
-interface StageRow { key: number; ownerRole: string; name: string; clientSide: boolean; required: string; optional: string; target: string; optionalStage: boolean }
+interface StageRow { key: number; ownerRole: string; name: string; clientSide: boolean; required: string; optional: string; target: string; optionalStage: boolean; invoiceStep: boolean }
 
 const toRow = (s: StageTemplateInput, key: number): StageRow => ({
-  key, ownerRole: s.ownerRole ?? '', name: s.name, clientSide: s.clientSide, target: s.targetDays == null ? '' : String(s.targetDays), optionalStage: Boolean(s.optional),
+  key, ownerRole: s.ownerRole ?? '', name: s.name, clientSide: s.clientSide, target: s.targetDays == null ? '' : String(s.targetDays), optionalStage: Boolean(s.optional), invoiceStep: Boolean(s.invoiceStep),
   required: s.documents.filter((d) => d.required).map((d) => d.name).join('\n'),
   optional: s.documents.filter((d) => !d.required).map((d) => d.name).join('\n'),
 });
 const lines = (text: string) => text.split('\n').map((l) => l.trim()).filter(Boolean);
 const toStage = (r: StageRow): StageTemplateInput => ({
   name: r.name.trim(), clientSide: r.clientSide, ...(r.ownerRole ? { ownerRole: r.ownerRole } : {}),
-  ...(r.target.trim() === '' ? {} : { targetDays: Number(r.target) }), ...(r.optionalStage ? { optional: true } : {}),
+  ...(r.target.trim() === '' ? {} : { targetDays: Number(r.target) }), ...(r.optionalStage ? { optional: true } : {}), ...(r.invoiceStep ? { invoiceStep: true } : {}),
   documents: [...lines(r.required).map((name) => ({ name, required: true })), ...lines(r.optional).map((name) => ({ name, required: false }))],
 });
 
@@ -81,9 +81,11 @@ export const BillingTermsModal: React.FC<{ projectId: string; onClose: () => voi
 
   const touch = <T,>(set: (v: T) => void) => (v: T) => { set(v); setDirty(true); };
   const update = (key: number, patch: Partial<StageRow>) => { setRows((rs) => (rs ?? []).map((r) => (r.key === key ? { ...r, ...patch } : r))); setDirty(true); };
+  // One invoice step per list: marking a step clears the mark elsewhere.
+  const markInvoiceStep = (key: number, on: boolean) => { setRows((rs) => (rs ?? []).map((r) => ({ ...r, invoiceStep: r.key === key ? on : on ? false : r.invoiceStep }))); setDirty(true); };
   const move = (index: number) => { setRows((rs) => { const a = [...(rs ?? [])]; [a[index - 1], a[index]] = [a[index], a[index - 1]]; return a; }); setDirty(true); };
   const remove = (key: number) => { setRows((rs) => (rs ?? []).filter((r) => r.key !== key)); setDirty(true); };
-  const add = () => { setRows((rs) => [...(rs ?? []), { key: nextKey.current++, ownerRole: '', name: '', clientSide: false, required: '', optional: '', target: '', optionalStage: false }]); setDirty(true); };
+  const add = () => { setRows((rs) => [...(rs ?? []), { key: nextKey.current++, ownerRole: '', name: '', clientSide: false, required: '', optional: '', target: '', optionalStage: false, invoiceStep: false }]); setDirty(true); };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -146,6 +148,10 @@ export const BillingTermsModal: React.FC<{ projectId: string; onClose: () => voi
               <Checkbox checked={row.optionalStage} onChange={(v) => update(row.key, { optionalStage: v })}
                 label={t('projectDetail.billing.terms.optionalStage', 'Optional stage')}>
                 {t('projectDetail.billing.terms.optionalStage', 'Optional stage')}
+              </Checkbox>
+              <Checkbox checked={row.invoiceStep} onChange={(v) => markInvoiceStep(row.key, v)}
+                label={t('projectDetail.billing.terms.invoiceStep', 'Invoice is raised at this step')}>
+                {t('projectDetail.billing.terms.invoiceStep', 'Invoice is raised at this step')}
               </Checkbox>
             </div>
             <div className="mt-3 grid gap-3 sm:grid-cols-2">

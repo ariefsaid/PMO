@@ -5,7 +5,6 @@ import { nullableArg } from './nullableArg';
 import { AppError } from '@/src/lib/appError';
 import { isProjectFinances, parseContractExcess, parseProjectReceiptCash, type ProjectFinances } from '@/src/lib/projectFinances';
 import { revenueRefusalCode } from '@/src/lib/db/revenueNative';
-import { clientInvoiceOverdueDays } from '@/src/lib/repositories/revenueDisplay';
 import type { BillingKind } from '@/src/lib/billingKind';
 import { REVENUE_STATUSES } from '@/src/lib/projectInvoicing';
 import type { ReceiptAllocation } from '@/src/lib/revenue/receiptAllocation';
@@ -248,32 +247,6 @@ export async function listSalesInvoices(
     build(from, to) as unknown as PromiseLike<PageResult<Record<string, unknown>>>,
   );
   return data.map(toSalesInvoiceRow);
-}
-
-/** Count overdue open invoices from a narrow projection; avoids loading finance tables in the rail. */
-export async function getOverdueInvoiceCount(today: string): Promise<number> {
-  const rows = await fetchAllPages<Record<string, unknown>>((from, to) =>
-    supabase
-      .from('sales_invoices')
-      .select('id,status,invoice_date,erp_due_date,received_date,erp_outstanding_amount,retention_held,companies!sales_invoices_customer_id_fkey(erp_payment_terms_days)')
-      .in('status', [...OPEN_CLIENT_INVOICE_STATUSES])
-      .is('paired_erp_invoice_id', null)
-      .order('id', { ascending: true })
-      .range(from, to) as unknown as PromiseLike<PageResult<Record<string, unknown>>>,
-  );
-  return rows.filter((raw) => {
-    const row = raw as { status: string; invoice_date: string | null; erp_due_date: string | null; received_date: string | null; erp_outstanding_amount: number | null; retention_held: number | null; companies: { erp_payment_terms_days: number | null } | null };
-    // #1457: the one shared overdue rule decides; the SQL above narrows to the same open set.
-    return clientInvoiceOverdueDays({
-      status: row.status,
-      invoice_date: row.invoice_date,
-      erp_payment_terms_days: row.companies?.erp_payment_terms_days,
-      erp_due_date: row.erp_due_date,
-      received_date: row.received_date,
-      erp_outstanding_amount: row.erp_outstanding_amount,
-      retention_held: retentionHeld(row.retention_held),
-    }, today) !== null;
-  }).length;
 }
 
 /** What the dashboard's overdue tile reads from an open client invoice; nothing else leaves the database. */

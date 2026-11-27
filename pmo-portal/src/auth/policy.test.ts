@@ -653,6 +653,15 @@ describe('can() — workOrder (#566; migrations 0193/0197 are the enforcement au
     expect(allowedRoles('transition', 'workOrder')).toEqual(WRITE_FOUR);
   });
 
+  it('AC-WOR-001 reopen is Admin-only on Closed work orders without a confirmed final acceptance', () => {
+    expect(allowedRoles('reopen', 'workOrder', { record: { status: 'Closed', closing_acceptance_id: null } })).toEqual(['Admin']);
+    expect(allowedRoles('reopen', 'workOrder', { record: { status: 'Closed', closing_acceptance_id: 'bast-1' } })).toEqual([]);
+    for (const status of ['Draft', 'Issued', 'Cancelled']) {
+      expect(allowedRoles('reopen', 'workOrder', { record: { status, closing_acceptance_id: null } })).toEqual([]);
+    }
+    expect(allowedRoles('reopen', 'workOrder')).toEqual([]);
+  });
+
   it('edit is offered on a Draft only — the whole body freezes once the row is issued (DD-WO-5)', () => {
     expect(allowedRoles('edit', 'workOrder', { record: { status: 'Draft' } })).toEqual(WRITE_FOUR);
     for (const status of ['Issued', 'Closed', 'Cancelled']) {

@@ -20,21 +20,21 @@ import type { StepInput, StepTemplate } from '@/src/lib/db/billingSteps';
  * client's team defines themselves (step names, owner roles, target days, documents). Nothing is supplied by PMO. Finance or an
  * Admin writes; loading a template onto a project or a claim copies it, so editing a template later changes nothing already made.
  */
-interface Row { key: number; templateStepId?: string; claimEvidenceEnabled: boolean; name: string; ownerRole: string; ownerRoleKey: string; hiddenFrom: string[]; target: string; clientSide: boolean; optionalStep: boolean; required: string; optional: string }
+interface Row { key: number; templateStepId?: string; claimEvidenceEnabled: boolean; name: string; ownerRole: string; ownerRoleKey: string; hiddenFrom: string[]; target: string; clientSide: boolean; optionalStep: boolean; invoiceStep: boolean; required: string; optional: string }
 /** Field accounts own no step and are never named in a hidden-from list: the database refuses them, so they are not offered. */
 const FULL_ROLE_KEYS = BUILT_IN_ROLES.filter((r) => r.tier !== 'field').map((r) => r.key);
 
 const lines = (text: string) => text.split('\n').map((l) => l.trim()).filter(Boolean);
 const toRow = (s: StepTemplate['steps'][number], key: number): Row => ({
   key, templateStepId: s.templateStepId, claimEvidenceEnabled: s.claimEvidenceEnabled === true, name: s.name, ownerRole: s.ownerRole ?? '', ownerRoleKey: s.ownerRoleKey ?? '', hiddenFrom: s.hiddenFromRoleKeys ?? [], target: s.targetDays == null ? '' : String(s.targetDays), clientSide: Boolean(s.clientSide),
-  optionalStep: Boolean(s.optional), required: (s.documents ?? []).filter((d) => d.required).map((d) => d.name).join('\n'),
+  optionalStep: Boolean(s.optional), invoiceStep: Boolean(s.invoiceStep), required: (s.documents ?? []).filter((d) => d.required).map((d) => d.name).join('\n'),
   optional: (s.documents ?? []).filter((d) => !d.required).map((d) => d.name).join('\n'),
 });
 const toStep = (r: Row): StepInput => ({
   name: r.name.trim(), ownerRole: r.ownerRole === '' ? null : r.ownerRole,
   ...(r.templateStepId ? { templateStepId: r.templateStepId, claimEvidenceEnabled: r.claimEvidenceEnabled } : r.claimEvidenceEnabled ? { claimEvidenceEnabled: true } : {}),
   ownerRoleKey: r.ownerRoleKey === '' ? null : r.ownerRoleKey, hiddenFromRoleKeys: r.hiddenFrom, targetDays: r.target.trim() === '' ? null : Number(r.target),
-  clientSide: r.clientSide, optional: r.optionalStep,
+  clientSide: r.clientSide, optional: r.optionalStep, ...(r.invoiceStep ? { invoiceStep: true } : {}),
   documents: [...lines(r.required).map((name) => ({ name, required: true })), ...lines(r.optional).map((name) => ({ name, required: false }))],
 });
 const validTarget = (v: string) => v.trim() === '' || (/^\d+$/.test(v.trim()) && Number(v) >= 1 && Number(v) <= 365);
@@ -54,6 +54,8 @@ const TemplateForm: React.FC<{ template: StepTemplate | null; onClose: () => voi
   const [submitError, setSubmitError] = useState<SubmitError | null>(null);
   const [dirty, setDirty] = useState(false);
   const update = (key: number, patch: Partial<Row>) => { setRows((rs) => rs.map((r) => (r.key === key ? { ...r, ...patch } : r))); setDirty(true); };
+  // One invoice step per list: marking a step clears the mark elsewhere.
+  const markInvoiceStep = (key: number, on: boolean) => { setRows((rs) => rs.map((r) => ({ ...r, invoiceStep: r.key === key ? on : on ? false : r.invoiceStep }))); setDirty(true); };
   const roleOptions = [{ value: '', label: t('projectDetail.billing.steps.noOwner', 'Nobody in particular') }, ...roles.options];
   const keyOptions = [{ value: '', label: t('projectDetail.billing.steps.noOwner', 'Nobody in particular') }, ...FULL_ROLE_KEYS.map((k) => ({ value: k, label: roleName(k) }))];
 
@@ -118,6 +120,9 @@ const TemplateForm: React.FC<{ template: StepTemplate | null; onClose: () => voi
             <Checkbox checked={row.optionalStep} onChange={(v) => update(row.key, { optionalStep: v })} label={t('projectDetail.billing.terms.optionalStage', 'Optional stage')}>
               {t('projectDetail.billing.terms.optionalStage', 'Optional stage')}
             </Checkbox>
+            <Checkbox checked={row.invoiceStep} onChange={(v) => markInvoiceStep(row.key, v)} label={t('projectDetail.billing.terms.invoiceStep', 'Invoice is raised at this step')}>
+              {t('projectDetail.billing.terms.invoiceStep', 'Invoice is raised at this step')}
+            </Checkbox>
           </div>
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             <TextArea rows={2} label={t('projectDetail.billing.terms.required', 'Required documents, one per line')} value={row.required} onChange={(v) => update(row.key, { required: v })} />
@@ -127,7 +132,7 @@ const TemplateForm: React.FC<{ template: StepTemplate | null; onClose: () => voi
       </li>)}
     </ol>
     <Button type="button" variant="outline" size="sm" className="mt-3"
-      onClick={() => { setRows((rs) => [...rs, { key: nextKey.current++, claimEvidenceEnabled: false, name: '', ownerRole: '', ownerRoleKey: '', hiddenFrom: [], target: '', clientSide: false, optionalStep: false, required: '', optional: '' }]); setDirty(true); }}>
+      onClick={() => { setRows((rs) => [...rs, { key: nextKey.current++, claimEvidenceEnabled: false, name: '', ownerRole: '', ownerRoleKey: '', hiddenFrom: [], target: '', clientSide: false, optionalStep: false, invoiceStep: false, required: '', optional: '' }]); setDirty(true); }}>
       {t('projectDetail.billing.templates.addStep', 'Add step')}
     </Button>
   </EntityFormModal>;

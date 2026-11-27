@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { I18nextProvider } from 'react-i18next';
-import { DEFAULT_NS, initI18n, i18next } from './index';
+import { DEFAULT_NS, SHELL_NAMESPACES, initI18n, i18next, scheduleEnglishFallback } from './index';
 import { setActiveLocale, setActiveOrgTimezone } from '@/src/lib/locale/activeLocale';
-import { useResolvedLocale, useOrgBusinessTimezone } from '@/src/hooks/useResolvedLocale';
+import { FALLBACK_LOCALE } from '@/src/lib/locale/resolveLocale';
+import { useHasSignedInShell, useLocaleReady, useOrgBusinessTimezone, useResolvedLocale } from '@/src/hooks/useResolvedLocale';
 import { useApplyOrgTerminology } from '@/src/hooks/useOrgTerminology';
 import { useApplyOrgRoleNames } from '@/src/hooks/useOrgRoleNames';
 import { useApplyOrgStageNames } from '@/src/hooks/useOrgStageNames';
@@ -26,6 +27,8 @@ import { useApplyOrgStageNames } from '@/src/hooks/useOrgStageNames';
  */
 export const I18nProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const resolved = useResolvedLocale();
+  const localeReady = useLocaleReady();
+  const hasSignedInShell = useHasSignedInShell();
   // #2529: the org's renamed terms, applied by the terminology plugin in `index.ts`.
   useApplyOrgTerminology();
   // #2712: the org's own role names, read by the role picker, directory and confirmations.
@@ -57,20 +60,27 @@ export const I18nProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     // Document metadata follows the resolved profile without waiting for feature catalogues.
     if (typeof document !== 'undefined') document.documentElement.lang = stable.locale;
+    // Do not fetch any catalogue while a signed-in user's profile language is still unknown.
+    if (!localeReady) return;
     let active = true;
-    // Start the singleton bootstrap in the resolved locale immediately (#2097).
-    const initialized = initI18n(stable.locale);
+    let cancelFallback: (() => void) | undefined;
+    // Start the singleton bootstrap in the resolved locale immediately (#2097, P3).
+    const initialized = initI18n(stable.locale, hasSignedInShell ? SHELL_NAMESPACES : []);
     languageQueue.current = languageQueue.current.then(async () => {
       const instance = await initialized;
       if (!active) return;
       if (instance.language !== stable.locale) await instance.changeLanguage(stable.locale);
       if (!active) return;
       markCataloguesLoaded(true);
+      if (stable.locale !== FALLBACK_LOCALE) {
+        cancelFallback = scheduleEnglishFallback(instance);
+      }
     });
     return () => {
       active = false;
+      cancelFallback?.();
     };
-  }, [stable.locale]);
+  }, [stable.locale, localeReady, hasSignedInShell]);
 
   // i18next resolves its first catalogue in a microtask-plus-fetch. Rendering the tree meanwhile is
   // correct — `useSuspense: false` plus FR-L10N-041's fallback means a not-yet-loaded key renders

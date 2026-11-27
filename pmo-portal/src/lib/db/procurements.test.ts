@@ -1,12 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const { mockSelect, mockFrom, mockRange, mockEq, rpcSpy } = vi.hoisted(() => {
+const { mockSelect, mockFrom, mockRange, mockEq, mockOr, rpcSpy } = vi.hoisted(() => {
   const rpcSpy = vi.fn();
+  const mockOr = vi.fn();
   const mockSelect = vi.fn();
   const mockEq = vi.fn();
   const mockFrom = vi.fn();
   const mockRange = vi.fn();
-  return { mockSelect, mockFrom, mockRange, mockEq, rpcSpy };
+  return { mockSelect, mockFrom, mockRange, mockEq, mockOr, rpcSpy };
 });
 
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: mockFrom, rpc: rpcSpy } }));
@@ -19,12 +20,14 @@ import {
   COMMITTED_STATUSES,
   RESERVED_STATUSES,
 } from './procurements';
+import { setPricesHidden, setHidePricesActive } from '@/src/lib/priceReadPath';
 
 function makeBuilder(resolved: { data: unknown; error: unknown }) {
   const builder = {
     select: mockSelect,
     range: mockRange,
     eq: mockEq,
+    or: mockOr,
     order: () => builder,
     gt: () => builder,
     limit: () => builder,
@@ -34,11 +37,39 @@ function makeBuilder(resolved: { data: unknown; error: unknown }) {
   mockSelect.mockReturnValue(builder);
   mockRange.mockReturnValue(builder);
   mockEq.mockReturnValue(builder);
+  mockOr.mockReturnValue(builder);
   mockFrom.mockReturnValue(builder);
   return builder;
 }
 
-beforeEach(() => { mockEq.mockReset(); mockFrom.mockReset(); mockSelect.mockReset(); mockRange.mockReset(); });
+beforeEach(() => { setPricesHidden(false); setHidePricesActive(false); mockOr.mockReset(); mockEq.mockReset(); mockFrom.mockReset(); mockSelect.mockReset(); mockRange.mockReset(); });
+
+describe('listProcurements scope', () => {
+  it('PERF-1128: scope.userId reads only own requests plus the managed projects\' purchases, server-side', async () => {
+    makeBuilder({ data: [], error: null });
+    mockEq.mockImplementation((col: string) => {
+      const b = mockFrom.mock.results[0].value;
+      return col === 'project_manager_id' ? { limit: () => Promise.resolve({ data: [{ id: 'p1' }, { id: 'p2' }], error: null }) } : b;
+    });
+    await listProcurements({ withRefs: true, withSharedDetails: true, scope: { userId: 'u1' } });
+    expect(mockEq).toHaveBeenCalledWith('project_manager_id', 'u1');
+    expect(mockOr).toHaveBeenCalledWith('requested_by_id.eq.u1,project_id.in.(p1,p2)');
+  });
+
+  it('PERF-1128: a manager of no project reads own requests only', async () => {
+    makeBuilder({ data: [], error: null });
+    mockEq.mockImplementation((col: string) => (col === 'project_manager_id'
+      ? { limit: () => Promise.resolve({ data: [], error: null }) } : mockFrom.mock.results[0].value));
+    await listProcurements({ withRefs: true, withSharedDetails: true, scope: { userId: 'u1' } });
+    expect(mockOr).toHaveBeenCalledWith('requested_by_id.eq.u1');
+  });
+
+  it('PERF-1128: no scope sends no scope filter', async () => {
+    makeBuilder({ data: [], error: null });
+    await listProcurements({ withRefs: true, withSharedDetails: true });
+    expect(mockOr).not.toHaveBeenCalled();
+  });
+});
 
 describe('listProcurements', () => {
   it('selects procurements joining project/vendor/requester; returns rows (AC-509, FR-DAL-PROC-001)', async () => {
@@ -119,16 +150,15 @@ describe('listProcurements', () => {
     expect(sel).toContain('project:projects(name,short_name,code,project_manager_id)');
     expect(sel).toContain('procurement_invoices(id,currency,amount,invoice_date,created_at,erp_outstanding_amount,external_ref,voided_at)');
     expect(sel).toContain('payments(invoice_id,currency,amount,date,created_at,status)');
-    expect(sel).toContain('status_events:procurement_status_events(to_status,created_at)');
+    // No lean reader derives stage age or stage dates, so the stage-event and receipt embeds are not read.
+    expect(sel).not.toContain('procurement_status_events');
+    expect(sel).not.toContain('procurement_receipts');
     expect(sel).not.toContain('open_commitment');
     expect(sel).not.toMatch(/pr_refs|po_refs|vi_refs/);
   });
 
-  it('PERF-FIN-1: withoutRoutes skips the approval-route read for a Requested row; the default lean list keeps it', async () => {
+  it('the lean list reads approval routes for a Requested row', async () => {
     rpcSpy.mockReset().mockResolvedValue({ data: [], error: null });
-    makeBuilder({ data: [{ id: 'r1', status: 'Requested' }], error: null });
-    await listProcurements({ lean: true, withoutRoutes: true });
-    expect(rpcSpy).not.toHaveBeenCalled();
     makeBuilder({ data: [{ id: 'r1', status: 'Requested' }], error: null });
     await listProcurements({ lean: true });
     expect(rpcSpy).toHaveBeenCalledWith('get_procurement_approval_routes', { p_ids: ['r1'] });

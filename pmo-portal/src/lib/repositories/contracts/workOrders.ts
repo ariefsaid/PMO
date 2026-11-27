@@ -83,6 +83,8 @@ export interface WorkOrderRepository {
   transition(id: string, to: WorkOrderStatus, opts?: { overCommitAck?: boolean }): Promise<void>;
   /** Cancel with a reason (#2898): `cancel_work_order`, then the transition's own gates. */
   cancel(id: string, reason: string): Promise<void>;
+  /** Admin-only audited reopen of a Closed work order without a confirmed final acceptance (#3024). */
+  reopen(id: string, reason: string): Promise<void>;
   /** The retired candidate work orders of a project, read-only (#2898 keeps them readable). */
   listCandidateRecords(projectId: string): Promise<CandidateRecord[]>;
   /** The derived drawdown, or null when the project is invisible/absent (never a fabricated zero). */
@@ -125,6 +127,8 @@ export interface ProgressBillingRepository {
 export interface WorkOrderAcceptanceRepository {
   /** Every acceptance on a project with its lines, newest first; refuses a saturated list. */
   listByProject(projectId: string): Promise<WorkOrderAcceptanceWithLines[]>;
+  /** The acceptances of one work order with their lines, newest first; refuses a saturated list. */
+  listByWorkOrder(projectId: string, workOrderId: string): Promise<WorkOrderAcceptanceWithLines[]>;
   /** Every BAST the signed-in Admin/Finance user may confirm; the whole caller-scoped waiting read. */
   listAwaitingConfirmation(): Promise<AcceptanceAwaitingConfirmationRow[]>;
   /** The allocations of one work order. */

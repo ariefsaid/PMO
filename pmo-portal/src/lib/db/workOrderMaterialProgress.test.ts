@@ -55,4 +55,28 @@ describe('workOrderMaterialProgress DAL', () => {
     h.queue.push({ data: null, error: null });
     expect(await getWorkOrderIssueThreshold()).toBeNull();
   });
+
+  it('rejects malformed or non-finite progress figures with a field-named refusal instead of leaking NaN (#2983)', async () => {
+    const validItem = {
+      item_id: 'i1', item_code: 'ROD', item_name: 'Welding rod', unit_code: 'KG',
+      planned_qty: '100', issued_qty: '60', issued_pct: 60, gap_pp: 35, unplanned: false, warn: true,
+    };
+    h.queue.push({ data: { threshold_pct: 30, progress_pct: 25, items: [{ ...validItem, issued_pct: 'bad' }] }, error: null });
+    await expect(getWorkOrderMaterialProgress('wo1')).rejects.toMatchObject({
+      code: 'material-progress-malformed',
+      message: expect.stringMatching(/items\[0\]\.issued_pct/),
+    });
+
+    h.queue.push({ data: { threshold_pct: 30, progress_pct: 'NaN', items: [] }, error: null });
+    await expect(getWorkOrderMaterialProgress('wo1')).rejects.toMatchObject({
+      code: 'material-progress-malformed',
+      message: expect.stringMatching(/progress_pct/),
+    });
+
+    h.queue.push({ data: null, error: null });
+    await expect(getWorkOrderMaterialProgress('wo1')).rejects.toMatchObject({
+      code: 'material-progress-malformed',
+      message: expect.stringMatching(/response/),
+    });
+  });
 });

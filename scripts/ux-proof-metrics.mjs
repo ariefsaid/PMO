@@ -228,6 +228,7 @@ export function measureLayout(N) {
     if (!isVisible(e)) return false;
     const r = e.getBoundingClientRect();
     if (r.width > 48 || r.height > 48 || r.width < 6 || r.height < 6 || e.closest('.sr-only')) return false; // not a hidden "select all" box
+    if (e.getAttribute('role') === 'checkbox' && !(e.textContent || '').trim()) return true;
     if (e.tagName === 'INPUT') return /^(checkbox|radio)$/.test(e.type);
     if (e.tagName === 'IMG') return true;
     if (e.querySelector('input, button, a, select')) return false;
@@ -237,7 +238,7 @@ export function measureLayout(N) {
     return hasFill(e) && ((!txt && !e.children.length) || (round && txt.length <= 3));
   };
   const leadMark = (block, text) => {
-    for (const e of block.querySelectorAll('input, img, span, div, i, b')) {
+    for (const e of block.querySelectorAll('input, [role="checkbox"], img, span, div, i, b')) {
       if (!isMark(e) || e.getBoundingClientRect().left < block.getBoundingClientRect().left - 1) continue;
       if (text && !(e.compareDocumentPosition(text.node) & Node.DOCUMENT_POSITION_FOLLOWING) && !e.contains(text.node)) continue;
       return e;
@@ -356,7 +357,7 @@ export function measureLayout(N) {
     const seen = [];
     for (const b of blocks) {
       if (!b.panel && offStart(b.el)) continue;
-      const x = b.panel && boxLeftForPanels ? b.el.getBoundingClientRect().left : leftOf(b.el);
+      const x = b.structuralEdge ?? (b.panel && boxLeftForPanels ? b.el.getBoundingClientRect().left : leftOf(b.el));
       if (x === null || b.el.tagName === 'TABLE' || b.el.querySelector(':scope > table')) continue; // tables sit flush to the panel edge by design
       // A block beside an earlier one on the same line is a column, not a new line start.
       const rect = b.el.getBoundingClientRect();
@@ -396,6 +397,20 @@ export function measureLayout(N) {
     if (Object.keys(edges).length) leftEdges.push(edgeRecord(sel(panel), path(panel), 1, edges));
   }
 
+  // Selection rows own their reading rail after the control gutter. Check that rail locally.
+  for (const row of main.querySelectorAll('[data-record-row]')) {
+    if (!isVisible(row) || !row.querySelector('[role="checkbox"], input[type="checkbox"]')) continue;
+    const content = visibleKids(row).find((kid) => !kid.matches('[role="checkbox"], input[type="checkbox"]') && !kid.querySelector('[role="checkbox"], input[type="checkbox"]'));
+    if (!content) continue;
+    const readingBlocks = blocksOf(content, false).map((block) => {
+      const text = texts.find((t) => block.el.contains(t.node));
+      const pill = text && pillOf(text, content);
+      return pill ? { ...block, structuralEdge: pill.getBoundingClientRect().left } : block;
+    });
+    const edges = edgesOf(readingBlocks, false);
+    if (Object.keys(edges).length) leftEdges.push(edgeRecord(sel(row), path(row), 1, edges));
+  }
+
   // 2. gaps -----------------------------------------------------------------------------------
   // The gap is the painted white space between two blocks: from the last painted content of the
   // block above (text, image, control, icon, or the edge of a bordered/shadowed surface) to the
@@ -417,7 +432,7 @@ export function measureLayout(N) {
     // between two adjacent panels is the section gap and is judged by the scale check, not the 12-16px heading rule.
     if (isPanel(el)) return false;
     const h = el.querySelector('h2, h3, h4, h5, h6, [role="heading"]');
-    return !!h && el.getBoundingClientRect().height <= 96 && !el.querySelector('table, input, select, textarea');
+    return !!h && el.getBoundingClientRect().height <= 96 && !el.querySelector('table, input, select, textarea') && !texts.some((t) => el.contains(t.node) && !h.contains(t.node) && t.top >= h.getBoundingClientRect().bottom); // a notice or prose below the heading bridges to the next block
   };
   const sectionLike = (el) => isPanel(el) || el.tagName === 'SECTION' || (!!el.querySelector(':scope > h2, :scope > h3, :scope > header h2, :scope > header h3') && !headingLike(el));
   // margin-top:auto pins a child to the foot of its flex column; the space above it is free space, not a gap.
@@ -444,6 +459,7 @@ export function measureLayout(N) {
     const kids = visibleKids(parent).filter((k) => k.getBoundingClientRect().height > 0);
     if (kids.length < 2) continue;
     if (parent !== main && stretchedItem(parent)) continue;
+    const dividedGroup = parent.classList.contains('divide-y');
     for (const b of kids) {
       const rb = b.getBoundingClientRect();
       let a = null; let aBottom = -Infinity;
@@ -463,7 +479,7 @@ export function measureLayout(N) {
       const base = { gap, above: sel(a), below: sel(b), aboveSel: path(a), belowSel: path(b) };
       if (gap > N.maxGap && follows) gaps.push({ kind: 'gap', ...base });
       else if (headingLike(a) && !/^H1$/.test(a.tagName) && !a.querySelector('h1') && !headingLike(b) && (gap < N.headingMin - N.tolerance || gap > N.headingMax + N.tolerance)) gaps.push({ kind: 'heading', ...base });
-      else if (!headingLike(a) && !headingLike(b) && sectionLike(a) && sectionLike(b) && gap >= N.minJudged && !scaleOk(gap)) gaps.push({ kind: 'scale', ...base });
+      else if (!headingLike(a) && !headingLike(b) && sectionLike(a) && sectionLike(b) && gap >= N.minJudged && !(scaleOk(gap) || (dividedGroup && gap >= 24 && gap <= N.maxGap))) gaps.push({ kind: 'scale', ...base });
     }
   }
 
@@ -806,6 +822,14 @@ export function measureRules(N) {
     const label = last && lastText && lastText.length <= 24 && !last.matches('button, a, svg, input, select, textarea') && !last.querySelector('button, a, input, select, textarea') && last.getBoundingClientRect().left + last.getBoundingClientRect().width / 2 > rr.left + rr.width / 2 && last.getBoundingClientRect().width <= others + 24 ? last : null;
     const tag = trailing && label ? (trailing.getBoundingClientRect().right >= label.getBoundingClientRect().right ? trailing : label) : trailing || label;
     if (!tag) continue;
+    const value = tag.closest('dd');
+    if (value && row.contains(value)) {
+      const r = tag.getBoundingClientRect(); const vr = value.getBoundingClientRect();
+      const before = textRuns(value).filter((t) => !tag.contains(t.node));
+      const inline = before.some((t) => Math.abs(t.top - r.top) <= 4 && t.right <= r.left + 2);
+      if (!inline && Math.abs(r.left - vr.left) > 2) push('R2', tag, { check: 'value column left edge', edge: vr.left, left: r.left }, [value]);
+      continue;
+    }
     const key = row.closest('[role="listbox"], [role="menu"], ul, ol, [role="list"]') ?? row.parentElement;
     if (!lists.has(key)) lists.set(key, []);
     lists.get(key).push(tag);

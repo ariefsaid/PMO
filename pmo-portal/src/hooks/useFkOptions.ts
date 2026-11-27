@@ -2,6 +2,8 @@ import { companyDisplayName } from '@/src/lib/companyDisplayName';
 import { projectDisplayName, projectOptionSub } from '@/src/lib/projectDisplayName';
 import { useQuery } from '@tanstack/react-query';
 import { repositories } from '@/src/lib/repositories';
+import type { ProjectWithRefs } from '@/src/lib/db/projects';
+import { projectKeys } from './projectQueryKeys';
 import { useAuth } from '@/src/auth/useAuth';
 import type { ComboboxOption } from '@/src/components/ui';
 
@@ -42,18 +44,19 @@ export function useVendorOptions() {
 export function useProjectOptions() {
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
-  return useQuery<ComboboxOption[]>({
-    queryKey: ['fk-options', 'project', orgId],
-    queryFn: async () => {
-      const rows = await repositories.project.list();
-      return rows
-        .filter((p) => p.archived_at == null)
-        .map((p) => ({ value: p.id, label: projectDisplayName(p), sub: projectOptionSub(p) }));
-    },
+  // Same query as `useProjects` (one network read per session); this hook only reshapes the cached rows.
+  return useQuery<ProjectWithRefs[], Error, ComboboxOption[]>({
+    queryKey: projectKeys.all(orgId),
+    queryFn: () => repositories.project.list(),
+    select: selectProjectOptions,
     enabled: Boolean(orgId),
     staleTime: FK_STALE_MS,
   });
 }
+
+const selectProjectOptions = (rows: ProjectWithRefs[]): ComboboxOption[] => rows
+  .filter((p) => p.archived_at == null)
+  .map((p) => ({ value: p.id, label: projectDisplayName(p), sub: projectOptionSub(p) }));
 
 /** A project as an invoice picker option, with what the invoice form needs to know about it (#784). */
 export interface InvoiceProjectOption extends ComboboxOption {
@@ -79,29 +82,30 @@ export interface InvoiceProjectOption extends ComboboxOption {
 export function useInvoiceProjectOptions() {
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
-  return useQuery<InvoiceProjectOption[]>({
-    queryKey: ['fk-options', 'invoice-project', orgId],
-    queryFn: async () => {
-      const rows = await repositories.project.list();
-      return rows.map((p) => ({
-        value: p.id,
-        label: projectDisplayName(p),
-        sub: projectOptionSub(p),
-        contractualName: p.name,
-        clientId: p.client_id,
-        ...(p.currency !== undefined ? { currency: p.currency } : {}),
-        ...(p.tax_base_numerator !== undefined ? { taxBaseNumerator: p.tax_base_numerator } : {}),
-        ...(p.tax_base_denominator !== undefined ? { taxBaseDenominator: p.tax_base_denominator } : {}),
-        subjectToVat: p.subject_to_vat,
-        taxRate: p.tax_rate,
-        customerContractRef: p.customer_contract_ref,
-        archived: p.archived_at != null,
-      }));
-    },
+  // Same query as `useProjects` (one network read per session); this hook only reshapes the cached rows.
+  return useQuery<ProjectWithRefs[], Error, InvoiceProjectOption[]>({
+    queryKey: projectKeys.all(orgId),
+    queryFn: () => repositories.project.list(),
+    select: selectInvoiceProjectOptions,
     enabled: Boolean(orgId),
     staleTime: FK_STALE_MS,
   });
 }
+
+const selectInvoiceProjectOptions = (rows: ProjectWithRefs[]): InvoiceProjectOption[] => rows.map((p) => ({
+  value: p.id,
+  label: projectDisplayName(p),
+  sub: projectOptionSub(p),
+  contractualName: p.name,
+  clientId: p.client_id,
+  ...(p.currency !== undefined ? { currency: p.currency } : {}),
+  ...(p.tax_base_numerator !== undefined ? { taxBaseNumerator: p.tax_base_numerator } : {}),
+  ...(p.tax_base_denominator !== undefined ? { taxBaseDenominator: p.tax_base_denominator } : {}),
+  subjectToVat: p.subject_to_vat,
+  taxRate: p.tax_rate,
+  customerContractRef: p.customer_contract_ref,
+  archived: p.archived_at != null,
+}));
 
 /** Client companies as FK options (id→value, name→label). Every option is a client, so no type tag rides on the row. */
 export function useClientCompanyOptions() {

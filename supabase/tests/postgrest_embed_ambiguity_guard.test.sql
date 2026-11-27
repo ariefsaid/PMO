@@ -274,7 +274,11 @@ select set_eq(
             ('stock_transfers -> stock_warehouses'),
             -- 1784 (survey-cap-record): survey_records carries recorded_by AND confirmed_by, both -> profiles. The one DAL embed
             -- (src/lib/db/surveyRecords.ts) is qualified with !survey_records_recorded_by_fkey / !survey_records_confirmed_by_fkey.
-            ('survey_records -> profiles') $$,
+            ('survey_records -> profiles'),
+            -- 2790 (#3010): owner_material_reconciliation_events carries previous_step_id AND step_id, both -> the steps table.
+            -- Checked before adding: no code in pmo-portal, supabase/functions or scripts reads the table through PostgREST (the reads
+            -- go through the om_* RPCs), so no embed exists. Any future embed must name its constraint.
+            ('owner_material_reconciliation_events -> owner_material_reconciliation_steps') $$,
   'AC-EMBED-001 the set of multi-FK table pairs is EXACTLY the known set — a new pair here means '
   'every unqualified PostgREST embed of that target is now a runtime error (0177 shipped one, and '
   'it took 19 e2e specs down). Before updating this list: grep the DAL for embeds of the target '

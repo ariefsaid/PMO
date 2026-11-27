@@ -7,7 +7,7 @@ import * as dal from '@/src/lib/db/materialRequests';
 import { wrap } from './repositoryErrors';
 
 export type {
-  MaterialRequestStatus, StepStatus, StepDecision, MaterialRequestHeader, MaterialRequestLineInput, MaterialRequestRow, MaterialRequestHeaderRow,
+  MaterialRequestStatus, StepStatus, StepDecision, MaterialRequestHeader, MaterialRequestLineInput, MaterialRequestRow, MaterialRequestHeaderRow, MaterialRequestListRow,
   MaterialRequestLine, MaterialRequestStep, MaterialRequestEvent, MaterialRequestDetail, WaitingStep, ChainStep,
   ChainStepInput, StandIn, StepPin, LinePlan, PlanSource, UsageThresholds, UsageWarning, MaterialRequestFilter, MaterialRequestRefusal, DraftLineError,
   DeliveryNoteSettings, PriorRequestLine,

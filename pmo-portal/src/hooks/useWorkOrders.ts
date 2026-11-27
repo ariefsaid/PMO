@@ -126,7 +126,16 @@ export function useWorkOrderMutations(projectId: string) {
     onSuccess: invalidate,
   });
 
-  return { create, update, setValue, transition, cancel };
+  const reopen = useMutation({
+    mutationFn: ({ id, reason }: { id: string; reason: string }) => repositories.workOrder.reopen(id, reason),
+    onSuccess: () => {
+      invalidate();
+      void qc.invalidateQueries({ queryKey: ['work-orders', orgId, 'all'] });
+      void qc.invalidateQueries({ queryKey: ['work-order-dashboard', orgId] });
+    },
+  });
+
+  return { create, update, setValue, transition, cancel, reopen };
 }
 
 /** Every work order the reader may see, across projects (the menu's Work orders page). RLS-scoped, no money. */

@@ -159,12 +159,15 @@ test('light classification is wired only through scope for main release-please P
 
 test('validated light path skips expensive jobs while required verify and integration still run', () => {
   for (const [name, nextName] of [
-    ['unit', 'checks'],
+    ['unit', 'script-proofs'],
+    ['script-proofs', 'checks'],
     ['checks', 'deno'],
     ['deno', 'coverage'],
     ['coverage', 'verify'],
     ['browser-chromium', 'integration-lanes'],
-    ['integration-lanes', 'integration-full'],
+    ['integration-lanes', 'integration-smoke'],
+    ['integration-smoke', 'integration-serial'],
+    ['integration-serial', 'integration-full'],
     ['integration-full', 'integration'],
   ]) {
     assert.match(jobBlock(name, nextName), /needs\.scope\.outputs\.release_light != 'true'/, `${name} must skip for a validated light path`);
@@ -176,10 +179,18 @@ test('validated light path skips expensive jobs while required verify and integr
   assert.match(verify, /Every verify-stage job passed\n {8}if: needs\.scope\.outputs\.release_light != 'true'/);
 
   const integration = jobBlock('integration', null);
-  assert.match(integration, /needs: \[scope, browser-chromium, integration-lanes, integration-full\]/);
+  assert.match(integration, /needs: \[scope, browser-chromium, integration-lanes, integration-serial, integration-smoke, integration-full\]/);
   assert.match(integration, /\n {4}if: \$\{\{ always\(\) && !cancelled\(\)/);
   assert.match(integration, /Release-please version check passed[\s\S]*needs\.scope\.result[\s\S]*needs\.browser-chromium\.result[\s\S]*needs\.integration-lanes\.result[\s\S]*needs\.integration-full\.result/);
   assert.match(integration, /Full integration evidence passed[\s\S]*needs\.browser-chromium\.result[\s\S]*needs\.integration-lanes\.result[\s\S]*needs\.integration-full\.result/);
+  // The new producers must participate in both light-skip and full-success decisions.
+  for (const [job, lanes] of [[verify, ['script-proofs']], [integration, ['integration-serial', 'integration-smoke']]]) {
+    for (const lane of lanes) {
+      for (const outcome of ['skipped', 'success']) {
+        assert.ok(job.includes(`test "\${{ needs.${lane}.result }}" = ${outcome}`), `${lane} must require ${outcome} in the matching path`);
+      }
+    }
+  }
   assert.match(workflow, /^ {2}verify:/m);
   assert.match(workflow, /^ {2}integration:/m);
 });

@@ -26,7 +26,6 @@ import { I18nProvider } from '@/src/lib/i18n/I18nProvider';
 import { RequireAuth } from '@/src/auth/RequireAuth';
 import { RequireInviteAccepted } from '@/src/auth/RequireInviteAccepted';
 import { AnalyticsProvider } from '@/src/lib/analytics';
-import { ImpersonationProvider } from '@/src/auth/impersonation';
 import { ImpersonationBanner } from '@/src/auth/ImpersonationBanner';
 import { useAuth } from '@/src/auth/useAuth';
 import { useOperatorMembership } from '@/src/auth/useIsOperator';
@@ -35,7 +34,6 @@ import {
   AppShell,
   Rail,
   ContextBar,
-  CommandPalette,
   PhoneNavBar,
   LegacyHomeRedirect,
   modulesForRoleWithOperator,
@@ -51,7 +49,7 @@ import type { BreadcrumbPart } from '@/src/components/shell';
 import { useCachedRecordLists } from '@/src/hooks/useCachedRecordLists';
 import { useRecordSearch } from '@/src/hooks/useRecordSearch';
 import { useOptionalRealRole } from '@/src/auth/impersonation';
-import { useDemoEligibility } from '@/src/hooks/useDemoEligibility';
+import { ShellSyncs, EligibleImpersonationProvider } from '@/src/components/shell/ShellSyncs';
 import { useBuiltInRoleKey, usePermission } from '@/src/auth/usePermission';
 import { roleHasCapability } from '@/src/auth/builtInRoles';
 import { UserRole } from './types';
@@ -74,7 +72,7 @@ import { buildSettingsPaletteItems } from '@/src/lib/orgSettingsPalette';
 import { contextualListReturnNavigation } from '@/src/lib/listReturnContext';
 import { useReturnNavigate } from '@/src/hooks/useListReturn';
 import { lazyWithPreload } from '@/src/lib/lazyWithPreload';
-import { i18next } from '@/src/lib/i18n';
+import { i18next, preloadNamespaces } from '@/src/lib/i18n';
 import { preloadMinutesEditor } from '@/src/components/meetings/minutesEditorChunk';
 import { PROJECT_TAB_CHUNKS } from './pages/project-detail/lazyProjectChunks';
 // A2 (ADR-0040): AssistantPanel + provider + hotkey — flag-gated, absent when off.
@@ -85,16 +83,18 @@ import { FeedbackWidget } from '@/src/components/feedback/FeedbackWidget';
 import { SurveyHost } from '@/src/components/feedback/SurveyHost';
 import { useAssistantHotkey } from '@/src/hooks/useAssistantHotkey';
 // ADR-0056: seeds the fail-closed task-write ownership cache load-on-auth (mounted once in Shell).
-import { useOwnershipCacheSync } from '@/src/hooks/useOwnershipCacheSync';
 // ADR-0045 §3: live context (route/entity/selection) source for agent runs.
 import { AgentContextProvider } from '@/src/lib/agent/context/AgentContextProvider';
 import { useAgentContextPublisher } from '@/src/lib/agent/context/useAgentContext';
 import { AccountMenu } from '@/src/components/shell/AccountMenu';
+import { AfterFirstData } from '@/src/components/shell/AfterFirstData';
 import { usePriceVisibilitySync } from '@/src/hooks/useHidePrices';
 
 // ── Lazy route chunks (lazyWithPreload: each carries an idempotent preload() —
 //    #1834 fires it on nav-link hover/focus/pointerdown and on route entry, so
 //    the chunk downloads in parallel with the route's data instead of after it) ─
+// Perf: the palette and cmdk are needed only once ⌘K / Search is first used. Own chunk, mounted on first open, then kept mounted.
+const CommandPalette = lazyWithPreload(() => import('@/src/components/shell/CommandPalette').then((m) => ({ default: m.CommandPalette })));
 const TermsPage = lazyWithPreload(() => import('./pages/Terms'));
 const PrivacyPage = lazyWithPreload(() => import('./pages/Privacy'));
 const ResetPasswordPage = lazyWithPreload(() => import('@/src/auth/ResetPasswordPage'));
@@ -302,12 +302,13 @@ const PRELOAD_RULES: PreloadRule[] = [
       chunks,
       namespaces: PROJECT_TAB_NAMESPACES[path.split('/').pop() ?? ''] ?? ['project'],
     })),
-  { path: '/projects/:projectId/overview', data: ({ projectId }, { client, orgId, overviewAccess }) => { if (projectId) preloadProjectOverview(client, orgId, projectId, overviewAccess); }, chunks: [ProjectDetail], namespaces: ['project'] },
+  { path: '/projects/:projectId/overview', data: ({ projectId }, { client, orgId, overviewAccess }) => { if (projectId) preloadProjectOverview(client, orgId, projectId, overviewAccess); }, chunks: [ProjectDetail], namespaces: ['project', 'projects', 'recordFolders', 'status', 'workOrderPva'] },
   { path: '/projects/:projectId/:tab', chunks: [ProjectDetail], namespaces: ['project', 'supplyRisk', 'workOrders', 'status'] },
-  { path: '/projects/:projectId', data: ({ projectId }, { client, orgId, overviewAccess }) => { if (projectId) preloadProjectOverview(client, orgId, projectId, overviewAccess); }, chunks: [ProjectDetail], namespaces: ['project'] },
+  { path: '/projects/:projectId', data: ({ projectId }, { client, orgId, overviewAccess }) => { if (projectId) preloadProjectOverview(client, orgId, projectId, overviewAccess); }, chunks: [ProjectDetail], namespaces: ['project', 'projects', 'recordFolders', 'status', 'workOrderPva'] },
   { path: '/sales', chunks: [SalesPipeline], namespaces: ['sales'] },
   // /sales/:id redirects to /projects/:projectId — start that download now.
-  { path: '/sales/:opportunityId', data: ({ opportunityId }, { client, orgId, overviewAccess }) => { if (opportunityId) preloadProjectOverview(client, orgId, opportunityId, overviewAccess); }, chunks: [ProjectDetail], namespaces: ['project'] },
+  { path: '/sales/:opportunityId', data: ({ opportunityId }, { client, orgId, overviewAccess }) => { if (opportunityId) preloadProjectOverview(client, orgId, opportunityId, overviewAccess); }, chunks: [ProjectDetail], namespaces: ['project', 'projects', 'recordFolders', 'status', 'workOrderPva'] },
+
   { path: '/procurement', chunks: [ProcurementPage], namespaces: ['procurement', 'procurementList'] },
   { path: '/procurement/new', chunks: [ProcurementCreate], namespaces: ['procurementCreate', 'purchaseTypes'] },
   { path: '/procurement/:procurementId/purchase-orders/:orderId/print', chunks: [PurchaseOrderPrintPage], namespaces: ['procurement'] },
@@ -461,7 +462,7 @@ export function namespacesForPath(pathname: string): readonly string[] {
 export function preloadForPath(pathname: string, context?: RouteDataContext): void {
   const rule = preloadRuleForPath(pathname);
   if (!rule) return;
-  if (rule.namespaces?.length) void i18next.loadNamespaces(rule.namespaces);
+  if (rule.namespaces?.length) void preloadNamespaces(rule.namespaces);
   for (const chunk of rule.chunks) void chunk.preload();
   if (context && rule.data) {
     const match = matchPath(rule.path, normalizePath(pathname));
@@ -741,23 +742,25 @@ export const AppRoutes: React.FC = React.memo(function AppRoutes() {
 });
 
 // ── Shell chrome (inside the workspace provider + AgentRuntimeProvider) ───────
-export const ShellChrome: React.FC = () => {
+export const ShellChrome: React.FC = React.memo(function ShellChrome() {
   const realRole = useOptionalRealRole();
   const location = useLocation();
   const { pathname, search } = location;
   const router = React.useContext(AppRouterContext);
-  const { currentUser } = useAuth();
+  const { currentUser, session, loading } = useAuth();
   const orgId = currentUser?.org_id;
   const may = usePermission();
   const canViewWorkOrderPlan = may('view', 'workOrderPlan');
   const canReadClaims = may('view', 'progressClaim');
   const canViewBilling = may('view', 'salesInvoice');
   const preload = useCallback((href: string) => {
-    preloadForPath(href, orgId && currentUser ? { orgId, client: queryClient, canViewWorkOrderPlan, canReadClaims, canViewBilling, viewer: currentUser, overviewAccess: { may, realRole } } : undefined);
-  }, [orgId, canViewWorkOrderPlan, canReadClaims, canViewBilling, currentUser, may, realRole]);
+    preloadForPath(href, orgId && currentUser ? { orgId, client: queryClient, canViewWorkOrderPlan, canReadClaims, canViewBilling, viewer: currentUser, overviewAccess: !loading && session ? { may, realRole } : undefined } : undefined);
+  }, [orgId, canViewWorkOrderPlan, canReadClaims, canViewBilling, currentUser, may, realRole, loading, session]);
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [paletteSeen, setPaletteSeen] = useState(false);
+  useEffect(() => { if (paletteOpen) setPaletteSeen(true); }, [paletteOpen]);
   const [railOpen, setRailOpen] = useState(false);
   usePriceVisibilitySync();
   const paletteTriggerRef = useRef<HTMLElement | null>(null);
@@ -992,7 +995,7 @@ export const ShellChrome: React.FC = () => {
   // Records only show while the user is searching, Navigate always shows.
   // AC-W3-N3: only modules visible to the real role are included (modulesForRole).
   const paletteItems = useMemo<PaletteItem[]>(
-    () => [
+    () => (!paletteOpen ? [] : [
       ...recordSearch.records,
       ...(realRole ? modulesForRoleWithOperator(realRole as UserRole, isOperator) : [])
         .filter((module) => !module.feature || (orgFeatures?.[module.feature] ?? FEATURE_ENV_DEFAULT[module.feature]) === true)
@@ -1023,12 +1026,13 @@ export const ShellChrome: React.FC = () => {
       ...(userViewsEntitled
         ? buildViewsPaletteItems(userViewsList, navigate)
         : []),
-    ],
-    [navigate, recordSearch.records, realRole, isOperator, needsOperatorRecovery, orgFeatures, t, userViewsList, userViewsEntitled]
+    ]),
+    [paletteOpen, navigate, recordSearch.records, realRole, isOperator, needsOperatorRecovery, orgFeatures, t, userViewsList, userViewsEntitled]
   );
 
   return (
     <>
+      <AfterFirstData>
       <AppShell
         phoneNav={
           <PhoneNavBar
@@ -1068,41 +1072,41 @@ export const ShellChrome: React.FC = () => {
       >
         <AppRoutes />
       </AppShell>
+      </AfterFirstData>
       <SurveyHost />
-      <CommandPalette
-        open={paletteOpen}
-        items={paletteItems}
-        onClose={() => setPaletteOpen(false)}
-        returnFocusTo={paletteTriggerRef.current}
-        loading={recordSearch.nothingAnswered}
-        loadingMore={recordSearch.isPending && !recordSearch.nothingAnswered}
-        error={recordSearch.isError}
-        onRetry={recordSearch.refetch}
-        onAskAi={
-          assistantEntitled
-            ? (query) => {
-                setPaletteOpen(false);
-                openPanel(query);
-              }
-            : undefined
-        }
-      />
+      {(paletteOpen || paletteSeen) && (
+        <Suspense fallback={null}>
+          <CommandPalette
+            open={paletteOpen}
+            items={paletteItems}
+            onClose={() => setPaletteOpen(false)}
+            returnFocusTo={paletteTriggerRef.current}
+            loading={recordSearch.nothingAnswered}
+            loadingMore={recordSearch.isPending && !recordSearch.nothingAnswered}
+            error={recordSearch.isError}
+            onRetry={recordSearch.refetch}
+            onAskAi={
+              assistantEntitled
+                ? (query) => {
+                    setPaletteOpen(false);
+                    openPanel(query);
+                  }
+                : undefined
+            }
+          />
+        </Suspense>
+      )}
     </>
   );
-};
+});
 
 // ── Shell (eager — renders after auth is confirmed) ────────────────────────
 const Shell: React.FC = () => {
   const { role } = useAuth();
-  // ADR-0056: mount exactly once in the authenticated shell — seeds/clears the module-level
-  // ownership cache so routeTaskWrite() routes task writes correctly (fail-closed 'pmo').
-  useOwnershipCacheSync();
-  // FR-AUTH-036 (AC-AUTH-013/014): the Admin "view as role" control exists ONLY for Admins
-  // of a demo org. The hook reads the signed-in org's lifecycle_state via RLS (never a
-  // hardcoded org id) and FAILS CLOSED to 'pending' while loading or on error.
-  const demoEligibility = useDemoEligibility();
   return (
-    <ImpersonationProvider realRole={role} demoEligibility={demoEligibility}>
+    <>
+    <ShellSyncs />
+    <EligibleImpersonationProvider realRole={role}>
       <ToastProvider>
         {/* #2123: one tooltip delay group for the whole shell. 400ms of hover intent stops a
             pointer sweeping a table from flashing a panel per cell; Base UI then opens a
@@ -1133,7 +1137,8 @@ const Shell: React.FC = () => {
           </AgentRuntimeProvider>
         </BaseTooltip.Provider>
       </ToastProvider>
-    </ImpersonationProvider>
+    </EligibleImpersonationProvider>
+    </>
   );
 };
 

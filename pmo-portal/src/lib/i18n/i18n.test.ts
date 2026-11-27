@@ -229,13 +229,13 @@ describe('#2097: only `common` is resident at boot; feature namespaces arrive on
   });
 
   it('AC: a resolved Indonesian locale boots Indonesian FIRST — no English set up front', async () => {
-    const { instance, urls } = await isolatedBoot('id');
+    const { mod, instance, urls } = await isolatedBoot('id');
     expect(instance.language).toBe('id');
     const requested = urls();
-    expect(requested[0]).toBe('/locales/id/common.json');
-    // `fallbackLng: 'en'` still fetches the English OTHER LANGUAGE of the one namespace that is
-    // resident (that is the FR-L10N-041 fallback), but never a feature catalogue.
-    expect(requested.sort()).toEqual(['/locales/en/common.json', '/locales/id/common.json']);
+    expect(requested).toEqual(['/locales/id/common.json']);
+    // The English fallback loads after first paint (via `loadEnglishFallback`) without blocking boot.
+    await mod.loadEnglishFallback(instance);
+    expect(urls().sort()).toEqual(['/locales/en/common.json', '/locales/id/common.json']);
   });
 
   it('an unusable boot locale falls back to English instead of asking for a bogus catalogue', async () => {

@@ -151,6 +151,25 @@ async function selfTest() {
       const hit = fixture.expected ? rules.includes(fixture.expected) : rules.length === 0;
       if (!hit) throw new Error(`Self-test failed: rule fixture "${fixture.name}" expected ${fixture.expected || 'no finding'}, got ${report.failures.join('; ') || 'none'}`);
     }
+    // Reviewed grouping cases, paired with a genuine fault in the same family.
+    const groupingCases = [
+      ['notice bridges heading', '<div><h3>Map</h3><p>Accounts unavailable</p></div><div style="margin-top:45px">Table content</div>', false],
+      ['bare heading still too far', '<div><h3>Map</h3></div><div style="margin-top:45px">Table content</div>', true],
+      ['divided siblings 29px', '<div class="divide-y"><section><h3>Budget</h3><p>Value</p></section><section style="margin-top:29px"><h3>Expense</h3><p>Value</p></section></div>', false],
+      ['divided siblings 20px', '<div class="divide-y"><section><h3>Budget</h3><p>Value</p></section><section style="margin-top:20px"><h3>Expense</h3><p>Value</p></section></div>', true],
+      ['selection column', '<div data-record-row style="display:grid;grid-template-columns:16px 1fr;gap:8px"><button role="checkbox" style="width:16px;height:16px"></button><div><p>Title</p><p>Details</p><span style="display:inline-flex;border-radius:20px;padding:0 8px;background:#eee"><span>Requested</span></span></div></div>', false],
+      ['title eight pixels off', '<div data-record-row style="display:grid;grid-template-columns:16px 1fr;gap:8px"><button role="checkbox" style="width:16px;height:16px"></button><div><p style="margin-left:8px">Title</p><p>Details</p></div></div>', true],
+    ];
+    for (const [name, body, expected] of groupingCases) {
+      await page.setContent(`<style>p,h3{margin:0}h3{margin-bottom:12px}</style><main style="padding:16px">${name.includes('selection') || name.includes('eight') ? '<div style="border:1px solid #ccc;border-radius:8px;padding:16px"><p>Summary</p></div>' : ''}<div style="border:1px solid #ccc;border-radius:8px;padding:16px">${body}</div><p style="margin-top:24px">Tail</p></main>`);
+      const report = layoutReport(await page.evaluate(measureLayout, LAYOUT_NUMBERS), name);
+      if (!!report.failures.length !== expected) throw new Error(`Self-test failed: ${name}: ${report.failures.join('; ')}`);
+    }
+    for (const [indent, expected] of [[0, false], [8, true]]) {
+      await page.setContent(`<main style="width:400px"><ul style="padding:0">${['Budget push', 'Not mapped'].map((tag, i) => `<li><dl style="display:grid;grid-template-columns:180px 220px"><dt>ERP account</dt><dd style="margin:0;width:220px"><div>Salary PSC</div><span style="display:inline-block;margin-left:${i === 0 ? indent : 0}px;background:#eee;border-radius:4px">${tag}</span></dd></dl></li>`).join('')}</ul></main>`);
+      const report = rulesReport(await page.evaluate(measureRules, RULE_NUMBERS), 'value tag');
+      if (report.findings.some((f) => f.rule === 'R2') !== expected) throw new Error(`Self-test failed: value tag ${indent}: ${report.failures.join('; ')}`);
+    }
     // R3 needs two routes: the same tab labels at the same frame pass; a moved bar fails and names its route.
     const tabs = (left, top) => `<main><nav style="position:absolute;left:${left}px;top:${top}px;width:400px;display:flex;gap:8px"><a href="/a">List</a><a href="/b">Budget</a></nav></main>`;
     const barsAt = async (route, html) => { await page.setContent(html); return (await page.evaluate(measureRules, RULE_NUMBERS)).tabBars.map((b) => ({ ...b, route, width: 1440 })); };

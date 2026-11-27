@@ -9,13 +9,13 @@ const h = vi.hoisted(() => {
   const result = { value: {} as { data: unknown; error: unknown }, queue: [] as Array<{ data: unknown; error: unknown }> };
   const calls = {
     from: [] as string[], rpc: [] as Array<[string, unknown]>, select: [] as unknown[], insert: [] as unknown[], update: [] as unknown[],
-    eq: [] as unknown[], neq: [] as unknown[], is: [] as unknown[], not: [] as unknown[], order: [] as unknown[], gt: [] as unknown[],
+    eq: [] as unknown[], lte: [] as unknown[], or: [] as unknown[], in: [] as unknown[], neq: [] as unknown[], is: [] as unknown[], not: [] as unknown[], order: [] as unknown[], gt: [] as unknown[],
     limit: [] as unknown[], upload: [] as unknown[],
   };
   const next = () => (result.queue.length ? result.queue.shift()! : result.value);
   const builder: Record<string, unknown> = {};
   const chain = (name: keyof typeof calls) => (...a: unknown[]) => { (calls[name] as unknown[]).push(a.length === 1 ? a[0] : a); return builder; };
-  for (const k of ['select', 'insert', 'update', 'eq', 'neq', 'is', 'not', 'order', 'gt', 'limit'] as const) builder[k] = chain(k);
+  for (const k of ['select', 'insert', 'update', 'eq', 'lte', 'or', 'in', 'neq', 'is', 'not', 'order', 'gt', 'limit'] as const) builder[k] = chain(k);
   builder.single = () => Promise.resolve(next());
   builder.maybeSingle = () => Promise.resolve(next());
   builder.then = (resolve: (v: unknown) => unknown) => resolve(next());
@@ -35,6 +35,36 @@ beforeEach(() => {
   for (const v of Object.values(h.calls)) (v as unknown[]).length = 0;
   h.result.value = { data: null, error: null };
   h.result.queue = [];
+});
+
+describe('#1128 attendance reads are bounded', () => {
+  it('reads only the placements in force on the day, filtered in the database', async () => {
+    h.result.value = { data: [{ id: 'm1', crew_id: 'c1', worker_id: 'w1', valid_from: '2026-01-01', valid_to: null }], error: null };
+    expect(await crews.listCrewPlacementsOn('2026-11-18')).toHaveLength(1);
+    expect(h.calls.from).toEqual(['crew_members']);
+    expect(h.calls.lte).toEqual([['valid_from', '2026-11-18']]);
+    expect(h.calls.or).toEqual(['valid_to.is.null,valid_to.gte.2026-11-18']);
+  });
+
+  it('refuses a malformed day instead of building a filter from it', async () => {
+    await expect(crews.listCrewPlacementsOn('x,id.gt.0')).rejects.toBeInstanceOf(AppError);
+    expect(h.calls.from).toEqual([]);
+  });
+
+  it('reads the named live people only, in chunks, sorted by name', async () => {
+    const ids = Array.from({ length: 450 }, (_, i) => `p${i}`);
+    h.result.queue = [
+      { data: [{ id: 'p1', display_name: 'Zed', archived_at: null }], error: null },
+      { data: [{ id: 'p2', display_name: 'Abe', archived_at: null }], error: null },
+      { data: [], error: null },
+    ];
+    const rows = await crews.listCrewWorkersByIds([...ids, 'p0']);
+    expect(h.calls.from).toEqual(['people_directory', 'people_directory', 'people_directory']);
+    expect(h.calls.in).toHaveLength(3);
+    expect(rows.map((r) => r.display_name)).toEqual(['Abe', 'Zed']);
+    expect(await crews.listCrewWorkersByIds([])).toEqual([]);
+    expect(h.calls.from).toHaveLength(3);
+  });
 });
 
 describe('#2528 crews DAL', () => {
@@ -163,9 +193,10 @@ describe('#2528 crews DAL', () => {
     await crews.listOpenWorkOrders();
     expect(h.calls.from).toEqual(['people_directory', 'crew_members', 'crew_standard_roles', 'work_order_crews', 'work_orders']);
     expect(h.calls.neq).toEqual([['status', 'Cancelled']]);
-    h.result.queue = [{ data: { id: 'p' }, error: null }, { data: null, error: null }, { data: null, error: null }];
+    h.result.queue = [{ data: { id: 'p' }, error: null }, { data: null, error: null }, { data: [{ id: 'c' }], error: null }];
     await crews.createCrewWorker({ kind: 'vendor', display_name: 'V', id_reference: null, profile_id: null, vendor_company_id: null });
     await crews.placeCrewMember({ crew_id: 'c', worker_id: 'p', standard_role_id: null, valid_from: '2026-11-01', valid_to: null });
+    h.result.value = { data: [{ id: 'c' }], error: null };
     await crews.updateCrew('c', { archived_at: '2026-11-19T00:00:00Z' });
   });
 });
@@ -209,4 +240,9 @@ describe('#2528 attendance DAL', () => {
     expect(h.calls.upload[0]).toEqual(['org1/wo1/p1/crew_photo.jpg', file, { upsert: false, contentType: 'image/jpeg' }]);
     expect(h.calls.insert).toEqual([{ id: 'p1', work_order_id: 'wo1', crew_id: 'c1', work_date: '2026-11-18', file_path: 'org1/wo1/p1/crew_photo.jpg' }]);
   });
+});
+
+it("refuses a crew edit that did not land", async () => {
+ h.result.value = { data: [], error: null };
+ await expect(crews.updateCrew("c", { name: "Changed" })).rejects.toMatchObject({ code: "42501" });
 });

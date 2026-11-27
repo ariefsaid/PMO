@@ -121,7 +121,6 @@ export async function confirmAgentAttachmentUpload(attachmentId: string): Promis
  */
 export async function cleanupAgentAttachmentObject(path: string): Promise<void> {
   if (!path) return;
-  await supabase.storage.from(BUCKET).remove([path]);
   const { data, error } = await supabase
     .from('agent_attachments')
     .update({ archived_at: new Date().toISOString() })
@@ -129,4 +128,5 @@ export async function cleanupAgentAttachmentObject(path: string): Promise<void> 
     .select('id');
   if (error) throwWrite(error);
   assertWriteLanded(data, 'Attachment not found or you do not have permission to archive it.');
+  await supabase.storage.from(BUCKET).remove([path]);
 }

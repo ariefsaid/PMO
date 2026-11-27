@@ -71,10 +71,12 @@ import {
   deleteProcurementDocument,
 } from './procurementCrud';
 import { ProcurementError } from './procurementLifecycle';
-import { setPricesHidden } from '@/src/lib/priceReadPath';
+import { setPricesHidden, setHidePricesActive } from '@/src/lib/priceReadPath';
 import { AppError } from '@/src/lib/appError';
 
 beforeEach(() => {
+  setPricesHidden(false);
+  setHidePricesActive(false);
   h.from.mockClear();
   h.rpc.mockClear();
   for (const k of Object.keys(h.calls) as (keyof typeof h.calls)[]) {

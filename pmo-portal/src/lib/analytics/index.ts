@@ -24,12 +24,18 @@ export * from './surveyPolicy';
 // These are the ONLY way components should track events. They encapsulate
 // the call to analyticsClient.capture with the correct event name + props.
 
-import { analyticsClient } from './client';
+import { analyticsClient, getConsentState } from './client';
+import { getAnalyticsConfig as readAnalyticsConfig } from './config';
 import { isFeatureEnabled } from '@/src/lib/features';
 import type { CaptureExceptionInput } from './client';
 import type { AuthMethod, AuthFailureReason, DemoPersonaLabel } from './events';
 import type { DownvoteReason } from '@/src/lib/db/agentEvents';
 import { SAFE_TAB_ID } from './route';
+
+/** True when analytics is enabled, Do Not Track is off and this browser has not opted out (pure read, valid before init). */
+export function isAnalyticsConsentActive(): boolean {
+  return getConsentState(readAnalyticsConfig()) === 'active';
+}
 
 /** Track when a demo persona button is selected on the login page. */
 export function trackDemoPersonaSelected(role: DemoPersonaLabel): void {

@@ -1,6 +1,7 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from './database.types';
 import { createReadTimeoutFetch } from './readTimeoutFetch';
+import { createPriceVisibilityFetch } from '../priceVisibilityFetch';
 import { recoverySession } from '../../auth/recoverySession';
 
 const url = import.meta.env.VITE_SUPABASE_URL;
@@ -14,6 +15,6 @@ if (!anonKey) throw new Error('Missing VITE_SUPABASE_ANON_KEY — copy .env.exam
 // ("inferred type exceeds the maximum length the compiler will serialize") and the whole module stops typechecking.
 export const supabase: SupabaseClient<Database> = createClient<Database>(url, anonKey, {
   auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
-  global: { fetch: createReadTimeoutFetch() },
+  global: { fetch: createPriceVisibilityFetch(createReadTimeoutFetch()) },
 });
 supabase.auth.onAuthStateChange((event, session) => recoverySession.record(event, session));

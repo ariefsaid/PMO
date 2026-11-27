@@ -32,6 +32,7 @@ import { safeTrack, trackPurchaseApproved } from '@/src/lib/analytics';
 import { useAuth } from '@/src/auth/useAuth';
 import { useProject } from '@/src/hooks/useProjects';
 import { useProcurements, useProjectProcurements } from '@/src/hooks/useProcurements';
+import { useProcurementListScope } from '@/src/hooks/useProcurementListScope';
 import { useProcurementDetail } from '@/src/hooks/useProcurementDetail';
 import { useErpPurchases } from '@/src/hooks/useErpPurchases';
 import { useListReturn } from '@/src/hooks/useListReturn';
@@ -276,7 +277,8 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { exportXlsx, busy: exportBusy } = useExport();
-  const companyQuery = useProcurements({ withRefs: true, withSharedDetails: true, enabled: !projectId });
+  const listScope = useProcurementListScope(realRole === 'Project Manager');
+  const companyQuery = useProcurements({ withRefs: true, withSharedDetails: true, scopeUserId: listScope.scopeUserId, enabled: !projectId && listScope.ready });
   const projectQuery = useProjectProcurements(projectId);
   const procurementQuery = projectId ? projectQuery : companyQuery;
   const { data, isPending, isError, refetch } = procurementQuery;

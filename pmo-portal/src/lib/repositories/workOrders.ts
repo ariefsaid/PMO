@@ -25,6 +25,7 @@ import {
   setWorkOrderValue,
   transitionWorkOrder,
   cancelWorkOrder,
+  reopenWorkOrder,
   getProjectDrawdown,
 } from '@/src/lib/db/workOrders';
 import { getWorkOrderBilledMonths, listWorkOrderAcceptanceAge, listWorkOrderBilling, getUnbilledWorkOrders } from '@/src/lib/db/workOrderBilling';
@@ -44,6 +45,7 @@ import {
 import {
   listAcceptancesAwaitingConfirmation,
   listProjectAcceptances,
+  listWorkOrderAcceptances,
   listWorkOrderLines,
   listProjectWorkOrderLines,
   createWorkOrderLine,
@@ -92,6 +94,7 @@ export const workOrderRepository: WorkOrderRepository = {
   setValue: (input) => wrap(() => setWorkOrderValue(input)),
   transition: (id, to, opts) => wrap(() => transitionWorkOrder(id, to, opts)),
   cancel: (id, reason) => wrap(() => cancelWorkOrder(id, reason)),
+  reopen: (id, reason) => wrap(() => reopenWorkOrder(id, reason)),
   listCandidateRecords: (projectId) => wrap(() => listCandidateRecords(projectId)),
   drawdown: (projectId) => wrap(() => getProjectDrawdown(projectId)),
   billing: (projectId) => wrap(() => listWorkOrderBilling(projectId)),
@@ -130,6 +133,7 @@ export const progressBillingRepository: ProgressBillingRepository = {
 /** Contract quantities (ADR-0091): allocations and BAST acceptances. Operational only — never dispatches to an ERP. */
 export const workOrderAcceptanceRepository: WorkOrderAcceptanceRepository = {
   listByProject: (projectId) => wrap(() => listProjectAcceptances(projectId)),
+  listByWorkOrder: (projectId, workOrderId) => wrap(() => listWorkOrderAcceptances(projectId, workOrderId)),
   listAwaitingConfirmation: () => wrap(() => listAcceptancesAwaitingConfirmation()),
   listLines: (workOrderId) => wrap(() => listWorkOrderLines(workOrderId)),
   listProjectLines: (projectId) => wrap(() => listProjectWorkOrderLines(projectId)),

@@ -6,7 +6,7 @@ import { WorkCalendar } from '@/src/components/calendar/WorkCalendar';
 import { useAuth } from '@/src/auth/useAuth';
 import { usePermission } from '@/src/auth/usePermission';
 import { useCalendarTasks, useMoveCalendarTask } from '@/src/hooks/useWorkCalendar';
-import { useProjects, useProjectsMilestoneDates } from '@/src/hooks/useProjects';
+import { useProjectPickerOptions, useProjectsMilestoneDates } from '@/src/hooks/useProjects';
 import { useOrgToday } from '@/src/hooks/useOrgToday';
 import { useOwnershipCacheSynced } from '@/src/hooks/useOwnershipCacheSync';
 import { routeTaskWrite } from '@/src/lib/adapterSeam/ownershipCache';
@@ -44,7 +44,7 @@ const CalendarPage: React.FC = () => {
   const today = useOrgToday();
 
   const tasks = useCalendarTasks(window);
-  const projects = useProjects();
+  const projects = useProjectPickerOptions();
   const projectIds = useMemo(() => (projects.data ?? []).map((p) => p.id), [projects.data]);
   const milestones = useProjectsMilestoneDates(projectIds);
   const move = useMoveCalendarTask();

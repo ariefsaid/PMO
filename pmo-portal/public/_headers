@@ -15,6 +15,18 @@
 # year and skip revalidation. index.html is not matched here, so it keeps revalidating and picks up new hashes.
 /assets/*
   Cache-Control: public, max-age=31536000, immutable
+# Fonts keep their names across builds (no hash), so 30 days, not immutable: a revalidating request per open is saved, a change reaches people within a month.
+/fonts/*
+  Cache-Control: public, max-age=2592000
 # Service worker must revalidate immediately so updates take effect without delay
 /sw.js
   Cache-Control: no-cache, no-store, must-revalidate
+# Language catalogues. Each build publishes them under /catalogues/<content hash>/ (see
+# src/lib/build/catalogueVersion.ts), so a changed catalogue is a new address: cache for a year.
+# The unversioned /locales copy (older clients) revalidates on every use.
+/catalogues/*
+  Cache-Control: public, max-age=31536000, immutable
+/locales/*
+  Cache-Control: no-cache
+/index.html
+  Cache-Control: no-cache

@@ -34,10 +34,10 @@ vi.mock('@/src/hooks/useWorkOrderRecord', async (importOriginal) => ({
 vi.mock('@/src/auth/useFeature', () => ({ useFeature: (f: string) => f === 'stock' ? h.stock : f === 'incidents' ? h.issuesOn : false }));
 vi.mock('@/src/hooks/useProjects', () => ({ useProject: () => h.project }));
 vi.mock('@/src/hooks/useProgressBilling', () => ({ useBoqItems: () => h.boq }));
-vi.mock('@/src/hooks/useWorkOrderAcceptances', () => ({ useWorkOrderAcceptances: () => h.basts, useWorkOrderAcceptanceMutations: () => ({ confirm: { isPending: false, mutateAsync: vi.fn().mockResolvedValue({ closingValue: null, dpHeld: 0 }) } }) }));
+vi.mock('@/src/hooks/useWorkOrderAcceptances', () => ({ useWorkOrderAcceptancesFor: () => h.basts, useWorkOrderAcceptanceMutations: () => ({ confirm: { isPending: false, mutateAsync: vi.fn().mockResolvedValue({ closingValue: null, dpHeld: 0 }) } }) }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u-finance', org_id: h.orgId } }) }));
 vi.mock('@/src/hooks/useWorkOrderBilling', () => ({ useWorkOrderBilling: () => h.billing, useWorkOrderBilledMonths: (id: string | undefined, enabled: boolean) => { h.reads.billedMonths.push([id, enabled]); return { data: undefined, isPending: false, isError: false, refetch: vi.fn() }; } }));
-vi.mock('@/src/hooks/useDocuments', () => ({ useDocuments: () => h.docs }));
+vi.mock('@/src/hooks/useDocuments', () => ({ useWorkOrderDocuments: () => h.docs }));
 vi.mock('@/src/hooks/useWorkOrderCosts', async (importOriginal) => ({
   ...await importOriginal<typeof import('@/src/hooks/useWorkOrderCosts')>(),
   useWorkOrderCostLines: vi.fn((id: string | null) => { h.reads.costLines.push(id); return h.lines; }), useWorkOrderCostMoney: () => h.money, useWorkOrderCostLinks: () => h.links, useCostDisciplines: (enabled: boolean = true) => { h.reads.disciplines.push(enabled); return h.discs; }, useWorkOrderTimesheetLabels: () => h.labels,

@@ -7,6 +7,11 @@
    preflight. */
 @layer theme, base, components, minutes-editor, utilities;
 @import "tailwindcss";
+/* Test, eval and e2e sources never ship; keep their class names out of the generated stylesheet. */
+@source not "./e2e";
+@source not "./evals";
+@source not "./**/*.test.{ts,tsx}";
+@source not "./src/test";
 
 /* =============================================================================
    Hanken Grotesk variable webfont — SELF-HOSTED (owner decision 2026-10-29,

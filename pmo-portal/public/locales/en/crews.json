@@ -82,6 +82,8 @@
   "placedCount": "{{placed}} of {{headcount}}",
   "placedOf": "Placed",
   "placements": "Roster placements",
+  "placementsError": "Couldn't load roster placements",
+  "awaitingError": "Couldn't load weeks waiting for your approval",
   "rate": {
     "absent": "Absent",
     "belowTarget": "Below target",

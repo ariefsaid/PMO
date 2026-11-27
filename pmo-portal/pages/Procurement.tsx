@@ -37,6 +37,7 @@ import { useErpOrphans, useErpPurchases } from '@/src/hooks/useErpPurchases';
 import { withLinkedDocuments } from '@/src/lib/procurement/procurementMoney';
 import { useProjects } from '@/src/hooks/useProjects';
 import { trackProcurementDetailOpened, trackFilterApplied, trackEmptyStateSeen } from '@/src/lib/analytics';
+import { useProcurementListScope } from '@/src/hooks/useProcurementListScope';
 import { ProcurementBlock } from '@/src/components/procurement';
 import { ProcurementKpiRow, type ProcurementTab } from './procurement/list/ProcurementKpiRow';
 import { formatDay, formatMoneyLines } from '@/src/lib/format';
@@ -171,7 +172,8 @@ const ProcurementPage: React.FC = () => {
   const canCreate = may('create', 'procurement');
   const canViewOrphans = canSeeOrphans && may('view', 'procurement');
 
-  const { data, isPending, isError, refetch } = useProcurements({ withRefs: true, withSharedDetails: true });
+  const listScope = useProcurementListScope(realRole === 'Project Manager');
+  const { data, isPending, isError, refetch } = useProcurements({ withRefs: true, withSharedDetails: true, scopeUserId: listScope.scopeUserId, enabled: listScope.ready });
   const projectQuery = useProjectOptions();
   const supplierQuery = useVendorOptions();
   const [importRefs, setImportRefs] = useState<{ projects: { id: string; name: string }[]; suppliers: { id: string; name: string }[] }>({ projects: [], suppliers: [] });

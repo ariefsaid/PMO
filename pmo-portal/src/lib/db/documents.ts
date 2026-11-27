@@ -87,6 +87,34 @@ export async function listProjectDocuments(projectId: string): Promise<ProjectDo
 }
 
 /**
+ * The slice of a project's document register that one work order's record page shows: the documents filed
+ * on the work order itself, plus the named linked documents (acceptance and claim documents, which may carry no
+ * work-order id). Same table, same project filter, same order and RLS as `listProjectDocuments`, but the
+ * database narrows the rows instead of the page reading the whole register and filtering it. Ids are
+ * restricted to uuid shape before they reach the filter string.
+ */
+export async function listWorkOrderDocuments(projectId: string, workOrderId: string, linkedIds: string[]): Promise<ProjectDocumentRow[]> {
+  const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const ids = [...new Set(linkedIds)].filter((id) => uuid.test(id));
+  const scope = ids.length > 0
+    ? `work_order_id.eq.${workOrderId},id.in.(${ids.join(',')})`
+    : `work_order_id.eq.${workOrderId}`;
+  return fetchAllPages(async (from, to) => {
+    const result = await supabase
+      .from('project_documents')
+      .select('*')
+      .eq('project_id', projectId)
+      .or(scope)
+      .order('code', { nullsFirst: false })
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: true })
+      .range(from, to);
+    if (result.error) throwWrite(result.error);
+    return result;
+  });
+}
+
+/**
  * Fetch a single document by id (AC-DOC-002), or null when not found / not readable.
  * org_id is NEVER sent — RLS scopes the row. Throws an `AppError` on a genuine query error.
  */

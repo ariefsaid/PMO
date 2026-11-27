@@ -37,7 +37,7 @@ export const AnalyticsProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   // Init + register environment context once (or when key config changes)
   useEffect(() => {
-    analyticsClient.init(config);
+    analyticsClient.init(config, { defer: true });
     analyticsClient.register(superProperties);
     if (config.demoMode) {
       persistDemoContext(config, safeSessionStorage());

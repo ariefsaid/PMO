@@ -441,7 +441,13 @@
     "cancel": "Batalkan $t(common:terms.clientWorkOrder)",
     "cancelReason": "Alasan pembatalan",
     "cancelHelper": "Pembatalan bersifat final. Alasannya tetap tercatat pada $t(common:terms.clientWorkOrder) ini.",
-    "cancelledBecause": "Dibatalkan karena: {{reason}}"
+    "cancelledBecause": "Dibatalkan karena: {{reason}}",
+    "reopen": "Buka kembali $t(common:terms.clientWorkOrder)",
+    "reopenTitle": "Buka kembali $t(common:terms.clientWorkOrder) ini?",
+    "reopenReason": "Alasan pembukaan kembali",
+    "reopenHelper": "Mengembalikan $t(common:terms.clientWorkOrder) ini ke status Diterbitkan. Alasannya dicatat dalam riwayat audit.",
+    "reopenConfirm": "Buka kembali $t(common:terms.clientWorkOrder)",
+    "reopenedToast": "$t(common:terms.clientWorkOrder) dibuka kembali"
   },
   "candidateRecords": {
     "title": "Kandidat $t(common:terms.clientWorkOrder) terdahulu",
@@ -465,5 +471,12 @@
     "action": "$t(common:terms.clientWorkOrder) baru"
   },
   "complete": "Selesai",
-  "stockOpen": "Buka stok"
+  "stockOpen": "Buka stok",
+  "ownerMaterial": {
+    "rollup": {
+      "view": "Material",
+      "board": "Pekerjaan",
+      "viewLabel": "Tampilan pekerjaan"
+    }
+  }
 }

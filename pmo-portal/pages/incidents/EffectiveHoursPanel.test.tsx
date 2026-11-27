@@ -44,7 +44,19 @@ describe('AC-ICM-012 effective working hours panel', () => {
     expect(table).toHaveTextContent('6.5');
     expect(table).toHaveTextContent('Times not entered');
     const total = within(table).getByRole('row', { name: /Total/ });
-    expect(within(total).getAllByRole('cell').map((cell) => cell.textContent)).toEqual(['8.5', '2.0', '6.5']);
+    expect(within(total).getAllByRole('cell').map((cell) => cell.textContent)).toEqual(['8.5', '2.5', '6.5']);
+  });
+  it('#2998 the footer total equals the column sum, including stopped time on rows without times', async () => {
+    h.rows = [
+      { work_date: '2026-11-02', worked_minutes: 510, stopped_minutes: 120, effective_minutes: 390, has_times: true },
+      { work_date: '2026-11-03', worked_minutes: null, stopped_minutes: 30, effective_minutes: null, has_times: false },
+      { work_date: '2026-11-04', worked_minutes: 480, stopped_minutes: 60, effective_minutes: 420, has_times: true },
+    ];
+    render(<EffectiveHoursPanel from="2026-11-01" to="2026-11-30" />);
+    await pick();
+    const table = await screen.findByTestId('effective-hours-table');
+    const total = within(table).getByRole('row', { name: /Total/ });
+    expect(within(total).getAllByRole('cell').map((cell) => cell.textContent)).toEqual(['16.5', '3.5', '13.5']);
   });
   it('says what is missing when the range is open or the work order has no validated report', async () => {
     const { rerender } = render(<EffectiveHoursPanel />);

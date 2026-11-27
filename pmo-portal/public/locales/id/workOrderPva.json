@@ -256,5 +256,27 @@
   "billedTitle": "Tagihan dan margin",
   "byDisciplineTitle": "Biaya per disiplin",
   "openPage": "Buka halaman penuh",
-  "otherCurrencyNote": "Sebagian biaya dalam mata uang lain: angka yang akan mencampur mata uang tidak ditampilkan, dan biaya itu dicatat terpisah."
+  "otherCurrencyNote": "Sebagian biaya dalam mata uang lain: angka yang akan mencampur mata uang tidak ditampilkan, dan biaya itu dicatat terpisah.",
+  "leftOut": {
+    "summary_one": "Belum dihitung: {{count}} catatan",
+    "summary_other": "Belum dihitung: {{count}} catatan",
+    "summaryWithTotal_one": "Belum dihitung: {{count}} catatan ({{total}})",
+    "summaryWithTotal_other": "Belum dihitung: {{count}} catatan ({{total}})",
+    "count_one": "{{count}} catatan",
+    "count_other": "{{count}} catatan",
+    "countOnly": "Hanya jumlah",
+    "labourCostOff": "Biaya tenaga kerja nonaktif",
+    "stockCostOff": "Biaya pengeluaran stok nonaktif",
+    "kind": {
+      "unpaid_bill": "Invoice supplier belum dibayar",
+      "purchase_order": "Dipesan, belum ditagih",
+      "goods_receipt": "Diterima, belum ditagih",
+      "uncounted_stock": "Stok dikeluarkan, belum dihitung",
+      "unapproved_claim": "Klaim biaya belum disetujui",
+      "unapproved_labour": "Tenaga kerja belum disetujui",
+      "unrated_labour": "Tenaga kerja tanpa tarif",
+      "unapproved_equipment": "Pemakaian alat belum disetujui",
+      "unrated_equipment": "Alat tanpa tarif sewa"
+    }
+  }
 }

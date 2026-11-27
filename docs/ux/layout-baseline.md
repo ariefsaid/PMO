@@ -356,5 +356,7 @@ Shrink-only: a touched route may not gain a fingerprint, and a route under redes
 | `/update-password` | exec@acme.test reads-failing | 1440 | 2 |
 | `/update-password` | exec@acme.test | 390 | 2 |
 | `/update-password` | exec@acme.test reads-failing | 390 | 2 |
+| `/work-orders?view=materials` | admin@mp-pmo.test id | 1440 | 0 |
+| `/work-orders?view=materials` | admin@mp-pmo.test id | 390 | 0 |
 
-Routes measured: 72. Routes with failures: 52. Total fingerprints: 663.
+Routes measured: 73. Routes with failures: 52. Total fingerprints: 663.

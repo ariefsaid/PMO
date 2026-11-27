@@ -425,6 +425,12 @@ export async function cancelWorkOrder(id: string, reason: string): Promise<void>
   if (error) throwWrite(error as PostgrestErrorLike);
 }
 
+/** Admin-only audited reopen of a Closed work order without a confirmed final acceptance (#3024, migration 2787). */
+export async function reopenWorkOrder(id: string, reason: string): Promise<void> {
+  const { error } = await supabase.rpc('reopen_work_order', { p_id: id, p_reason: reason });
+  if (error) throwWrite(error as PostgrestErrorLike);
+}
+
 /**
  * The project's derived drawdown (`get_project_drawdown`, SECURITY INVOKER — the caller's own RLS
  * is the tenancy boundary).

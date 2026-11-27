@@ -15,6 +15,12 @@ vi.mock('@/src/auth/impersonation', () => ({
   useEffectiveRole: vi.fn(() => ({ effectiveRole: 'Project Manager', realRole: 'Project Manager', canImpersonate: false, viewAs: vi.fn() })),
 }));
 
+vi.mock('@/src/auth/useFeature', () => ({
+  // AC-3023's sales-pipeline gate: tests here default to the pipeline ON (the static map);
+  // the feature-off menu shape is pinned separately.
+  useFeature: vi.fn(() => true),
+}));
+
 vi.mock('@/src/hooks/useProjectTransitions', () => ({
   useProjectWinEligibility: () => ({ data: 'allowed' }),
   useProjectTransition: vi.fn(() => ({

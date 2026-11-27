@@ -35,6 +35,7 @@ export function useRouteFirstData(): void {
       unsubscribe();
       clearTimeout(idle);
       clearTimeout(cap);
+      safeTrack(() => analyticsClient.startLoad());
       safeTrack(() => analyticsClient.capture('route_first_data', {
         route,
         duration_ms: Math.round(performance.now() - start),
@@ -42,12 +43,23 @@ export function useRouteFirstData(): void {
         ...extra,
       }));
     };
+    // In-flight queries are tracked from cache events (one Set operation per event) instead of
+    // rescanning every query with `isFetching()` on each event. Seeded once with what is already in flight.
+    const cache = queryClient.getQueryCache();
+    const inFlight = new Set<string>(cache.findAll({ fetchStatus: 'fetching' }).map((q) => q.queryHash));
     const settle = (idleElapsed = false) => {
       if (done) return;
-      if (queryClient.isFetching() > 0) { sawFetch = true; return; }
+      if (inFlight.size > 0) { sawFetch = true; return; }
       if (sawFetch || idleElapsed) send();
     };
-    const unsubscribe = queryClient.getQueryCache().subscribe(() => settle());
+    const unsubscribe = cache.subscribe((event) => {
+      if (event.type === 'removed') inFlight.delete(event.query.queryHash);
+      else if (event.type === 'updated') {
+        if (event.query.state.fetchStatus === 'fetching') inFlight.add(event.query.queryHash);
+        else inFlight.delete(event.query.queryHash);
+      }
+      settle();
+    });
     const idle = setTimeout(() => settle(true), IDLE_MS);
     const cap = setTimeout(() => { if (!done) send({ timed_out: true }); }, CAP_MS);
     return () => {

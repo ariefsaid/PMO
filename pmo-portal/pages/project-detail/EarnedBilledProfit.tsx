@@ -9,13 +9,11 @@ import { useCostDisciplines } from '@/src/hooks/useWorkOrderCosts';
 import { useDisciplineRevenue } from '@/src/hooks/useDisciplineProfit';
 import { useOrgSwitch } from '@/src/hooks/useOrgSwitch';
 import { useWorkOrderEarnedBilled } from '@/src/hooks/useEarnedBilled';
+import { useReAskRestricted } from '@/src/hooks/useReAskRestricted';
 import { earnedBilledProfit, projectClaimedRevenue, type Figure } from '@/src/lib/earnedBilledProfit';
 import { disciplineProfit, type ProfitFigure } from '@/src/lib/disciplineProfit';
 import { moneyText as moneyText2, moneyUnits, type ExactMoney } from '@/src/lib/projectFinances';
 import { EarnedBilledTable, type EbCell, type EbTableRow } from '@/src/components/finance/EarnedBilledTable';
-
-/** How long the panel waits before re-asking a refused read once (#2896). */
-const RESTRICTED_RE_ASK_MS = 1_000;
 
 /**
  * Earned and billed revenue side by side (#2733, docs/specs/earned-billed-revenue.spec.md): per work order with a project
@@ -42,22 +40,11 @@ const EarnedBilledProfit: React.FC<{ projectId: string }> = ({ projectId }) => {
     return (id: string | null) => (id === null ? t('profit.noDiscipline', 'No discipline') : m.get(id) ?? t('profit.archivedDiscipline', 'Archived discipline'));
   }, [disciplines.data, t]);
 
-  // #2896: a refused money read comes back as the VALUE "restricted" (a 42501 never becomes an error), so
-  // react-query caches it as a success and nothing re-asks — one transient refusal pinned the panel closed
-  // until a reload. The panel re-asks the refused read once, a beat later; a viewer genuinely refused stays
-  // restricted after that one re-ask, so the recovery never loops.
-  const ebRestricted = eb.data === 'restricted';
-  const pvaRestricted = pva.data?.rollup.restricted === true;
-  const reAsked = React.useRef(false);
-  React.useEffect(() => {
-    if ((!ebRestricted && !pvaRestricted) || reAsked.current || eb.isFetching || pva.isFetching) return;
-    reAsked.current = true;
-    const timer = setTimeout(() => {
-      if (ebRestricted) void eb.refetch();
-      if (pvaRestricted) void pva.refetch();
-    }, RESTRICTED_RE_ASK_MS);
-    return () => clearTimeout(timer);
-  }, [ebRestricted, pvaRestricted, eb, pva]);
+  useReAskRestricted(projectId, [
+    { restricted: eb.data === 'restricted', isFetching: eb.isFetching, refetch: eb.refetch },
+    { restricted: pva.data?.rollup.restricted === true, isFetching: pva.isFetching, refetch: pva.refetch },
+    { restricted: revenue.data === 'restricted', isFetching: revenue.isFetching, refetch: revenue.refetch },
+  ]);
 
   if (!on) return null;
   const title = t('earnedBilled.title', 'Earned and billed revenue');

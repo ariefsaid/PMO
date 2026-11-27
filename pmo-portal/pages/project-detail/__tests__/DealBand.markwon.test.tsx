@@ -78,6 +78,12 @@ const pipelineState = {
     ] as Array<Record<string, unknown>>,
   },
 };
+vi.mock('@/src/auth/useFeature', () => ({
+  // AC-3023: the sales-pipeline entitlement feeding the move list; these tests cover the
+  // feature-on shapes, so the default ON is the contract under test here.
+  useFeature: vi.fn(() => true),
+}));
+
 vi.mock('@/src/hooks/useDashboard', () => ({ useSalesPipeline: () => pipelineState }));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u-alice', org_id: 'org-1' }, role: 'Project Manager' }),

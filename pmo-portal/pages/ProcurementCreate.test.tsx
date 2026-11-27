@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render as rtlRender, act, cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { QueryClientTestProvider } from '@/test/QueryClientTestProvider';
+import { setHidePricesActive, setPricesHidden } from '@/src/lib/priceReadPath';
 // C11: the purchase-type fields mount with the form now, so renders run inside the shared test
 // query client; with no signed-in org the reads stay disabled, as the page itself sees.
 const render = ((ui: Parameters<typeof rtlRender>[0], options?: Parameters<typeof rtlRender>[1]) =>
@@ -83,6 +84,8 @@ function estimatedTotalCell() {
 
 describe('AC-PROC1 one-page request creation', () => {
   beforeEach(() => {
+    setHidePricesActive(false);
+    setPricesHidden(false);
     vi.clearAllMocks();
     stockCatalog.data = [];
     mocks.canCreate = true;
