@@ -1,0 +1,26 @@
+-- Run 2791 down first; opening material positions are removed on reversal.
+drop table public.owner_material_import_witness;
+drop table public.owner_material_movement_links;
+drop table public.owner_material_reconciliation_events;
+drop table public.owner_material_reconciliation;
+drop table public.owner_material_reconciliation_steps;
+drop table public.owner_material_openings;
+drop table public.owner_material_import_rows;
+alter table public.client_requisition_lines drop column section_material_plan_id;
+alter table public.client_requisition_events drop column owner_warehouse_id;
+alter table public.client_requisitions drop column import_batch_id;
+alter table public.stock_items drop column material_category_id;
+alter table public.work_order_section_material_plan drop column category_id,drop column import_batch_id;
+alter table public.work_order_sections drop column owner_cost_code;
+drop table public.owner_material_import_batches;
+drop table public.stock_material_categories;
+drop table public.owner_material_warehouses;
+alter table public.stock_document_lines drop constraint stock_document_lines_id_document_id_org_id_item_id_key;
+alter table public.work_order_section_material_plan drop constraint work_order_section_material_plan_id_org_id_item_id_key,drop constraint work_order_section_material_plan_id_org_id_key;
+alter table public.work_order_sections drop constraint work_order_sections_id_org_id_key;
+update public.record_history_config set captured=captured-'owner_cost_code' where table_name='work_order_sections';
+update public.record_history_config set captured=captured-'category_id'-'import_batch_id' where table_name='work_order_section_material_plan';
+update public.record_history_config set captured=captured-'material_category_id' where table_name='stock_items';
+update public.record_history_config set captured=captured-'section_material_plan_id' where table_name='client_requisition_lines';
+update public.record_history_config set captured=captured-'owner_warehouse_id' where table_name='client_requisition_events';
+update public.record_history_config set captured=captured-'import_batch_id' where table_name='client_requisitions';
