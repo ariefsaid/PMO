@@ -23,6 +23,8 @@ export const MATERIAL_SCHEMA_VERSION = 2;
 export const MAX_CATALOGUE_CHUNK = 500;
 export const MAX_SECTION_LINES = 200;
 export const MAX_WORK_ORDER_CHUNK = 500;
+export const MAX_EVIDENCE_VALUE_BYTES = 4096;
+const EVIDENCE_TRUNCATION_MARKER = ' ...[truncated]';
 export const DEFAULT_PYTHON_BIN = '/tmp/owner-material-loader-venv/bin/python';
 export const MATERIAL_LOAD_RPCS = Object.freeze([
   'om_material_config',
@@ -42,6 +44,7 @@ const ALLOWED_MAP_KEYS = new Set([
   'policy',
   'work_order_defaults',
   'owner_warehouses',
+  'units',
   'workbook',
   'sheets',
   'consolidations',
@@ -210,6 +213,29 @@ export function validateMapping(mapping) {
           }
         } else {
           problems.push(`owner_warehouses['${header}'] must be a string code or {code, name}`);
+        }
+      }
+    }
+  }
+  if (mapping.units !== undefined) {
+    if (!isPlainObject(mapping.units)) {
+      problems.push('units must be an object');
+    } else {
+      for (const [code, cfg] of Object.entries(mapping.units)) {
+        if (!isPlainObject(cfg)) {
+          problems.push(`units['${code}'] must be an object`);
+          continue;
+        }
+        for (const k of Object.keys(cfg)) {
+          if (k !== 'name' && k !== 'whole_only') {
+            problems.push(`unknown units['${code}'] key '${k}'`);
+          }
+        }
+        if (cfg.name !== undefined && (typeof cfg.name !== 'string' || !cfg.name.trim())) {
+          problems.push(`units['${code}'].name must be a non-empty string`);
+        }
+        if (cfg.whole_only !== undefined && typeof cfg.whole_only !== 'boolean') {
+          problems.push(`units['${code}'].whole_only must be a boolean`);
         }
       }
     }
@@ -447,25 +473,104 @@ function chunkArray(items, size) {
   return chunks;
 }
 
-/** Build deterministic catalogue entities from parsed workbook + accepted sections. */
+function truncateUtf8Bytes(str, maxBytes) {
+  if (Buffer.byteLength(str, 'utf8') <= maxBytes) return str;
+  const markerBytes = Buffer.byteLength(EVIDENCE_TRUNCATION_MARKER, 'utf8');
+  const budget = Math.max(0, maxBytes - markerBytes);
+  let lo = 0;
+  let hi = str.length;
+  while (lo < hi) {
+    const mid = (lo + hi + 1) >> 1;
+    if (Buffer.byteLength(str.slice(0, mid), 'utf8') <= budget) lo = mid;
+    else hi = mid - 1;
+  }
+  let cut = str.slice(0, lo);
+  // Avoid splitting a UTF-16 surrogate pair
+  if (cut.length > 0 && cut.charCodeAt(cut.length - 1) >= 0xd800 && cut.charCodeAt(cut.length - 1) <= 0xdbff) {
+    cut = cut.slice(0, -1);
+  }
+  return `${cut}${EVIDENCE_TRUNCATION_MARKER}`;
+}
+
+/**
+ * Flatten a line's `evidence` object so every value is a scalar string <= 4 KB (Contract v2.3 §4).
+ * Nested objects/arrays are JSON-serialized; oversized values are truncated with a visible marker.
+ */
+export function flattenEvidence(rawEvidence) {
+  const flat = {};
+  const truncated = [];
+  if (!isPlainObject(rawEvidence)) return { evidence: flat, truncated };
+  for (const [key, val] of Object.entries(rawEvidence)) {
+    if (val === null || val === undefined) continue;
+    const rawStr = typeof val === 'string' ? val : JSON.stringify(val);
+    const originalBytes = Buffer.byteLength(rawStr, 'utf8');
+    if (originalBytes > MAX_EVIDENCE_VALUE_BYTES) {
+      const cut = truncateUtf8Bytes(rawStr, MAX_EVIDENCE_VALUE_BYTES);
+      flat[key] = cut;
+      truncated.push({
+        key,
+        original_bytes: originalBytes,
+        truncated_bytes: Buffer.byteLength(cut, 'utf8'),
+      });
+    } else {
+      flat[key] = rawStr;
+    }
+  }
+  return { evidence: flat, truncated };
+}
+
+function lookupUnitConfig(unitCode, unitsMap) {
+  if (!isPlainObject(unitsMap)) return {};
+  if (isPlainObject(unitsMap[unitCode])) return unitsMap[unitCode];
+  for (const [k, v] of Object.entries(unitsMap)) {
+    if (String(k).trim().toUpperCase() === unitCode && isPlainObject(v)) return v;
+  }
+  return {};
+}
+
+/** Build deterministic catalogue entities (units first, then categories, owner warehouses, items). */
 export function buildCatalogueEntities(parsed, mapping, resolvedZeroCostTagId = undefined) {
-  const entities = [];
+  const units = [];
+  const categories = [];
+  const warehouses = [];
+  const items = [];
+  const seenUnit = new Set();
   const seenCat = new Set();
   const seenWh = new Set();
   const seenItem = new Set();
+
+  const registerUnit = (rawUnit) => {
+    const code = String(rawUnit || '').trim().toUpperCase();
+    if (!code || seenUnit.has(code)) return;
+    seenUnit.add(code);
+    const cfg = lookupUnitConfig(code, mapping?.units);
+    const name = typeof cfg.name === 'string' && cfg.name.trim() ? cfg.name.trim() : code;
+    const wholeOnly = Boolean(cfg.whole_only ?? false);
+    const body = { type: 'unit', code, name, whole_only: wholeOnly };
+    units.push({ entity_key: `unit:${code}`, hash: canonicalHash(body), ...body });
+  };
+
+  for (const item of parsed.catalogue?.items ?? []) {
+    if (item.unit) registerUnit(item.unit);
+  }
+  for (const sec of parsed.accepted_sections ?? []) {
+    for (const line of sec.lines ?? []) {
+      if (line.unit) registerUnit(line.unit);
+    }
+  }
 
   for (const cat of parsed.catalogue?.categories ?? []) {
     if (!cat.code || seenCat.has(cat.code)) continue;
     seenCat.add(cat.code);
     const body = { type: 'category', code: cat.code, name: cat.name || cat.code };
-    entities.push({ entity_key: `category:${cat.code}`, hash: canonicalHash(body), ...body });
+    categories.push({ entity_key: `category:${cat.code}`, hash: canonicalHash(body), ...body });
   }
   for (const sec of parsed.accepted_sections ?? []) {
     for (const line of sec.lines ?? []) {
       if (line.category_code && !seenCat.has(line.category_code)) {
         seenCat.add(line.category_code);
         const body = { type: 'category', code: line.category_code, name: line.category_code };
-        entities.push({ entity_key: `category:${line.category_code}`, hash: canonicalHash(body), ...body });
+        categories.push({ entity_key: `category:${line.category_code}`, hash: canonicalHash(body), ...body });
       }
     }
   }
@@ -474,7 +579,7 @@ export function buildCatalogueEntities(parsed, mapping, resolvedZeroCostTagId = 
     if (!wh.code || seenWh.has(wh.code)) continue;
     seenWh.add(wh.code);
     const body = { type: 'owner_warehouse', code: wh.code, name: wh.name || wh.code };
-    entities.push({ entity_key: `owner_warehouse:${wh.code}`, hash: canonicalHash(body), ...body });
+    warehouses.push({ entity_key: `owner_warehouse:${wh.code}`, hash: canonicalHash(body), ...body });
   }
 
   const tagId = resolvedZeroCostTagId ?? mapping.zero_cost_tag_id ?? undefined;
@@ -485,10 +590,10 @@ export function buildCatalogueEntities(parsed, mapping, resolvedZeroCostTagId = 
       type: 'item',
       code: item.code,
       name: item.name || item.code,
-      unit: item.unit || '',
+      unit: String(item.unit || '').trim().toUpperCase(),
       ...(tagId ? { zero_cost_tag_id: tagId } : {}),
     };
-    entities.push({ entity_key: `item:${item.code}`, hash: canonicalHash(body), ...body });
+    items.push({ entity_key: `item:${item.code}`, hash: canonicalHash(body), ...body });
   }
   for (const sec of parsed.accepted_sections ?? []) {
     for (const line of sec.lines ?? []) {
@@ -498,32 +603,79 @@ export function buildCatalogueEntities(parsed, mapping, resolvedZeroCostTagId = 
           type: 'item',
           code: line.item_code,
           name: line.item_name || line.item_code,
-          unit: line.unit || '',
+          unit: String(line.unit || '').trim().toUpperCase(),
           ...(tagId ? { zero_cost_tag_id: tagId } : {}),
         };
-        entities.push({ entity_key: `item:${line.item_code}`, hash: canonicalHash(body), ...body });
+        items.push({ entity_key: `item:${line.item_code}`, hash: canonicalHash(body), ...body });
       }
     }
   }
 
-  return entities;
+  return [...units, ...categories, ...warehouses, ...items];
 }
 
-/** Build Contract v2 section entity payload with deterministic entity keys and hashes. */
-export function buildSectionEntity(section, sourceKey, sectionCode) {
+/** Collect the bounded (<= 500) catalogue entities that one section depends on, units first (Contract v2.3 §2). */
+export function buildSectionCatalogueDependencies(section, catalogueByKey) {
+  const unitKeys = new Set();
+  const catKeys = new Set();
+  const whKeys = new Set();
+  const itemKeys = new Set();
+
+  for (const line of section.lines ?? []) {
+    const u = String(line.unit || '').trim().toUpperCase();
+    if (u) unitKeys.add(`unit:${u}`);
+    if (line.category_code) catKeys.add(`category:${line.category_code}`);
+    if (line.item_code) itemKeys.add(`item:${line.item_code}`);
+    const ev = line.evidence;
+    if (isPlainObject(ev)) {
+      if (isPlainObject(ev.owner_warehouses)) {
+        for (const whCode of Object.keys(ev.owner_warehouses)) whKeys.add(`owner_warehouse:${whCode}`);
+      }
+      if (Array.isArray(ev.rows)) {
+        for (const rowObj of ev.rows) {
+          if (isPlainObject(rowObj?.texts?.owner_warehouses)) {
+            for (const whCode of Object.keys(rowObj.texts.owner_warehouses)) whKeys.add(`owner_warehouse:${whCode}`);
+          }
+        }
+      }
+    }
+  }
+
+  const orderedKeys = [...unitKeys, ...catKeys, ...whKeys, ...itemKeys];
+  const deps = [];
+  for (const k of orderedKeys) {
+    const ent = catalogueByKey.get(k);
+    if (ent) deps.push(ent);
+  }
+  return deps.slice(0, MAX_CATALOGUE_CHUNK);
+}
+
+/** Build Contract v2/v2.3 section entity payload with deterministic entity keys, hashes, and flattened scalar evidence. */
+export function buildSectionEntity(section, sourceKey, sectionCode, truncatedLog = null) {
   const orderKey = String(section.owner_order_number).trim();
   const locKey = String(section.location_name).trim().toLowerCase();
   const sectionEntityKey = `section:${sourceKey}:${orderKey}:${locKey}`;
 
   const lines = (section.lines ?? []).map((line) => {
     const lineEntityKey = `line:${sourceKey}:${orderKey}:${locKey}:${line.item_code}`;
+    const { evidence: flatEvidence, truncated } = flattenEvidence(line.evidence);
+    if (truncatedLog && truncated.length > 0) {
+      for (const t of truncated) {
+        truncatedLog.push({
+          sheet: section.sheet,
+          row: line.row,
+          item_code: line.item_code,
+          ...t,
+        });
+      }
+    }
     const lineCore = {
       item_code: line.item_code,
-      unit: line.unit,
+      unit: String(line.unit || '').trim().toUpperCase(),
       category_code: line.category_code ?? null,
       planned: line.planned,
       opening: line.opening,
-      evidence: line.evidence ?? {},
+      evidence: flatEvidence,
       expected: line.expected,
     };
     return {
@@ -791,17 +943,25 @@ export async function runMaterialLoad(opts, api) {
     }
   }
 
-  // Step 2: Catalogue chunks (<= 500 entries per call)
+  // Step 2: Catalogue chunks (<= 500 entries per call; units sent in their own chunk(s) first — Contract v2.3 §1)
   const catalogueEntities = buildCatalogueEntities(
     { ...parsed, accepted_sections: eligibleSections },
     mapping,
     resolvedTag.id,
   );
+  const catalogueByKey = new Map(catalogueEntities.map((e) => [e.entity_key, e]));
+  const unitEntities = catalogueEntities.filter((e) => e.type === 'unit');
+  const otherCatalogueEntities = catalogueEntities.filter((e) => e.type !== 'unit');
+  const orderedCatalogueChunks = [
+    ...chunkArray(unitEntities, MAX_CATALOGUE_CHUNK),
+    ...chunkArray(otherCatalogueEntities, MAX_CATALOGUE_CHUNK),
+  ];
+
   const catalogueResults = [];
   let catalogueComplete = true;
   let lastBatchId = null;
 
-  for (const [idx, chunk] of chunkArray(catalogueEntities, MAX_CATALOGUE_CHUNK).entries()) {
+  for (const [idx, chunk] of orderedCatalogueChunks.entries()) {
     const res = await callImportRpc(api, {
       sourceKey,
       confirm,
@@ -818,6 +978,15 @@ export async function runMaterialLoad(opts, api) {
     if (Array.isArray(res?.results)) catalogueResults.push(...res.results);
     if (res?.complete === false) catalogueComplete = false;
   }
+
+  const createdUnitKeys = new Set(
+    catalogueResults
+      .filter((r) => String(r.entity_key ?? '').startsWith('unit:') && r.status === 'create')
+      .map((r) => r.entity_key),
+  );
+  const unitsToCreate = unitEntities
+    .filter((u) => createdUnitKeys.has(u.entity_key))
+    .map((u) => ({ code: u.code, name: u.name, whole_only: u.whole_only }));
 
   // Step 2.5 (Contract v2.2 3a): Reconciliation scale comparison / update before sections
   const currentScale = normalizeScaleSteps(config?.steps ?? []);
@@ -844,9 +1013,11 @@ export async function runMaterialLoad(opts, api) {
     }
   }
 
-  // Step 3: Sections (1 section per call; skipped if reconciliation scale update was refused)
+  // Step 3: Sections (1 section per call; always carries projected catalogue_entities + reconciliation_scale — Contract v2.3 §2)
   const usedSectionCodesByOrder = new Map();
   const sectionResults = [];
+  const closedWorkOrderRefusals = [];
+  const truncatedEvidence = [];
   let sectionsComplete = !scaleBlocked;
 
   if (!scaleBlocked) {
@@ -861,7 +1032,12 @@ export async function runMaterialLoad(opts, api) {
       const sectionCode = sheetCfg.section_code ? String(sheetCfg.section_code).trim() : deriveSectionCode(sec.location_name, used);
       used.add(sectionCode);
 
-      const entity = buildSectionEntity(sec, sourceKey, sectionCode);
+      const entity = buildSectionEntity(sec, sourceKey, sectionCode, truncatedEvidence);
+      const sectionDeps = buildSectionCatalogueDependencies(sec, catalogueByKey);
+      const matchedWo = matchWorkOrder(orderKey, existingWorkOrders);
+      const woStatus = matchedWo.status === 'matched' ? matchedWo.workOrder?.status ?? null : null;
+      const isClosedWo = woStatus !== null && woStatus !== 'Draft' && woStatus !== 'Issued';
+
       const res = await callImportRpc(api, {
         sourceKey,
         confirm,
@@ -871,6 +1047,8 @@ export async function runMaterialLoad(opts, api) {
           kind: 'section',
           project_id: projectId,
           source_digest: parsed.source_digest,
+          catalogue_entities: sectionDeps,
+          ...(desiredScale ? { reconciliation_scale: desiredScale } : {}),
           entities: [entity],
         },
       });
@@ -878,12 +1056,29 @@ export async function runMaterialLoad(opts, api) {
       let hadNonQueuedRefusal = false;
       if (Array.isArray(res?.results)) {
         for (const r of res.results) {
-          if (!confirm && r.status === 'refused' && r.reason === 'material-work-order-missing' && missingOrdersMap.has(orderKey)) {
+          const reasonCode = r.reason_code ?? r.reason ?? '';
+          if (!confirm && r.status === 'refused' && reasonCode === 'material-work-order-missing' && missingOrdersMap.has(orderKey)) {
             sectionResults.push({
               ...r,
+              reason_code: reasonCode,
               status: 'pending_work_order',
               note: 'work order will be created on confirm',
             });
+          } else if (
+            r.status === 'refused' &&
+            reasonCode === 'material-conflict' &&
+            (isClosedWo || /\b(closed|frozen|completed|cancelled)\b/i.test(String(r.reason ?? '')))
+          ) {
+            closedWorkOrderRefusals.push({
+              sheet: sec.sheet,
+              owner_order_number: orderKey,
+              location_name: sec.location_name,
+              work_order_status: woStatus,
+              entity_key: r.entity_key,
+              reason_code: reasonCode,
+              reason: r.reason ?? reasonCode,
+            });
+            hadNonQueuedRefusal = true;
           } else {
             sectionResults.push(r);
             if (r.status === 'refused') hadNonQueuedRefusal = true;
@@ -936,6 +1131,7 @@ export async function runMaterialLoad(opts, api) {
     !scaleBlocked &&
     refusedSections.length === 0 &&
     partialSections.length === 0 &&
+    closedWorkOrderRefusals.length === 0 &&
     serverRefused.length === 0 &&
     catalogueComplete &&
     sectionsComplete;
@@ -957,6 +1153,7 @@ export async function runMaterialLoad(opts, api) {
     },
     zero_cost_tag: { id: resolvedTag.id, name: resolvedTag.name },
     reconciliation_scale: scaleReport,
+    units_to_create: unitsToCreate,
     config_summary: {
       categories: config?.categories?.length ?? 0,
       owner_warehouses: config?.owner_warehouses?.length ?? 0,
@@ -970,15 +1167,20 @@ export async function runMaterialLoad(opts, api) {
       skipped_lines: skippedLinesCount,
       empty_lines: emptyLinesCount,
       refused_sections: refusedSections.length,
+      closed_work_order_refusals: closedWorkOrderRefusals.length,
       catalogue_entities: catalogueEntities.length,
+      units_to_create: unitsToCreate.length,
       server_refused: serverRefused.length,
       policy_flagged_sections: policyFlaggedSections.length,
+      truncated_evidence_values: truncatedEvidence.length,
     },
     catalogue_results: catalogueResults,
     section_results: sectionResults,
     partial_sections: partialSections,
+    closed_work_order_refusals: closedWorkOrderRefusals,
     refused_sections: refusedSections,
     policy_flagged_sections: policyFlaggedSections,
+    truncated_evidence: truncatedEvidence,
     suggested_stock_openings: buildSuggestedStockOpenings(eligibleSections),
     complete,
     ...(confirm ? {} : { next: 'Re-run with --confirm to apply the accepted records.' }),

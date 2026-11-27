@@ -269,10 +269,24 @@ function makeFakeTransport(initial = {}) {
               results.push({
                 entity_key: sec.entity_key,
                 status: 'refused',
-                reason: 'material-work-order-missing',
+                reason_code: 'material-work-order-missing',
+                reason: `Work order '${sec.owner_order_number}' does not exist in this project`,
                 sheet: sec.sheet,
                 row: sec.row,
                 ids: {},
+              });
+              complete = false;
+              continue;
+            }
+            if (wo.status !== 'Draft' && wo.status !== 'Issued') {
+              results.push({
+                entity_key: sec.entity_key,
+                status: 'refused',
+                reason_code: 'material-conflict',
+                reason: `Work order '${sec.owner_order_number}' is in closed state '${wo.status}'`,
+                sheet: sec.sheet,
+                row: sec.row,
+                ids: { work_order_id: wo.id },
               });
               complete = false;
               continue;
@@ -680,8 +694,10 @@ test('AC-001 (v2.2 3b): zero_cost_tag_name is required, resolved from config, at
     tOk,
   );
   assert.equal(res.exit, 0);
-  const catCall = tOk.calls.find((c) => c.name === 'om_material_import' && c.body.p_payload.kind === 'catalogue');
-  const items = catCall.body.p_payload.entities.filter((e) => e.type === 'item');
+  const catEntities = tOk.calls
+    .filter((c) => c.name === 'om_material_import' && c.body.p_payload.kind === 'catalogue')
+    .flatMap((c) => c.body.p_payload.entities);
+  const items = catEntities.filter((e) => e.type === 'item');
   assert.ok(items.length > 0);
   assert.ok(items.every((i) => i.zero_cost_tag_id === ZERO_COST_TAG_ID));
 });
@@ -701,6 +717,98 @@ test('AC-001 (v2.2 3c/3d): empty_line is counted without marking partial, and pr
   assert.equal(preview.report.counts.partial_sections, 0);
   assert.equal(preview.report.counts.empty_lines, 1);
   assert.ok(preview.report.section_results.every((r) => r.status === 'pending_work_order' && /will be created on confirm/i.test(r.note)));
+});
+
+test('AC-001 (v2.3): unit chunks sent first, units_to_create listed, and every section carries projected catalogue_entities + reconciliation_scale', async () => {
+  const transport = makeFakeTransport({
+    workOrders: [{ id: 'wo-1', wo_number: 'WO-SYN-100', client_po_number: null, title: 'Existing', status: 'Issued' }],
+  });
+  const mapping = baseMapping({
+    units: {
+      PCS: { name: 'Pieces', whole_only: true },
+    },
+  });
+  const parsed = sampleParsed();
+  const res = await runMaterialLoad(
+    { workbookPath: '/fake/wb.xlsx', mappingPath: '/fake/map.json', mapping, projectId: PROJECT_ID, confirm: false, parseWorkbook: async () => parsed },
+    transport,
+  );
+  assert.equal(res.exit, 0);
+
+  // Unit chunk sent strictly before non-unit catalogue chunk
+  const catCalls = transport.calls.filter((c) => c.name === 'om_material_import' && c.body.p_payload.kind === 'catalogue');
+  assert.ok(catCalls.length >= 2, 'units must be sent in their own chunk(s) first');
+  assert.ok(catCalls[0].body.p_payload.entities.every((e) => e.type === 'unit'));
+  const pcsUnit = catCalls[0].body.p_payload.entities.find((e) => e.code === 'PCS');
+  const eaUnit = catCalls[0].body.p_payload.entities.find((e) => e.code === 'EA');
+  assert.deepEqual({ name: pcsUnit.name, whole_only: pcsUnit.whole_only }, { name: 'Pieces', whole_only: true });
+  assert.deepEqual({ name: eaUnit.name, whole_only: eaUnit.whole_only }, { name: 'EA', whole_only: false });
+
+  // Preview lists every unit it would create
+  assert.deepEqual(
+    res.report.units_to_create.map((u) => u.code).sort(),
+    ['EA', 'PCS'],
+  );
+
+  // Every section payload carries projected catalogue_entities (scoped to that section) + reconciliation_scale
+  const secCalls = transport.calls.filter((c) => c.name === 'om_material_import' && c.body.p_payload.kind === 'section');
+  assert.equal(secCalls.length, 2);
+  const firstSecPayload = secCalls[0].body.p_payload;
+  assert.ok(Array.isArray(firstSecPayload.catalogue_entities));
+  assert.ok(firstSecPayload.catalogue_entities.length <= 500);
+  // First section only uses item 001001 (PCS), not 001002 (EA)
+  const firstSecItemCodes = firstSecPayload.catalogue_entities.filter((e) => e.type === 'item').map((e) => e.code);
+  const firstSecUnitCodes = firstSecPayload.catalogue_entities.filter((e) => e.type === 'unit').map((e) => e.code);
+  assert.deepEqual(firstSecItemCodes, ['001001']);
+  assert.deepEqual(firstSecUnitCodes, ['PCS']);
+  assert.equal(firstSecPayload.catalogue_entities[0].type, 'unit', 'units first in projected catalogue_entities');
+  assert.deepEqual(firstSecPayload.reconciliation_scale, [
+    { name: 'Prepared', position: 1, percentage: '20' },
+    { name: 'Closed', position: 2, percentage: '100' },
+  ]);
+});
+
+test('AC-002 (v2.3): evidence values are flattened to scalar strings <= 4KB with truncation marker & count, and closed WO refusals get own report heading', async () => {
+  const transport = makeFakeTransport({
+    workOrders: [{ id: 'wo-closed', wo_number: 'WO-SYN-100', client_po_number: null, title: 'Closed WO', status: 'Completed' }],
+  });
+  const parsed = sampleParsed();
+  // Inject a nested rows array whose JSON exceeds 4096 bytes
+  parsed.accepted_sections[0].lines[0].evidence = {
+    request_reference: 'REQ-1',
+    owner_warehouses: { 'WH-N': '10' },
+    rows: Array.from({ length: 80 }, (_, idx) => ({
+      row: idx + 8,
+      planned: '1',
+      texts: { note: 'X'.repeat(80) },
+    })),
+  };
+
+  const res = await runMaterialLoad(
+    { workbookPath: '/fake/wb.xlsx', mappingPath: '/fake/map.json', mapping: baseMapping(), projectId: PROJECT_ID, confirm: false, parseWorkbook: async () => parsed },
+    transport,
+  );
+
+  // Verify every sent evidence value is a scalar string <= 4096 UTF-8 bytes
+  const secCalls = transport.calls.filter((c) => c.name === 'om_material_import' && c.body.p_payload.kind === 'section');
+  const sentEvidence = secCalls[0].body.p_payload.entities[0].lines[0].evidence;
+  for (const [k, v] of Object.entries(sentEvidence)) {
+    assert.equal(typeof v, 'string', `evidence.${k} must be a scalar string`);
+    assert.ok(Buffer.byteLength(v, 'utf8') <= 4096, `evidence.${k} must be <= 4096 bytes`);
+  }
+  assert.match(sentEvidence.rows, /\.\.\.\[truncated\]$/);
+  assert.equal(res.report.counts.truncated_evidence_values, 1);
+  assert.equal(res.report.truncated_evidence.length, 1);
+  assert.equal(res.report.truncated_evidence[0].key, 'rows');
+
+  // Closed work order refusals are separated under their own heading, not mixed with other refusals
+  assert.equal(res.exit, 1);
+  assert.equal(res.report.complete, false);
+  assert.equal(res.report.counts.closed_work_order_refusals, 2);
+  assert.equal(res.report.closed_work_order_refusals.length, 2);
+  assert.equal(res.report.closed_work_order_refusals[0].reason_code, 'material-conflict');
+  assert.match(res.report.closed_work_order_refusals[0].reason, /Completed/);
+  assert.equal(res.report.counts.server_refused, 0);
 });
 
 test('AC-001: CLI `pmo material load` wires ordinary session, Admin check, preview default, and never prints tokens', async () => {

@@ -796,6 +796,7 @@ Set `PMO_OWNER_MATERIAL_PYTHON` (or pass `--python <path>`) if your venv lives e
 - `work_order_defaults`: explicit commercial inputs (`tax_treatment`, `currency`, optional `order_value` / `tax_amount`) required when the workbook contains owner order numbers not yet in the project. Missing work orders are created first via `import_work_orders` in `Draft` status (requires organisation setup workflows enabled). Never guessed or defaulted.
 - `workbook`: defines every workbook-specific sheet name, header marker, column heading/alias, excluded column, and warehouse band so the tracked parser stays generic.
 - `owner_warehouses`: maps every normalized owner-warehouse column header discovered inside the configured `workbook.location_sheet.warehouse_band`. Unknown headers are refused, never guessed.
+- `units`: optional map of upper-case unit code -> `{ name, whole_only }` used when creating missing units (defaults to `name = code`, `whole_only = false`; unit chunks are sent before items and preview lists every unit it would create).
 
 **Exact commands:**
 
