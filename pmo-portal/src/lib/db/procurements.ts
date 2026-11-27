@@ -186,7 +186,7 @@ async function attachOpenCommitments<T extends { id: string }>(rows: T[]): Promi
  * the full cached list. `status` filters server-side (the approvals queue reads only `Requested`).
  */
 export async function listProcurements(
-  opts?: { withRefs?: boolean; withSharedDetails?: boolean; lean?: boolean; withoutRoutes?: boolean; status?: ProcurementRow['status'] },
+  opts?: { withRefs?: boolean; withSharedDetails?: boolean; lean?: boolean; status?: ProcurementRow['status'] },
 ): Promise<ProcurementWithRefs[]> {
   const selection = opts?.lean ? SELECT_LEAN_DETAILS : opts?.withSharedDetails ? SELECT_WITH_SHARED_DETAILS : opts?.withRefs ? SELECT_WITH_REFS : SELECT;
   const data = await fetchAllRowsByKeyset((afterId, limit) => {
@@ -196,7 +196,7 @@ export async function listProcurements(
     return query as unknown as PromiseLike<{ data: ProcurementWithRefs[] | null; error: { message: string; code?: string } | null }>;
   });
   const rows = selection === SELECT_WITH_SHARED_DETAILS ? await attachOpenCommitments(data) : data;
-  return opts?.withoutRoutes ? rows : attachApprovalRoutes(rows);
+  return attachApprovalRoutes(rows);
 }
 
 /**

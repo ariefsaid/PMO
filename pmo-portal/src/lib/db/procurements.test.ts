@@ -124,11 +124,8 @@ describe('listProcurements', () => {
     expect(sel).not.toMatch(/pr_refs|po_refs|vi_refs/);
   });
 
-  it('PERF-FIN-1: withoutRoutes skips the approval-route read for a Requested row; the default lean list keeps it', async () => {
+  it('the lean list reads approval routes for a Requested row', async () => {
     rpcSpy.mockReset().mockResolvedValue({ data: [], error: null });
-    makeBuilder({ data: [{ id: 'r1', status: 'Requested' }], error: null });
-    await listProcurements({ lean: true, withoutRoutes: true });
-    expect(rpcSpy).not.toHaveBeenCalled();
     makeBuilder({ data: [{ id: 'r1', status: 'Requested' }], error: null });
     await listProcurements({ lean: true });
     expect(rpcSpy).toHaveBeenCalledWith('get_procurement_approval_routes', { p_ids: ['r1'] });
