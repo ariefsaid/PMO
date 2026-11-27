@@ -83,9 +83,14 @@ const OverviewContent: React.FC<{ project: ProjectWithRefs; isPipeline: boolean;
   const showDeliveryAttention = lens === 'delivery'
     && (attention.isPending || Boolean(attention.error) || visibleDeliveryAttention.length > 0);
   // F8: the curve is gated on data only (ProjectSCurve draws nothing without dated phases), never on role.
+  // Mount after Overview commits so a warm prefetched overview never blocks first paint on the chart chunk.
+  const [chartMounted, setChartMounted] = useState(false);
+  useEffect(() => { setChartMounted(true); }, []);
   const curve = useMemo(() => !isPipeline
-    ? <React.Suspense fallback={<div className="h-72" />}><ProjectSCurve projectId={project.id} /></React.Suspense>
-    : null, [isPipeline, project.id]);
+    ? chartMounted
+      ? <React.Suspense fallback={<div className="h-72" />}><ProjectSCurve projectId={project.id} /></React.Suspense>
+      : <div className="h-72" />
+    : null, [isPipeline, project.id, chartMounted]);
   const openBudget = useCallback(() => onOpen('budget'), [onOpen]);
   const canSeeMoney = useMayViewProjectMoney();
   if (isPipeline) {

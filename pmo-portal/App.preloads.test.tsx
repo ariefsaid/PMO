@@ -17,6 +17,18 @@ vi.mock('@/src/lib/lazyWithPreload', () => {
 
 import { preloadsForPath, namespacesForPath, preloadForPath, subscribeToRoutePreloads } from './App';
 import { ProjectSCurve } from './pages/project-detail/lazyProjectChunks';
+import { QueryClient } from '@tanstack/react-query';
+
+it('starts overview reads from route navigation with resolved hook access', () => {
+  const client = new QueryClient();
+  const prefetch = vi.spyOn(client, 'prefetchQuery').mockResolvedValue();
+  preloadForPath('/projects/p1', { orgId: 'org', client, overviewAccess: { may: () => false, realRole: 'Engineer' } });
+  const keys = prefetch.mock.calls.map(([query]) => query.queryKey);
+  expect(keys).toContainEqual(['project-overview-read', 'org', 'p1', { money: false, commitments: false, budget: false }]);
+  expect(keys).toContainEqual(['tasks', 'org', 'p1']);
+  expect(keys.some((key) => key[0] === 'project-budget-positions')).toBe(false);
+  client.clear();
+});
 
 it('#2972 keeps the chart out of navigation preloads', () => {
   for (const tab of ['documents', 'tasks', 'budget', 'contract', 'orders', 'activity']) {

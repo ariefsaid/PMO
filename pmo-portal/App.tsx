@@ -1,3 +1,4 @@
+import type { ProjectOverviewAccess } from '@/src/auth/projectOverviewAccess';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import React, { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -18,7 +19,7 @@ import { QueryClientProvider, type QueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { queryClient } from '@/src/lib/queryClient';
 import type { ProjectOrdersViewer } from '@/src/hooks/useWorkOrders';
-import { preloadClaimDrawer, preloadContractProject, preloadOrderReconciliation, preloadProjectOrders, preloadWorkOrder } from '@/src/lib/routeData';
+import { preloadProjectOverview, preloadClaimDrawer, preloadContractProject, preloadOrderReconciliation, preloadProjectOrders, preloadWorkOrder } from '@/src/lib/routeData';
 import { LoadingFallback } from './components/LoadingFallback';
 import { AuthProvider } from '@/src/auth/AuthProvider';
 import { I18nProvider } from '@/src/lib/i18n/I18nProvider';
@@ -247,6 +248,7 @@ const PROJECT_TAB_NAMESPACES: Record<string, readonly string[]> = {
 };
 
 interface RouteDataContext {
+  overviewAccess?: ProjectOverviewAccess;
   orgId: string;
   client: QueryClient;
   canViewWorkOrderPlan?: boolean;
@@ -300,12 +302,12 @@ const PRELOAD_RULES: PreloadRule[] = [
       chunks,
       namespaces: PROJECT_TAB_NAMESPACES[path.split('/').pop() ?? ''] ?? ['project'],
     })),
-  { path: '/projects/:projectId/overview', chunks: [ProjectDetail], namespaces: ['project'] },
+  { path: '/projects/:projectId/overview', data: ({ projectId }, { client, orgId, overviewAccess }) => { if (projectId) preloadProjectOverview(client, orgId, projectId, overviewAccess); }, chunks: [ProjectDetail], namespaces: ['project'] },
   { path: '/projects/:projectId/:tab', chunks: [ProjectDetail], namespaces: ['project', 'supplyRisk', 'workOrders', 'status'] },
-  { path: '/projects/:projectId', chunks: [ProjectDetail], namespaces: ['project'] },
+  { path: '/projects/:projectId', data: ({ projectId }, { client, orgId, overviewAccess }) => { if (projectId) preloadProjectOverview(client, orgId, projectId, overviewAccess); }, chunks: [ProjectDetail], namespaces: ['project'] },
   { path: '/sales', chunks: [SalesPipeline], namespaces: ['sales'] },
   // /sales/:id redirects to /projects/:projectId — start that download now.
-  { path: '/sales/:opportunityId', chunks: [ProjectDetail], namespaces: ['project'] },
+  { path: '/sales/:opportunityId', data: ({ opportunityId }, { client, orgId, overviewAccess }) => { if (opportunityId) preloadProjectOverview(client, orgId, opportunityId, overviewAccess); }, chunks: [ProjectDetail], namespaces: ['project'] },
   { path: '/procurement', chunks: [ProcurementPage], namespaces: ['procurement', 'procurementList'] },
   { path: '/procurement/new', chunks: [ProcurementCreate], namespaces: ['procurementCreate', 'purchaseTypes'] },
   { path: '/procurement/:procurementId/purchase-orders/:orderId/print', chunks: [PurchaseOrderPrintPage], namespaces: ['procurement'] },
@@ -740,6 +742,7 @@ export const AppRoutes: React.FC = React.memo(function AppRoutes() {
 
 // ── Shell chrome (inside the workspace provider + AgentRuntimeProvider) ───────
 export const ShellChrome: React.FC = () => {
+  const realRole = useOptionalRealRole();
   const location = useLocation();
   const { pathname, search } = location;
   const router = React.useContext(AppRouterContext);
@@ -750,8 +753,8 @@ export const ShellChrome: React.FC = () => {
   const canReadClaims = may('view', 'progressClaim');
   const canViewBilling = may('view', 'salesInvoice');
   const preload = useCallback((href: string) => {
-    preloadForPath(href, orgId && currentUser ? { orgId, client: queryClient, canViewWorkOrderPlan, canReadClaims, canViewBilling, viewer: currentUser } : undefined);
-  }, [orgId, canViewWorkOrderPlan, canReadClaims, canViewBilling, currentUser]);
+    preloadForPath(href, orgId && currentUser ? { orgId, client: queryClient, canViewWorkOrderPlan, canReadClaims, canViewBilling, viewer: currentUser, overviewAccess: { may, realRole } } : undefined);
+  }, [orgId, canViewWorkOrderPlan, canReadClaims, canViewBilling, currentUser, may, realRole]);
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -974,7 +977,7 @@ export const ShellChrome: React.FC = () => {
   // AC-W3-N3: filter Navigate items by the viewer's REAL role, plus verified Operator membership.
   // A plain Engineer does not see Sales/Procurement/Companies/Administration; a verified Operator
   // gains Administration. Outside the provider there are no Navigate items.
-  const realRole = useOptionalRealRole();
+
   // AC-ADMIA-002: a REAL server-confirmed platform Operator gains Administration in ⌘K regardless
   // of base role. Sourced from the settled `useIsOperator()` projection — never effective/preview
   // role — so a plain Engineer stays hidden. Fail-closed (false) while loading.
