@@ -1,3 +1,4 @@
+import { parseRoute } from './parseRoute';
 import { supabase } from '@/src/lib/supabase/client';
 import { Constants } from '@/src/lib/supabase/database.types';
 import { nullableArg } from './nullableArg';
@@ -180,7 +181,7 @@ export interface PlanApprovalRoute {
   approvers: PlanApprover[];
 }
 
-const PLAN_ROUTE_KINDS: readonly string[] = ['project', 'org', 'admin', 'senior_role', 'disabled', 'not_waiting', 'unavailable'];
+const PLAN_ROUTE_KINDS: readonly PlanRouteKind[] = ['project', 'org', 'admin', 'senior_role', 'disabled', 'not_waiting', 'unavailable'];
 /**
  * The `user_role` enum's values as the DATABASE declares them (`Constants.public.Enums.user_role`, generated from the
  * schema). Not the UI role catalogue: that one exists to offer roles in forms and can drift a release behind the enum, and
@@ -193,19 +194,10 @@ const malformedRoute = () => new AppError('The approval route response was malfo
 /** Narrow the RPC's jsonb to the route shape. A malformed body is an error, never an empty list that would read as
  * "nobody approves this plan". */
 export function parsePlanApprovalRoute(data: unknown): PlanApprovalRoute {
-  const d = data as { approvers?: unknown; route_kind?: unknown } | null;
-  if (d === null || typeof d !== 'object' || !Array.isArray(d.approvers)) throw malformedRoute();
-  const routeKind = d.route_kind;
-  if (typeof routeKind !== 'string' || !PLAN_ROUTE_KINDS.includes(routeKind)) throw malformedRoute();
-  const approvers: PlanApprover[] = [];
-  for (const entry of d.approvers as unknown[]) {
-    const a = entry as { id?: unknown; name?: unknown; role?: unknown } | null;
-    if (a === null || typeof a !== 'object' || typeof a.id !== 'string' || a.id === ''
-        || typeof a.name !== 'string' || a.name.trim() === ''
-        || typeof a.role !== 'string' || !USER_ROLES.includes(a.role)) throw malformedRoute();
-    approvers.push({ id: a.id as string, name: a.name as string, role: a.role as UserRole });
-  }
-  return { kind: routeKind as PlanRouteKind, approvers };
+  const { routeKind, approvers } = parseRoute(data, PLAN_ROUTE_KINDS, {
+    mode: 'nonempty-id', roles: USER_ROLES, malformed: malformedRoute,
+  });
+  return { kind: routeKind, approvers: approvers as PlanApprover[] };
 }
 
 export async function getPlanApprovalRoute(planId: string): Promise<PlanApprovalRoute> {

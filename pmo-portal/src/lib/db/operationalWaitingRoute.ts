@@ -1,3 +1,4 @@
+import { parseRoute } from './parseRoute';
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError } from '@/src/lib/appError';
 
@@ -30,27 +31,10 @@ export interface OperationalWaitingRoute {
 
 export const EMPTY_OPERATIONAL_WAITING_ROUTE: OperationalWaitingRoute = { approvers: [], routeKind: null };
 
-const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null;
-
-const text = (value: unknown): string | null => (typeof value === 'string' && value.trim() !== '' ? value : null);
-
-/** Maps the RPC's jsonb to the typed seam. Unknown or malformed entries are dropped, never invented. */
+/** Maps the RPC's jsonb to the typed seam. Unknown or malformed entries are dropped. */
 export function mapOperationalWaitingRoute(data: unknown): OperationalWaitingRoute {
-  if (!isRecord(data)) return EMPTY_OPERATIONAL_WAITING_ROUTE;
-  const approvers: OperationalWaitingPerson[] = [];
-  const seen = new Set<string>();
-  if (Array.isArray(data.approvers)) {
-    for (const entry of data.approvers) {
-      if (!isRecord(entry)) continue;
-      const id = text(entry.id);
-      const name = text(entry.name);
-      const role = text(entry.role);
-      if (!id || !name || !role || seen.has(id)) continue;
-      seen.add(id);
-      approvers.push({ id, name, role });
-    }
-  }
-  return { approvers, routeKind: text(data.route_kind) };
+  const route = parseRoute(data, null, { mode: 'unique-nonblank' });
+  return route ? { approvers: route.approvers, routeKind: route.routeKind } : EMPTY_OPERATIONAL_WAITING_ROUTE;
 }
 
 /**

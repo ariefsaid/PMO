@@ -20,10 +20,10 @@ export interface QuantityChangeRepository {
   recordSent(id: string, sentDate: string, clientReference: string): Promise<void>;
   recordDecision(id: string, decision: 'accepted' | 'declined', decisionDate: string, note?: string | null): Promise<void>;
   recordForecast(boqItemId: string, quantity: string, note?: string | null): Promise<string>;
-  getLimit(orgId: string): Promise<number | null>;
-  setLimit(orgId: string, limit: number | null): Promise<void>;
-  getApproverRoles(orgId: string): Promise<string[]>;
-  setApproverRoles(orgId: string, roles: string[]): Promise<void>;
+  getLimit(): Promise<number | null>;
+  setLimit(limit: number | null): Promise<void>;
+  getApproverRoles(): Promise<string[]>;
+  setApproverRoles(roles: string[]): Promise<void>;
   uploadFile(request: Pick<QcrRequest, 'id' | 'org_id'>, kind: QcrFileKind, file: File, title?: string | null): Promise<void>;
   archiveFile(fileId: string): Promise<void>;
   fileUrl(path: string): Promise<string>;

@@ -28,7 +28,7 @@ export function invalidateProcurementCase(
   id: string,
   projectIds: ReadonlyArray<string | null | undefined> = [],
 ) {
-  qc.invalidateQueries({ queryKey: procurementDetailKey(orgId, id) });
+  const detailRefresh = qc.invalidateQueries({ queryKey: procurementDetailKey(orgId, id) });
   qc.invalidateQueries({ queryKey: procurementKeys.all(orgId) });
   qc.invalidateQueries({ queryKey: ['record-history', orgId] }); // #2888
   const touched = new Set(projectIds.filter((p): p is string => Boolean(p)));
@@ -38,4 +38,5 @@ export function invalidateProcurementCase(
   }
   // Prefix: the key's last part is the sorted id list of whichever screen asked.
   if (touched.size > 0) qc.invalidateQueries({ queryKey: ['project-budget-positions', orgId] });
+  return detailRefresh;
 }

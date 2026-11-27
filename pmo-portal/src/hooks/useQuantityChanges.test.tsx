@@ -65,7 +65,7 @@ it('over-contract respects the only-over flag and its own enabled switch', async
   expect(h.overContract).toHaveBeenCalledWith('p1', true);
 });
 
-it('the state transitions forward their payloads; the limit write keys on the caller org', async () => {
+it('the state transitions forward their payloads; the limit write leaves organization resolution to the repository', async () => {
   const { result } = renderHook(() => useQuantityChangeMutations(), { wrapper: wrapper() });
   h.raise.mockResolvedValue('q1');
   const input = { workOrderId: 'wo1', clientRequestId: 'c1', lines: [{ boqItemId: 'b1', requestedQuantity: '3', reason: 'r' }] };
@@ -97,7 +97,7 @@ it('the state transitions forward their payloads; the limit write keys on the ca
   expect(h.recordForecast).toHaveBeenCalledWith('b1', '9', null);
   h.setLimit.mockResolvedValue(undefined);
   await act(async () => { await result.current.setLimit.mutateAsync(12); });
-  expect(h.setLimit).toHaveBeenCalledWith('org-1', 12);
+  expect(h.setLimit).toHaveBeenCalledWith(12);
   h.uploadFile.mockResolvedValue(undefined);
   const file = new File(['x'], 'a.pdf');
   await act(async () => { await result.current.uploadFile.mutateAsync({ request: { id: 'q1', org_id: 'o1' } as never, kind: 'supporting', file }); });
