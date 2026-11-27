@@ -45,6 +45,7 @@ const SafetySummary: React.FC = () => {
   const detail = useSafetySummaryDetail(open ? DETAIL_KIND[open] ?? null : null, project || null, monthDate);
 
   if (enabled.isPending) return <ListState variant="loading" rows={4} />;
+  if (enabled.isError) return <ListState variant="error" title={t('summary.error')} onRetry={() => void enabled.refetch()} />;
   if (!enabled.data) return <ListState variant="empty" icon="reports" title={t('summary.off', 'Safety records are turned off for this organisation. An Admin can turn them on under Modules.')} />;
 
   const figures = summary.data ? deriveSafetySummaryView(summary.data) : [];
