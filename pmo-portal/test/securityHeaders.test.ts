@@ -59,8 +59,15 @@ describe('security headers (AC-CLI-016)', () => {
     expect(all.get('/assets/*')?.get('cache-control')).toBe('public, max-age=31536000, immutable');
     // The site-wide rule and any non-asset rule must not make the HTML shell long-lived.
     for (const [pattern, headers] of all) {
-      if (pattern === '/assets/*') continue;
+      if (pattern === '/assets/*' || pattern === '/fonts/*') continue; // font files only; pinned by the 'font caching' test below
       expect(headers.get('cache-control') ?? '', `rule ${pattern}`).not.toMatch(/immutable|max-age=[1-9]/);
     }
+  });
+});
+
+describe('font caching', () => {
+  it('fonts are cached for 30 days (not immutable: file names carry no hash)', () => {
+    const fonts = rules(HEADERS).get('/fonts/*');
+    expect(fonts?.get('cache-control')).toBe('public, max-age=2592000');
   });
 });

@@ -89,6 +89,7 @@ import { useOwnershipCacheSync } from '@/src/hooks/useOwnershipCacheSync';
 import { AgentContextProvider } from '@/src/lib/agent/context/AgentContextProvider';
 import { useAgentContextPublisher } from '@/src/lib/agent/context/useAgentContext';
 import { AccountMenu } from '@/src/components/shell/AccountMenu';
+import { AfterFirstData } from '@/src/components/shell/AfterFirstData';
 import { usePriceVisibilitySync } from '@/src/hooks/useHidePrices';
 
 // ── Lazy route chunks (lazyWithPreload: each carries an idempotent preload() —
@@ -1026,6 +1027,7 @@ export const ShellChrome: React.FC = () => {
 
   return (
     <>
+      <AfterFirstData>
       <AppShell
         phoneNav={
           <PhoneNavBar
@@ -1065,6 +1067,7 @@ export const ShellChrome: React.FC = () => {
       >
         <AppRoutes />
       </AppShell>
+      </AfterFirstData>
       <SurveyHost />
       <CommandPalette
         open={paletteOpen}
