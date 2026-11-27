@@ -66,7 +66,6 @@ vi.mock('@/src/hooks/useCompanies', () => ({
   },
   useCompaniesTotal: () => ({ data: companiesState.data.length }),
   useCompaniesExportAll: () => ({ mutateAsync: vi.fn().mockResolvedValue([]), isPending: false }),
-  useCompanyOptions: () => ({ data: companiesState.data, isPending: false, isError: false }),
   useCompanyMutations: () => ({
     create: noopMutations(),
     update: noopMutations(),
