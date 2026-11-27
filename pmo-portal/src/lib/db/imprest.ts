@@ -1,3 +1,4 @@
+import { parseRoute } from './parseRoute';
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError, assertWriteLanded } from '@/src/lib/appError';
 import { invokeWithTimeout } from '@/src/lib/supabase/invokeWithTimeout';
@@ -120,32 +121,24 @@ export interface ImprestRequesterRoute {
   /** True only when a distinct, SoD-eligible Admin can break-glass a `named` route (never a fabricated Admin). */
   admin_breakglass: boolean;
 }
-const ROUTE_SHAPES: readonly string[] = ['named', 'flat', 'admin', 'finance_admin', 'unavailable'];
-const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null;
+const ROUTE_SHAPES: readonly ImprestRequesterRouteShape[] = ['named', 'flat', 'admin', 'finance_admin', 'unavailable'];
 /**
  * The RPC returns json; narrow it at the seam instead of trusting a cast. An unrecognised or internally
  * inconsistent shape (a `named` route or a `pay` step with nobody named) reads as no answer, so the screen can
  * never invent a decider or render an approval answer in a payment slot.
  */
 export function parseImprestRequesterRoute(data: unknown): ImprestRequesterRoute | null {
-  if (!isObject(data)) return null;
-  const kind = data.route_kind;
-  if (typeof kind !== 'string' || !ROUTE_SHAPES.includes(kind)) return null;
-  const rawAction = data.action;
+  const route = parseRoute(data, ROUTE_SHAPES, { mode: 'strings' });
+  if (!route) return null;
+  const { routeKind: kind, approvers, fields } = route;
+  const rawAction = fields.action;
   const action: ImprestRequesterAction | null = rawAction === 'approve' || rawAction === 'pay' ? rawAction : null;
-  const approvers = Array.isArray(data.approvers)
-    ? (data.approvers as unknown[]).filter(isObject).flatMap((a) => {
-        const { id, name, role } = a;
-        return typeof id === 'string' && typeof name === 'string' && typeof role === 'string'
-          ? [{ id, name, role }] : [];
-      })
-    : [];
   if ((kind === 'named' || action === 'pay') && approvers.length === 0) return null;
   return {
-    route_kind: kind as ImprestRequesterRouteShape,
+    route_kind: kind,
     approvers,
     action,
-    admin_breakglass: data.admin_breakglass === true,
+    admin_breakglass: fields.admin_breakglass === true,
   };
 }
 /**

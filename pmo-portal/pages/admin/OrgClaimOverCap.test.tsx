@@ -33,7 +33,7 @@ it('AC-SCS-011 reads Warn by default and an Admin switches to Refuse', async () 
   const refuse = await screen.findByRole('switch', { name: 'Refuse claims over the claimable quantity' });
   expect(refuse).not.toBeChecked();
   await user.click(refuse);
-  expect(h.set).toHaveBeenCalledWith('fixture-org', 'block');
+  expect(h.set).toHaveBeenCalledWith('block');
 });
 
 it('AC-SCS-011 an Admin can go back to warning only', async () => {
@@ -43,7 +43,7 @@ it('AC-SCS-011 an Admin can go back to warning only', async () => {
   const refuse = await screen.findByRole('switch', { name: 'Refuse claims over the claimable quantity' });
   await waitFor(() => expect(refuse).toBeChecked());
   await user.click(refuse);
-  expect(h.set).toHaveBeenCalledWith('fixture-org', 'warn');
+  expect(h.set).toHaveBeenCalledWith('warn');
 });
 
 it('AC-SCS-011 a person who cannot change it reads the state, no button, and is told why', async () => {

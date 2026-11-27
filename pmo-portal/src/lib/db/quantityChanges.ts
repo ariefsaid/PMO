@@ -1,3 +1,4 @@
+import { getVisibleOrganizationId } from './organizations';
 import { supabase } from '@/src/lib/supabase/client';
 import { nullableArg } from './nullableArg';
 import { AppError } from '@/src/lib/appError';
@@ -247,27 +248,31 @@ export async function recordForecast(boqItemId: string, quantity: string, note?:
 }
 
 /** FR-QCR-021: the organisation's request limit (null = none). The write is a column-granted, Admin-only update. */
-export async function getLimit(orgId: string): Promise<number | null> {
-  const { data, error } = await supabase.from('organizations').select('quantity_change_limit').eq('id', orgId).maybeSingle();
+export async function getLimit(): Promise<number | null> {
+  const { data, error } = await supabase.from('organizations').select('quantity_change_limit').maybeSingle();
   if (error) fail(error);
   return data?.quantity_change_limit ?? null;
 }
-export async function setLimit(orgId: string, limit: number | null): Promise<void> {
+export async function setLimit(limit: number | null): Promise<void> {
+  const refusal = 'Only an Admin can change the quantity change limit';
+  const orgId = await getVisibleOrganizationId(refusal);
   const { data, error } = await supabase.from('organizations').update({ quantity_change_limit: limit }).eq('id', orgId).select('id');
   if (error) fail(error);
-  if (!data || data.length === 0) throw new AppError('Only an Admin can change the quantity change limit', '42501');
+  if (!data || data.length === 0) throw new AppError(refusal, '42501');
 }
 
 /** FR-CHR-001: built-in role keys that may review a request in addition to the base approver levels (empty = today). Admin-only column grant. */
-export async function getApproverRoles(orgId: string): Promise<string[]> {
-  const { data, error } = await supabase.from('organizations').select('quantity_change_approver_roles').eq('id', orgId).maybeSingle();
+export async function getApproverRoles(): Promise<string[]> {
+  const { data, error } = await supabase.from('organizations').select('quantity_change_approver_roles').maybeSingle();
   if (error) fail(error);
   return data?.quantity_change_approver_roles ?? [];
 }
-export async function setApproverRoles(orgId: string, roles: string[]): Promise<void> {
+export async function setApproverRoles(roles: string[]): Promise<void> {
+  const refusal = 'Only an Admin can change who may review quantity change requests';
+  const orgId = await getVisibleOrganizationId(refusal);
   const { data, error } = await supabase.from('organizations').update({ quantity_change_approver_roles: roles }).eq('id', orgId).select('id');
   if (error) fail(error);
-  if (!data || data.length === 0) throw new AppError('Only an Admin can change who may review quantity change requests', '42501');
+  if (!data || data.length === 0) throw new AppError(refusal, '42501');
 }
 
 export function buildQcrFilePath(orgId: string, requestId: string, fileId: string, fileName: string): string {

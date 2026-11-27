@@ -3,7 +3,7 @@ import { getClaimOverCap, setClaimOverCap, type ClaimOverCapMode } from '@/src/l
 import { wrap } from './repositoryErrors';
 
 export const claimOverCapRepository = {
-  get: (orgId: string) => wrap(() => getClaimOverCap(orgId)),
+  get: () => wrap(getClaimOverCap),
   /** Admin-only (server). */
-  set: (orgId: string, mode: ClaimOverCapMode) => wrap(() => setClaimOverCap(orgId, mode)),
+  set: (mode: ClaimOverCapMode) => wrap(() => setClaimOverCap(mode)),
 };

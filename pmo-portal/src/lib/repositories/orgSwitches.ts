@@ -8,6 +8,7 @@ import { supabase } from '@/src/lib/supabase/client';
 import { AppError, assertWriteLanded } from '@/src/lib/appError';
 import type { Entity } from '@/src/auth/policy';
 import type { Role } from '@/src/auth/AuthContext';
+import { getVisibleOrganizationId } from '@/src/lib/db/organizations';
 import { wrap } from './repositoryErrors';
 import { crewLoanRepository } from './crews';
 import { builtInRolesRepository } from './builtInRoles';
@@ -69,10 +70,7 @@ async function readColumn(column: OrgColumn): Promise<boolean> {
 }
 
 async function writeColumn(column: OrgColumn, on: boolean): Promise<void> {
-  const { data: orgs, error: readError } = await organizations().select('id');
-  if (readError) throw new AppError(readError.message, readError.code);
-  const id = orgs?.[0]?.id;
-  if (!id || orgs.length > 1) throw new AppError('No single organisation is readable for the current user', 'no-org');
+  const id = await getVisibleOrganizationId();
   const { data, error } = await organizations().update({ [column]: on }).eq('id', id).select('id');
   if (error) throw new AppError(error.message, error.code);
   assertWriteLanded(data, 'You do not have permission to change this setting.');

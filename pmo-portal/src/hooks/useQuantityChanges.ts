@@ -39,12 +39,10 @@ export function useQuantityVersions(boqItemId: string | undefined, enabled = tru
   return useOrgQuery(['quantity-changes', 'versions', boqItemId], () => repo().versions(boqItemId as string), { enabled: Boolean(boqItemId) && enabled });
 }
 export function useQuantityChangeLimit(enabled = true) {
-  const orgId = useOrg();
-  return useOrgQuery(['quantity-changes', 'limit'], () => repo().getLimit(orgId as string), { enabled });
+  return useOrgQuery(['quantity-changes', 'limit'], repo().getLimit, { enabled });
 }
 export function useQuantityChangeApproverRoles(enabled = true) {
-  const orgId = useOrg();
-  return useOrgQuery(['quantity-changes', 'approver-roles'], () => repo().getApproverRoles(orgId as string), { enabled });
+  return useOrgQuery(['quantity-changes', 'approver-roles'], repo().getApproverRoles, { enabled });
 }
 
 export function useQuantityChangeMutations() {
@@ -65,8 +63,8 @@ export function useQuantityChangeMutations() {
       ...opts,
     }),
     recordForecast: useMutation({ mutationFn: (v: { boqItemId: string; quantity: string; note?: string | null }) => repo().recordForecast(v.boqItemId, v.quantity, v.note), ...opts }),
-    setLimit: useMutation({ mutationFn: (limit: number | null) => repo().setLimit(orgId as string, limit), ...opts }),
-    setApproverRoles: useMutation({ mutationFn: (roles: string[]) => repo().setApproverRoles(orgId as string, roles), ...opts }),
+    setLimit: useMutation({ mutationFn: (limit: number | null) => repo().setLimit(limit), ...opts }),
+    setApproverRoles: useMutation({ mutationFn: (roles: string[]) => repo().setApproverRoles(roles), ...opts }),
     uploadFile: useMutation({
       mutationFn: (v: { request: Pick<QcrRequest, 'id' | 'org_id'>; kind: QcrFileKind; file: File }) => repo().uploadFile(v.request, v.kind, v.file),
       ...opts,
