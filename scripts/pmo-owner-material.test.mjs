@@ -15,12 +15,14 @@ import test from 'node:test';
 
 import {
   DB_LIMITS,
+  MAX_EVIDENCE_VALUE_BYTES,
   MATERIAL_LOAD_RPCS,
   MATERIAL_SCHEMA_VERSION,
   MaterialLoadError,
   MaterialOutcomeUnknown,
   buildSectionEntity,
   deriveSectionCode,
+  flattenEvidence,
   runMaterialLoad,
   validateMapping,
 } from './lib/pmo-owner-material.mjs';
@@ -940,38 +942,55 @@ test('AC-001 (v2.3): unit chunks sent first, units_to_create listed, and every s
   ]);
 });
 
-test('AC-002 (v2.3): evidence values are flattened to scalar strings <= 4KB with truncation marker & count, and closed WO refusals get own report heading', async () => {
+test('AC-002 (v2.4): evidence over the per-value limit refuses the line (field_length_exceeded), nothing is truncated; closed WO refusals keep own heading', async () => {
   const transport = makeFakeTransport({
     workOrders: [{ id: 'wo-closed', wo_number: 'WO-SYN-100', client_po_number: null, title: 'Closed WO', status: 'Completed' }],
   });
   const parsed = sampleParsed();
-  // Inject a nested rows array whose JSON exceeds 4096 bytes
-  parsed.accepted_sections[0].lines[0].evidence = {
-    request_reference: 'REQ-1',
-    owner_warehouses: { 'WH-N': '10' },
-    rows: Array.from({ length: 80 }, (_, idx) => ({
-      row: idx + 8,
-      planned: '1',
-      texts: { note: 'X'.repeat(80) },
-    })),
-  };
+  // LOC_ONE keeps its good line and gains a line whose nested rows evidence exceeds 4096 bytes
+  const oversizedRows = Array.from({ length: 80 }, (_, idx) => ({
+    row: idx + 100,
+    planned: '1',
+    texts: { note: 'X'.repeat(80) },
+  }));
+  const sec0 = parsed.accepted_sections[0];
+  sec0.lines = [
+    sec0.lines[0],
+    { ...sec0.lines[0], row: 9, item_code: '001003', evidence: { request_reference: 'REQ-2', rows: oversizedRows } },
+  ];
 
   const res = await runMaterialLoad(
     { workbookPath: '/fake/wb.xlsx', mappingPath: '/fake/map.json', mapping: baseMapping(), projectId: PROJECT_ID, confirm: false, parseWorkbook: async () => parsed },
     transport,
   );
 
-  // Verify every sent evidence value is a scalar string <= 4096 UTF-8 bytes
+  // The over-limit line is refused at line level: it is gone from the payload and nothing was shortened
   const secCalls = transport.calls.filter((c) => c.name === 'om_material_import' && c.body.p_payload.kind === 'section');
-  const sentEvidence = secCalls[0].body.p_payload.entities[0].lines[0].evidence;
-  for (const [k, v] of Object.entries(sentEvidence)) {
-    assert.equal(typeof v, 'string', `evidence.${k} must be a scalar string`);
-    assert.ok(Buffer.byteLength(v, 'utf8') <= 4096, `evidence.${k} must be <= 4096 bytes`);
+  const locOne = secCalls.map((c) => c.body.p_payload.entities[0]).find((e) => e.location_name === 'LOC_ONE');
+  assert.equal(locOne.lines.length, 1, 'only the good line is sent');
+  assert.equal(locOne.lines[0].row, 8);
+  for (const line of locOne.lines) {
+    for (const [k, v] of Object.entries(line.evidence)) {
+      assert.equal(typeof v, 'string', `evidence.${k} must be a scalar string`);
+      assert.ok(Buffer.byteLength(v, 'utf8') <= MAX_EVIDENCE_VALUE_BYTES, `evidence.${k} must be <= 4096 bytes`);
+    }
   }
-  assert.match(sentEvidence.rows, /\.\.\.\[truncated\]$/);
-  assert.equal(res.report.counts.truncated_evidence_values, 1);
-  assert.equal(res.report.truncated_evidence.length, 1);
-  assert.equal(res.report.truncated_evidence[0].key, 'rows');
+
+  // Contract v2.4 §1: the section payload reports the line-level skip
+  assert.equal(locOne.skipped_source_rows, 1);
+  assert.deepEqual(locOne.skipped_reason_codes, ['field_length_exceeded']);
+
+  // Refusal detail names the evidence key and the limit; the count is kept, the truncation counter is gone
+  const partial = res.report.partial_sections.find((s) => s.sheet === 'LOC_ONE');
+  assert.equal(partial.accepted_line_count, 1);
+  assert.equal(partial.skipped_lines.length, 1);
+  assert.equal(partial.skipped_lines[0].class, 'field_length_exceeded');
+  assert.match(partial.skipped_lines[0].reason, /rows/);
+  assert.match(partial.skipped_lines[0].reason, /4096/);
+  assert.equal(res.report.counts.field_length_exceeded_lines, 1);
+  assert.equal(res.report.counts.truncated_evidence_values, undefined);
+  assert.equal('truncated_evidence' in res.report, false);
+  assert.ok(!JSON.stringify(res.report).includes('[truncated]'), 'no truncation marker anywhere in the report');
 
   // Closed work order refusals are separated under their own heading, not mixed with other refusals
   assert.equal(res.exit, 1);
@@ -981,6 +1000,85 @@ test('AC-002 (v2.3): evidence values are flattened to scalar strings <= 4KB with
   assert.equal(res.report.closed_work_order_refusals[0].reason_code, 'material-conflict');
   assert.match(res.report.closed_work_order_refusals[0].reason, /Completed/);
   assert.equal(res.report.counts.server_refused, 0);
+});
+
+test('AC-001 (v2.4): section payloads carry skipped_source_rows and distinct skipped_reason_codes; empty lines are not counted; codes capped at 20', async () => {
+  const transport = makeFakeTransport({
+    workOrders: [{ id: 'wo-1', wo_number: 'WO-SYN-100', client_po_number: null, title: 'Existing', status: 'Issued' }],
+  });
+  const base = sampleParsed();
+  const withSkips = {
+    ...base.accepted_sections[0],
+    partial: true,
+    skipped_lines: [
+      { sheet: 'LOC_ONE', row: 9, column: 'D', item_code: '009998', class: 'missing_unit', reason: 'no unit' },
+      { sheet: 'LOC_ONE', row: 10, column: 'E', item_code: '009997', class: 'zero_planned_with_movements', reason: 'zero planned' },
+      { sheet: 'LOC_ONE', row: 11, column: 'D', item_code: '009996', class: 'missing_unit', reason: 'no unit again' },
+    ],
+    empty_lines: [
+      { sheet: 'LOC_ONE', row: 12, item_code: '009995', class: 'empty_line' },
+      { sheet: 'LOC_ONE', row: 13, item_code: '009994', class: 'empty_line' },
+    ],
+  };
+  const manyCodes = {
+    ...base.accepted_sections[0],
+    sheet: 'LOC_MANY',
+    location_name: 'LOC_MANY',
+    owner_cost_code: 'CC-M',
+    skipped_lines: Array.from({ length: 25 }, (_, i) => ({
+      sheet: 'LOC_MANY',
+      row: 30 + i,
+      column: 'A',
+      item_code: `0091${String(i).padStart(2, '0')}`,
+      class: `code_${String(i).padStart(2, '0')}`,
+      reason: 'r',
+    })),
+  };
+  const parsed = { ...base, accepted_sections: [withSkips, base.accepted_sections[1], manyCodes] };
+
+  const res = await runMaterialLoad(
+    { workbookPath: '/fake/wb.xlsx', mappingPath: '/fake/map.json', mapping: baseMapping({ policy: { closing_conflict: 'refuse', duplicate_items: 'sum' } }), projectId: PROJECT_ID, confirm: true, parseWorkbook: async () => parsed },
+    transport,
+  );
+
+  const byLoc = new Map(
+    transport.calls
+      .filter((c) => c.name === 'om_material_import' && c.body.p_payload.kind === 'section')
+      .map((c) => [c.body.p_payload.entities[0].location_name, c.body.p_payload.entities[0]]),
+  );
+  const one = byLoc.get('LOC_ONE');
+  const two = byLoc.get('LOC_TWO');
+  const many = byLoc.get('LOC_MANY');
+
+  // Line-level skips counted; empty lines NOT counted; distinct codes in first-seen order
+  assert.equal(one.skipped_source_rows, 3);
+  assert.deepEqual(one.skipped_reason_codes, ['missing_unit', 'zero_planned_with_movements']);
+  // A clean section always sends 0 and an empty list (a clean reload replaces both)
+  assert.equal(two.skipped_source_rows, 0);
+  assert.deepEqual(two.skipped_reason_codes, []);
+  // More than 20 distinct codes are capped at 20
+  assert.equal(many.skipped_source_rows, 25);
+  assert.equal(many.skipped_reason_codes.length, 20);
+  assert.deepEqual(many.skipped_reason_codes, Array.from({ length: 20 }, (_, i) => `code_${String(i).padStart(2, '0')}`));
+
+  // Report counts agree: empty lines separate, skipped lines without them
+  assert.equal(res.report.counts.empty_lines, 2);
+  assert.equal(res.report.counts.skipped_lines, 28);
+  assert.equal(res.report.counts.field_length_exceeded_lines, 0);
+  assert.equal(res.exit, 1);
+});
+
+test('AC-002 (v2.4): flattenEvidence passes values through unchanged and flags oversized values instead of truncating', () => {
+  const big = JSON.stringify({ rows: Array.from({ length: 60 }, (_, i) => ({ row: i, texts: { note: 'Y'.repeat(80) } })) });
+  assert.ok(Buffer.byteLength(big, 'utf8') > MAX_EVIDENCE_VALUE_BYTES);
+  const { evidence, oversized } = flattenEvidence({ request_reference: 'REQ-1', rows: big });
+  assert.equal(evidence.rows, big, 'oversized value must pass through byte-for-byte unchanged');
+  assert.equal(evidence.request_reference, 'REQ-1');
+  assert.deepEqual(oversized, [{ key: 'rows', bytes: Buffer.byteLength(big, 'utf8') }]);
+
+  const small = flattenEvidence({ note: 'ok', nested: { a: 1 } });
+  assert.equal(small.oversized.length, 0);
+  assert.equal(small.evidence.nested, '{"a":1}');
 });
 
 test('AC-001: deriveSectionCode bounds complete generated code (with collision suffixes) to 20 chars without altering location_name', () => {

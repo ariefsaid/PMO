@@ -24,7 +24,6 @@ export const MAX_CATALOGUE_CHUNK = 500;
 export const MAX_SECTION_LINES = 200;
 export const MAX_WORK_ORDER_CHUNK = 500;
 export const MAX_EVIDENCE_VALUE_BYTES = 4096;
-const EVIDENCE_TRUNCATION_MARKER = ' ...[truncated]';
 
 /** Column length & byte limits mirrored from migrations 0412, 1169, and 2790. */
 export const DB_LIMITS = Object.freeze({
@@ -662,50 +661,26 @@ export function buildCatalogueChunks(catalogueEntities, maxChunkSize = MAX_CATAL
   return chunks;
 }
 
-function truncateUtf8Bytes(str, maxBytes) {
-  if (Buffer.byteLength(str, 'utf8') <= maxBytes) return str;
-  const markerBytes = Buffer.byteLength(EVIDENCE_TRUNCATION_MARKER, 'utf8');
-  const budget = Math.max(0, maxBytes - markerBytes);
-  let lo = 0;
-  let hi = str.length;
-  while (lo < hi) {
-    const mid = (lo + hi + 1) >> 1;
-    if (Buffer.byteLength(str.slice(0, mid), 'utf8') <= budget) lo = mid;
-    else hi = mid - 1;
-  }
-  let cut = str.slice(0, lo);
-  // Avoid splitting a UTF-16 surrogate pair
-  if (cut.length > 0 && cut.charCodeAt(cut.length - 1) >= 0xd800 && cut.charCodeAt(cut.length - 1) <= 0xdbff) {
-    cut = cut.slice(0, -1);
-  }
-  return `${cut}${EVIDENCE_TRUNCATION_MARKER}`;
-}
-
 /**
- * Flatten a line's `evidence` object so every value is a scalar string <= 4 KB (Contract v2.3 §4).
- * Nested objects/arrays are JSON-serialized; oversized values are truncated with a visible marker.
+ * Flatten a line's `evidence` object so every value is a scalar string (Contract v2.3 §4).
+ * Nested objects/arrays are JSON-serialized. Nothing is ever shortened: a value over the
+ * per-value limit passes through unchanged and is flagged in `oversized` so the caller
+ * refuses the whole line (`field_length_exceeded`, Contract v2.4 §4).
  */
 export function flattenEvidence(rawEvidence) {
   const flat = {};
-  const truncated = [];
-  if (!isPlainObject(rawEvidence)) return { evidence: flat, truncated };
+  const oversized = [];
+  if (!isPlainObject(rawEvidence)) return { evidence: flat, oversized };
   for (const [key, val] of Object.entries(rawEvidence)) {
     if (val === null || val === undefined) continue;
     const rawStr = typeof val === 'string' ? val : JSON.stringify(val);
-    const originalBytes = Buffer.byteLength(rawStr, 'utf8');
-    if (originalBytes > MAX_EVIDENCE_VALUE_BYTES) {
-      const cut = truncateUtf8Bytes(rawStr, MAX_EVIDENCE_VALUE_BYTES);
-      flat[key] = cut;
-      truncated.push({
-        key,
-        original_bytes: originalBytes,
-        truncated_bytes: Buffer.byteLength(cut, 'utf8'),
-      });
-    } else {
-      flat[key] = rawStr;
+    const bytes = Buffer.byteLength(rawStr, 'utf8');
+    if (bytes > MAX_EVIDENCE_VALUE_BYTES) {
+      oversized.push({ key, bytes });
     }
+    flat[key] = rawStr;
   }
-  return { evidence: flat, truncated };
+  return { evidence: flat, oversized };
 }
 
 function lookupUnitConfig(unitCode, unitsMap) {
@@ -839,25 +814,23 @@ export function buildSectionCatalogueDependencies(section, catalogueByKey) {
   return deps.slice(0, MAX_CATALOGUE_CHUNK);
 }
 
-/** Build Contract v2/v2.3 section entity payload with deterministic entity keys, hashes, and flattened scalar evidence. */
-export function buildSectionEntity(section, sourceKey, sectionCode, truncatedLog = null) {
+/** Build Contract v2/v2.4 section entity payload with deterministic entity keys, hashes, flattened scalar evidence, and line-level skip visibility. */
+export function buildSectionEntity(section, sourceKey, sectionCode) {
   const orderKey = String(section.owner_order_number).trim();
   const locKey = String(section.location_name).trim().toLowerCase();
   const sectionEntityKey = `section:${sourceKey}:${orderKey}:${locKey}`;
 
+  // Contract v2.4 §1: make partial loads visible on the section payload. Only line-level
+  // skips count (empty lines are reported separately by the parser); reason codes are
+  // distinct, in first-seen order, capped at 20.
+  const skippedLines = Array.isArray(section.skipped_lines) ? section.skipped_lines : [];
+  const skippedReasonCodes = [
+    ...new Set(skippedLines.map((s) => String(s?.class ?? '').trim()).filter(Boolean)),
+  ].slice(0, 20);
+
   const lines = (section.lines ?? []).map((line) => {
     const lineEntityKey = `line:${sourceKey}:${orderKey}:${locKey}:${line.item_code}`;
-    const { evidence: flatEvidence, truncated } = flattenEvidence(line.evidence);
-    if (truncatedLog && truncated.length > 0) {
-      for (const t of truncated) {
-        truncatedLog.push({
-          sheet: section.sheet,
-          row: line.row,
-          item_code: line.item_code,
-          ...t,
-        });
-      }
-    }
+    const { evidence: flatEvidence } = flattenEvidence(line.evidence);
     const lineCore = {
       item_code: line.item_code,
       unit: String(line.unit || '').trim().toUpperCase(),
@@ -884,6 +857,8 @@ export function buildSectionEntity(section, sourceKey, sectionCode, truncatedLog
     as_of: section.as_of,
     closing_conflict: section.closing_conflict ?? 'refuse',
     reconciliation_step: section.reconciliation_step ?? null,
+    skipped_source_rows: skippedLines.length,
+    skipped_reason_codes: skippedReasonCodes,
     lines: lines.map((l) => ({ entity_key: l.entity_key, hash: l.hash })),
   };
 
@@ -900,6 +875,8 @@ export function buildSectionEntity(section, sourceKey, sectionCode, truncatedLog
     as_of: section.as_of,
     ...(section.closing_conflict ? { closing_conflict: section.closing_conflict } : {}),
     ...(section.reconciliation_step ? { reconciliation_step: section.reconciliation_step } : {}),
+    skipped_source_rows: skippedLines.length,
+    skipped_reason_codes: skippedReasonCodes,
     lines,
   };
 }
@@ -1049,6 +1026,9 @@ export async function runMaterialLoad(opts, api) {
   const refusedSections = [...(parsed.refused_sections ?? [])];
   const eligibleSections = [];
   const missingOrdersMap = new Map(); // owner_order_number -> { title, sheetCfg }
+  // Contract v2.4 §4: count of lines refused for field-length reasons (kept now that
+  // truncation — and its own report counter — is gone).
+  let fieldLengthExceededLines = 0;
 
   for (const rawSec of parsed.accepted_sections ?? []) {
     const secSheetCfg = mapping.sheets?.[rawSec.sheet] ?? mapping.sheets?.[rawSec.sheet.trim()] ?? {};
@@ -1140,7 +1120,14 @@ export async function runMaterialLoad(opts, api) {
       if (lineKey.length > DB_LIMITS.entity_key) {
         lineProblems.push(`line entity_key length (${lineKey.length}) exceeds ${DB_LIMITS.entity_key} characters`);
       }
-      const { evidence: flatEv } = flattenEvidence(line.evidence);
+      // Contract v2.4 §4: an evidence value over the per-value limit refuses the whole line
+      // (field_length_exceeded) instead of being truncated; nothing is silently shortened.
+      const { evidence: flatEv, oversized } = flattenEvidence(line.evidence);
+      for (const o of oversized) {
+        lineProblems.push(
+          `evidence value '${o.key}' (${o.bytes} bytes) exceeds the ${MAX_EVIDENCE_VALUE_BYTES}-byte per-value limit`,
+        );
+      }
       const evBytes = Buffer.byteLength(JSON.stringify(flatEv), 'utf8');
       if (evBytes > DB_LIMITS.evidence_total_bytes) {
         lineProblems.push(`serialized evidence size (${evBytes} bytes) exceeds ${DB_LIMITS.evidence_total_bytes} bytes`);
@@ -1158,6 +1145,7 @@ export async function runMaterialLoad(opts, api) {
         validLines.push(line);
       }
     }
+    fieldLengthExceededLines += extraSkipped.length;
 
     if (validLines.length === 0 && extraSkipped.length > 0) {
       refusedSections.push({
@@ -1338,7 +1326,6 @@ export async function runMaterialLoad(opts, api) {
   const usedSectionCodesByOrder = new Map();
   const sectionResults = [];
   const closedWorkOrderRefusals = [];
-  const truncatedEvidence = [];
   let sectionsComplete = !scaleBlocked;
 
   if (!scaleBlocked) {
@@ -1353,7 +1340,7 @@ export async function runMaterialLoad(opts, api) {
       const sectionCode = sheetCfg.section_code ? String(sheetCfg.section_code).trim() : deriveSectionCode(sec.location_name, used);
       used.add(sectionCode.toLowerCase());
 
-      const entity = buildSectionEntity(sec, sourceKey, sectionCode, truncatedEvidence);
+      const entity = buildSectionEntity(sec, sourceKey, sectionCode);
       const sectionDeps = buildSectionCatalogueDependencies(sec, catalogueByKey);
       const matchedWo = matchWorkOrder(orderKey, existingWorkOrders);
       const woStatus = matchedWo.status === 'matched' ? matchedWo.workOrder?.status ?? null : null;
@@ -1493,7 +1480,7 @@ export async function runMaterialLoad(opts, api) {
       units_to_create: unitsToCreate.length,
       server_refused: serverRefused.length,
       policy_flagged_sections: policyFlaggedSections.length,
-      truncated_evidence_values: truncatedEvidence.length,
+      field_length_exceeded_lines: fieldLengthExceededLines,
     },
     catalogue_results: catalogueResults,
     section_results: sectionResults,
@@ -1501,7 +1488,6 @@ export async function runMaterialLoad(opts, api) {
     closed_work_order_refusals: closedWorkOrderRefusals,
     refused_sections: refusedSections,
     policy_flagged_sections: policyFlaggedSections,
-    truncated_evidence: truncatedEvidence,
     suggested_stock_openings: buildSuggestedStockOpenings(eligibleSections),
     complete,
     ...(confirm ? {} : { next: 'Re-run with --confirm to apply the accepted records.' }),
