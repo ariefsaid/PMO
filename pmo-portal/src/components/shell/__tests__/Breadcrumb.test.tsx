@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { createEvent, fireEvent, render, screen } from '@testing-library/react';
+import { createEvent, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -9,6 +9,21 @@ import { Breadcrumb } from '../Breadcrumb';
 import { BackBar } from '../BackBar';
 
 describe('Breadcrumb', () => {
+  it('AC-SHELL-IDLE-002: observes only page content and follows asynchronously mounted titles', async () => {
+    const observe = vi.spyOn(MutationObserver.prototype, 'observe');
+    const { container, unmount } = render(<><Breadcrumb parts={[{ label: 'Projects' }]} /><main /></>);
+    const main = container.querySelector('main')!;
+    expect(observe.mock.calls.map(([target]) => target)).toEqual([main]);
+    const title = document.createElement('h1');
+    title.textContent = 'Projects';
+    main.append(title);
+    await waitFor(() => expect(screen.getByText('Projects', { selector: '[aria-current]' })).toHaveClass('max-[1100px]:max-w-[12rem]'));
+    title.remove();
+    await waitFor(() => expect(screen.getByText('Projects', { selector: '[aria-current]' })).not.toHaveClass('max-[1100px]:max-w-[12rem]'));
+    unmount();
+    observe.mockRestore();
+  });
+
   it('DS-SPACING: uses the shared compact group gap', () => {
     render(<Breadcrumb parts={[{ label: 'Projects' }, { label: 'Alpha' }]} />);
     expect(screen.getByRole('navigation', { name: /breadcrumb/i }).className.split(/\s+/)).toContain('gap-2');

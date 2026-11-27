@@ -76,6 +76,29 @@ beforeEach(() => {
   stateCC.incidents = { data: undefined, isPending: false, isError: false };
 });
 
+it('AC-SHELL-IDLE-001: indexes no cached rows while closed and reads the latest rows on reopen', () => {
+  const readName = vi.fn(() => 'Cached project');
+  const row = { id: 'p1', get name() { return readName(); } };
+  state.projects.data = [row];
+  const { result, rerender } = renderHook(({ enabled }) => useRecordSearch(navigate, { enabled }), {
+    initialProps: { enabled: false }, wrapper: wrapAdmin,
+  });
+  expect(readName).toHaveBeenCalledTimes(0);
+  expect(result.current.records).toEqual([]);
+  rerender({ enabled: true });
+  expect(result.current.records[0].title).toBe('Cached project');
+  result.current.records[0].run();
+  expect(navigate).toHaveBeenCalledWith('/projects/p1');
+  rerender({ enabled: false });
+  readName.mockClear();
+  state.projects.data = [{ id: 'p2', get name() { return readName(); } }];
+  rerender({ enabled: false });
+  expect(readName).toHaveBeenCalledTimes(0);
+  expect(result.current.records).toEqual([]);
+  rerender({ enabled: true });
+  expect(result.current.records[0].id).toBe('projects:p2');
+});
+
 describe('useRecordSearch — index of the 3 cached lists', () => {
   // AC-CMDK-001: projects appear as Records rows with title + code + module sub-label.
   it('AC-CMDK-001 / UIP-001: maps projects to Records rows with code, sub-label, and a run() → /projects/:id', () => {
