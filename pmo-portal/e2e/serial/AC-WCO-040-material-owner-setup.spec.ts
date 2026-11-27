@@ -29,7 +29,7 @@ test('AC-WCO-040 Admin assigns material close-out and the Material Coordinator a
     await editor.getByLabel('Owner job role').selectOption('material_coordinator');
     await editor.getByRole('button', { name: 'Save checklist', exact: true }).click();
     await expect(page.getByText('Close-out checklist saved', { exact: true })).toBeVisible();
-    projectId = await ownProject(svc, run);
+    projectId = await ownProject(svc, run, need('manager', await svc.from('profiles').select('id').eq('email', 'pm@acme.test').single()).id);
     woId = need('draft work order', await svc.from('work_orders').insert({ org_id: ORG_ID, project_id: projectId, title: run, status: 'Draft', order_value: 100, currency: 'USD', tax_treatment: 'exclusive', tax_amount: 0 }).select('id').single()).id;
     ok('issue snapshot', await svc.from('work_orders').update({ status: 'Issued', issued_at: new Date().toISOString(), wo_number: run }).eq('id', woId));
 

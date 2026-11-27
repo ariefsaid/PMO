@@ -10,6 +10,7 @@ import type { CompanyRow } from '@/src/lib/db/companies';
 import type { ProfileRow } from '@/src/lib/db/profiles';
 import { repositories } from '@/src/lib/repositories';
 import { useAuth } from '@/src/auth/useAuth';
+import { withDefaultProjectManager } from '@/src/lib/projectManagerDefault.mjs';
 import { useStartRecordFolder } from '@/src/hooks/useStartRecordFolder';
 import { synchronizeErpProject } from '@/src/lib/repositories/projectErpSetup';
 
@@ -147,7 +148,7 @@ export function useProjectMutations() {
   const startRecordFolder = useStartRecordFolder();
   const create = useMutation({
     mutationFn: async (input: CreateProjectInput) => {
-      const row = await repositories.project.create(input);
+      const row = await repositories.project.create(withDefaultProjectManager(input, currentUser));
       // #1020: link/create the project's SharePoint folder. Fire-and-forget (void, never awaited,
       // failures caught inside): a folder problem can neither delay nor fail the saved project.
       // No usable identifier (code and project number both empty) = nothing to name the folder by: skip silently.

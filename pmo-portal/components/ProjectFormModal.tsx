@@ -1,4 +1,5 @@
 import { useProjectClassificationOptions } from '@/src/hooks/useProjectClassificationOptions';
+import { withDefaultProjectManager } from '@/src/lib/projectManagerDefault.mjs';
 import type { ProjectClassification } from '@/src/lib/projectClassification';
 import { companyDisplayName } from '@/src/lib/companyDisplayName';
 import { TaxRateFields } from '@/src/components/ui/TaxRateFields';
@@ -395,7 +396,7 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
           await onSave(initial.id, input);
         } else if (onSubmit) {
           if (numberProposal.status !== 'success' || !values.pmoProjectNumber.trim()) return;
-          const base = {
+          const base = withDefaultProjectManager({
             ...classification,
             name: values.name.trim(),
             short_name: values.shortName.trim() || null,
@@ -408,7 +409,7 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
             ...(values.deputyId && people.deputy ? { deputy_manager_id: values.deputyId } : {}),
             start_date: values.startDate || null,
             end_date: values.endDate || null,
-          };
+          }, auth?.currentUser);
           const contractValue = parseMoneyInputAtScale(values.value, 2) ?? 0;
           // #513: the basis travels WITH the value or the value is 0. `CreateProjectInput` is a
           // union on exactly this rule, so the branch below is not defensive style — it is the only

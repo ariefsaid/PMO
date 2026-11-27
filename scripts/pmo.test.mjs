@@ -46,6 +46,24 @@ import { CORRECTABLE, CORRECT_ADMIN_PATCH_TABLES } from './lib/pmo-correct.mjs';
 
 const tmpDir = () => fs.mkdtempSync(path.join(os.tmpdir(), 'pmo-cli-test-'));
 
+test('a creating Project Manager defaults to themselves in CLI project creates, including batches', async () => {
+  const fake = await fakeSupabase({ handler: ({ url, send }) => {
+    if (url.pathname === '/rest/v1/profiles') {
+      send(200, [{ role: 'Project Manager', built_in_role: 'project_manager', status: 'active' }]);
+      return true;
+    }
+  } });
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const rows = [{ name: 'Own deal', status: 'Leads' }, { name: 'Named manager', status: 'Leads', project_manager_id: 'other-manager' }];
+    const result = await runCli(['create', 'projects', JSON.stringify(rows), '--url', fake.url], { configDir });
+    assert.equal(result.code, 0, result.err);
+    const posted = fake.requests.find(q => q.method === 'POST' && q.path === '/rest/v1/projects');
+    assert.deepEqual(JSON.parse(posted.body), [{ ...rows[0], project_manager_id: 'user-1' }, rows[1]]);
+  } finally { await fake.close(); fs.rmSync(configDir, { recursive: true, force: true }); }
+});
+
 /** A minimal fake of the three Supabase surfaces the CLI talks to: GoTrue OAuth, /user, PostgREST. */
 async function fakeSupabase(overrides = {}) {
   const requests = [];

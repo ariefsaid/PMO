@@ -62,7 +62,7 @@ test('JOB-A7 an approver is told by email about a request waiting for approval',
   await expect.poll(async () => (await admin.from('email_event_settings').select('enabled').eq('org_id', ORG_ID).eq('event_key', 'approval_request').single()).data?.enabled).toBe(true);
 
   // 2. An admin sets up a request on a project this run owns, routed to the approver.
-  projectId = await ownProject(admin, `JOB-A7 project ${sfx}`);
+  projectId = await ownProject(admin, `JOB-A7 project ${sfx}`, approver.id);
   const version = need('budget', await admin.from('budget_versions').insert({
     org_id: ORG_ID, project_id: projectId, name: `Budget ${sfx}`, version: 1, status: 'Draft',
   }).select('id').single());

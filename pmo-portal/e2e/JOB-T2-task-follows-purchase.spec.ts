@@ -24,7 +24,7 @@ test.afterEach(async () => {
 test('JOB-T2 a task linked to a purchase shows the purchase status change', async ({ page }) => {
   const sfx = uniq();
   worker = await roleJobUser(admin, 'project_manager', runId('t2pm'));
-  projectId = await ownProject(admin, `JOB-T2 project ${sfx}`);
+  projectId = await ownProject(admin, `JOB-T2 project ${sfx}`, worker.id);
   const purchaseTitle = `Cable reel ${sfx}`;
   const purchase = need('purchase', await admin.from('procurements').insert({
     org_id: ORG_ID, project_id: projectId, title: purchaseTitle, status: 'Requested',
