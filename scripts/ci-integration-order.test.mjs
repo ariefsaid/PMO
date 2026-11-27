@@ -13,7 +13,7 @@ const packageJson = JSON.parse(
 );
 
 test('repository script tests run after npm ci installs their dependencies', () => {
-  const install = workflow.indexOf('run: npm ci', workflow.indexOf('\n  checks:'));
+  const install = workflow.indexOf('run: npm ci', workflow.indexOf('\n  script-proofs:'));
   const tests = workflow.indexOf('- name: Repository script tests (non-DB)');
 
   assert.notEqual(install, -1, 'checks must install npm dependencies');
@@ -89,7 +89,7 @@ test('every scripts/*.test.mjs file is assigned to a CI test step', () => {
     /scripts\/with-db-lock\.sh\s+node\s+--test\s+--test-concurrency=1\s+scripts\/fiscal-year-ensure-mutation\.test\.mjs\s+scripts\/fiscal-year-ensure-race\.test\.mjs/,
     'fiscal year ensure tests must run serially under scripts/with-db-lock.sh',
   );
-  const checksJob = workflow.slice(workflow.indexOf('\n  checks:'), workflow.indexOf('\n  deno:'));
+  const checksJob = workflow.slice(workflow.indexOf('\n  script-proofs:'), workflow.indexOf('\n  deno:'));
   assert.doesNotMatch(checksJob, /node --test[^\n]*scripts\/[^ \n]+\.test\.mjs/,
     'script tests must run only through the repository-test glob, not hand-picked duplicates');
 
@@ -105,11 +105,11 @@ test('AC-BSH-003 release lanes run beside three balanced Chromium shards and a r
   assert.match(browser, /--shard=\$\{\{ matrix\.shard \}\}\/\$\{\{ strategy\.job-total \}\}/);
   assert.match(integrationLanes, /needs: \[scope\]/);
   assert.doesNotMatch(integrationLanes, /needs:.*browser-chromium/);
-  for (const step of ['serial_e2e', 'consent_e2e', 'serve_adapter_dispatch']) {
+  for (const step of ['serial_e2e', 'consent_e2e']) {
     assert.ok(integrationLanes.includes(`${step}: \${{ steps.${step}.outcome }}`));
     assert.match(integrationLanes, new RegExp(`id: ${step}[\\s\\S]*?continue-on-error: true`));
   }
-  assert.match(integrationFull, /needs: \[scope, browser-chromium, integration-lanes\]/);
+  assert.match(integrationFull, /needs: \[scope, browser-chromium, integration-lanes, integration-serial, integration-smoke\]/);
   assert.match(workflow, /name: browser-chromium-\$\{\{ matrix\.shard \}\}/);
   assert.match(workflow, /browser-shard-\$\{\{ matrix\.shard \}\}\.json/);
   assert.match(workflow, /GITHUB_RUN_ID[\s\S]*GITHUB_RUN_ATTEMPT[\s\S]*GITHUB_SHA/);
@@ -125,9 +125,9 @@ test('AC-BSH-003 release lanes run beside three balanced Chromium shards and a r
   for (const expression of [
     'needs.browser-chromium.result',
     'needs.integration-lanes.result',
-    'needs.integration-lanes.outputs.serial_e2e',
-    'needs.integration-lanes.outputs.consent_e2e',
-    'needs.integration-lanes.outputs.serve_adapter_dispatch',
+    'needs.integration-serial.outputs.serial_e2e',
+    'needs.integration-serial.outputs.consent_e2e',
+    'needs.integration-smoke.result',
     'steps.chromium_artifact_1.outcome',
     'steps.chromium_artifact_2.outcome',
     'steps.chromium_artifact_3.outcome',
@@ -183,7 +183,7 @@ test('AC-BSH-003 lanes publish env and browsers after a successful reset even wh
   const gate = full.slice(full.indexOf('- name: Required integration result requires all browser evidence and audits'));
   assert.ok(gate.includes('needs.integration-lanes.result'), 'the aggregate must still fail on the lane job result');
   for (const lane of ['serial_e2e', 'consent_e2e', 'serve_adapter_dispatch']) {
-    assert.ok(gate.includes(`needs.integration-lanes.outputs.${lane}`), `the aggregate must still read the ${lane} outcome`);
+    assert.ok(gate.includes(lane === 'serve_adapter_dispatch' ? 'needs.integration-smoke.result' : `needs.integration-serial.outputs.${lane}`), `the aggregate must still read the ${lane} outcome`);
   }
 });
 
@@ -202,9 +202,9 @@ test('served-function smoke and consent run before the serial e2e lane', () => {
 
   assert.notEqual(e2eStep, -1, 'serial e2e step is missing');
   assert.notEqual(servedFunctionStep, -1, 'served-function smoke step is missing');
-  assert.notEqual(restoreStep, -1, 'ordinary stack must be restored after served smoke');
+  assert.equal(restoreStep, -1, 'independent stacks must never be restarted in a job');
   assert.notEqual(consentStep, -1, 'consent e2e step is missing');
-  assert.ok(servedFunctionStep < restoreStep && restoreStep < consentStep, 'restore the stack between served smoke and later e2e lanes');
+  assert.ok(workflow.includes('  integration-smoke:') && workflow.includes('  integration-serial:'), 'smoke and serial require independent runners');
   assert.ok(consentStep < e2eStep, 'consent lane should fail early, before serial e2e');
 });
 
@@ -352,7 +352,7 @@ test('AC-RDR-006: CI wires the redirect-target guard and its self-test', () => {
   assert.equal(packageJson.scripts['check:redirect-targets'], 'node ../scripts/check-redirect-targets.mjs');
   // The guard itself runs via check:guards (asserted to run in CI below); the self-test directly.
   assert.match(packageJson.scripts['check:guards'], /npm run check:redirect-targets(\s|$)/);
-  const checksJob = workflow.slice(workflow.indexOf('\n  checks:'), workflow.indexOf('\n  deno:'));
+  const checksJob = workflow.slice(workflow.indexOf('\n  script-proofs:'), workflow.indexOf('\n  deno:'));
   assert.match(checksJob, /node scripts\/check-redirect-targets\.mjs --self-test/);
   assert.match(checksJob, /run: npm run check:guards/);
 });
@@ -370,7 +370,7 @@ test('non-browser repo guards run in CI verify early', async () => {
   assert.deepEqual(scripts.verify.match(/\bcheck:[\w-]+/g), ['check:guards'], 'verify must reach guards only via check:guards');
 
   const checksJob = workflow
-    .slice(workflow.indexOf('\n  checks:'), workflow.indexOf('\n  deno:'))
+    .slice(workflow.indexOf('\n  script-proofs:'), workflow.indexOf('\n  deno:'))
     .split('\n')
     .filter((l) => !/^\s*#/.test(l))
     .join('\n');
@@ -405,7 +405,7 @@ test('non-browser repo guards run in CI verify early', async () => {
     .split('\n')
     .filter((l) => !/^\s*#/.test(l))
     .join('\n');
-  assert.match(verifyJob, /\n {4}needs: \[scope, checks, deno, unit, coverage\]\n/, 'verify must need every verify-stage job');
+  assert.match(verifyJob, /\n {4}needs: \[scope, checks, script-proofs, deno, unit, coverage\]\n/, 'verify must need every verify-stage job');
   for (const dependency of ['scope', 'checks', 'unit', 'coverage']) {
     assert.ok(
       verifyJob.includes(`test "\${{ needs.${dependency}.result }}" = success`),
@@ -425,7 +425,7 @@ test('non-browser repo guards run in CI verify early', async () => {
     'verify must run (and fail) when a shard failed — a skipped required check passes',
   );
 
-  const unitJob = workflow.slice(workflow.indexOf('\n  unit:'), workflow.indexOf('\n  checks:'));
+  const unitJob = workflow.slice(workflow.indexOf('\n  unit:'), workflow.indexOf('\n  script-proofs:'));
   assert.match(unitJob, /fromJSON\(needs\.scope\.outputs\.unit_matrix\)/, 'unit matrix comes from the scope job');
   // #2161/#2293: evaluate the workflow's own shard/matrix shell lines (not a string match on their
   // output) against the scope that feeds them, so the shard rule is checked as behaviour.
@@ -442,11 +442,11 @@ test('non-browser repo guards run in CI verify early', async () => {
   const { scope: scopeOf, SHARD_FILE_THRESHOLD } = await import('./ci-test-scope.mjs');
   const files = (n) => Array.from({ length: n }, (_, i) => ({ status: 'M', path: `pmo-portal/src/lib/f${i}.ts` }));
   const shardsOf = (include) => include.map((e) => e.shard);
-  assert.deepEqual(shardsOf(matrixFor(fullJson[1])), [1, 2, 3, 4], 'full mode must run four shards (#2161)');
+  assert.deepEqual(shardsOf(matrixFor(fullJson[1])), [1, 2, 3, 4, 5, 6, 7, 8], 'full mode must run eight shards (#2161)');
   assert.ok(matrixFor(fullJson[1]).every((e) => e.mode === 'full'), 'full mode entries carry mode full');
   const large = scopeOf(files(SHARD_FILE_THRESHOLD + 5));
   assert.equal(large.unit, 'affected');
-  assert.deepEqual(shardsOf(matrixFor(JSON.stringify(large))), [1, 2, 3, 4], 'a large affected set (>25 files) must run four shards (#2293)');
+  assert.deepEqual(shardsOf(matrixFor(JSON.stringify(large))), [1, 2, 3, 4, 5, 6, 7, 8], 'a large affected set (>25 files) must run eight shards (#2293)');
   assert.ok(matrixFor(JSON.stringify(large)).every((e) => e.mode === 'affected'));
   const small = scopeOf(files(3));
   assert.deepEqual(matrixFor(JSON.stringify(small)), [{ shard: 1, mode: 'affected' }], 'a small affected set stays one runner (#1584)');
@@ -457,7 +457,7 @@ test('non-browser repo guards run in CI verify early', async () => {
   );
   assert.match(
     unitJob,
-    /vitest run --coverage --shard=\$\{\{ matrix\.shard \}\}\/\$\{\{ strategy\.job-total \}\} --reporter=default --reporter=blob "\$\{files\[@\]\}"/,
+    /vitest run --coverage --shard=\$\{\{ matrix\.shard \}\}\/\$\{\{ strategy\.job-total \}\} --reporter=default --reporter=blob .*"\$\{files\[@\]\}"/,
     'affected mode must record coverage and shard by the matrix too',
   );
   assert.match(unitJob, /timeout-minutes: 40/, 'unit job must have a timeout (#1528)');
@@ -471,7 +471,7 @@ test('AC-CI-002/003/004: scope narrows only a PR to dev; dev pushes run everythi
   const pgtap = workflow.slice(workflow.indexOf('\n  pgtap:'), workflow.indexOf('\n  browser-chromium:'));
   assert.match(pgtap, /needs\.scope\.outputs\.pgtap == 'true'/);
   assert.match(pgtap, /github\.event_name == 'push' && github\.ref == 'refs\/heads\/dev'/, 'pgTAP is part of the full run on push to dev');
-  const checksJob = workflow.slice(workflow.indexOf('\n  checks:'), workflow.indexOf('\n  deno:'));
+  const checksJob = workflow.slice(workflow.indexOf('\n  script-proofs:'), workflow.indexOf('\n  deno:'));
   assert.match(checksJob, /node scripts\/ci-test-scope\.mjs --self-test/);
 
   // #2161: the edge-function lane is its own job, scheduled ONLY when the diff can affect it
@@ -493,7 +493,7 @@ test('AC-CI-002/003/004: scope narrows only a PR to dev; dev pushes run everythi
 test('a dispatched e2e run skips verify and pgTAP; PR-to-main integration-lanes keeps pgTAP', () => {
   const verifyJob = workflow.slice(workflow.indexOf('\n  verify:'), workflow.indexOf('\n  pgtap:'));
   assert.match(verifyJob, /\n {4}if: \$\{\{ !cancelled\(\) && github\.event_name != 'workflow_dispatch' \}\}\n/);
-  const unitJob = workflow.slice(workflow.indexOf('\n  unit:'), workflow.indexOf('\n  checks:'));
+  const unitJob = workflow.slice(workflow.indexOf('\n  unit:'), workflow.indexOf('\n  script-proofs:'));
   assert.match(unitJob, /\n {4}if: \$\{\{ github\.event_name != 'workflow_dispatch' && needs\.scope\.outputs\.release_light != 'true' \}\}\n/);
   const integrationLanes = workflow.slice(workflow.indexOf('\n  integration-lanes:'), workflow.indexOf('\n  integration-full:'));
   assert.match(
@@ -583,7 +583,7 @@ test('the project instructions name CI as the PR-to-main gate and verify-main-pr
 });
 
 test('AC-TH-006 timing audit reuses every JSON lane after both release jobs and retains only the safe summary', () => {
-  const checksStart = workflow.indexOf('\n  checks:');
+  const checksStart = workflow.indexOf('\n  script-proofs:');
   const coverageStart = workflow.indexOf('\n  coverage:');
   assert.ok(checksStart !== -1 && coverageStart > checksStart, 'checks job bounds are invalid');
   const checksJob = workflow.slice(checksStart, coverageStart);
@@ -674,4 +674,30 @@ test('rendered proof self-test runs after Chromium installation in the browser g
   assert.ok(browser.includes('node --test scripts/ux-proof.test.mjs'), 'browser job must run the proof contract test');
   assert.match(packageJson.scripts['check:ux-proof'], /ux-proof\.mjs --self-test/);
   assert.doesNotMatch(packageJson.scripts['check:guards'], /ux-proof/);
+});
+
+test('required integration gate rejects every failed or missing parallel lane', () => {
+  const full = workflow.slice(workflow.indexOf('\n  integration-full:'), workflow.indexOf('\n  integration:'));
+  const gate = full.slice(full.indexOf('- name: Required integration result'));
+  const body = gate.slice(gate.indexOf('run: |') + 6).trim();
+  const evaluate = (lane, outcome) => spawnSync('bash', ['-e', '-c', body.replace(/\$\{\{ ([^}]+) \}\}/g, (_, expression) => expression.trim() === `needs.${lane}.result` ? outcome : 'success')]).status;
+  assert.equal(evaluate('', ''), 0);
+  for (const lane of ['integration-lanes', 'integration-serial', 'integration-smoke', 'browser-chromium']) {
+    assert.ok(body.includes(`needs.${lane}.result`));
+    for (const result of ['failure', 'cancelled', 'skipped', '']) assert.notEqual(evaluate(lane, result), 0, `${lane} ${result} must refuse integration`);
+  }
+});
+
+test('each integration runner starts once and browser outcomes determine its job result', () => {
+  for (const name of ['integration-lanes', 'integration-serial', 'integration-smoke']) {
+    const job = workflow.slice(workflow.indexOf(`\n  ${name}:`) + 1).split(/\n {2}[a-z][\w-]+:/)[0];
+    assert.equal((job.match(/supabase start /g) ?? []).length, 1);
+    assert.match(job, /supabase db reset --yes/);
+    if (name !== 'integration-lanes') {
+      assert.match(job, /if: \$\{\{ always\(\) \}\}\n {8}run:/);
+      for (const step of name === 'integration-serial' ? ['serial_e2e', 'consent_e2e'] : ['serve_adapter_dispatch']) {
+        assert.ok(job.includes(`test "\${{ steps.${step}.outcome }}" = success`));
+      }
+    }
+  }
 });
