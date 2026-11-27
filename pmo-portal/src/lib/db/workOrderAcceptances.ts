@@ -1,6 +1,7 @@
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError, assertWriteLanded } from '@/src/lib/appError';
 import { fetchAllPages } from '@/src/lib/pagedRead';
+import { wireValidator } from '@/src/lib/wireDoc';
 import type { Tables, TablesInsert } from '@/src/lib/supabase/database.types';
 
 /**
@@ -156,8 +157,7 @@ export async function prepareWorkOrderAcceptance(input: PrepareWorkOrderAcceptan
     ...(input.acceptanceId ? { p_acceptance_id: input.acceptanceId } : {}),
   });
   if (error) fail(error);
-  if (typeof data !== 'string' || data === '') throw new AppError('acceptance was not created', 'acceptance-malformed');
-  return data;
+  return acceptanceValidator.str(data, 'acceptance_id');
 }
 
 export async function withdrawWorkOrderAcceptance(id: string): Promise<void> {
@@ -165,22 +165,16 @@ export async function withdrawWorkOrderAcceptance(id: string): Promise<void> {
   if (error) fail(error);
 }
 
-function finiteOrNull(value: unknown): number | null {
-  if (value === null) return null;
-  const parsed = typeof value === 'number' ? value : typeof value === 'string' && value.trim() !== '' ? Number(value) : NaN;
-  if (!Number.isFinite(parsed)) throw new AppError('confirmation response is malformed', 'acceptance-malformed');
-  return parsed;
-}
+const acceptanceValidator = wireValidator('Work order acceptance', 'acceptance-malformed');
 
 /** Closing figures are shown only from this authoritative response, so a malformed one is an error, never zero. */
 export async function confirmWorkOrderAcceptance(id: string): Promise<ConfirmWorkOrderAcceptanceResult> {
   const { data, error } = await supabase.rpc('confirm_work_order_acceptance', { p_id: id });
   if (error) fail(error);
-  const raw = data as Record<string, unknown> | null;
-  if (typeof raw !== 'object' || raw === null || !('closing_value' in raw) || !('dp_held' in raw)) {
-    throw new AppError('confirmation response is malformed', 'acceptance-malformed');
-  }
-  const dpHeld = finiteOrNull(raw.dp_held);
-  if (dpHeld === null) throw new AppError('confirmation response is malformed', 'acceptance-malformed');
-  return { closingValue: finiteOrNull(raw.closing_value), dpHeld };
+  const raw = acceptanceValidator.rec(data, 'response');
+  if (!('closing_value' in raw)) acceptanceValidator.fail('closing_value');
+  return {
+    closingValue: acceptanceValidator.numOrNull(raw.closing_value, 'closing_value'),
+    dpHeld: acceptanceValidator.num(raw.dp_held, 'dp_held'),
+  };
 }

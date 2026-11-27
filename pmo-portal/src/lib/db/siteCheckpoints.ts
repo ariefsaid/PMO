@@ -2,6 +2,7 @@ import { supabase } from '@/src/lib/supabase/client';
 import { nullableArg } from './nullableArg';
 import { AppError } from '@/src/lib/appError';
 import { SIGNED_URL_EXPIRY_SECONDS } from '@/src/lib/fileConstants';
+import { isRec as isObj, wireValidator } from '@/src/lib/wireDoc';
 
 /**
  * Timed checkpoints DAL (#2594, migrations 1385..1388). Reads are RPCs or RLS selects; every write is a server RPC
@@ -34,13 +35,8 @@ export interface PunctualityFilter { from: string; to: string; projectId?: strin
 export const SITE_CHECKPOINT_PHOTOS_BUCKET = 'site-checkpoint-photos';
 
 const fail = (error: { message: string; code?: string }): never => { throw new AppError(error.message, error.code); };
-const malformed = (what: string): never => { throw new AppError(`Unexpected ${what} from the server`); };
-
-const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
-const str = (v: unknown, what: string): string => (typeof v === 'string' ? v : malformed(what));
-const strOrNull = (v: unknown, what: string): string | null => (v === null ? null : str(v, what));
-const num = (v: unknown, what: string): number => (typeof v === 'number' && Number.isFinite(v) ? v : malformed(what));
-const bool = (v: unknown, what: string): boolean => (typeof v === 'boolean' ? v : malformed(what));
+const v = wireValidator('Unexpected site checkpoints response', 'site-checkpoints-malformed');
+const { fail: malformed, text: str, strOrNull, num, bool } = v;
 
 /** "07:00:00" from the server becomes "07:00" for a time input. */
 const hhmm = (v: unknown): string => str(v, 'checkpoint time').slice(0, 5);
