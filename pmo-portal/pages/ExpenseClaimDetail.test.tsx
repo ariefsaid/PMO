@@ -55,7 +55,7 @@ vi.mock('@/src/hooks/useImprest', () => ({
   useImprestFloatChoices: () => ({ data: [] }),
   useImprestFloat: () => { h.floatReads += 1; return { data: undefined, isPending: false }; },
 }));
-vi.mock('@/src/hooks/useProjects', () => ({ useProjects: () => ({ data: h.projects }) }));
+vi.mock('@/src/hooks/useProjects', () => ({ useProjectPickerOptions: () => ({ data: h.projects }) }));
 vi.mock('@/src/hooks/useExpensePostingReadiness', () => ({ useExpensePostingReadiness: () => ({ state: 'inactive', retry: vi.fn() }) }));
 // #775 phase B — the Ledger postings card is proven by its own test (AC-EXP-131); it needs a QueryClient this page test does not mount.
 vi.mock('./expenses/ExpensePostingsCard', () => ({ ExpensePostingsCard: () => null, ExpensePostingNote: () => null }));

@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { EntityFormModal, ListState, SelectField, TextArea, TextField } from '@/src/components/ui';
 import { useAuth } from '@/src/auth/useAuth';
-import { useProjects } from '@/src/hooks/useProjects';
+import { useProjectPickerOptions } from '@/src/hooks/useProjects';
 import { useOverContract, useQuantityChangeMutations, useWorkOrderRequestBudget } from '@/src/hooks/useQuantityChanges';
 import { repositories } from '@/src/lib/repositories';
 import { classifyMutationError, joinSentences } from '@/src/lib/classifyMutationError';
@@ -26,7 +26,7 @@ export const RaiseQuantityChangeDialog: React.FC<{
 }> = ({ onClose, onCreated, presetProjectId, presetWorkOrderId }) => {
   const { t } = useTranslation('quantityChanges');
   const orgId = useAuth().currentUser?.org_id;
-  const projects = useProjects();
+  const projects = useProjectPickerOptions();
   const { raise } = useQuantityChangeMutations();
   const errorWords = useRequestedQuantityErrorText();
   const requestId = useRef(crypto.randomUUID());

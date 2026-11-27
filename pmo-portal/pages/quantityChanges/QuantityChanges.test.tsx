@@ -43,7 +43,7 @@ vi.mock('@/src/hooks/useQuantityChanges', () => ({
   useQuantityChangeMutations: () => h.m,
 }));
 vi.mock('@/src/hooks/useOrgSwitch', () => ({ useStoredOrgSwitch: () => ({ data: h.builtInRoles }) }));
-vi.mock('@/src/hooks/useProjects', () => ({ useProjects: () => ({ data: h.projects }) }));
+vi.mock('@/src/hooks/useProjects', () => ({ useProjectPickerOptions: () => ({ data: h.projects }) }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: h.userId, org_id: 'o1' } }) }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: h.role, effectiveRole: h.role }) }));
 vi.mock('./RaiseQuantityChangeDialog', () => ({

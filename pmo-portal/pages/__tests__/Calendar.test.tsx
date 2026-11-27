@@ -42,7 +42,7 @@ vi.mock('@/src/hooks/useOwnershipCacheSync', () => ({ useOwnershipCacheSynced: (
 vi.mock('@/src/hooks/useOrgToday', () => ({ useOrgToday: () => calendarState.today }));
 vi.mock('@/src/lib/adapterSeam/ownershipCache', () => ({ routeTaskWrite: () => 'internal' }));
 vi.mock('@/src/hooks/useProjects', () => ({
-  useProjects: () => ({ data: calendarState.projectsError ? undefined : [{ id: 'p1' }], isError: calendarState.projectsError, isPending: false, isFetching: false, refetch: calendarState.refetch }),
+  useProjectPickerOptions: () => ({ data: calendarState.projectsError ? undefined : [{ id: 'p1' }], isError: calendarState.projectsError, isPending: false, isFetching: false, refetch: calendarState.refetch }),
   useProjectsMilestoneDates: () => ({
     data: calendarState.milestonesError ? undefined : calendarState.milestones,
     isError: calendarState.milestonesError,
