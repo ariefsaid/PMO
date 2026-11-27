@@ -3419,6 +3419,7 @@ export type Database = {
       }
       companies: {
         Row: {
+          address: string | null
           archived_at: string | null
           client_number_segment: string | null
           created_at: string
@@ -3437,14 +3438,17 @@ export type Database = {
           id: string
           name: string
           org_id: string
+          payment_terms_days: number | null
           short_name: string | null
           supply_risk_reason: string | null
           supply_risk_set_at: string | null
           supply_risk_set_by: string | null
           supply_risk_status: string
           type: Database["public"]["Enums"]["company_type"]
+          vendor_code: string | null
         }
         Insert: {
+          address?: string | null
           archived_at?: string | null
           client_number_segment?: string | null
           created_at?: string
@@ -3463,14 +3467,17 @@ export type Database = {
           id?: string
           name: string
           org_id?: string
+          payment_terms_days?: number | null
           short_name?: string | null
           supply_risk_reason?: string | null
           supply_risk_set_at?: string | null
           supply_risk_set_by?: string | null
           supply_risk_status?: string
           type: Database["public"]["Enums"]["company_type"]
+          vendor_code?: string | null
         }
         Update: {
+          address?: string | null
           archived_at?: string | null
           client_number_segment?: string | null
           created_at?: string
@@ -3489,12 +3496,14 @@ export type Database = {
           id?: string
           name?: string
           org_id?: string
+          payment_terms_days?: number | null
           short_name?: string | null
           supply_risk_reason?: string | null
           supply_risk_set_at?: string | null
           supply_risk_set_by?: string | null
           supply_risk_status?: string
           type?: Database["public"]["Enums"]["company_type"]
+          vendor_code?: string | null
         }
         Relationships: [
           {
