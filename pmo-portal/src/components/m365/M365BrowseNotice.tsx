@@ -2,14 +2,15 @@ import { useState } from 'react';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
-import { Button, GateNotice } from '@/src/components/ui';
+import { Button } from '@/src/components/ui/Button';
+import { GateNotice } from '@/src/components/ui/GateNotice';
 import { initiateM365Connect, keepsFolderPermission, type ConnectionStatus } from '@/src/lib/m365/connectClient';
 import { knownM365ErrorReason } from '@/src/lib/m365/errorCopy';
 
 /** Codes whose remedy is a (re)connect: the only ones that may offer the Reconnect action. */
 const RECONNECT_CODES = new Set(['CONNECTION_STALE', 'CONNECTION_REVOKED', 'SCOPE_INSUFFICIENT']);
 /** Codes the shared taxonomy words precisely (entitlement/membership/approval); no retry or reconnect loop. */
-const TAXONOMY_CODES = new Set(['NOT_ENTITLED', 'ORG_APPROVAL_REQUIRED', 'DISABLED_MEMBER', 'BANNED_MEMBER', 'FORBIDDEN', 'UNAUTHORIZED']);
+const TAXONOMY_CODES = new Set(['NOT_ENTITLED', 'ORG_APPROVAL_REQUIRED', 'DISABLED_MEMBER', 'BANNED_MEMBER', 'FORBIDDEN', 'UNAUTHORIZED', 'FOLDER_ACCESS_DENIED']);
 
 function messageFor(t: TFunction, tf: TFunction, code: string | undefined, linkedFolder: boolean): string {
   switch (code) {

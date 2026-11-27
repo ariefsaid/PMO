@@ -1,4 +1,5 @@
 // @e2e-isolation: serial — drives the ORG-SHARED /approvals queue (approving a timesheet/procurement
+import { managedProject } from "../support/managedProject";
 // is a shared-state write), so a parallel worker mutating that queue would make it non-deterministic.
 //
 // ⚑ `serial` BUYS NO EXCLUSIVE DATA OWNERSHIP. It guarantees only that no OTHER worker writes
@@ -276,7 +277,7 @@ async function seedOwnedRequestedProcurement(client: SupabaseClient): Promise<Ow
   const tag = `AC-IXD-PROC-W5-3 ${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
   const project = await client
     .from('projects')
-    .insert({ org_id: ORG_ID, name: tag, status: 'Ongoing Project' })
+    .insert(managedProject(PM_ID, { org_id: ORG_ID, name: tag, status: 'Ongoing Project' }))
     .select('id')
     .single();
   if (project.error) throw new Error(`AC-IXD-PROC-W5-3 seed project failed: ${project.error.message}`);

@@ -69,6 +69,7 @@ const WorkOrderAcceptanceModal: React.FC<WorkOrderAcceptanceModalProps> = ({
       return [item.id, item.earning_basis === 'lump_sum' ? fractionToPercentInput(quantity) : formatMoneyInputValue(quantity)];
     }),
   ));
+  const [initial] = useState(() => ({ date, isFinal, documentId, note, values }));
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<SubmitError | null>(null);
@@ -144,7 +145,8 @@ const WorkOrderAcceptanceModal: React.FC<WorkOrderAcceptanceModalProps> = ({
       submitError={saveError}
       onClose={onClose}
       loading={saving}
-      dirty={Object.values(values).some((v) => v !== '') || note !== '' || documentId !== ''}
+      dirty={date !== initial.date || isFinal !== initial.isFinal || documentId !== initial.documentId || note !== initial.note
+        || [...new Set([...Object.keys(values), ...Object.keys(initial.values)])].some((key) => (values[key] ?? '') !== (initial.values[key] ?? ''))}
     >
       <FormSection legend={t('projectTabs:contractQuantities.workOrders.acceptances.form.details', 'Acceptance')}>
         <FormGrid>

@@ -1,3 +1,5 @@
+import { WithheldPrice } from '@/src/components/ui/WithheldPrice';
+import { useMaySeePrices } from '@/src/hooks/useHidePrices';
 import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { DataTable, ListPage, ListState, type Column } from '@/src/components/ui';
@@ -18,12 +20,13 @@ const isNonZero = (v: string | undefined) => v !== undefined && /[1-9]/.test(v);
  */
 const StockAtRisk: React.FC = () => {
   const { t } = useTranslation('stock');
+  const maySeePrices = useMaySeePrices();
   const currency = useOrgCurrency();
   const loc = getNumberLocale();
   const atRisk = useStockAtRisk();
 
   const rows = atRisk.data ?? [];
-  const showCost = rows.some((r) => r.stockValue !== undefined);
+  const showCost = maySeePrices && rows.some((r) => r.stockValue !== undefined);
   const totalAtRisk = showCost ? sumDecimal(rows.flatMap((r) => (r.atRisk === undefined ? [] : [r.atRisk]))) : null;
   const totalHeld = showCost ? sumDecimal(rows.flatMap((r) => (r.stockValue === undefined ? [] : [r.stockValue]))) : null;
   const exposedCount = rows.filter((r) => isNonZero(r.atRisk)).length;
@@ -91,6 +94,7 @@ const StockAtRisk: React.FC = () => {
       }
     >
       <StockTabs />
+      {!maySeePrices && state === undefined && <WithheldPrice />}
       <p className="mb-4 text-sm text-muted-foreground">{t(showCost || showGuardCover ? 'atRisk.scope' : 'atRisk.scopeNoCost')}</p>
       {state === undefined && showCost && (
         <div className="mb-3">

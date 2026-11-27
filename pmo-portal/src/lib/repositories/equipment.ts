@@ -5,7 +5,7 @@ import { wrap } from './repositoryErrors';
 import type { EquipmentRepository } from './contracts/equipment';
 
 export const equipmentRepository: EquipmentRepository = {
-  listAssets: () => wrap(() => dal.listAssets()),
+  listAssets: (offset) => wrap(() => dal.listAssets(offset)),
   countAssets: () => wrap(() => dal.countAssets()),
   createAsset: (input) => wrap(() => dal.createAsset(input)),
   updateAsset: (id, patch) => wrap(() => dal.updateAsset(id, patch)),

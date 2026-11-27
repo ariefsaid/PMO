@@ -1,6 +1,7 @@
 import React from 'react';
 import i18next from 'i18next';
-import { Button, buttonClasses } from '@/src/components/ui';
+import { Button } from '@/src/components/ui/Button';
+import { buttonClasses } from '@/src/components/ui/buttonClasses';
 import { captureHandledError, safeTrack } from '@/src/lib/analytics';
 
 /**

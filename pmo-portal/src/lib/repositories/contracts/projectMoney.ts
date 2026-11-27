@@ -6,4 +6,6 @@ export interface ProjectMoneyRepository {
   collection(ids: string[]): Promise<Record<string, ProjectMoneyRead>>;
   /** Canonical all-project budget consumption facts, keyed by project id, from one set-based RPC. */
   budgetPositions(ids: string[]): Promise<Record<string, CanonicalBudgetReading>>;
+  /** The caller's own projects for money (2751): managed, deputy of, or standing in for the manager. */
+  ownProjectIds(): Promise<string[]>;
 }

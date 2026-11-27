@@ -3,12 +3,12 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ToastProvider } from '@/src/components/ui';
 
-const h = vi.hoisted(() => ({ set: vi.fn(), reload: vi.fn(), th: { pct1: 80, pct2: 100 } as { pct1: number | null; pct2: number | null } | null }));
+const h = vi.hoisted(() => ({ set: vi.fn(), reload: vi.fn(), isError: false, th: { pct1: 80, pct2: 100 } as { pct1: number | null; pct2: number | null } | null }));
 vi.mock('@/src/lib/repositories/materialRequests', async (orig) => {
   const real = await orig<typeof import('@/src/lib/repositories/materialRequests')>();
   return { ...real, materialRequestRepository: { ...real.materialRequestRepository, setUsageThresholds: h.set } };
 });
-vi.mock('@/src/hooks/useUsageThresholds', () => ({ useUsageThresholds: () => ({ thresholds: h.th, reload: h.reload }) }));
+vi.mock('@/src/hooks/useUsageThresholds', () => ({ useUsageThresholds: () => ({ thresholds: h.th, reload: h.reload, isError: h.isError }) }));
 
 import { UsageWarning } from './UsageWarning';
 import { UsageThresholdsEditor } from './UsageThresholdsEditor';
@@ -35,6 +35,20 @@ describe('AC-MUT-009 the usage warning on a line', () => {
 });
 
 describe('AC-MUT-008 the thresholds editor', () => {
+  it('prevents overwriting unavailable thresholds and restores stored values on retry', async () => {
+    h.isError = true;
+    h.th = null;
+    const { rerender } = render(<ToastProvider><UsageThresholdsEditor /></ToastProvider>);
+    expect(screen.getByLabelText('First warning (% of plan)')).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Save warnings' })).toBeDisabled();
+    await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(h.reload).toHaveBeenCalled();
+    h.isError = false;
+    h.th = { pct1: 80, pct2: 100 };
+    rerender(<ToastProvider><UsageThresholdsEditor /></ToastProvider>);
+    expect(screen.getByLabelText('First warning (% of plan)')).toHaveValue('80');
+    expect(screen.getByLabelText('First warning (% of plan)')).toBeEnabled();
+  });
   it('shows the stored values and saves a valid pair', async () => {
     h.th = { pct1: 80, pct2: 100 };
     h.set.mockResolvedValue(undefined);

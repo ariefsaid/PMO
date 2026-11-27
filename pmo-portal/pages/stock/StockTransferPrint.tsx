@@ -23,7 +23,9 @@ const StockTransferPrint: React.FC = () => {
   const items = useStockItems(true);
   const units = useStockUnits(true);
   const warehouses = useStockWarehouses(true);
-  if (q.isPending || settings.isPending) return <ListState variant="loading" rows={4} />;
+  const failed = [q, settings, items, units, warehouses].find((read) => read.isError);
+  if (failed) return <ListState variant="error" title={t("common:ui.errorBoundary.title", "Something went wrong")} onRetry={() => void failed.refetch()} />;
+  if (q.isPending || settings.isPending || items.isPending || units.isPending || warehouses.isPending) return <ListState variant="loading" rows={4} />;
   if (q.isError) return <ListState variant="error" title={t('states.errorTitle')} sub={t('states.errorSub')} retryLabel={t('actions.retry')} onRetry={() => void q.refetch()} />;
   const transfer = q.data;
   if (!transfer) return <ListState variant="empty" icon="folder" title={t('transfers.notFound')} />;

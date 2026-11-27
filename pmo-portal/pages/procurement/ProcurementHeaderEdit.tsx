@@ -87,8 +87,10 @@ export const ProcurementHeaderEdit: React.FC<ProcurementHeaderEditProps> = ({
 
   const titleField = form.fieldProps('title');
 
-  const { data: projectOptions } = useProjectOptions();
-  const { data: vendorOptions } = useVendorOptions();
+  const projects = useProjectOptions();
+  const vendors = useVendorOptions();
+  const projectOptions = projects.data;
+  const vendorOptions = vendors.data;
   const loadProjects = useCallback(
     async (): Promise<ComboboxOption[]> => projectOptions ?? [],
     [projectOptions],
@@ -145,6 +147,8 @@ export const ProcurementHeaderEdit: React.FC<ProcurementHeaderEditProps> = ({
             />
             <Combobox
               label={tc('project', 'Project')}
+              statusOverride={projects.isError ? 'error' : projects.isPending ? 'loading' : undefined}
+              onRetry={() => void projects.refetch()}
               noun="project"
               placeholder={projectName ?? tc('selectProject', 'Select a project…')}
               value={form.values.projectId}
@@ -159,6 +163,8 @@ export const ProcurementHeaderEdit: React.FC<ProcurementHeaderEditProps> = ({
             />
             <Combobox
               label={tc('supplier', 'Supplier')}
+              statusOverride={vendors.isError ? 'error' : vendors.isPending ? 'loading' : undefined}
+              onRetry={() => void vendors.refetch()}
               noun="supplier"
               placeholder={vendorName ?? tc('selectSupplier', 'Optional: select a supplier…')}
               value={form.values.vendorId}

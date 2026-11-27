@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { setHidePricesActive } from '@/src/lib/priceReadPath';
 
 /** #2698 — the payment channel DAL reads the switch, list and a request's channel, and calls only the 1356 RPCs. */
 const h = vi.hoisted(() => {
@@ -8,7 +9,7 @@ const h = vi.hoisted(() => {
   for (const k of ['select', 'eq', 'in', 'not', 'order', 'range']) chain[k] = vi.fn(() => chain);
   chain.maybeSingle = vi.fn(done);
   chain.then = (res: (v: unknown) => unknown, rej: (e: unknown) => unknown) => done().then(res, rej);
-  return { rpc: vi.fn(() => Promise.resolve(result.value)), from: vi.fn(() => chain), result, chain };
+  return { rpc: vi.fn(() => Promise.resolve(result.value)), from: vi.fn((_table: string) => chain), result, chain };
 });
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { rpc: h.rpc, from: h.from } }));
 import {
@@ -16,7 +17,8 @@ import {
   savePaymentChannel, setPaymentChannelsEnabled, setProcurementPaymentChannel,
 } from './paymentChannels';
 
-beforeEach(() => { h.rpc.mockClear(); h.from.mockClear(); h.result.value = { data: null, error: null }; });
+beforeEach(() => { setHidePricesActive(false); h.rpc.mockClear(); h.from.mockClear(); h.result.value = { data: null, error: null }; });
+afterEach(() => setHidePricesActive(false));
 
 describe('payment channel DAL (#2698)', () => {
   it('AC-PCH-001 no settings row reads as off', async () => {
@@ -60,5 +62,15 @@ describe('payment channel DAL (#2698)', () => {
     h.from.mockClear();
     expect(await getPaymentChannelNames([])).toEqual({});
     expect(h.from).not.toHaveBeenCalled();
+  });
+
+  it('AC-PCH-009 reads request payment-channel labels through the masked procurement view when price hiding is active', async () => {
+    setHidePricesActive(true);
+    h.result.value = { data: { payment_channel_id: 'c1', payment_channel: { name: 'Cash' } }, error: null };
+    await getProcurementPaymentChannel('p1');
+    h.result.value = { data: [{ id: 'p1', payment_channel: { name: 'Cash' } }], error: null };
+    await getPaymentChannelNames(['p1']);
+
+    expect(h.from.mock.calls.map(([table]) => table)).toEqual(['procurements_masked', 'procurements_masked']);
   });
 });

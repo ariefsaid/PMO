@@ -152,6 +152,7 @@ export function createFigureAgreementRepositoryModule<T extends { repositories: 
       listLegacyArchiveLiveTargets: async () => [],
     }),
     externalDomainOwnership: override('externalDomainOwnership', { listOwn: async () => [] }),
+    erpPurchases: override('erpPurchases', { listLinked: async () => [] }),
     procurement: override('procurement', {
       list: async () => [],
       listByProject: async () => procurementOverride ?? [],

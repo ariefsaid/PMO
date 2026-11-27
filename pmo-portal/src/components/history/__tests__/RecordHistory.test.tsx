@@ -14,7 +14,7 @@ const { repo, listProcurementsByProject, listBudgetVersions, procDetail, authSta
     repo: {
       recordHistory: { list: vi.fn(), lookupNames: vi.fn() },
       profile: { listOrgProfiles: vi.fn() },
-      company: { list: vi.fn(), getMany: vi.fn() },
+      company: { listOptions: vi.fn(), getMany: vi.fn() },
       task: { list: vi.fn() },
       milestone: { list: vi.fn() },
       workOrder: { list: vi.fn() },
@@ -68,7 +68,7 @@ beforeEach(() => {
   repo.profile.listOrgProfiles.mockResolvedValue([
     { id: 'u1', full_name: 'Dana PM' }, { id: 'u2', full_name: 'Sam Lead' },
   ]);
-  repo.company.list.mockResolvedValue([{ id: 'c1', name: 'Acme Corp' }, { id: 'c2', name: 'Globex' }]);
+  repo.company.listOptions.mockResolvedValue([{ id: 'c1', name: 'Acme Corp' }, { id: 'c2', name: 'Globex' }]);
   repo.company.getMany.mockResolvedValue([]);
   repo.task.list.mockResolvedValue([
     { id: 't1', name: 'Install pump' }, { id: 't2', name: 'Commission pump' },
@@ -628,7 +628,7 @@ describe('RecordHistory — child records and references on the project History 
   });
 
   it('a company reads by the display name the pickers show (short name when set)', async () => {
-    repo.company.list.mockResolvedValue([
+    repo.company.listOptions.mockResolvedValue([
       { id: 'c1', name: 'Acme Corp', short_name: null },
       { id: 'c3', name: 'Perusahaan Listrik Negara', short_name: 'PLN' },
     ]);

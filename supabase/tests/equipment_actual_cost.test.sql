@@ -311,8 +311,9 @@ select pg_temp.act_as('15190000-0000-0000-0000-0000000000a5');   -- Executive
 select is((select row(count(pool), count(amount))::text from list_equipment_allocations('15190000-0000-0000-0000-0000000000d5','2027-03-01','2027-03-31')),
   '(6,6)', 'AC-EQU-012 an Executive reads every pool and amount');
 select pg_temp.act_as('15190000-0000-0000-0000-0000000000a3');   -- Project Manager
+-- 2750: a Project Manager reads allocations of their own projects (P1, P3); the pool, line count and driver total stay hidden as before.
 select is((select count(*)::int from list_equipment_allocations('15190000-0000-0000-0000-0000000000d5','2027-03-01','2027-03-31')),
-  6, 'AC-EQU-012 a Project Manager still reads the allocation rows');
+  3, 'AC-EQU-012 a Project Manager still reads the allocation rows of their own projects');
 select is((select count(pool)::int from list_equipment_allocations('15190000-0000-0000-0000-0000000000d5','2027-03-01','2027-03-31')),
   0, 'AC-EQU-012 a Project Manager reads no pool');
 select is((select count(line_count)::int from list_equipment_allocations('15190000-0000-0000-0000-0000000000d5','2027-03-01','2027-03-31')),
@@ -320,13 +321,13 @@ select is((select count(line_count)::int from list_equipment_allocations('151900
 select is((select count(driver_total)::int from list_equipment_allocations('15190000-0000-0000-0000-0000000000d5','2027-03-01','2027-03-31')),
   0, 'AC-EQU-012 a Project Manager reads no driver total');
 select is((select count(*)::int from list_equipment_allocations('15190000-0000-0000-0000-0000000000d5','2027-03-01','2027-03-31') where amount is null),
-  2, 'AC-EQU-012 a Project Manager reads no Employee-party amount');
+  1, 'AC-EQU-012 a Project Manager reads no Employee-party amount');
 select is(array(select amount::text from list_equipment_allocations('15190000-0000-0000-0000-0000000000d5','2027-03-01','2027-03-31')
                  where amount in (20.00,60.00) order by amount),
-  array['20.00','60.00'], 'AC-EQU-012 a Project Manager sees amounts for a null party type');
+  array['60.00'], 'AC-EQU-012 a Project Manager sees amounts for a null party type');
 select is(array(select amount::text as x from list_equipment_allocations('15190000-0000-0000-0000-0000000000d5','2027-03-01','2027-03-31')
                  where amount is not null order by amount),
-  array['20.00','60.00','75.00','225.00'], 'AC-EQU-012 a Project Manager still reads the non-Employee amounts');
+  array['60.00','225.00'], 'AC-EQU-012 a Project Manager still reads the non-Employee amounts');
 select pg_temp.act_as('15190000-0000-0000-0000-0000000000a2');   -- Finance
 -- a negative pool (a credit-only month) shares out negatively and sums back exactly
 select is(array(select amount::text as x from list_equipment_allocations('15190000-0000-0000-0000-0000000000d5','2027-04-01','2027-04-30') order by amount),

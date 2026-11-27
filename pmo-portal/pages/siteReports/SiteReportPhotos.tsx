@@ -15,6 +15,7 @@ export const SiteReportPhotos: React.FC<{ report: DsrReport; photos: DsrPhoto[];
   const { t } = useTranslation('siteReport');
   const { uploadPhoto } = useDailySiteReportMutations();
   const input = useRef<HTMLInputElement>(null);
+  const [openError, setOpenError] = useState<string | null>(null);
   const [kind, setKind] = useState<DsrPhoto['kind']>('paper_form');
   const [failed, setFailed] = useState<{ file: File; message: string; retryable: boolean } | null>(null);
 
@@ -41,8 +42,8 @@ export const SiteReportPhotos: React.FC<{ report: DsrReport; photos: DsrPhoto[];
     }
   };
   const open = async (path: string) => {
-    const url = await repositories.dailySiteReport.photoUrl(path);
-    window.open(url, '_blank', 'noopener');
+    setOpenError(null);
+    try { const url = await repositories.dailySiteReport.photoUrl(path); window.open(url, '_blank', 'noopener'); } catch (err) { setOpenError(classifyMutationError(err).headline); }
   };
   const pick = (k: DsrPhoto['kind']) => { setKind(k); input.current?.click(); };
 
@@ -63,6 +64,7 @@ export const SiteReportPhotos: React.FC<{ report: DsrReport; photos: DsrPhoto[];
           {writable && failed.retryable && <Button variant="outline" size="sm" onClick={() => void send(failed.file)}>{t('photos.retry', 'Retry')}</Button>}
         </p>
       )}
+      {openError && <p role="alert">{openError}</p>}
       {photos.length === 0 ? (
         <p className="text-muted-foreground">{t('photos.none', 'No photos yet')}</p>
       ) : (

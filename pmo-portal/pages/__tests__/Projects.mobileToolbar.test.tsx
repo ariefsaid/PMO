@@ -52,7 +52,7 @@ const { projectsState, clientsState, managersState, roleBox } = vi.hoisted(() =>
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('../../components/ProjectStatusControl', () => ({ default: () => null }));
 vi.mock('@/src/hooks/useCompanies', () => ({
-  useCompanies: () => ({ data: [], isError: false }),
+  useCompanyOptions: () => ({ data: [], isError: false }),
 }));
 vi.mock('@/src/hooks/useProjects', () => ({
   useProjects: () => projectsState,

@@ -21,7 +21,7 @@ vi.mock('@/src/hooks/useEquipment', () => ({
 vi.mock('@/src/hooks/useOrgToday', () => ({ useOrgToday: () => '2026-09-26' }));
 vi.mock('@/src/hooks/useResolvedLocale', () => ({ useOrgBusinessTimezone: () => 'UTC' }));
 vi.mock('./RentalInvoiceCheck', () => ({ default: () => <div>Rental invoice check</div> }));
-vi.mock('@/src/hooks/useCompanies', () => ({ useCompanies: () => ({ data: [] }) }));
+vi.mock('@/src/hooks/useCompanies', () => ({ useCompanyOptions: () => ({ data: [] }) }));
 vi.mock('@/src/hooks/useEquipmentAvailability', () => ({
   useStatusDays: () => ({ data: [], isError: false }),
   useLatestStatusDays: () => ({ data: [] }),
@@ -30,6 +30,7 @@ vi.mock('@/src/hooks/useEquipmentAvailability', () => ({
   useEquipmentMetrics: () => ({ data: [{ asset_id: 'a1', bucket_start: '2026-09-01', availability_pct: '80.0', in_service_days: 25, available_days: 20, utilisation_pct: '95.0', unrecorded_days: 0, pending_usage_entries: 0 }] }),
   useSetStatusBulk: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useAttachProof: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useEndRentalTerm: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useRentalTerms: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useRentalTermHistory: () => ({ data: [] }),
   useEquipmentOwnership: () => ({ mutateAsync: vi.fn(), isPending: false }),

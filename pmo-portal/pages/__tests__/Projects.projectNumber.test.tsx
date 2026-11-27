@@ -16,7 +16,7 @@ vi.mock('@/src/hooks/useProjects', () => ({
   useProjectMutations: () => ({ create: { mutateAsync: vi.fn() }, updateHeader: { mutateAsync: vi.fn() }, archive: { mutateAsync: vi.fn() } }),
   useProjectsMilestoneDates: () => ({ data: [] }),
 }));
-vi.mock('@/src/hooks/useCompanies', () => ({ useCompanies: () => ({ data: [], isError: false }) }));
+vi.mock('@/src/hooks/useCompanies', () => ({ useCompanyOptions: () => ({ data: [], isError: false }) }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org1' } }) }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ effectiveRole: 'Admin', realRole: 'Admin' }) }));
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => true }));

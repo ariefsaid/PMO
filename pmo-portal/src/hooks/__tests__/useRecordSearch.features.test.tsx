@@ -38,7 +38,7 @@ const { searchState, INCIDENT_ROW } = vi.hoisted(() => {
 vi.mock('@/src/hooks/useProjects', () => ({ useProjects: () => searchState.projects }));
 vi.mock('@/src/hooks/useProcurements', () => ({ useProcurements: () => searchState.procurements }));
 vi.mock('@/src/hooks/useDashboard', () => ({ useSalesPipeline: () => searchState.pipeline }));
-vi.mock('@/src/hooks/useCompanies', () => ({ useCompanies: () => searchState.companies }));
+vi.mock('@/src/hooks/useCompanies', () => ({ useCompanyOptions: () => searchState.companies }));
 vi.mock('@/src/hooks/useContacts', () => ({ useContacts: () => searchState.contacts }));
 vi.mock('@/src/hooks/useIncidents', () => ({ useIncidents: () => searchState.incidents }));
 

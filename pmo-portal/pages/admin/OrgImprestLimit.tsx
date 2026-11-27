@@ -7,7 +7,7 @@ import { useOptionalRealRole } from '@/src/auth/impersonation';
 import { can } from '@/src/auth/policy';
 import { repositories } from '@/src/lib/repositories';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { Button, FieldError, TextField } from '@/src/components/ui';
+import { Button, FieldError, ListState, TextField } from '@/src/components/ui';
 import { useOrgCurrencyState } from '@/src/hooks/useOrgCurrency';
 import { formatCurrency, parseMoneyInputAtScale } from '@/src/lib/format';
 
@@ -48,11 +48,12 @@ export default function OrgImprestLimit() {
       {current !== null && orgCurrency.isResolved && (
         <p className="mt-1 text-control">{t('procurement:gates.imprestLimit.current', 'Current limit: {{amount}}', { amount: formatCurrency(current, orgCurrency.currency) })}</p>
       )}
+      {query.isError ? <ListState variant="error" title={t('administration:orgSwitch.loadError', "Couldn't load this setting")} onRetry={() => void query.refetch()} /> : query.isPending ? <ListState variant="loading" rows={1} /> : null}
       <div className="mt-2 flex items-end gap-2">
         <TextField label={t('procurement:gates.imprestLimit.label', 'Limit per spend')} inputMode="decimal" value={shown}
-          onChange={(v: string) => setDraft(v)} disabled={!canManage} />
+          onChange={(v: string) => setDraft(v)} disabled={!canManage || !query.isSuccess || query.isError} />
         {canManage && (
-          <Button variant="primary" size="sm" disabled={!valid || draft === null} loading={mutation.isPending}
+          <Button variant="primary" size="sm" disabled={!valid || draft === null || !query.isSuccess || query.isError} loading={mutation.isPending}
             onClick={() => { if (parsed !== null) { mutation.reset(); mutation.mutate(parsed); } }}>
             {t('procurement:gates.imprestLimit.save', 'Save limit')}
           </Button>

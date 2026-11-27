@@ -247,3 +247,13 @@ describe('parseWarningDays', () => {
     expect(parseWarningDays(text)).toEqual(out);
   });
 });
+
+it('uses translated notification role labels while saving stored role keys', async () => {
+  h.role = 'Admin'; h.effectiveRole = null; h.builtInRole = null; h.update.mockClear();
+  h.types = { data: [type()], isPending: false, isError: false, refetch: vi.fn() };
+  renderIt(true);
+  await userEvent.click(screen.getByRole('button', { name: /^(Edit|Ubah) Safety passport$/ }));
+  await userEvent.click(screen.getByRole('checkbox', { name: 'Manajer proyek' }));
+  await userEvent.click(screen.getByRole('button', { name: 'Simpan jenis dokumen' }));
+  expect(h.update).toHaveBeenCalledWith(expect.objectContaining({ input: expect.objectContaining({ notify_roles: ['Admin', 'Project Manager'] }) }));
+});

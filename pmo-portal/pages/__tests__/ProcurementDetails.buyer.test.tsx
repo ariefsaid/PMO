@@ -1,3 +1,4 @@
+vi.mock('@/src/hooks/useErpPurchaseLinks', () => ({ useLinkedErpDocuments: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }) }));
 import { render as rtlRender, fireEvent, screen, waitFor } from '@testing-library/react';
 import { QueryClientTestProvider } from '@/test/QueryClientTestProvider';
 // C11: the follow-up task button mounts with its host page now, so every render here runs
@@ -14,6 +15,7 @@ import { MemoryRouter, Route, Routes } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const h = vi.hoisted(() => ({
+  savedChecks: vi.fn(() => ({ data: [], isPending: false, isError: false })),
   detail: { data: undefined as unknown, isPending: false, isError: false, error: null as unknown, refetch: vi.fn() },
   updateVendor: vi.fn().mockResolvedValue(undefined),
   history: { data: { pages: [{ rows: [{ slip_id: 'slip-history', slip_number: 'TAX-HISTORY', status: 'void' }] }] }, isLoading: false, isError: false, hasNextPage: false, refetch: vi.fn(), fetchNextPage: vi.fn() },
@@ -23,6 +25,7 @@ const h = vi.hoisted(() => ({
   toast: vi.fn(),
   vendor: { data: [{ value: 'vendor-new', label: 'New supplier' }], isPending: false, isError: false, refetch: vi.fn() },
 }));
+vi.mock('@/src/hooks/useEquipmentAvailability', () => ({ useSavedRentalChecks: h.savedChecks }));
 vi.mock('@/src/hooks/useProcurementFilesBatch', () => ({ useProcurementFilesBatch: () => ({ data: undefined, isError: false }) }));
 vi.mock('@/src/hooks/useDomainOwnershipMode', async () => await import('@/test/domainOwnershipMock'));
 vi.mock('@/src/hooks/useProcurementItemEligibility', () => ({ useProcurementItemEligibility: () => ({ data: true, isPending: false, isError: false, isFetching: false, refetch: vi.fn() }) }));
@@ -86,6 +89,13 @@ beforeEach(() => {
 });
 
 describe('a Buyer (job role at Engineer access level) on an approved purchase it did not raise', () => {
+  it('starts Finance saved rental checks from the route id while the purchase is still loading', () => {
+    h.realRole = 'Finance'; h.effectiveRole = 'Finance';
+    h.detail.data = undefined; h.detail.isPending = true;
+    h.savedChecks.mockClear();
+    renderAt('/procurement/proc-001/overview');
+    expect(h.savedChecks).toHaveBeenCalledWith(undefined, 'proc-001');
+  });
   it('opens the purchase and names its supplier through the narrow command', async () => {
     renderAt('/procurement/proc-001/overview');
     expect(screen.queryByTestId('procurement-no-access')).not.toBeInTheDocument();

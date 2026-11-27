@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 import {
   EntityFormModal, FormGrid, NumberField, SelectField, TextField, useEntityForm, useToast, type SubmitError,
 } from '@/src/components/ui';
-import { useCompanies } from '@/src/hooks/useCompanies';
+import { useCompanyOptions } from '@/src/hooks/useCompanies';
 import { useCreateAsset, useCreateRentedAsset, useUpdateAsset } from '@/src/hooks/useEquipment';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { normalizeLocalizedDecimal } from '@/src/lib/format';
@@ -22,7 +22,7 @@ export const AssetFormModal: React.FC<{ asset?: EquipmentAssetRow; onClose: () =
   const create = useCreateAsset();
   const createRented = useCreateRentedAsset();
   const update = useUpdateAsset();
-  const vendors = useCompanies('Vendor', { enabled: !asset });
+  const vendors = useCompanyOptions({ enabled: !asset }, 'Vendor');
   const [submitError, setSubmitError] = useState<SubmitError | null>(null);
   const editing = Boolean(asset);
   const form = useEntityForm({

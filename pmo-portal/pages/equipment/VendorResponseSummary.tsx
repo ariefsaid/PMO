@@ -33,7 +33,7 @@ const Card_: React.FC<{ assetIds: string[] }> = ({ assetIds }) => {
   // An organisation that never had a rented breakdown sees nothing new.
   if (q.isPending || q.isError || rows.length === 0) return null;
   return (
-    <RecordSection className="mt-6" title={t('equipment:vendorResponse.summaryTitle', 'Vendor response time, last 12 months')} flush>
+    <RecordSection className="mt-6" title={t('equipment:vendorResponse.summaryTitle', 'Vendor response time, last 12 months')} subline={t("equipment:vendorResponse.loadedScope", "{{count}} rented machines from the loaded equipment pages; other machines are excluded.", {count: assetIds.length})} flush>
       <VendorResponseSummaryTable rows={rows} />
     </RecordSection>
   );

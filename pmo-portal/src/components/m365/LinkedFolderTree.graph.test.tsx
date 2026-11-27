@@ -249,12 +249,13 @@ describe('#1124 the folder tree against documented Graph /children answers (ship
     expect(await screen.findByText('Last file.pdf')).toBeInTheDocument();
   });
 
-  describe('failure answers (custody turns every Graph failure into one opaque GRAPH_ERROR)', () => {
-    it('403 accessDenied: the access sentence; no Graph text, code or request id reaches the page', async () => {
+  describe('folder browse failures', () => {
+    it('AC-2831-001: 403 accessDenied: the access sentence; no Graph text, code or request id reaches the page', async () => {
       serve(() => graphError(403, 'accessDenied'));
       mount();
       await screen.findByRole('alert');
-      expect(document.body.textContent).toMatch(/Check access and SharePoint availability/);
+      expect(screen.getByText("You do not have access to this folder in Microsoft 365. Ask the folder's owner.")).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument();
       expect(document.body.textContent).not.toMatch(/Synthetic Graph message|req-1|accessDenied|403/);
     });
 

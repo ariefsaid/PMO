@@ -6,6 +6,7 @@ import {
   type DocStatus,
 } from '@/src/lib/repositories';
 import { useAuth } from '@/src/auth/useAuth';
+import { AppError } from '@/src/lib/appError';
 import type { MicrosoftReferenceInput } from '@/src/lib/m365/reference';
 
 /**
@@ -65,7 +66,13 @@ export function useDocumentMutations(projectId: string) {
   const update = useMutation({
     mutationFn: async ({ id, input, refileTo }: UpdateDocumentArgs) => {
       await repositories.document.update(id, input);
-      if (refileTo) await repositories.documentCategory.refileLineage(id, refileTo);
+      if (refileTo) {
+        try { await repositories.documentCategory.refileLineage(id, refileTo); }
+        catch {
+          await invalidate();
+          throw new AppError('Document metadata saved; category move failed', 'DOCUMENT_REFILE_PARTIAL');
+        }
+      }
     },
     onSuccess: invalidate,
   });

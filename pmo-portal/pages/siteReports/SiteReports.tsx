@@ -67,7 +67,9 @@ const SiteReports: React.FC = () => {
       />
       <CrewsLink />
 
-      {mayValidate && queueRows.length > 0 && (
+      {mayValidate && queue.isPending && <ListState variant="loading" />}
+      {mayValidate && queue.isError && <ListState variant="error" title={t("common:ui.errorBoundary.title", "Something went wrong")} onRetry={() => void queue.refetch()} />}
+      {mayValidate && !queue.isPending && !queue.isError && queueRows.length > 0 && (
         <section aria-labelledby="dsr-queue" className="rounded-lg border border-warning/30 bg-waiting-surface p-4" data-testid="dsr-queue">
           <h2 id="dsr-queue" className="text-base font-semibold text-foreground">
             {t('queue.title', 'To validate')} <span className="tabular-nums">{queueRows.length}</span>

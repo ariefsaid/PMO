@@ -1,3 +1,4 @@
+import { fetchAllPages } from '@/src/lib/pagedRead';
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError } from '@/src/lib/appError';
 
@@ -22,11 +23,10 @@ const STATUSES: readonly string[] = ['assessing', 'accepted', 'rejected'];
 const CHECKS: readonly string[] = ['open', 'passed', 'failed', 'not_applicable'];
 
 export async function listCandidateRecords(projectId: string): Promise<CandidateRecord[]> {
-  const { data, error } = await supabase.from('work_order_candidates')
+  const rows = await fetchAllPages((from, to) => supabase.from('work_order_candidates')
     .select('id, title, client_reference, offered_on, status, decision_reason, work_order_id, items:work_order_candidate_items(label, position, status, note)')
-    .eq('project_id', projectId).order('created_at', { ascending: false }).order('id', { ascending: false }).limit(200);
-  if (error) throw new AppError(error.message, error.code);
-  return (data ?? []).map((raw) => {
+    .eq('project_id', projectId).order('created_at', { ascending: false }).order('id', { ascending: false }).range(from, to));
+  return rows.map((raw) => {
     if (!STATUSES.includes(raw.status)) throw new AppError(`Unknown candidate status "${String(raw.status)}"`);
     const items = [...(raw.items ?? [])].sort((a, b) => a.position - b.position).map((i) => {
       if (!CHECKS.includes(i.status)) throw new AppError(`Unknown assessment status "${String(i.status)}"`);

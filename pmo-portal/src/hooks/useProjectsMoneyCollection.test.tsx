@@ -8,7 +8,7 @@ const { repo, auth } = vi.hoisted(() => ({
   repo: { collection: vi.fn() },
   auth: { orgId: 'org-1' as string | null, role: 'Finance' as string },
 }));
-vi.mock('@/src/lib/repositories/projectMoney', () => ({ projectMoneyRepository: repo }));
+vi.mock('@/src/lib/repositories', () => ({ repositories: { projectMoney: repo } }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: auth.orgId ? { org_id: auth.orgId, role: auth.role } : null }) }));
 
 import { useProjectsMoneyCollection } from './useProjectsMoneyCollection';

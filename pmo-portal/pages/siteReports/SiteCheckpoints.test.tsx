@@ -6,13 +6,13 @@ import type { DayCheckpoint } from '@/src/lib/repositories/siteCheckpoints';
 
 /** AC-STC-012: the field controller's phone flow on the day's checkpoints. Behaviour only; no look is pinned. */
 const h = vi.hoisted(() => ({
-  rows: [] as unknown[],
+  rows: [] as unknown[], error: false, retry: vi.fn(),
   userId: 'ctl',
   realRole: 'Finance',
   record: { mutateAsync: vi.fn(), isPending: false },
 }));
 vi.mock('@/src/hooks/useSiteCheckpoints', () => ({
-  useDayCheckpoints: () => ({ data: h.rows, isPending: false, isError: false, dataUpdatedAt: 1, refetch: vi.fn() }),
+  useDayCheckpoints: () => ({ data: h.rows, isPending: false, isError: h.error, dataUpdatedAt: 1, refetch: h.retry }),
   useRecordCheckpoint: () => h.record,
 }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: h.userId, org_id: 'o1' } }) }));
@@ -29,7 +29,7 @@ const row = (over: Partial<DayCheckpoint>): DayCheckpoint => ({
 const view = () => render(<SiteCheckpoints workOrderId="w1" workDate="2026-03-10" projectManagerId="pm" canRecordDay />);
 
 describe('AC-STC-012 day checkpoints', () => {
-  beforeEach(() => { h.record.mutateAsync.mockReset(); h.userId = 'ctl'; h.realRole = 'Finance'; });
+  beforeEach(() => { h.error = false; h.record.mutateAsync.mockReset(); h.userId = 'ctl'; h.realRole = 'Finance'; });
 
   it('renders nothing while the organisation has no checkpoints', () => {
     h.rows = [];
@@ -84,3 +84,7 @@ describe('AC-STC-012 day checkpoints', () => {
     expect(screen.queryByRole('button', { name: 'Record' })).toBeNull();
   });
 });
+
+it("keeps a retry action for unreadable checkpoints", async () => { h.error = true; view(); await userEvent.click(screen.getByRole("button", { name: /retry/i })); expect(h.retry).toHaveBeenCalled(); });
+
+it("explains a checkpoint photo failure and keeps the action available", async () => { const {siteCheckpointRepository} = await import("@/src/lib/repositories/siteCheckpoints"); vi.mocked(siteCheckpointRepository.photoUrl).mockRejectedValue(new TypeError("Failed to fetch")); h.error = false; h.rows = [row({photo_path: "p.jpg", recorded_at: "2099-01-01T00:00:00Z"})]; view(); await userEvent.click(screen.getByRole("button", {name: "View photo"})); expect(await screen.findByText(/Update failed/i)).toBeInTheDocument(); });

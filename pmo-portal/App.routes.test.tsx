@@ -129,6 +129,7 @@ describe('Application route table', () => {
     expect(route?.path).toBe('*');
     const MatchedRoute = () => useRoutes(appRouteConfig);
     render(<MemoryRouter initialEntries={['/admin/integrations']}><React.Suspense fallback={null}><MatchedRoute /></React.Suspense></MemoryRouter>);
+    await vi.dynamicImportSettled();
     expect(await screen.findByText('Page not found')).toBeVisible();
   });
 

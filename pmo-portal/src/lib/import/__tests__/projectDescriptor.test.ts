@@ -14,6 +14,11 @@ const companies = [{ id: 'co-1', name: 'Acme Corp' }];
 const managers = [{ id: 'pm-1', name: 'Jane Manager' }];
 
 describe('makeProjectImportDescriptor', () => {
+  it('defaults an imported project to its creating Project Manager when no manager was stated', async () => {
+    const d = makeProjectImportDescriptor(companies, managers, { id: 'pm-1', role: 'Project Manager', built_in_role: 'project_manager' });
+    await d.create(d.toInput({ name: 'Imported deal', status: 'Leads' }));
+    expect(create).toHaveBeenCalledWith(expect.objectContaining({ project_manager_id: 'pm-1' }));
+  });
   beforeEach(() => {
     create.mockClear();
     setActiveLocale(EN_LOCALE);

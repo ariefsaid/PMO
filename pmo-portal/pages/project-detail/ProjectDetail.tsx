@@ -4,7 +4,6 @@ import React, { useCallback, useLayoutEffect, useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { ListState, ProgressBar, Tooltip, useToast } from '@/src/components/ui';
-import { usePermission } from '@/src/auth/usePermission';
 import { BackBar } from '@/src/components/shell';
 import { useProjectMutations, useProject } from '@/src/hooks/useProjects';
 import { projectStatusGroup } from '@/src/lib/db/projectTransitions';
@@ -17,6 +16,7 @@ import { trackProjectTabViewed } from '@/src/lib/analytics';
 import { useMilestones } from '@/src/hooks/useMilestones';
 import { useProjectOverviewRead } from '@/src/hooks/useProjectOverviewRead';
 import { useProjectBudgetPositions } from '@/src/hooks/useProjectBudgetPositions';
+import { ProjectMoneyScopeContext, useMayViewProjectMoney, useProjectMoneyInScope } from '@/src/hooks/useProjectMoneyScope';
 import { completionPct, formatDay, formatDayRange, formatRelativeTime } from '@/src/lib/format';
 import ProjectDetailHeader from './ProjectDetailHeader';
 import { ProjectBudgetFigures } from './ProjectBudgetFigures';
@@ -32,8 +32,7 @@ import type { ProjectWithRefs } from '@/src/lib/db/projects';
 
 const ProjectHeaderFacts: React.FC<{ project: ProjectWithRefs; showBudgetFigures: boolean }> = ({ project, showBudgetFigures }) => {
   const { t } = useTranslation('project');
-  const may = usePermission();
-  const canViewBudgetFigures = may('view', 'salesInvoice');
+  const canViewBudgetFigures = useMayViewProjectMoney();
   const phases = useMilestones(project.id);
   const milestones = phases.data ?? [];
   const totalWeight = milestones.reduce((sum, phase) => sum + phase.weight, 0);
@@ -142,7 +141,8 @@ const ProjectDetail: React.FC = () => {
   const { updateHeader } = useProjectMutations();
   const pipelineGroup = project ? projectStatusGroup(project.status as never) : null;
   const isPipelineRecord = pipelineGroup === 'pipeline' || pipelineGroup === 'lost';
-  const primaryActionAllowed = area === 'overview';
+  const moneyInScope = useProjectMoneyInScope(project ?? { id: projectId });
+  const primaryActionAllowed = moneyInScope && area === 'overview';
   const chaseOnly = area === 'contract';
   const { toast } = useToast();
   const [editOpen, setEditOpen] = useState(false);
@@ -242,7 +242,7 @@ const ProjectDetail: React.FC = () => {
     <>
       <ProjectDetailHeader project={project} onEditProject={openEditProject} editIsPrimary={area === 'overview'} compact
         primaryAction={primaryActionAllowed ? <span className="hidden md:inline-flex"><PrimaryProjectAction project={project} isPipeline={isPipelineRecord} chaseOnly={chaseOnly} /></span> : undefined}
-        facts={<><ProjectHeaderFacts project={project} showBudgetFigures />{!isPipelineRecord && <ProjectIssuesLink projectId={project.id} />}</>}
+        facts={overview.isPending ? undefined : <><ProjectHeaderFacts project={project} showBudgetFigures />{!isPipelineRecord && <ProjectIssuesLink projectId={project.id} />}</>}
         menuContent={(
           <>
             <ProjectDetailRail project={project} detailsOnly />
@@ -254,6 +254,7 @@ const ProjectDetail: React.FC = () => {
   );
 
   return (
+    <ProjectMoneyScopeContext.Provider value={moneyInScope}>
     <div>
       {/* #735: the top-bar breadcrumb hides its parent crumbs at <= 920px, so the record shows the in-page BackBar there. */}
       <BackBar label={isPipelineRecord ? t('common:shell.nav.sales', 'Sales Pipeline') : t('projectDetail.backToProjects', 'Projects')} phoneOnly onBack={goBack} />
@@ -270,6 +271,7 @@ const ProjectDetail: React.FC = () => {
             code: project.code,
             client_id: project.client_id,
             project_manager_id: project.project_manager_id,
+            deputy_manager_id: project.deputy_manager_id ?? null,
             clientName: project.client ? companyDisplayName(project.client) : null,
             end_client_id: project.end_client_id,
             endClientName: project.end_client ? companyDisplayName(project.end_client) : null,
@@ -284,6 +286,7 @@ const ProjectDetail: React.FC = () => {
         />
       )}
     </div>
+    </ProjectMoneyScopeContext.Provider>
   );
 };
 

@@ -359,7 +359,7 @@ const BudgetAccountMap: React.FC = () => {
       </h2>
       {!canManage && <p className="mt-2 text-control text-muted-foreground">{t('administration:admin.accountMap.adminOnly', 'Only an Admin can change this.')}</p>}
 
-      {categoriesNeedingPosting.length > 0 && <div className="mt-4 border-y border-border py-3" role="region" aria-label={t('uxs10.proposalsLabel', 'Suggested posting accounts')}>
+      {categoriesNeedingPosting.length > 0 && <div className="mt-3 border-b border-border pb-3" role="region" aria-label={t('uxs10.proposalsLabel', 'Suggested posting accounts')}>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h3 className="text-sm font-semibold">{t('uxs10.proposalsTitle', 'Review suggested posting accounts')}</h3>
@@ -385,7 +385,7 @@ const BudgetAccountMap: React.FC = () => {
           </div>
         )}
       </div>}
-      <div className="mt-3.5">
+      <div className="mt-2">
         <DataTable
           rows={[...BUDGET_CATEGORIES]}
           columns={columns}
@@ -393,6 +393,7 @@ const BudgetAccountMap: React.FC = () => {
           tableId="budget-account-map"
           accessibleName={t('admin.budgetMap.title', 'Budget account map')}
           embedded
+          cardInset="none"
           cardBelow={760}
         />
       </div>

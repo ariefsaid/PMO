@@ -6,6 +6,7 @@ import { execFileSync } from 'node:child_process';
 import { loadEnv } from 'vite';
 import { requireServiceRoleKey } from '../helpers';
 import { requireMatchingLocalSupabaseUrls } from '../../src/lib/testing/localSupabaseUrl';
+import { managedProject } from './managedProject';
 
 export const ORG_ID = process.env.E2E_ORG_ID ?? '00000000-0000-0000-0000-000000000001';
 export const PM_ID = '00000000-0000-0000-0000-0000000000a2';
@@ -32,10 +33,10 @@ export function ok(step: string, r: { error: { message: string } | null }): void
 export const runId = (prefix: string) => `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
 
 /** A USD client project managed by the seed PM, with `n` issued work orders. */
-export async function projectWithWorkOrders(admin: SupabaseClient, run: string, titles: string[], opts: { orderValue?: number } = {}) {
-  const project = need('project', await admin.from('projects').insert({
-    org_id: ORG_ID, name: `${run} project`, status: 'Ongoing Project', currency: 'USD', project_manager_id: PM_ID,
-  }).select('id').single());
+export async function projectWithWorkOrders(admin: SupabaseClient, run: string, titles: string[], opts: { orderValue?: number; managerId?: string } = {}) {
+  const project = need('project', await admin.from('projects').insert(managedProject(opts.managerId ?? PM_ID, {
+    org_id: ORG_ID, name: `${run} project`, status: 'Ongoing Project', currency: 'USD',
+  })).select('id').single());
   const workOrders: { id: string; number: string; title: string }[] = [];
   for (const [i, title] of titles.entries()) {
     const id = crypto.randomUUID();
@@ -94,11 +95,12 @@ export async function cleanupEquipment(admin: SupabaseClient, fx: EquipmentCostF
 }
 
 /** A project no other journey reads; delete it (and its children) in afterEach. */
-export async function ownProject(admin: SupabaseClient, name: string): Promise<string> {
+export async function ownProject(admin: SupabaseClient, name: string, managerId?: string): Promise<string> {
   const id = randomUUID();
-  ok('project', await admin.from('projects').insert({
+  const project = {
     id, org_id: ORG_ID, name, status: 'Ongoing Project', currency: 'USD', contract_value: 0, tax_treatment: 'exclusive', tax_amount: 0,
-  }));
+  };
+  ok('project', await admin.from('projects').insert(managerId ? managedProject(managerId, project) : project));
   return id;
 }
 

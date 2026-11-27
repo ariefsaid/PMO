@@ -1,6 +1,4 @@
-import React, { useContext, useEffect, useState } from 'react';
-import { QueryClientContext } from '@tanstack/react-query';
-import { AuthContext } from '@/src/auth/AuthContext';
+import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button, ListState, TextField, useToast } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
@@ -25,12 +23,10 @@ const OrgPerformanceIndicesCard: React.FC = () => {
   const { toast } = useToast();
   const query = usePerformanceSettings();
   const save = useSavePerformanceSettings();
-  const [enabled, setEnabled] = useState(false);
   const [low, setLow] = useState('0.90');
   const [high, setHigh] = useState('1.10');
   useEffect(() => {
     if (query.data) {
-      setEnabled(query.data.enabled);
       setLow(query.data.bands.low);
       setHigh(query.data.bands.high);
     }
@@ -44,7 +40,7 @@ const OrgPerformanceIndicesCard: React.FC = () => {
   const onSave = async () => {
     if (!valid || lowN === null || highN === null) return;
     try {
-      await save.mutateAsync({ enabled, low: lowN, high: highN });
+      await save.mutateAsync({ low: lowN, high: highN });
       toast(t('performanceIndices.saved', 'Performance settings saved'), t('performanceIndices.savedDetail', 'The panels follow the new settings.'), 'success');
     } catch (error) {
       const { headline, detail } = classifyMutationError(error);
@@ -86,12 +82,4 @@ const OrgPerformanceIndicesCard: React.FC = () => {
   );
 };
 
-/** Outside a signed-in, query-backed tree (a bare render) the card renders nothing. */
-const OrgPerformanceIndices: React.FC = () => {
-  const queryClient = useContext(QueryClientContext);
-  const auth = useContext(AuthContext);
-  if (!queryClient || !auth) return null;
-  return <OrgPerformanceIndicesCard />;
-};
-
-export default OrgPerformanceIndices;
+export default OrgPerformanceIndicesCard;

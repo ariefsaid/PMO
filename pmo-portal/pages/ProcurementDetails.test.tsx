@@ -71,7 +71,7 @@ const detailState = {
   error: null as (Error & { code?: string }) | null,
   refetch: vi.fn(),
 };
-const linkedDocsState = vi.hoisted(() => ({ data: [] as Record<string, unknown>[] }));
+const linkedDocsState = vi.hoisted(() => ({ data: [] as Record<string, unknown>[], isError: false, isPending: false, refetch: vi.fn() }));
 
 const mockTransition = vi.fn().mockResolvedValue(undefined);
 const mockCreateQuotation = vi.fn().mockResolvedValue({ id: 'q-new' });
@@ -240,6 +240,7 @@ vi.mock('@/src/hooks/useVendorWithholdingSlips', () => ({
 import ProcurementDetails from './ProcurementDetails';
 
 beforeEach(() => {
+  linkedDocsState.isError = false; linkedDocsState.isPending = false;
   receiptWaiting.data = undefined; receiptWaiting.isPending = false; receiptWaiting.isError = false;
   receiptWaiting.refetch.mockReset(); receiptWaiting.calls.length = 0;
 });
@@ -1969,7 +1970,7 @@ describe('UI-POLISH: procurement detail surface refinements', () => {
 
 // Case-reference register (#1020) has its own tests; isolate it from the details-page harness.
 vi.mock('@/src/hooks/useErpPurchaseLinks', () => ({
-  useLinkedErpDocuments: () => ({ data: linkedDocsState.data, isError: false, isPending: false }),
+  useLinkedErpDocuments: () => linkedDocsState,
   useUnlinkErpDocument: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useLinkErpDocuments: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
@@ -2440,4 +2441,23 @@ describe('AC-WAIT-071/073: who an Ordered purchase is assigned to', () => {
     await userEvent.click(within(header).getByRole('button', { name: 'Retry' }));
     expect(receiptWaiting.refetch).toHaveBeenCalled();
   });
+});
+
+it('withholds incomplete detail figures and retries failed accounting documents', async () => {
+  mockEffectiveRole = 'Finance';
+  Object.assign(detailState, { data: orderedProcurement, isPending: false, isError: false, error: null });
+  linkedDocsState.isError = true;
+  renderPage();
+  expect(screen.getByText("Couldn't load linked accounting documents")).toBeInTheDocument();
+  await userEvent.click(screen.getByRole('button', { name: /retry|try again/i }));
+  expect(linkedDocsState.refetch).toHaveBeenCalled();
+});
+
+it('withholds detail figures while linked accounting documents are loading', () => {
+  mockEffectiveRole = 'Finance';
+  Object.assign(detailState, { data: orderedProcurement, isPending: false, isError: false, error: null });
+  linkedDocsState.isPending = true;
+  renderPage();
+  expect(screen.getByTestId('liststate-loading')).toBeInTheDocument();
+  expect(screen.queryByTestId('procurement-money-summary')).not.toBeInTheDocument();
 });

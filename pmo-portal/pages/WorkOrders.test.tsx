@@ -33,6 +33,7 @@ vi.mock('@/src/hooks/useWorkOrderLists', () => ({
 vi.mock('@/src/components/export/useExport', () => ({ useExport: () => ({ exportXlsx: h.exportXlsx, busy: false }) }));
 
 import WorkOrders from './WorkOrders';
+import * as columnTools from '@/src/components/ui/dataTableColumns';
 
 const row = (over: Partial<DashboardRow>): DashboardRow => ({
   id: 'w1', wo_number: 'WO-1', title: 'Pipe laying', status: 'Issued', project_id: 'p1', project_name: 'Depot', end_date: null,
@@ -154,4 +155,18 @@ describe('Work orders dashboard', () => {
     renderPage();
     expect(screen.getByText("Couldn't load your work orders")).toBeInTheDocument();
   });
+});
+
+it('speed: phone cards scan blank columns once for the board, independent of row count', () => {
+  const media = window.matchMedia;
+  window.matchMedia = vi.fn().mockImplementation((query: string) => ({ matches: false, media: query, addEventListener: vi.fn(), removeEventListener: vi.fn(), addListener: vi.fn(), removeListener: vi.fn() }));
+  const scan = vi.spyOn(columnTools, 'dropBlankColumns');
+  try {
+    h.state = { ...h.state, rows: Array.from({ length: 10 }, (_, i) => row({ id: `w${i}`, wo_number: `WO-${i}` })) };
+    renderPage();
+    expect(screen.getByTestId('dt-card-branch')).toBeInTheDocument();
+    // DataTable owns one scan too; the board must not repeat its scan for each card.
+    expect(scan.mock.calls.length).toBeLessThanOrEqual(2);
+    expect(screen.getByText('WO-9')).toBeInTheDocument();
+  } finally { window.matchMedia = media; scan.mockRestore(); }
 });

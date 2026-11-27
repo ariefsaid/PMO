@@ -25,7 +25,7 @@ const h = vi.hoisted(() => ({
 }));
 
 vi.mock('@/src/hooks/useWorkOrders', () => ({
-  useAllWorkOrders: () => h.workOrders,
+  useOpenWorkOrdersForHome: () => h.workOrders,
 }));
 
 vi.mock('@/src/auth/impersonation', () => ({

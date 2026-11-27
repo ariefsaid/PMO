@@ -3,8 +3,8 @@
  * People first for HR, and orders itself by what the person's function does daily (HR never sees Sales or Finance).
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
-import { MemoryRouter } from 'react-router';
+import { act, render, screen, waitFor } from '@testing-library/react';
+import { MemoryRouter, useNavigate } from 'react-router';
 import React from 'react';
 import { Rail } from '../Rail';
 import { RailDrawerContext } from '../railDrawerContext';
@@ -137,4 +137,112 @@ describe('walk fix — menu entries and daily order', () => {
     renderRail();
     expect(headings()).toEqual(['Delivery', 'My work', 'Sales']);
   });
+});
+
+it('speed: navigation retains the intersection observer and reveals the active link once', async () => {
+  const observe = vi.fn();
+  const disconnect = vi.fn();
+  const construct = vi.fn();
+  let intersection: IntersectionObserverCallback;
+  vi.stubGlobal('IntersectionObserver', class {
+    constructor(callback: IntersectionObserverCallback) { construct(); intersection = callback; }
+    observe = observe;
+    unobserve = vi.fn();
+    disconnect = disconnect;
+  });
+  const previous = HTMLElement.prototype.scrollIntoView;
+  const reveal = vi.fn();
+  HTMLElement.prototype.scrollIntoView = reveal;
+  let go: ReturnType<typeof useNavigate>;
+  function Navigate() { go = useNavigate(); return null; }
+  try {
+    const auth = { currentUser: { id: 'me', org_id: 'org-1', built_in_role: 'project_manager' } } as unknown as AuthContextValue;
+    const page = render(<AuthContext.Provider value={auth}><MemoryRouter initialEntries={['/my-tasks']}><Navigate /><RailDrawerContext.Provider value><Rail /></RailDrawerContext.Provider></MemoryRouter></AuthContext.Provider>);
+    const initial = construct.mock.calls.length;
+    const link = screen.getByRole('link', { name: 'Work order' });
+    act(() => intersection([{ target: link, intersectionRatio: 0 } as unknown as IntersectionObserverEntry], {} as IntersectionObserver));
+    expect(link).not.toHaveAttribute('inert');
+    expect(link.style.pointerEvents).toBe('none');
+    expect(link.style.opacity).toBe('0');
+    act(() => intersection([{ target: link, intersectionRatio: 1 } as unknown as IntersectionObserverEntry], {} as IntersectionObserver));
+    expect(link).not.toHaveAttribute('inert');
+    expect(link.style.pointerEvents).toBe('');
+    const region = link.closest<HTMLElement>('[data-rail-scroll-region]')!;
+    region.scrollTop = 120;
+    reveal.mockClear();
+    await act(() => go('/work-orders'));
+    expect(region.scrollTop).toBe(120);
+    expect(construct).toHaveBeenCalledTimes(initial);
+    expect(reveal).toHaveBeenCalledTimes(1);
+    page.unmount();
+  } finally {
+    HTMLElement.prototype.scrollIntoView = previous;
+    vi.unstubAllGlobals();
+  }
+});
+
+it('signing in attaches pointer clipping while keeping offscreen rail links keyboard-reachable', () => {
+  state.role = '';
+  let intersection: IntersectionObserverCallback | undefined;
+  const observe = vi.fn();
+  vi.stubGlobal('IntersectionObserver', class {
+    constructor(callback: IntersectionObserverCallback) { intersection = callback; }
+    observe = observe;
+    unobserve = vi.fn();
+    disconnect() {}
+  });
+  const tree = () => <AuthContext.Provider value={{ currentUser: { id: 'me', org_id: 'org-1', built_in_role: state.key } } as unknown as AuthContextValue}><MemoryRouter><RailDrawerContext.Provider value><Rail /></RailDrawerContext.Provider></MemoryRouter></AuthContext.Provider>;
+  try {
+    const page = render(tree());
+    expect(intersection).toBeUndefined();
+    state.role = 'Engineer';
+    page.rerender(tree());
+    const link = screen.getByRole('link', { name: 'Work order' });
+    expect(observe).toHaveBeenCalledWith(link);
+    act(() => intersection!([{ target: link, intersectionRatio: 0 } as unknown as IntersectionObserverEntry], {} as IntersectionObserver));
+    expect(link).not.toHaveAttribute('inert');
+    expect(link.style.pointerEvents).toBe('none');
+    act(() => intersection!([{ target: link, intersectionRatio: 1 } as unknown as IntersectionObserverEntry], {} as IntersectionObserver));
+    expect(link).not.toHaveAttribute('inert');
+    page.unmount();
+  } finally { vi.unstubAllGlobals(); }
+});
+
+it('the active sales item is brought into view when its project stage arrives', () => {
+  state.key = 'project_manager';
+  const previous = HTMLElement.prototype.scrollIntoView;
+  const reveal = vi.fn();
+  HTMLElement.prototype.scrollIntoView = reveal;
+  const tree = (override: 'salesPipeline' | null) => <MemoryRouter initialEntries={['/projects/example']}><RailDrawerContext.Provider value><Rail railActiveOverride={override} /></RailDrawerContext.Provider></MemoryRouter>;
+  try {
+    const page = render(tree(null));
+    reveal.mockClear();
+    page.rerender(tree('salesPipeline'));
+    const active = document.querySelector('a[href="/sales"][aria-current="page"]');
+    expect(active).not.toBeNull();
+    expect(reveal).toHaveBeenCalledTimes(1);
+    expect(reveal.mock.instances[0]).toBe(active);
+    page.rerender(tree('salesPipeline'));
+    expect(reveal).toHaveBeenCalledTimes(1);
+  } finally { HTMLElement.prototype.scrollIntoView = previous; }
+});
+
+it('an approvals switch arriving late keeps the current item in view', () => {
+  state.key = 'engineer';
+  state.role = 'Engineer';
+  standing.offered = false;
+  const previous = HTMLElement.prototype.scrollIntoView;
+  const reveal = vi.fn();
+  HTMLElement.prototype.scrollIntoView = reveal;
+  const tree = () => <AuthContext.Provider value={{ currentUser: { id: 'me', org_id: 'org-1', built_in_role: state.key } } as unknown as AuthContextValue}><MemoryRouter initialEntries={['/my-tasks']}><RailDrawerContext.Provider value><Rail /></RailDrawerContext.Provider></MemoryRouter></AuthContext.Provider>;
+  try {
+    const page = render(tree());
+    reveal.mockClear();
+    standing.offered = true;
+    page.rerender(tree());
+    expect(reveal).toHaveBeenCalledTimes(1);
+    expect(reveal.mock.instances[0]).toBe(screen.getByRole('link', { name: 'My Tasks' }));
+    page.rerender(tree());
+    expect(reveal).toHaveBeenCalledTimes(1);
+  } finally { standing.offered = true; HTMLElement.prototype.scrollIntoView = previous; }
 });

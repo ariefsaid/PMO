@@ -23,6 +23,8 @@ insert into companies (id, org_id, name, type) values
 insert into projects (id, org_id, name, status, currency, contract_value, tax_treatment, tax_amount, tax_rate,
                       tax_base_numerator, tax_base_denominator, subject_to_vat, client_id) values
   ('09620000-0000-0000-0000-0000000000c1', '09620000-0000-0000-0000-0000000000a1', 'REC project', 'Ongoing Project', 'IDR', 90000000, 'exclusive', 0, null, 1, 1, false, '09620000-0000-0000-0000-0000000000cc');
+-- The Project Manager manages them: a Project Manager reads money for their own projects (DD-R1125-14).
+update projects set project_manager_id = '09620000-0000-0000-0000-0000000000b4' where id in ('09620000-0000-0000-0000-0000000000c1');
 insert into boq_items (id, org_id, project_id, item_code, description, unit, quantity, rate, line_no) values
   ('09620000-0000-0000-0000-000000000e01', '09620000-0000-0000-0000-0000000000a1', '09620000-0000-0000-0000-0000000000c1', 'A', 'Item A', 'm', 20, 100000, 1),
   ('09620000-0000-0000-0000-000000000e02', '09620000-0000-0000-0000-0000000000a1', '09620000-0000-0000-0000-0000000000c1', 'B', 'Item B', 'unit', 8, 50000, 2),

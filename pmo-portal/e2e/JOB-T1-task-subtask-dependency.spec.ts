@@ -46,7 +46,7 @@ async function newTask(
 test('JOB-T1 a task with two subtasks and a dependency shows on the board and the timeline', async ({ page }) => {
   const sfx = uniq();
   worker = await roleJobUser(admin, 'project_manager', runId('t1'));
-  projectId = await ownProject(admin, `JOB-T1 project ${sfx}`);
+  projectId = await ownProject(admin, `JOB-T1 project ${sfx}`, worker.id);
   const parent = `Parent ${sfx}`;
   const childOne = `Child one ${sfx}`;
   const childTwo = `Child two ${sfx}`;

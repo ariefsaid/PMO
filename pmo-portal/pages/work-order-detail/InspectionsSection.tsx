@@ -6,12 +6,12 @@ import { Button, Checkbox, ConfirmDialog, DateField, ListState, ReasonDialog, Re
 import { usePermission } from '@/src/auth/usePermission';
 import { useAuth } from '@/src/auth/useAuth';
 import {
-  useInspectionCosts, useInspectionFiles, useInspectionMutations, useWorkOrderInspections,
+  useInspectionCosts, useInspectionFilesBatch, useInspectionMutations, useWorkOrderInspections,
 } from '@/src/hooks/useThirdPartyInspections';
 import {
   INSPECTION_FILE_ALLOWED_MIME, INSPECTION_FILE_MAX_COUNT, inspectionFileRefusal, isInspectionBlocking,
   isInspectionComplete, isInspectionOverdue,
-  type InspectionCostRow, type InspectionGate, type InspectionResult, type InspectionListRow,
+  type InspectionCostRow, type InspectionGate, type InspectionResult, type InspectionListRow, type InspectionFileRow,
 } from '@/src/lib/db/thirdPartyInspections';
 import { repositories } from '@/src/lib/repositories';
 import { useRefusalText } from '@/src/lib/refusals';
@@ -20,16 +20,15 @@ import { formatDateOnly, formatTableMoney } from '@/src/lib/format';
 
 const RESULTS: InspectionResult[] = ['pass', 'fail', 'conditional'];
 
-interface CardProps { inspection: InspectionListRow; costs: InspectionCostRow[]; workOrderId: string; today: string }
+interface CardProps { inspection: InspectionListRow; costs: InspectionCostRow[]; costsUnavailable: boolean; filesUnavailable: boolean; workOrderId: string; today: string; liveFiles: InspectionFileRow[] }
 
 /** One inspection: its state, its real cost beside the estimate, and the one next step the viewer may take. */
-const InspectionCard: React.FC<CardProps> = ({ inspection: i, costs, workOrderId, today }) => {
+const InspectionCard: React.FC<CardProps> = ({ inspection: i, costs, costsUnavailable, filesUnavailable, workOrderId, today, liveFiles }) => {
   const { t } = useTranslation('workOrders');
   const refusal = useRefusalText();
   const can = usePermission();
   const { currentUser } = useAuth();
   const m = useInspectionMutations(workOrderId);
-  const files = useInspectionFiles(i.status === 'executed' || i.status === 'reported' ? i.id : null);
   const [err, setErr] = useState<string | null>(null);
   const [reason, setReason] = useState<'waive' | 'cancel' | null>(null);
   const [confirmRaise, setConfirmRaise] = useState(false);
@@ -47,7 +46,6 @@ const InspectionCard: React.FC<CardProps> = ({ inspection: i, costs, workOrderId
   const mayOrder = useMayOrderPurchases();
   const mayOpenPurchase = can('view', 'procurement') || mayOrder;
   const mayAttach = can('create', 'thirdPartyInspection'); // the same roles; a reported inspection still takes a new file (FR-TPI-015)
-  const liveFiles = files.data ?? [];
   const fail = (e: unknown) => { const r = refusal(e, { context: { suppressCapture: true } }); setErr(r.detail || r.headline); };
   const run = (p: Promise<unknown>) => { setErr(null); p.catch(fail); };
 
@@ -90,7 +88,7 @@ const InspectionCard: React.FC<CardProps> = ({ inspection: i, costs, workOrderId
       </p>
       {i.waiver_reason && <p className="text-control text-muted-foreground">{t('inspections.waiverReason', 'Waiver reason: {{reason}}', { reason: i.waiver_reason })}</p>}
       {i.cancel_reason && <p className="text-control text-muted-foreground">{t('inspections.cancelReason', 'Cancelled: {{reason}}', { reason: i.cancel_reason })}</p>}
-      {i.procurement_id
+      {costsUnavailable ? null : i.procurement_id
         ? <p className="text-control" data-testid="inspection-cost">
             {(() => {
               const text = money.length === 0
@@ -140,7 +138,7 @@ const InspectionCard: React.FC<CardProps> = ({ inspection: i, costs, workOrderId
             onClick={() => run(m.execute.mutateAsync({ id: i.id, on }))}>{t('inspections.recordExecution', 'Record execution')}</Button>
         </div>
       )}
-      {(i.status === 'executed' || i.status === 'reported') && mayAttach && liveFiles.length < INSPECTION_FILE_MAX_COUNT && (
+      {(i.status === 'executed' || i.status === 'reported') && !filesUnavailable && mayAttach && liveFiles.length < INSPECTION_FILE_MAX_COUNT && (
         <div className="flex flex-wrap items-end gap-2">
           <input ref={fileRef} type="file" accept={INSPECTION_FILE_ALLOWED_MIME.join(',')} className="sr-only"
             aria-label={t('inspections.fileInput', 'Report file')} data-testid="inspection-file-input" onChange={onPick} />
@@ -153,7 +151,7 @@ const InspectionCard: React.FC<CardProps> = ({ inspection: i, costs, workOrderId
         <div className="flex flex-wrap items-end gap-2">
           <SelectField label={t('inspections.resultLabel', 'Result')} value={result} onChange={(v) => setResult(v as InspectionResult | '')}
             options={[{ value: '', label: t('inspections.chooseResult', 'Choose a result') }, ...RESULTS.map((r) => ({ value: r, label: t(`inspections.result.${r}`, r) }))]} />
-          <Button variant="primary" type="button" size="sm" disabled={!result || liveFiles.length === 0 || m.report.isPending}
+          <Button variant="primary" type="button" size="sm" disabled={filesUnavailable || !result || liveFiles.length === 0 || m.report.isPending}
             onClick={() => result && run(m.report.mutateAsync({ id: i.id, result }))}>{t('inspections.markReported', 'Mark reported')}</Button>
         </div>
       )}
@@ -188,6 +186,13 @@ export const InspectionsSection: React.FC<Props> = ({ workOrderId }) => {
   const refusal = useRefusalText();
   const can = usePermission();
   const list = useWorkOrderInspections(workOrderId);
+  const files = useInspectionFilesBatch((list.data ?? []).filter(i => i.status === 'executed' || i.status === 'reported').map(i => i.id));
+  const filesByInspection = new Map<string, InspectionFileRow[]>();
+  for (const file of files.data ?? []) {
+    const group = filesByInspection.get(file.inspection_id) ?? [];
+    group.push(file);
+    filesByInspection.set(file.inspection_id, group);
+  }
   const costs = useInspectionCosts(workOrderId);
   const m = useInspectionMutations(workOrderId);
   const today = useOrgToday();
@@ -261,11 +266,16 @@ export const InspectionsSection: React.FC<Props> = ({ workOrderId }) => {
           {t('inspections.billingOpen', 'Billing is waiting on {{count}} required inspection(s)', { count: blockingBilling })}
         </p>
       )}
+      {files.isError && <ListState variant="error" title={t('common:ui.listState.readError')} onRetry={() => void files.refetch()} />}
+      {costs.isError && <ListState variant="error" title={t('common:ui.listState.readError')} onRetry={() => void costs.refetch()} />}
       {rows.length === 0
         ? <p className="text-control text-muted-foreground">{t('inspections.empty', 'No third-party inspections on this work order yet.')}</p>
         : <ul className="divide-y divide-border" data-testid="wo-inspections">
             {rows.map((r) => (
               <InspectionCard key={r.id} inspection={r} workOrderId={workOrderId} today={today}
+                costsUnavailable={costs.isError}
+                filesUnavailable={files.isError}
+                liveFiles={filesByInspection.get(r.id) ?? []}
                 costs={(costs.data ?? []).filter((c) => c.inspection_id === r.id)} />
             ))}
           </ul>}

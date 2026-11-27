@@ -20,6 +20,8 @@ const h = vi.hoisted(() => {
     update: [] as unknown[],
     eq: [] as unknown[],
     order: [] as unknown[],
+    in: [] as unknown[],
+    limit: [] as unknown[],
     select: 0,
     selectArgs: [] as unknown[],
     single: 0,
@@ -39,7 +41,8 @@ const h = vi.hoisted(() => {
   builder.eq = chain('eq');
   builder.order = chain('order');
   builder.gt = () => builder;
-  builder.limit = () => builder;
+  builder.limit = chain('limit');
+  builder.in = chain('in');
   builder.insert = chain('insert');
   builder.update = chain('update');
   builder.single = chain('single');
@@ -63,6 +66,7 @@ vi.mock('@/src/lib/supabase/client', () => ({
 
 import {
   listProjectWorkOrders,
+  listOpenWorkOrdersForHome,
   getWorkOrder,
   createWorkOrder,
   updateWorkOrder,
@@ -430,4 +434,15 @@ describe('isOverCommitmentRefusal', () => {
     expect(isOverCommitmentRefusal('P0001')).toBe(false);
     expect(isOverCommitmentRefusal({ code: 'P0001' })).toBe(false);
   });
+});
+
+it('AC-2818-002 the home tile read requests at most five open orders with one query', async () => {
+  h.from.mockClear();
+  h.calls.in.length = 0;
+  h.calls.limit.length = 0;
+  h.result.value = { data: [], error: null };
+  await listOpenWorkOrdersForHome();
+  expect(h.from).toHaveBeenCalledExactlyOnceWith('work_orders');
+  expect(h.calls.in).toEqual([['status', ['Draft', 'Issued']]]);
+  expect(h.calls.limit).toEqual([5]);
 });

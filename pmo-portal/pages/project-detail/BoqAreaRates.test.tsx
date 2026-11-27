@@ -22,6 +22,20 @@ const renderIt = (catalogueItemId: string | null = null) => render(
 beforeEach(() => { h.may = true; h.set = vi.fn().mockResolvedValue(undefined); h.rates = [{ areaId: 'a1', rate: '8.5' }]; });
 
 describe('BoqAreaRates', () => {
+  it('preserves another area draft when a saved rate refreshes', async () => {
+    const user = userEvent.setup();
+    renderIt();
+    const north = await screen.findByRole('textbox', { name: 'Rate for North' });
+    await waitFor(() => expect(north).toHaveValue('8.5'));
+    const south = screen.getByRole('textbox', { name: 'Rate for South' });
+    await user.type(south, '12');
+    await user.clear(north);
+    await user.type(north, '10');
+    h.set.mockImplementation(async () => { h.rates = [{ areaId: 'a1', rate: '10' }]; });
+    await user.click(within(north.closest('li') as HTMLElement).getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(north).not.toBeDisabled());
+    expect(south).toHaveValue('12');
+  });
   it('AC-ARA-002 shows each area with its rate and saves a new one through the seam', async () => {
     const user = userEvent.setup();
     renderIt();

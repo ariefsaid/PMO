@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Checkbox, EntityFormModal, FormSection, SelectField, ListState, type SubmitError } from '@/src/components/ui';
+import { Checkbox, EntityFormModal, FormSection, SelectField, ListState, useToast, type SubmitError } from '@/src/components/ui';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import type { ProjectDocumentRow } from '@/src/lib/db/documents';
 
@@ -29,13 +29,15 @@ const EVIDENCE_STATUSES = new Set(['Issued', 'Approved']);
 
 const ClaimEvidenceModal: React.FC<ClaimEvidenceModalProps> = ({ documents, attachedDocumentIds, earlierDocumentIds = [], sourcePending = false, sourceError = null, onRetry, onClose, onAttach, onError }) => {
   const { t } = useTranslation('project');
+  const { toast } = useToast();
   const [choice, setChoice] = useState('');
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<SubmitError | null>(null);
+  const [completed, setCompleted] = useState<string[]>([]);
 
   const label = (d: ProjectDocumentRow) => `${d.code ? `${d.code} · ` : ''}${d.title} (${d.status}${d.revision
     ? `, ${t('projectDetail.billing.evidence.revision', 'rev {{revision}}', { revision: d.revision })}` : ''})`;
-  const eligible = documents.filter((d) => EVIDENCE_STATUSES.has(d.status) && Boolean(d.file_path) && !attachedDocumentIds.includes(d.id));
+  const eligible = documents.filter((d) => EVIDENCE_STATUSES.has(d.status) && Boolean(d.file_path) && !attachedDocumentIds.includes(d.id) && !completed.includes(d.id));
   const earlier = eligible.filter((d) => earlierDocumentIds.includes(d.id));
   const [unticked, setUnticked] = useState<string[]>([]);
   const toAttach = [...earlier.filter((d) => !unticked.includes(d.id)).map((d) => d.id), ...(choice && !earlierDocumentIds.includes(choice) ? [choice] : [])];
@@ -53,7 +55,8 @@ const ClaimEvidenceModal: React.FC<ClaimEvidenceModalProps> = ({ documents, atta
     setSaving(true);
     setSaveError(null);
     // One confirm, one attach per document (the server re-checks each); a refusal stops the rest and shows in the dialog.
-    void toAttach.reduce<Promise<void>>((done, id) => done.then(() => onAttach(id)), Promise.resolve())
+    void toAttach.reduce<Promise<void>>((done, id) => done.then(async () => { await onAttach(id); setCompleted((ids) => [...ids, id]); }), Promise.resolve())
+      .then(() => { toast(t('projectDetail.billing.claims.toast.evidenceAttached', 'Evidence attached'), undefined, 'success'); onClose(); })
       .catch((err: unknown) => {
         const { headline, detail } = classifyMutationError(err, undefined, { suppressCapture: true });
         setSaveError({ headline, detail });

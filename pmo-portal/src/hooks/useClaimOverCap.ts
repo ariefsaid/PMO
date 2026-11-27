@@ -11,7 +11,7 @@ export function useClaimOverCap() {
   const orgId = currentUser?.org_id;
   return useQuery<ClaimOverCapMode>({
     queryKey: [CLAIM_OVER_CAP_KEY, orgId],
-    queryFn: () => claimOverCapRepository.get(orgId as string),
+    queryFn: claimOverCapRepository.get,
     enabled: Boolean(orgId),
     staleTime: 5 * 60_000,
     retry: false,

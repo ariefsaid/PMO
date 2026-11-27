@@ -337,6 +337,7 @@ const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = (
   const [collapsedGroups, setCollapsedGroups] = useState(readCollapsedGroups);
   const scrollRegionRef = useRef<HTMLDivElement>(null);
   const [hasScrollCue, setHasScrollCue] = useState(false);
+  const listExists = Boolean(role);
   useEffect(() => {
     const region = scrollRegionRef.current;
     if (!region || typeof IntersectionObserver === 'undefined') return;
@@ -346,31 +347,41 @@ const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = (
         const whole = entry.intersectionRatio >= 0.99;
         element.style.opacity = whole ? '' : '0';
         element.style.pointerEvents = whole ? '' : 'none';
+        // Clipping blocks pointer hits only: Tab must still reach and reveal this destination.
       }
     }, { root: region, threshold: [0, 0.99, 1] });
-    region.querySelectorAll('a, button').forEach(element => observer.observe(element));
-    return () => observer.disconnect();
-  }, [role, userViews?.length, collapsedGroups, orgFeatures, location.pathname]);
+    const observeLinks = (root: ParentNode) => root.querySelectorAll('a, button').forEach(element => observer.observe(element));
+    observeLinks(region);
+    // Only maintain intersection targets when entitlement/view links arrive or leave.
+    // Badge text and aria-current changes must never schedule active-link geometry work.
+    const mutations = new MutationObserver(entries => {
+      for (const entry of entries) for (const node of entry.removedNodes) {
+        if (!(node instanceof HTMLElement)) continue;
+        if (node.matches('a, button')) observer.unobserve(node);
+        node.querySelectorAll('a, button').forEach(element => observer.unobserve(element));
+      }
+      for (const entry of entries) for (const node of entry.addedNodes) {
+        if (!(node instanceof HTMLElement)) continue;
+        if (node.matches('a, button')) observer.observe(node);
+        observeLinks(node);
+      }
+    });
+    mutations.observe(region, { childList: true, subtree: true });
+    return () => { observer.disconnect(); mutations.disconnect(); };
+  }, [listExists]);
 
+  const railFeatureShape = JSON.stringify(orgFeatures);
   useLayoutEffect(() => {
     const region = scrollRegionRef.current;
     if (!region) return;
-    region.scrollTop = 0;
     const reveal = () => {
       const active = region.querySelector<HTMLElement>('a[aria-current="page"]');
       if (!active) return false;
-      const group = active.closest<HTMLElement>('[role="group"]');
-      (group ?? active).scrollIntoView?.({ block: 'nearest' });
       active.scrollIntoView?.({ block: 'nearest' });
       return true;
     };
     reveal();
-    if (typeof MutationObserver === 'undefined') return;
-    // Entitlements can insert rows after the active link first appears; keep it in view as the content settles.
-    const observer = new MutationObserver(() => { reveal(); });
-    observer.observe(region, { childList: true, subtree: true, attributes: true, attributeFilter: ['aria-current'] });
-    return () => observer.disconnect();
-  }, [location.pathname, location.search, role]);
+  }, [location.pathname, location.search, role, userViews?.length, safetyEnabled, leaveEnabled, railFeatureShape, collapsedGroups, railActiveOverride, mayOrderPurchases, canViewStatements, hasEligibleTimesheets, functionKey]);
   useLayoutEffect(() => {
     const region = scrollRegionRef.current;
     if (!region) return;

@@ -119,23 +119,26 @@ function DataTableMobileCardInner<Row>({
       tabIndex={targetId ? -1 : undefined}
       data-record-row=""
       className={cn(
-        'relative flex min-h-[var(--table-row-min-height)] flex-col gap-2 p-[var(--table-cell-inset)] text-control transition-colors',
+        'relative min-h-[var(--table-row-min-height)] gap-2 p-[var(--table-cell-inset)] text-control transition-colors',
+        selection ? 'grid grid-cols-[16px_minmax(0,1fr)] items-start' : 'flex flex-col',
         onActivate && 'cursor-pointer',
         selected && 'bg-surface-selected'
       )}
     >
-      {/* Title row: first column + rowMenu ⋯ pinned top-right */}
-      <div className="flex items-start justify-between gap-3">
-        {/* Card title — activation button if rowLabel+onActivate supplied. Text that
-            outgrows the card wraps so its full meaning stays visible at phone widths. */}
-        <div className="flex min-w-0 flex-1 items-start gap-2">
-          {selection && <span className="mt-0.5 shrink-0" onClick={(event) => event.stopPropagation()}>
+          {selection && <span className="mt-0.5 flex h-11 shrink-0 items-center" onClick={(event) => event.stopPropagation()}>
             <Checkbox
               checked={isSelected}
               onChange={(checked) => modelRow.toggleSelected(checked)}
               label={selectionLabel(row, titleCol)}
             />
           </span>}
+      <div className="flex min-w-0 flex-col gap-2">
+      {/* Title row: first column + rowMenu ⋯ pinned top-right */}
+      <div className="flex items-start justify-between gap-3">
+        {/* Card title — activation button if rowLabel+onActivate supplied. Text that
+            outgrows the card wraps so its full meaning stays visible at phone widths. */}
+        <div className="flex min-w-0 flex-1 items-start gap-2">
+
           <div className="min-w-0 flex-1 break-words font-semibold [&_.truncate]:block [&_.truncate]:break-words [&_.truncate]:overflow-visible [&_.truncate]:text-clip [&_.truncate]:whitespace-normal">
             <LeadSlot lead={titleCol.lead?.(row)}>
             {canActivate && onActivate && titleCol.ownActivation !== true ? (
@@ -196,6 +199,7 @@ function DataTableMobileCardInner<Row>({
           })}
         </dl>
       )}
+      </div>
     </li>
   );
 }

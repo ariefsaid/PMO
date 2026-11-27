@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/src/auth/useAuth';
 import { useBuiltInRoleName } from '@/src/hooks/useOrgRoleNames';
 import { repositories } from '@/src/lib/repositories';
-import { useCompanies } from '@/src/hooks/useCompanies';
+import { useCompanyOptions } from '@/src/hooks/useCompanies';
 import { useTasks } from '@/src/hooks/useTasks';
 import { useMilestones } from '@/src/hooks/useMilestones';
 import { useProjectWorkOrders } from '@/src/hooks/useWorkOrders';
@@ -52,7 +52,7 @@ export function useHistoryRefs(args: {
     enabled: Boolean(orgId) && enabled,
     staleTime: 5 * 60_000,
   });
-  const companies = useCompanies(undefined, { enabled });
+  const companies = useCompanyOptions({ enabled });
 
   // Project lists: an empty id keeps each hook disabled off the project History.
   const projectId = enabled && entityType === 'project' ? entityId : '';

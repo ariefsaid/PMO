@@ -114,3 +114,5 @@ describe('#2897 photos on a submitted site report', () => {
     expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument();
   });
 });
+
+it("explains a failed site report photo open", async () => { const {repositories} = await import("@/src/lib/repositories"); vi.spyOn(repositories.dailySiteReport, "photoUrl").mockRejectedValueOnce(new TypeError("Failed to fetch")); render(<SiteReportPhotos report={report("validated")} photos={[{id: "p1", file_path: "p.jpg", kind: "paper_form"} as never]} canWrite={false} />); await userEvent.click(screen.getByRole("button", {name: "p.jpg"})); expect(await screen.findByText(/Update failed/i)).toBeInTheDocument(); });

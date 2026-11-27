@@ -102,8 +102,8 @@ const StockTransferDetail: React.FC = () => {
 
   const run = async (fn: () => Promise<void>, done: string) => {
     setBusy(true); setError('');
-    try { await fn(); await refresh(); toast(done, '', 'success'); setReason(''); setWithHandover(false); setHandover(emptyHandover()); setLate(emptyHandover()); }
-    catch (err) { setError(errorText(err)); } finally { setBusy(false); }
+    try { await fn(); await refresh(); toast(done, '', 'success'); setReason(''); setWithHandover(false); setHandover(emptyHandover()); setLate(emptyHandover()); return true; }
+    catch (err) { setError(errorText(err)); return false; } finally { setBusy(false); }
   };
   const receive = () => run(async () => {
     const confirmation = withHandover ? await buildConfirmation(me!.org_id, transfer.id, handover, 'receive') : null;
@@ -258,7 +258,7 @@ const StockTransferDetail: React.FC = () => {
         confirmLabel={t('transfers.recallAction')}
         loading={busy}
         error={recalling ? error || undefined : undefined}
-        onConfirm={(why) => void run(() => repo.recall(transfer.id, why), t('transfers.recalledToast')).then(() => setRecalling(false))}
+        onConfirm={(why) => void run(() => repo.recall(transfer.id, why), t('transfers.recalledToast')).then((ok) => { if (ok) setRecalling(false); })}
         onCancel={() => { if (!busy) setRecalling(false); }}
       />
     </div>

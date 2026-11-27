@@ -23,7 +23,8 @@ import { useAssistantPanel } from './useAssistantPanel';
 import { STUCK_RUN_STALE_MS } from '../components/panel/stuckRun.constants';
 
 const h = vi.hoisted(() => ({ getRunHeartbeat: vi.fn() }));
-vi.mock('../lib/db/agentRuns', () => ({ getRunHeartbeat: h.getRunHeartbeat }));
+// The fake clock owns heartbeat timing; an asynchronous implementation-module import must not race it.
+vi.mock('../lib/repositories', () => ({ repositories: { agentRun: { getHeartbeat: h.getRunHeartbeat } } }));
 vi.mock('../lib/db/agentEvents', () => ({ listRunEvents: vi.fn() }));
 
 function makeWrapper(runtime: AgentRuntime) {

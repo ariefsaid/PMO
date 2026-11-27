@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { usePermission } from '@/src/auth/usePermission';
 import { Button, FieldError, ListState, SelectField, useToast } from '@/src/components/ui';
@@ -6,6 +6,7 @@ import { useOrgSwitch } from '@/src/hooks/useOrgSwitch';
 import { useBuiltInRoleName } from '@/src/hooks/useOrgRoleNames';
 import { useJobRoleOptions } from '@/src/hooks/useJobRoleOptions';
 import { useOrderJobRoles, useOrderJobRolesMutation } from '@/src/hooks/useOrderJobRoles';
+import { useRemoteStringDraft } from '@/src/hooks/useRemoteStringDraft';
 import { useRefusalLine } from '@/src/lib/refusals';
 
 /** Who orders is never a field (light) account, so the picker offers managers and officers only. */
@@ -27,10 +28,11 @@ export default function OrderJobRolesSection() {
   const roleName = useBuiltInRoleName();
   const allOptions = useJobRoleOptions(t('orderRoles.choose', 'Choose a built-in role'), ORDER_TIERS);
 
-  const [keys, setKeys] = useState<string[] | null>(null);
+  const remoteDraft = useRemoteStringDraft({ remote: JSON.stringify([...(query.data ?? [])].sort()), isSuccess: query.isSuccess });
+  const keys: string[] | null = remoteDraft.dirty ? JSON.parse(remoteDraft.draft) : null;
+  const setKeys = (value: string[] | null) => { if (value === null) remoteDraft.reload(); else remoteDraft.setDraft(JSON.stringify([...value].sort())); };
   const [pick, setPick] = useState('');
   const [error, setError] = useState<string | null>(null);
-  useEffect(() => { setKeys(null); }, [query.data]);
   const current = useMemo(() => keys ?? query.data ?? [], [keys, query.data]);
   const dirty = keys !== null;
   const options = useMemo(() => allOptions.filter((o) => !current.includes(o.value)), [allOptions, current]);
@@ -45,6 +47,7 @@ export default function OrderJobRolesSection() {
     setError(null);
     try {
       await save.mutateAsync(current);
+      remoteDraft.acceptSaved(JSON.stringify([...current].sort()));
       toast(t('orderRoles.saved', 'Who can order purchases saved'), undefined, 'success');
     } catch (err) { setError(refusal(err)); }
   };
@@ -52,7 +55,7 @@ export default function OrderJobRolesSection() {
   return (
     <section aria-labelledby="order-roles-heading" data-testid="order-job-roles">
       <h2 id="order-roles-heading" className="text-group font-semibold">{t('orderRoles.heading', 'Who can order purchases')}</h2>
-      <p className="mt-1 text-control text-muted-foreground">
+      <p className="mt-1 max-w-prose text-control text-muted-foreground">
         {t('orderRoles.subline', 'Admin, Executive, Project Manager and Finance can always order. Name built-in roles whose holders may also raise and send purchase orders, for approved purchases only.')}
       </p>
       <div className="mt-4 max-w-xl space-y-3">
@@ -62,6 +65,7 @@ export default function OrderJobRolesSection() {
           <ListState variant="loading" rows={2} />
         ) : (
           <>
+            {remoteDraft.remoteChanged && <div role="status"><p>{t('common:uxs11.downPaymentRemoteChanged', 'The saved item changed. Your edit is kept; reload the saved value to discard it.')}</p><Button variant="outline" size="sm" onClick={remoteDraft.reload}>{t('common:uxs11.reloadSaved', 'Reload saved values')}</Button></div>}
             {current.length === 0 ? (
               <p className="text-control text-muted-foreground">{t('orderRoles.none', 'No built-in role is named, so only the access levels above can order.')}</p>
             ) : (

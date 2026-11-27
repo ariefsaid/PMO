@@ -453,6 +453,7 @@
         "loadFirst": "Muat langkah dari templat",
         "loadEmpty": "Muat langkah",
         "loadTemplateTerms": "Ganti tahap dengan templat",
+        "loadTemplateTermsHelp": "Langsung mengganti tahap yang tersimpan. Perubahan lain disimpan melalui Simpan ketentuan penagihan.",
         "loadTemplateError": "Templat tidak dapat dimuat.",
         "name": "Nama langkah",
         "newName": "Langkah baru",
@@ -1159,7 +1160,10 @@
       "folders": {
         "none": "Belum ada folder Microsoft yang ditautkan ke proyek ini."
       },
-      "headingFolders": "Folder proyek"
+      "headingFolders": "Folder proyek",
+      "form": {
+        "partialSave": "Detail dokumen tersimpan. Kategori belum dapat diubah. Coba lagi untuk menyelesaikan pemindahan."
+      }
     },
     "procurement": {
       "erpCard": {
@@ -1221,6 +1225,7 @@
         "all": "Semua"
       },
       "scopeAriaLabel": "Cakupan tugas",
+      "filters": "Filter",
       "filter": {
         "status": "Filter berdasarkan status",
         "allStatuses": "Semua status",
@@ -1265,6 +1270,7 @@
       "statusMix": "Tugas menurut status",
       "statusMixOther": "Lainnya",
       "taskGroups": {
+        "loadFailed": "Grup tugas tidak dapat dimuat",
         "title": "Grup tugas",
         "count_one": "{{count}} grup",
         "count_other": "{{count}} grup",
@@ -1304,6 +1310,8 @@
         "noPhase": "Tanpa fase"
       },
       "move": {
+        "partial": "{{moved}} dipindahkan. Masih di grup semula: {{names}}. Pilih Pindahkan lagi untuk mencoba ulang tugas ini saja.",
+        "finishRetry": "Coba ulang pemindahan yang belum selesai ke tujuan semula terlebih dahulu.",
         "title": "Pindahkan {{name}}",
         "submit": "Pindahkan",
         "parent": "Di bawah tugas",

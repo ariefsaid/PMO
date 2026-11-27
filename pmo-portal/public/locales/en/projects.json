@@ -105,6 +105,11 @@
   "contractBasisNote": "Contract amounts are {{basis}}.",
   "sharedManagerNote": "Project manager: {{name}}",
   "projectForm": {
+    "deputy": {
+      "label": "Deputy manager",
+      "placeholder": "Assign a deputy…",
+      "noun": "deputy"
+    },
     "endDateBeforeStart": "Expected end date must be on or after the start date.",
     "client": {
       "nounPlural": "companies"

@@ -36,7 +36,7 @@ function makeI18n(lng: 'en' | 'id') {
 /** #1522 site report record page: what each role is offered, and what the day shows (AC-DSR-004/005/008/011/013). */
 const h = vi.hoisted(() => ({
   detail: null as unknown,
-  revenue: [] as unknown[],
+  revenue: [] as unknown[], revenuePending: false, revenueError: false, retryRevenue: vi.fn(),
   equipment: [] as unknown[],
   peopleHours: '8',
   userId: 'eng',
@@ -61,7 +61,7 @@ vi.mock('@/src/hooks/useWorkOrderSections', () => ({
 }));
 vi.mock('@/src/hooks/useDailySiteReports', () => ({
   useDailySiteReport: () => ({ data: h.detail, isPending: false, isError: false, refetch: vi.fn() }),
-  useDailySiteReportRevenue: (_id: string, enabled: boolean) => ({ data: enabled ? h.revenue : undefined }),
+  useDailySiteReportRevenue: (_id: string, enabled: boolean) => ({ data: enabled ? h.revenue : undefined, isPending: h.revenuePending, isError: h.revenueError, refetch: h.retryRevenue }),
   useWorkOrderValidatedRevenue: (_id: string, enabled: boolean) => ({ data: enabled ? 140 : undefined }),
   useDsrLookups: () => ({
     idle: { data: [{ id: 'ir1', label: 'Weather' }] }, weather: { data: [{ id: 'wx1', label: 'Rain' }] },
@@ -128,7 +128,7 @@ const renderPage = (lng: 'en' | 'id' = 'en') => render(
 );
 
 beforeEach(() => {
-  h.builtInRoleKey = null; h.qsRevenue = true;
+  h.revenuePending = false; h.revenueError = false; h.builtInRoleKey = null; h.qsRevenue = true;
   h.userId = 'eng'; h.realRole = 'Engineer'; h.pm = 'pm'; h.pmName = 'Rina Wati'; h.noItems = false; h.equipment = []; h.peopleHours = '8';
   h.route = { routeKind: 'finance_admin', approvers: [] };
   h.routeError = false;
@@ -429,3 +429,5 @@ describe('QS report revenue scope', () => {
     expect(screen.queryByTestId('dsr-total')).toBeNull();
   });
 });
+
+it.each(["pending", "error"])("does not assert day revenue while rates are %s", (state) => { h.detail = make("submitted"); h.userId = "fin"; h.realRole = "Finance"; h.revenuePending = state === "pending"; h.revenueError = state === "error"; renderPage(); expect(screen.queryByTestId("dsr-total")).toBeNull(); expect(screen.queryAllByTestId("dsr-line-amount")).toHaveLength(0); });

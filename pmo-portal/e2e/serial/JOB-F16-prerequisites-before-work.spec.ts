@@ -7,7 +7,7 @@
  */
 import { test, expect } from '@playwright/test';
 import { ORG_ID, need, ok, runId, serviceClient } from '../support/jobFixtures';
-import { inDays, orgToday } from '../support/jobJourney';
+import { inDays, orgToday, ORG_TIMEZONE } from '../support/jobJourney';
 import { roleJobUser } from '../support/roleJobUser';
 import { openWorkOrderArea } from '../support/workOrderArea';
 
@@ -82,8 +82,9 @@ test('JOB-F16 the welder certificate and the permit to work both show with their
     const permit = page.getByTestId('safety-permit-row').filter({ hasText: permitNumber });
     await expect(permit).toBeVisible({ timeout: 20_000 });
     await expect(permit).toContainText(dayLabel(today));
-    await expect(permit).toContainText('07:00');
-    await expect(permit).toContainText('17:00');
+    const clock = new Intl.DateTimeFormat('en-GB', { timeZone: ORG_TIMEZONE, hour: '2-digit', minute: '2-digit', hour12: false });
+    await expect(permit).toContainText(clock.format(new Date(`${today}T07:00:00Z`)));
+    await expect(permit).toContainText(clock.format(new Date(`${today}T17:00:00Z`)));
   } finally {
     if (dayId) ok('safety day cleanup', await svc.from('safety_days').delete().eq('id', dayId));
     if (personId) ok('documents cleanup', await svc.from('expiry_documents').delete().eq('person_id', personId));

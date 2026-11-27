@@ -1,3 +1,6 @@
+import { WithheldPrice } from '@/src/components/ui/WithheldPrice';
+import { useMaySeePrices } from '@/src/hooks/useHidePrices';
+import { stockUnitCode } from "@/src/lib/i18n/stockUnitLabel";
 import React, { useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
@@ -57,6 +60,7 @@ const OverAllowanceNotice: React.FC<{ projectId: string; on: string; lines: Stoc
 
 const StockDocumentDetail: React.FC = () => {
   const { t, i18n } = useTranslation('stock');
+  const maySeePrices = useMaySeePrices();
   const { documentId } = useParams<{ documentId: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -96,9 +100,9 @@ const StockDocumentDetail: React.FC = () => {
   const postedFromOdoo = d?.status === 'Posted' && evidence?.state === 'confirmed';
   // Odoo's number is a sum across items: it reads as a quantity only when every line shares one unit, else the lines are counted.
   const units = new Set((d?.lines ?? []).map((l) => l.item?.unit.code));
-  const moved = units.size === 1 ? t('detail.erp.movedQuantity', { quantity: formatQuantity(evidence?.completedQuantity ?? '0', loc), unit: [...units][0] }) : t('detail.erp.movedLines', { count: d?.lines.length ?? 0 });
+  const moved = units.size === 1 ? t('detail.erp.movedQuantity', { quantity: formatQuantity(evidence?.completedQuantity ?? '0', loc), unit: stockUnitCode([...units][0] ?? '', t) }) : t('detail.erp.movedLines', { count: d?.lines.length ?? 0 });
   // The valuation is the project's material cost: the database answers it only to the roles that see stock costs.
-  const value = evidence?.completedValue ?? null;
+  const value = maySeePrices ? evidence?.completedValue ?? null : null;
   const awaitingEvidence = connected && d?.status === 'Posted' && erp.isPending;
   const isKeeper = (keepers.data ?? []).some((k) => k.warehouse_id === d?.warehouse_id && k.user_id === me);
   const record = { kind: d?.kind, status: d?.status, created_by: d?.created_by, isKeeper, viewOnly: realRole !== effectiveRole };
@@ -113,7 +117,7 @@ const StockDocumentDetail: React.FC = () => {
   const canEdit = writeOff && d?.status === 'Draft' && isAuthor && may('create', 'stockDocument', ctx);
   // The approver of a Draft write-off reviews what it WILL post: live system quantity, difference and, at rank >= 20, value (FR-STK-062/063).
   const liveDraft = writeOff && d?.status === 'Draft';
-  const seeCost = may('create', 'stockItem');
+  const seeCost = maySeePrices && may('create', 'stockItem');
   // C13: the line unit costs are stamped on the lines and stay readable after posting, so a
   // write-off's per-line money does not vanish from the record the moment it posts. A Draft reads them
   // for its value column; a posted ADJUSTMENT reads them for its unit-cost column.
@@ -144,7 +148,7 @@ const StockDocumentDetail: React.FC = () => {
     },
     {
       key: 'qty', header: d?.kind === 'count' ? t('count.detail.counted') : t('detail.columns.quantity'), align: 'num',
-      cell: (l) => <span className="tabular-nums">{formatQuantity(l.quantity ?? l.counted_quantity ?? '0', loc)} <span className="text-muted-foreground">{l.item?.unit.code}</span>
+      cell: (l) => <span className="tabular-nums">{formatQuantity(l.quantity ?? l.counted_quantity ?? '0', loc)} <span className="text-muted-foreground">{l.item ? stockUnitCode(l.item.unit.code, t) : null}</span>
         {l.quantity && Number(l.qty_rejected ?? 0) > 0 && <span className="block text-sm text-muted-foreground">{t('quality.passedQty', { qty: formatQuantity(subtractDecimal(l.quantity, l.qty_rejected ?? '0'), loc) })} · {t('quality.rejectedQty', { qty: formatQuantity(l.qty_rejected ?? '0', loc), reason: l.reject_note ?? '' })}</span>}</span>,
       exportValue: (l) => l.quantity ?? l.counted_quantity ?? '',
     },
@@ -190,12 +194,12 @@ const StockDocumentDetail: React.FC = () => {
   ], [t, loc, d?.kind, d?.warehouse_id, liveDraft, seeCost, currency, onHand.data, costs.data]);
 
   const entryRows = entries.data ?? [];
-  const showCost = entryRows.some((r) => r.valueDelta !== undefined);
+  const showCost = maySeePrices && entryRows.some((r) => r.valueDelta !== undefined);
   const entryCols: Column<StockLedgerRow>[] = useMemo(() => {
     const cols: Column<StockLedgerRow>[] = [
       { key: 'item', header: t('detail.columns.item'), rowHeader: true, cell: (r) => <span className="record-id font-semibold text-foreground">{r.itemCode}</span>, exportValue: (r) => r.itemCode },
       { key: 'wh', header: t('detail.columns.warehouse'), cell: (r) => <span className="text-sm">{r.warehouseCode}</span>, exportValue: (r) => r.warehouseCode },
-      { key: 'delta', header: t('detail.columns.change'), align: 'num', cell: (r) => <span className="tabular-nums">{r.qtyDelta.startsWith('-') ? '' : '+'}{formatQuantity(r.qtyDelta, loc)} {r.unitCode}</span>, exportValue: (r) => r.qtyDelta },
+      { key: 'delta', header: t('detail.columns.change'), align: 'num', cell: (r) => <span className="tabular-nums">{r.qtyDelta.startsWith('-') ? '' : '+'}{formatQuantity(r.qtyDelta, loc)} {stockUnitCode(r.unitCode, t)}</span>, exportValue: (r) => r.qtyDelta },
       { key: 'after', header: t('detail.columns.balance'), align: 'num', cell: (r) => <span className="tabular-nums">{formatQuantity(r.qtyAfter, loc)}</span>, exportValue: (r) => r.qtyAfter },
     ];
     if (showCost) cols.push({ key: 'value', header: t('detail.columns.value'), align: 'num', cell: (r) => <span className="tabular-nums">{formatStockValue(r.valueDelta, currency, loc)}</span>, exportValue: (r) => r.valueDelta ?? '' });
@@ -276,6 +280,7 @@ const StockDocumentDetail: React.FC = () => {
             {d.reason && <div className="col-span-full"><dt className="text-sm text-muted-foreground">{t('detail.fields.reason')}</dt><dd>{d.reason}</dd></div>}
             {d.note && <div className="col-span-full"><dt className="text-sm text-muted-foreground">{t('detail.fields.note')}</dt><dd>{d.note}</dd></div>}
           </dl>
+          {!maySeePrices && <WithheldPrice />}
           <section aria-labelledby="lines-h">
             <h2 id="lines-h" className="mb-2 text-group font-semibold">{t('detail.lines')}</h2>
             <DataTable<StockDocumentLine> rows={d.lines} columns={lineCols} rowKey={(l) => l.id} tableId="stock-document-lines" accessibleName={t('detail.lines')} embedded />

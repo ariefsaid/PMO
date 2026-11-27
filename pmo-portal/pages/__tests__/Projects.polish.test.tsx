@@ -14,7 +14,7 @@ const { state } = vi.hoisted(() => ({ state: { data: [
 ], isPending: false, isError: false, refetch: vi.fn() } }));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/hooks/useProjects', () => ({ useProjects: () => state, useClientCompanies: () => ({ data: [] }), useProjectManagers: () => ({ data: [] }), useProjectsMilestoneDates: () => ({ data: [] }), useProjectMutations: () => ({ create: {}, updateHeader: {}, archive: {} }) }));
-vi.mock('@/src/hooks/useCompanies', () => ({ useCompanies: () => ({ data: [] }) }));
+vi.mock('@/src/hooks/useCompanies', () => ({ useCompanyOptions: () => ({ data: [] }) }));
 vi.mock('@/src/hooks/useMyTasks', () => ({ useMyTasks: () => ({ data: [] }) }));
 vi.mock('@/src/hooks/useProjectsDelivery', () => ({ useProjectsDeliverySummary: () => ({ data: {} }) }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ role: 'Project Manager', currentUser: { id: 'pm' } }) }));

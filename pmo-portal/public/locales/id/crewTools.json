@@ -80,5 +80,6 @@
   "settingsTitle": "Koordinator peralatan",
   "usable": "Bisa dipakai",
   "usableNow": "{{usable}} bisa dipakai sekarang",
-  "writtenOffHelp": "Kru sekarang memegang {{qty}} lebih sedikit."
+  "writtenOffHelp": "Kru sekarang memegang {{qty}} lebih sedikit.",
+  "settingsError": "Pengaturan koordinator tidak dapat dimuat"
 }

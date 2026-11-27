@@ -1,6 +1,6 @@
 import { getActiveOrgTimezone, setActiveOrgTimezone } from '@/src/lib/locale/activeLocale';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, within, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
 import React from 'react';
@@ -217,6 +217,17 @@ describe('Incidents index — rows + badges + filters (AC-IN-001)', () => {
     expect(pageCalls.at(-1)).toMatchObject({ overdue: true });
   });
 
+  it('keeps all ten intermediate search terms out of the server query', async () => {
+    renderPage();
+    const input = screen.getByLabelText(/Search incidents/i);
+    for (let i = 1; i <= 10; i++) {
+      fireEvent.change(input, { target: { value: 'abcdefghij'.slice(0, i) } });
+      expect(pageCalls.at(-1)).toMatchObject({ search: undefined });
+    }
+    expect(input).toHaveValue('abcdefghij');
+    await waitFor(() => expect(pageCalls.at(-1)).toMatchObject({ search: 'abcdefghij' }));
+  });
+
   it('AC-IN-001: search filters rows by type/location', async () => {
     renderPage();
     await userEvent.type(screen.getByLabelText(/Search incidents/i), 'spill');
@@ -260,7 +271,8 @@ describe('Incidents index — rows + badges + filters (AC-IN-001)', () => {
     exportAll.mockResolvedValue([]);
     renderPage();
     await userEvent.click(screen.getByRole('tab', { name: /^Open$/ }));
-    await userEvent.type(screen.getByLabelText(/Search incidents/i), 'Row 1');
+    // Typing cost is covered above; this journey owns the full-set export contract.
+    fireEvent.change(screen.getByLabelText(/Search incidents/i), { target: { value: 'Row 1' } });
     await waitFor(() => expect(pageCalls.at(-1)).toMatchObject({ search: 'Row 1' }));
     await userEvent.click(screen.getByRole('button', { name: /export/i }));
     await waitFor(() => expect(exportAll).toHaveBeenCalledWith({ status: 'Open', search: 'Row 1' }));

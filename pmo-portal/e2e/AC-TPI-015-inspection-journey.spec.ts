@@ -1,4 +1,5 @@
 // @e2e-isolation: self-isolated — creates its own client, project, issued work order and inspection (with its purchase case and report object) and deletes only rows linked to this run in finally.
+import { managedProject } from "./support/managedProject";
 // AC-TPI-015 (#2580): a Project Manager requests a test on a work order, raises its purchase, records the invitation, the execution and an
 // uploaded report, and the work-order page shows it complete with its cost. Goal oracle: the page reads "Reported", "Complete" and the
 // committed cost of the purchase raised for it. Real browser, real database.
@@ -28,17 +29,17 @@ test('AC-TPI-015 request, purchase, invitation, execution and report show the in
   };
 
   try {
-    const profile = await admin.from('profiles').select('org_id').eq('email', 'pm@acme.test').single();
+    const profile = await admin.from('profiles').select('id, org_id').eq('email', 'pm@acme.test').single();
     if (profile.error) throw new Error('AC-TPI-015 fixture profile: ' + profile.error.message);
     const orgId = profile.data.org_id;
     const company = await admin.from('companies').insert({ org_id: orgId, name: 'Client ' + suffix, type: 'Client' }).select('id').single();
     if (company.error) throw new Error('AC-TPI-015 fixture client: ' + company.error.message);
     companyId = company.data.id;
-    const project = await admin.from('projects').insert({
+    const project = await admin.from('projects').insert(managedProject(profile.data.id, {
       org_id: orgId, name: 'Inspection project ' + suffix, status: 'Ongoing Project', currency: 'USD', client_id: companyId,
       contract_value: 1_000_000, tax_treatment: 'exclusive', tax_amount: 0, subject_to_vat: false, tax_rate: null,
       tax_base_numerator: 1, tax_base_denominator: 1,
-    }).select('id').single();
+    })).select('id').single();
     if (project.error) throw new Error('AC-TPI-015 fixture project: ' + project.error.message);
     projectId = project.data.id;
     workOrderId = crypto.randomUUID();

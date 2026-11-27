@@ -9,11 +9,7 @@ import { useContactsByCompany } from '@/src/hooks/useContacts';
  * account card and the page's contacts list, moved verbatim off CompanyDetail.
  */
 
-/**
- * AC-CRM-CD-08: renders a "Primary contact" link in the account card when the company
- * has at least one contact. Uses the first contact from useContactsByCompany (sorted
- * alphabetically by the DAL). Absent when there are no contacts.
- */
+/** The existing account-card contact shortcut. */
 export const PrimaryContactField: React.FC<{ companyId: string }> = ({ companyId }) => {
   const { t } = useTranslation();
   const { data, isPending } = useContactsByCompany(companyId);
@@ -84,7 +80,7 @@ export const CompanyContactsList: React.FC<{ companyId: string }> = ({ companyId
   }
 
   return (
-    <ul className="flex flex-col gap-1" aria-label={t('companyDetail.contacts.listLabel', 'Contacts list')}>
+    <ul className="flex flex-col gap-1" aria-label={t('companyDetail.field.primaryContact', 'Primary contact')}>
       {contacts.map((c) => (
         <li key={c.id}>
           <Link

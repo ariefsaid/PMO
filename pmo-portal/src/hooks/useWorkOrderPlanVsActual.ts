@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/src/auth/useAuth';
 import { workOrderFinanceRepository, type PlanChange } from '@/src/lib/repositories/workOrderFinance';
 import type { SplitPercent } from '@/src/lib/workOrderPlanVsActual';
@@ -14,14 +14,19 @@ export function useProjectPlanVsActual(projectId: string, enabled = true) {
   return useQuery(projectPlanVsActualQuery(useAuth().currentUser?.org_id, projectId, enabled));
 }
 
-function useInvalidate(projectId: string) {
+/** Refresh every project-money consumer in this organisation. */
+export function invalidateProjectPlanVsActual(qc: QueryClient, orgId: string | undefined) {
+  return qc.invalidateQueries({ queryKey: ['work-order-plan-vs-actual', orgId] });
+}
+
+function useInvalidate() {
   const qc = useQueryClient();
   const { currentUser } = useAuth();
-  return () => qc.invalidateQueries({ queryKey: ['work-order-plan-vs-actual', currentUser?.org_id, projectId] });
+  return () => invalidateProjectPlanVsActual(qc, currentUser?.org_id);
 }
 
 export function useSaveWorkOrderPlan(projectId: string) {
-  const invalidate = useInvalidate(projectId);
+  const invalidate = useInvalidate();
   return useMutation({
     mutationFn: ({ workOrderId, changes }: { workOrderId: string; changes: PlanChange[] }) =>
       workOrderFinanceRepository.setPlan(projectId, workOrderId, changes),
@@ -30,11 +35,11 @@ export function useSaveWorkOrderPlan(projectId: string) {
 }
 
 export function useSetSharedSplit(projectId: string) {
-  const invalidate = useInvalidate(projectId);
+  const invalidate = useInvalidate();
   return useMutation({ mutationFn: (split: SplitPercent[]) => workOrderFinanceRepository.setSplit(projectId, split), onSuccess: invalidate });
 }
 
 export function useClearSharedSplit(projectId: string) {
-  const invalidate = useInvalidate(projectId);
+  const invalidate = useInvalidate();
   return useMutation({ mutationFn: () => workOrderFinanceRepository.clearSplit(projectId), onSuccess: invalidate });
 }

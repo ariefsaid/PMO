@@ -61,14 +61,14 @@ const EarnedBilledProfit: React.FC<{ projectId: string }> = ({ projectId }) => {
 
   if (!on) return null;
   const title = t('earnedBilled.title', 'Earned and billed revenue');
-  const failed = pva.isError || eb.isError || revenue.isError;
-  if (pva.isPending || eb.isPending || revenue.isPending || failed || !pva.data || eb.data === undefined || revenue.data === undefined) {
+  const failed = pva.isError || eb.isError || revenue.isError || disciplines.isError;
+  if (pva.isPending || eb.isPending || revenue.isPending || disciplines.isPending || failed || !pva.data || eb.data === undefined || revenue.data === undefined) {
     return (
       <Card className="min-w-0" data-testid="earned-billed">
         <CardHead level={2} className="text-base">{title}</CardHead>
         <CardPad className="pt-0">
           {failed
-            ? <ListState variant="error" title={t('earnedBilled.loadError', 'Couldn\'t load earned and billed revenue')} retryLabel={t('profit.retry', 'Try again')} onRetry={() => { void pva.refetch(); void eb.refetch(); void revenue.refetch(); }} />
+            ? <ListState variant="error" title={t('earnedBilled.loadError', 'Couldn\'t load earned and billed revenue')} retryLabel={t('profit.retry', 'Try again')} onRetry={() => { void pva.refetch(); void eb.refetch(); void revenue.refetch(); void disciplines.refetch(); }} />
             : <ListState variant="loading" rows={3} />}
         </CardPad>
       </Card>

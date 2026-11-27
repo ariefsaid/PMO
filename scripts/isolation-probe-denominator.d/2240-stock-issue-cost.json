@@ -11,6 +11,6 @@
   ],
   "definer_functions": [
     "set_stock_issue_cost_date(date)",
-    "stock_issue_cost_lines(uuid)"
+    "stock_issue_cost_lines_core(uuid)"
   ]
 }

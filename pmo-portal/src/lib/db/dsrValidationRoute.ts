@@ -1,3 +1,4 @@
+import { nonEmptyString, parseRoute } from './parseRoute';
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError } from '@/src/lib/appError';
 
@@ -33,43 +34,21 @@ export interface DsrValidationRoute {
 
 const ROUTE_KINDS: readonly DsrValidationRouteKind[] = ['project_manager', 'finance_admin', 'job_roles', 'nobody', 'unavailable'];
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value);
-}
+const malformedRoute = () => new AppError('The site report validation route response was malformed', 'dsr-route-malformed');
 
-function nonEmptyString(value: unknown): value is string {
-  return typeof value === 'string' && value.trim() !== '';
-}
-
-/** Narrow the RPC's jsonb to the route shape. A malformed body is an error, never a fabricated route. */
 export function parseDsrValidationRoute(data: unknown): DsrValidationRoute {
-  if (!isRecord(data) || !Array.isArray(data.approvers) || !nonEmptyString(data.route_kind)) {
-    throw new AppError('The site report validation route response was malformed', 'dsr-route-malformed');
-  }
-  if (!ROUTE_KINDS.includes(data.route_kind as DsrValidationRouteKind)) {
-    throw new AppError('The site report validation route response was malformed', 'dsr-route-malformed');
-  }
-  const approvers: DsrValidationRouteApprover[] = data.approvers.map((entry) => {
-    if (!isRecord(entry) || !nonEmptyString(entry.id) || !nonEmptyString(entry.name) || !nonEmptyString(entry.role)) {
-      throw new AppError('The site report validation route response was malformed', 'dsr-route-malformed');
-    }
-    return { id: entry.id, name: entry.name, role: entry.role };
+  const { approvers, routeKind, fields } = parseRoute(data, ROUTE_KINDS, {
+    mode: 'nonblank', malformed: malformedRoute,
   });
+
+  const roles = fields.validate_roles;
   let validateRoles: string[] | undefined;
-  if (data.validate_roles !== undefined) {
-    if (!Array.isArray(data.validate_roles) || !data.validate_roles.every(nonEmptyString)) {
-      throw new AppError('The site report validation route response was malformed', 'dsr-route-malformed');
-    }
-    if (data.validate_roles.length > 0) {
-      validateRoles = data.validate_roles;
-    }
+  if (roles !== undefined) {
+    if (!Array.isArray(roles) || !roles.every(nonEmptyString)) throw malformedRoute();
+    if (roles.length > 0) validateRoles = roles;
   }
-  if (data.route_kind === 'job_roles' && (!validateRoles || validateRoles.length === 0)) {
-    throw new AppError('The site report validation route response was malformed', 'dsr-route-malformed');
-  }
-  return validateRoles
-    ? { approvers, routeKind: data.route_kind as DsrValidationRouteKind, validateRoles }
-    : { approvers, routeKind: data.route_kind as DsrValidationRouteKind };
+  if (routeKind === 'job_roles' && !validateRoles) throw malformedRoute();
+  return validateRoles ? { approvers, routeKind, validateRoles } : { approvers, routeKind };
 }
 
 /**

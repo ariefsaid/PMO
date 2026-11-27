@@ -9,7 +9,7 @@ import type { useTimesheetMutations } from '@/src/hooks/useTimesheetApproval';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import { type EditRow, computeTotals, diffEntries, gridIsValid, parseHourCell, saveToastForChangeCount } from '@/src/lib/timesheet-edit';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { formatDayRange, formatNumberMax2 } from '@/src/lib/format';
+import { formatDayRange, formatNumberExact, formatNumberMax2 } from '@/src/lib/format';
 import { timesheetActions } from '@/src/lib/db/timesheetTransition';
 import { dayKey, planCopyLastWeekRows, weekSaveState } from './timesheetWeekModel';
 import { TimesheetStatus } from '../../types';
@@ -71,7 +71,7 @@ export function useTimesheetWeekEditor({ currentTimesheet, currentWeekEntries, g
           project_id: r.id,
           project: r.project,
           code: r.code,
-          hours: r.hours.map((h) => (h === 0 ? '' : String(h))),
+          hours: r.hours.map((h) => (h === 0 ? '' : formatNumberExact(h))),
           note,
           attribution: { workOrderId: attributed?.work_order_id ?? null, disciplineId: attributed?.discipline_id ?? null },
           originalAttribution: { workOrderId: attributed?.work_order_id ?? null, disciplineId: attributed?.discipline_id ?? null },

@@ -10,7 +10,7 @@ const h = vi.hoisted(() => ({
   builtInRole: null as string | null,
   validateRoles: [] as string[],
   rows: [] as unknown[],
-  hasMore: false,
+  hasMore: false, queueError: false, retryQueue: vi.fn(),
   queue: [] as unknown[],
   calls: [] as Array<[unknown, number]>,
   crews: [{ id: 'c1', code: 'CR-1', name: 'Pipe crew' }] as unknown[],
@@ -18,7 +18,7 @@ const h = vi.hoisted(() => ({
 vi.mock('@/src/hooks/useCrews', () => ({ useCrews: () => ({ data: h.crews }) }));
 vi.mock('@/src/hooks/useDailySiteReports', () => ({
   useDailySiteReports: (filter: unknown, page: number) => { h.calls.push([filter, page]); return { data: { rows: h.rows, hasMore: h.hasMore }, isPending: false, isError: false, refetch: vi.fn() }; },
-  useDsrValidationQueue: (enabled: boolean) => ({ data: enabled ? h.queue : undefined }),
+  useDsrValidationQueue: (enabled: boolean) => ({ data: enabled ? h.queue : undefined, isError: h.queueError, refetch: h.retryQueue }),
 }));
 vi.mock('@/src/hooks/useDailyReportValidateRoles', () => ({
   useDailyReportValidateRoles: () => ({ data: h.validateRoles, isPending: false, isError: false }),
@@ -32,7 +32,7 @@ import SiteReports from './SiteReports';
 const row = (id: string, status: string, crew_name: string | null = null, person_name: string | null = null) => ({ id, work_date: '2026-03-10', work_order_label: `WO ${id}`, author_name: 'Field One', status, crew_name, person_name });
 const renderAt = (url = '/site-reports') => render(<MemoryRouter initialEntries={[url]}><SiteReports /></MemoryRouter>);
 
-beforeEach(() => { h.realRole = 'Finance'; h.builtInRole = null; h.validateRoles = []; h.rows = []; h.hasMore = false; h.queue = []; h.calls.length = 0; h.crews = [{ id: 'c1', code: 'CR-1', name: 'Pipe crew' }]; });
+beforeEach(() => { h.queueError = false; h.realRole = 'Finance'; h.builtInRole = null; h.validateRoles = []; h.rows = []; h.hasMore = false; h.queue = []; h.calls.length = 0; h.crews = [{ id: 'c1', code: 'CR-1', name: 'Pipe crew' }]; });
 
 describe('site reports list', () => {
   it('lets a reviewer identify and open each report from its row', () => {
@@ -117,3 +117,5 @@ describe('site reports list', () => {
     expect(queue).toHaveTextContent('WO-1 · Pipe');
   });
 });
+
+it("shows retry when the validation queue read fails", async () => { h.realRole = "Finance"; h.queueError = true; renderAt(); await userEvent.click(screen.getByRole("button", { name: /retry/i })); expect(h.retryQueue).toHaveBeenCalled(); });

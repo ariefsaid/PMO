@@ -211,6 +211,7 @@ const SettingsCard: React.FC = () => {
   const coordValue = coordinator ?? settings.data?.coordinator_id ?? '';
   const daysValue = days ?? String(settings.data?.task_due_days ?? 3);
   const save = () => {
+    if (!settings.isSuccess) return;
     setProblem(null);
     void (async () => {
       try {
@@ -224,13 +225,14 @@ const SettingsCard: React.FC = () => {
     <Card className="mt-6">
       <CardHead>{t('crewTools:settingsTitle', 'Equipment coordinator')}</CardHead>
       <CardPad>
+        {settings.isError && <ListState variant="error" title={t('crewTools:settingsError', "Couldn't load coordinator settings")} onRetry={() => void settings.refetch()} retryLabel={t('crewTools:retry', 'Retry')} />}
         <div className="grid gap-3 sm:grid-cols-[1fr_160px_auto] sm:items-end">
           <SelectField label={t('crewTools:coordinator', 'Gets the replacement task')} value={coordValue} onChange={setCoordinator}
             helper={coordValue === '' ? t('crewTools:noCoordinatorHelp', 'None: Admin and Project Manager users are told instead.') : undefined}
             options={[{ value: '', label: t('crewTools:noCoordinator', 'No coordinator') },
               ...(users.data ?? []).filter((u) => u.status === 'active').map((u) => ({ value: u.id, label: u.full_name ?? u.email ?? u.id }))]} />
           <NumberField label={t('crewTools:dueDays', 'Due in days')} value={daysValue} onChange={setDays} inputMode="numeric" />
-          <Button variant="outline" onClick={save} disabled={setSettings.isPending || !Number.isInteger(Number(daysValue))}>{t('crewTools:save', 'Save')}</Button>
+          <Button variant="outline" onClick={save} disabled={!settings.isSuccess || setSettings.isPending || !Number.isInteger(Number(daysValue))}>{t('crewTools:save', 'Save')}</Button>
         </div>
         {problem && <p role="alert" className="mt-2 text-sm text-destructive-text">{problem}</p>}
       </CardPad>

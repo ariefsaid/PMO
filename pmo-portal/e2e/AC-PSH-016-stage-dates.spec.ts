@@ -1,4 +1,6 @@
 // @e2e-isolation: self-isolated — creates its own deal (service-role insert) and deletes it afterwards.
+import { managedProject } from "./support/managedProject";
+import { PM_ID } from "./support/jobFixtures";
 import { test, expect } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
 import { randomUUID } from 'node:crypto';
@@ -23,9 +25,9 @@ const orgDayMonth = (daysAgo: number) => {
 };
 
 test.beforeAll(async () => {
-  const { error } = await admin.from('projects').insert({
+  const { error } = await admin.from('projects').insert(managedProject(PM_ID, {
     id: ID, org_id: ORG_ID, name: NAME, status: 'Leads', created_at: new Date(Date.now() - 60 * 86_400_000).toISOString(),
-  });
+  }));
   if (error) throw new Error(`AC-PSH-016 seed failed: ${error.message}`);
   const { error: moveError } = await admin.from('projects').update({ status: 'Quotation Submitted' }).eq('id', ID);
   if (moveError) throw new Error(`AC-PSH-016 seed move failed: ${moveError.message}`);

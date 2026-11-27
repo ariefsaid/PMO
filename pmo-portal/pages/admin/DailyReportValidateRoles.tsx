@@ -1,4 +1,4 @@
-import React, { useEffect, useId, useMemo, useState } from 'react';
+import React, { useId, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { BUILT_IN_ROLES } from '@/src/auth/builtInRoles';
 import { useEffectiveRole } from '@/src/auth/impersonation';
@@ -8,6 +8,7 @@ import { RoleChecklist } from '@/src/components/admin/RoleChecklist';
 import { useDailyReportValidateRoles, useSaveDailyReportValidateRoles } from '@/src/hooks/useDailyReportValidateRoles';
 import { useBuiltInRoleName } from '@/src/hooks/useOrgRoleNames';
 import { useOrgSwitch } from '@/src/hooks/useOrgSwitch';
+import { useRemoteStringDraft } from '@/src/hooks/useRemoteStringDraft';
 import { useRefusalLine } from '@/src/lib/refusals';
 
 /** Field accounts are refused by dsr_may_validate and set_daily_report_validate_roles, so only manager and officer roles are offered. */
@@ -32,12 +33,11 @@ const DailyReportValidateRoles: React.FC = () => {
   const roleName = useBuiltInRoleName();
   const helperId = useId();
 
-  const [draft, setDraft] = useState<string[] | null>(null);
+  const remoteDraft = useRemoteStringDraft({ remote: JSON.stringify([...(query.data ?? [])].sort()), isSuccess: query.isSuccess });
+  const draft: string[] | null = remoteDraft.dirty ? JSON.parse(remoteDraft.draft) : null;
+  const setDraft = (value: string[]) => remoteDraft.setDraft(JSON.stringify([...value].sort()));
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    setDraft(null);
-  }, [query.data]);
 
   const saved = useMemo(() => [...(query.data ?? [])].sort(), [query.data]);
   const selected = useMemo(() => draft ?? saved, [draft, saved]);
@@ -48,7 +48,7 @@ const DailyReportValidateRoles: React.FC = () => {
     setError(null);
     try {
       await save.mutateAsync(selected);
-      setDraft(null);
+      remoteDraft.acceptSaved(JSON.stringify([...selected].sort()));
       toast(t('admin.dsrValidateRoles.saved', 'Site report validator roles saved'), undefined, 'success');
     } catch (err) {
       setError(refusal(err));
@@ -83,6 +83,7 @@ const DailyReportValidateRoles: React.FC = () => {
           <ListState variant="loading" rows={2} />
         ) : (
           <>
+            {remoteDraft.remoteChanged && <div role="status"><p>{t('common:uxs11.downPaymentRemoteChanged', 'The saved item changed. Your edit is kept; reload the saved value to discard it.')}</p><Button variant="outline" size="sm" onClick={remoteDraft.reload}>{t('common:uxs11.reloadSaved', 'Reload saved values')}</Button></div>}
             <RoleChecklist
               legend={t('admin.dsrValidateRoles.legend', 'Job roles that validate daily site reports')}
               hideLegend

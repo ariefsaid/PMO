@@ -1,10 +1,10 @@
+import { useDebouncedUrlFilters } from '@/src/hooks/useDebouncedUrlFilters';
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import {
   ListPage,
   FilterBar,
-  useUrlFilters,
   ListState,
   DataTable,
   StatusPill,
@@ -66,7 +66,7 @@ const Incidents: React.FC = () => {
   // R2: page joins q/status in the URL so Back/refresh return to the same page; page 1 (the
   // default) stays out of the URL. Filter resets ride the filter's own history entry (replace)
   // and batch with the filter write — react-router 8 does not queue same-tick param writes.
-  const { values, setFilter, setFilters, clear } = useUrlFilters(['q', 'status', 'due', 'page', 'project']);
+  const { values, setFilter, setFilters, clear, search: searchInput, setSearch } = useDebouncedUrlFilters(['q', 'status', 'due', 'page', 'project'], { page: '' });
   const statusFilter = values.status as IncidentStatus | '';
   const search = values.q;
   const overdueOnly = values.due === 'overdue';
@@ -294,8 +294,8 @@ const Incidents: React.FC = () => {
             searchSurface="incidents-list"
             module="incidents"
             filters={filters}
-            values={values}
-            onChange={handleFilterChange}
+            values={{ ...values, q: searchInput }}
+            onChange={(key, value) => key === 'q' ? setSearch(value) : handleFilterChange(key, value)}
             onClear={() => {
               // clear() removes every URL key including `page`, so the reset is implied.
               clear();
@@ -313,7 +313,7 @@ const Incidents: React.FC = () => {
             entity="Incidents"
             columns={columns}
             hasRows={total > 0}
-            fetchRows={() => exportAll.mutateAsync({ status: statusFilter || undefined, search: search.trim() || undefined, overdue: overdueOnly || undefined, projectId: values.project || undefined })}
+            fetchRows={() => exportAll.mutateAsync({ status: statusFilter || undefined, search: searchInput.trim() || undefined, overdue: overdueOnly || undefined, projectId: values.project || undefined })}
           />
         )
       }

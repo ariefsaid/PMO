@@ -1,3 +1,4 @@
+import { useDebouncedUrlFilters } from '@/src/hooks/useDebouncedUrlFilters';
 import { useDomainOwnershipMode } from '@/src/hooks/useDomainOwnershipMode';
 import { companyDisplayName } from '@/src/lib/companyDisplayName';
 import React, { useEffect, useMemo, useState } from 'react';
@@ -5,7 +6,6 @@ import {
   ListPage,
   SearchMini,
   Combobox,
-  useUrlFilters,
   ListState,
   DataTable,
   ConfirmDialog,
@@ -58,7 +58,7 @@ const Contacts: React.FC = () => {
   // CRM directory view = the master-data roles (Engineer = ○, no nav/page) — mirrors Companies §D.
   const canView = may('view', 'contact');
 
-  const { values, setFilter, clear } = useUrlFilters(['q', 'company']);
+  const { values, setFilter, clear, search: searchInput, setSearch } = useDebouncedUrlFilters(['q', 'company']);
   const companyFilter = values.company;
   const search = values.q;
 
@@ -143,7 +143,7 @@ const Contacts: React.FC = () => {
     () => async () => companyFilterChoices,
     [companyFilterChoices],
   );
-  const hasActiveFilter = Boolean(search || (companyFilter && companyFilter !== 'All'));
+  const hasActiveFilter = Boolean(searchInput || (companyFilter && companyFilter !== 'All'));
 
   const creatableCompanies = external ? companies.filter((company) => mappings.ids.includes(company.id)) : companies;
   const createOptions = creatableCompanies.map((company) => ({ value: company.id, label: companyDisplayName(company) }));
@@ -323,8 +323,8 @@ const Contacts: React.FC = () => {
           <SearchMini
             aria-label={t('contacts.search.ariaLabel', 'Search contacts')}
             placeholder={t('contacts.search.placeholder', 'Search contacts…')}
-            value={search}
-            onChange={(event) => setFilter('q', event.currentTarget.value)}
+            value={searchInput}
+            onChange={(event) => setSearch(event.currentTarget.value)}
             containerClassName="max-sm:basis-full max-sm:w-full max-sm:min-w-0 sm:ml-auto"
           />
         )
@@ -338,7 +338,7 @@ const Contacts: React.FC = () => {
             fetchRows={() =>
               exportAll.mutateAsync({
                 companyId: !companyFilter || companyFilter === 'All' ? undefined : companyFilter,
-                search: search.trim() || undefined,
+                search: searchInput.trim() || undefined,
               })
             }
           />

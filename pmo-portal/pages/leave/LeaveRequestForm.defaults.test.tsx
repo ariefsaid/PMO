@@ -5,23 +5,36 @@ import { resetActiveLocale, setActiveLocale, setActiveOrgTimezone } from '@/src/
 import { ToastProvider } from '@/src/components/ui';
 
 /** fix/walk-people item 5: "request leave or report sick" never starts on someone; with a choice to make, the person is picked. */
-const h = vi.hoisted(() => ({ people: [] as Array<{ id: string; name: string; is_self: boolean }>, submit: vi.fn(), pending: false }));
+const h = vi.hoisted(() => ({ people: [] as Array<{ id: string; name: string; is_self: boolean }>, submit: vi.fn(), pending: false, peopleError: false, typesError: false, retry: vi.fn() }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { org_id: 'o1', id: 'u1', role: 'Project Manager' } }) }));
 vi.mock('@/src/hooks/useLeave', () => ({
   useLeaveSettings: () => ({ data: { enabled: true, approver_role: null } }),
-  useLeaveTypes: () => ({ data: [{ id: 't1', name: 'Type A', archived_at: null }] }),
+  useLeaveTypes: () => ({ data: h.typesError ? undefined : [{ id: 't1', name: 'Type A', archived_at: null }], isError: h.typesError, refetch: h.retry }),
   useLeaveMutations: () => ({ submit: { mutateAsync: h.submit, isPending: false } }),
 }));
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { rpc: vi.fn() } }));
 vi.mock('@tanstack/react-query', async (orig) => {
   const m = await orig<typeof import('@tanstack/react-query')>();
-  return { ...m, useQuery: () => ({ data: h.people, isPending: h.pending }) };
+  return { ...m, useQuery: () => ({ data: h.peopleError ? undefined : h.people, isPending: h.pending, isError: h.peopleError, refetch: h.retry }) };
 });
 import { LeaveRequestForm } from './LeaveRequestForm';
 
 const mount = () => render(<ToastProvider><LeaveRequestForm onClose={() => {}} /></ToastProvider>);
 
 describe('LeaveRequestForm person default', () => {
+  it.each(['peopleError', 'typesError'] as const)('retries %s before offering the leave form', async (key) => {
+    h.people = [{ id: 'p1', name: 'Own', is_self: true }]; h[key] = true;
+    try {
+      const view = mount();
+      expect(screen.queryByTestId('leave-no-types')).not.toBeInTheDocument();
+      await userEvent.click(screen.getByRole('button', { name: /retry|try again/i }));
+      expect(h.retry).toHaveBeenCalled();
+      expect(screen.getByRole('button', { name: 'Send request' })).toBeDisabled();
+      h[key] = false;
+      view.rerender(<ToastProvider><LeaveRequestForm onClose={() => {}} /></ToastProvider>);
+      expect(screen.getByLabelText(/^Type/)).toBeInTheDocument();
+    } finally { h[key] = false; }
+  });
   it('explains the person-record manager route and promises the result', () => {
     h.people = [{ id: 'p9', name: 'Own', is_self: true }];
     mount();

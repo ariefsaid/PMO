@@ -56,7 +56,7 @@ vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('../../components/ProjectStatusControl', () => ({ default: () => null }));
 
 vi.mock('@/src/hooks/useCompanies', () => ({
-  useCompanies: () => companiesState,
+  useCompanyOptions: () => companiesState,
   // #1989: a SERVER page — the search narrows on the "server" so a filtered-to-zero page is
   // observable through the rendered directory (as the Meetings mock does).
   useCompaniesPage: ({ search }: { search: string }) => {
@@ -66,7 +66,6 @@ vi.mock('@/src/hooks/useCompanies', () => ({
   },
   useCompaniesTotal: () => ({ data: companiesState.data.length }),
   useCompaniesExportAll: () => ({ mutateAsync: vi.fn().mockResolvedValue([]), isPending: false }),
-  useCompanyOptions: () => ({ data: companiesState.data, isPending: false, isError: false }),
   useCompanyMutations: () => ({
     create: noopMutations(),
     update: noopMutations(),

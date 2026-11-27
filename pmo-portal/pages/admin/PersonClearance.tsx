@@ -93,7 +93,7 @@ export default function PersonClearance() {
     <div className="min-w-0">
       <p className="mb-2"><Link to="/administration/clearance" className="text-control underline-offset-2 hover:underline">{t('clearance.person.back', 'Back to Clearance')}</Link></p>
       <RecordHeader name={person.data.name}
-        status={<StatusPill variant={cleared ? 'won' : 'warn'}>{cleared ? t('clearance.cleared', 'Cleared') : t('clearance.notCleared', 'Not cleared')}</StatusPill>} />
+        status={summary.isError ? <ListState variant="error" title={t('administration:orgSwitch.loadError', "Couldn't load this setting")} onRetry={() => void summary.refetch()} /> : summary.isPending ? <ListState variant="loading" rows={1} /> : <StatusPill variant={cleared ? 'won' : 'warn'}>{cleared ? t('clearance.cleared', 'Cleared') : t('clearance.notCleared', 'Not cleared')}</StatusPill>} />
       <section aria-labelledby="clearance-checklist-heading" className="mt-4">
         <h2 id="clearance-checklist-heading" className="text-group font-semibold">{t('clearance.person.heading', 'Cleared-for-site checklist')}</h2>
         <div className="mt-3">

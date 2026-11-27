@@ -157,7 +157,7 @@ describe('listCompanyOptions (the pickers that must offer EVERY company)', () =>
     h.pushResult({ data: fullPage, error: null, count: null });
     h.pushResult({ data: [{ id: 'a-early', name: 'Alpha', short_name: 'AL' }], error: null, count: null });
     const rows = await listCompanyOptions();
-    expect(h.calls.select[0][0]).toBe('id,name,short_name');
+    expect(h.calls.select[0][0]).toBe('id,name,short_name,type');
     // one read per keyset page; EVERY page re-applies the archived filter
     expect(h.calls.is).toEqual([['archived_at', null], ['archived_at', null]]);
     expect(h.calls.limit).toEqual([1000, 1000]);

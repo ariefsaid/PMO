@@ -27,7 +27,7 @@ vi.mock('@/src/lib/repositories', () => ({
     project: { list: dal.listProjects },
     procurement: { list: dal.listProcurements },
     dashboard: { salesPipeline: dal.getSalesPipeline },
-    company: { list: dal.listCompanies },
+    company: { listOptions: dal.listCompanies },
     contact: { list: dal.listContacts },
     incident: { list: dal.listIncidents },
   },

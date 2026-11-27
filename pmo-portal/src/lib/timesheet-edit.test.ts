@@ -37,6 +37,16 @@ describe('parseHourCell', () => {
     expect(parseHourCell('24')).toEqual({ value: 24, valid: true });
     expect(parseHourCell('7.5')).toEqual({ value: 7.5, valid: true });
   });
+
+  it('#2440: one comma is a decimal separator (an Indonesian phone keypad types 3,5)', () => {
+    expect(parseHourCell('3,5')).toEqual({ value: 3.5, valid: true });
+    expect(parseHourCell(' 7,25 ')).toEqual({ value: 7.25, valid: true });
+    expect(parseHourCell('24,5').valid).toBe(false);
+    expect(parseHourCell('1,2,3').valid).toBe(false);
+    expect(parseHourCell('1.2,3').valid).toBe(false);
+    expect(parseHourCell('-3,5').valid).toBe(false);
+    expect(parseHourCell('8,5h').valid).toBe(false);
+  });
 });
 
 // ---------------------------------------------------------------------------

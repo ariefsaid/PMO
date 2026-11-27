@@ -15,85 +15,9 @@
  * modules, shared dispatch/error helpers in `./repositoryDispatch` / `./repositoryErrors`,
  * and the per-domain contracts in `./contracts/*` (re-exported through `./types`).
  */
-import { companyCollectionsRepository } from './companyCollections';
-import { recordHistoryRepository } from './recordHistory';
-import { projectStageRepository } from './projectStages';
-import { rateCatalogueRepository } from './rateCatalogue';
-import { dailySiteReportRepository } from './dailySiteReports';
-import { workOrderCheckTemplateRepository } from './workOrderCheckTemplate';
-import { safetyDayRepository } from './safetyDays';
-import { quantityChangeRepository } from './quantityChanges';
-import { vendorWithholdingSlipsRepository } from './vendorWithholdingSlips';
-import { supplyRiskRepository } from './supplyRisk';
-import { fxRatesRepository } from './fxRates';
-import { financialStatementsRepository } from './financialStatements';
-import { expensePostingsRepository } from './expensePostings';
-import { erpPurchasesRepository } from './erpPurchases';
-import { erpJournalLinesRepository } from './erpJournalLines';
-import { odooLedgerRepository } from './odooLedger';
-import { projectRepository } from './projects';
-import { projectMoneyRepository } from './projectMoney';
-import { projectOverviewRepository } from './projectOverview';
-import { dashboardRepository } from './dashboard';
-import { agentRunRepository } from './agentRuns';
-import { notificationRepository } from './notifications';
-import { companyRepository, contactRepository } from './companies';
-import {
-  documentRepository,
-  agentAttachmentRepository,
-  m365DocumentSettingsRepository,
-  m365RecordFoldersRepository,
-} from './documents';
-import {
-  profileRepository,
-  operatorRepository,
-  usageRepository,
-  userViewRepository,
-  orgFeatureRepository,
-  orgSettingsRepository,
-  creditsRepository,
-  externalDomainOwnershipRepository,
-} from './admin';
-import { taskRepository } from './tasks';
-import { billingStagesRepository } from './billingStages';
-import { closeoutChecklistRepository } from './closeoutChecklist';
-import { surveyRecordRepository } from './surveyRecords';
-import { workInHandRepository } from './workInHand';
-import { openingBalanceRepository } from './openingBalances';
-import { taskProofRepository } from './taskProofs';
-import { thirdPartyInspectionRepository } from './thirdPartyInspections';
-import { commentRepository } from './comments';
-import { meetingRepository } from './meetings';
-import { incidentRepository } from './incidents';
-import { issueClosingReportRepository } from './issueClosingReport';
-import { incidentTypeRepository } from './incidentTypes';
-import { procurementRepository, procurementFilesRepository } from './procurement';
-import { subcontractRepository } from './subcontracts';
-import { subcontractCertificateRepository } from './subcontractCertificates';
-import { revenueRepository } from './revenue';
-import { timesheetRepository } from './timesheets';
-import { stockRepository } from './stock';
-import { stockOpeningRepository } from './stockOpening';
-import { budgetRepository } from './budget';
-import {
-  milestoneRepository,
-  workOrderRepository,
-  progressBillingRepository,
-  workOrderAcceptanceRepository,
-} from './workOrders';
-import { expenseClaimRepository, expenseReceiptsRepository } from './expenses';
-import { imprestRepository } from './imprest';
-import { journalRepository } from './journals';
-import { equipmentRepository } from './equipment';
-import { documentExpiryRepository } from './documentExpiry';
-import { documentCategoryRepository } from './documentCategories';
-import { equipmentAvailabilityRepository } from './equipmentAvailability';
-import { peopleRepository } from './people';
-import { timeAndMaterialsRepository } from './timeAndMaterials';
-import { integrationsRepository } from './integrations';
-import { odooRepository } from './odoo';
-import { erpSnapshotsRepository, reportsRepository } from './reporting';
+
 import type { Repositories } from './types';
+import { lazyRepository } from './lazyRepository';
 
 // BLOCK 2 (MONEY-CRITICAL): `newCommandIntent()` lives in ./commandIntent (a leaf module) and is
 // re-exported here so the public seam is unchanged — see that file for the full rationale.
@@ -111,84 +35,165 @@ export { newCommandIntent } from './commandIntent';
  */
 export { timesheetPushKey } from '@/src/lib/adapterSeam/erpnext/timesheetPushKey';
 
-/** The Supabase-backed repositories the FE/CRUD layer consumes (ADR-0017). */
+/**
+ * Load each domain when its first query or mutation runs. Enumerable typed shapes
+ * preserve the public object shape (including spreads) and enforce every contract
+ * at compile time; the shared forwarder loads only the domain being called.
+ * Existing query loading/error states also cover the chunk download.
+ */
 export const repositories: Repositories = {
-  fxRates: fxRatesRepository,
-  m365DocumentSettings: m365DocumentSettingsRepository,
-  m365RecordFolders: m365RecordFoldersRepository,
-  recordHistory: recordHistoryRepository,
-  vendorWithholdingSlips: vendorWithholdingSlipsRepository,
-  supplyRisk: supplyRiskRepository,
-  project: projectRepository,
-  projectStage: projectStageRepository,
-  projectMoney: projectMoneyRepository,
-  projectOverview: projectOverviewRepository,
-  dashboard: dashboardRepository,
-  agentRun: agentRunRepository,
-  notification: notificationRepository,
-  company: companyRepository,
-  document: documentRepository,
-  agentAttachment: agentAttachmentRepository,
-  profile: profileRepository,
-  procurement: procurementRepository,
-  subcontracts: subcontractRepository,
-  subcontractCertificates: subcontractCertificateRepository,
-  revenue: revenueRepository,
-  timesheet: timesheetRepository,
-  budget: budgetRepository,
-  task: taskRepository,
-  taskProof: taskProofRepository,
-  thirdPartyInspection: thirdPartyInspectionRepository,
-  incident: incidentRepository,
-  issueClosingReport: issueClosingReportRepository,
-  incidentType: incidentTypeRepository,
-  comment: commentRepository,
-  milestone: milestoneRepository,
-  workOrder: workOrderRepository,
-  progressBilling: progressBillingRepository,
-  rateCatalogue: rateCatalogueRepository,
-  billingStages: billingStagesRepository,
-  closeoutChecklist: closeoutChecklistRepository,
-  surveyRecord: surveyRecordRepository,
-  dailySiteReport: dailySiteReportRepository,
-  workOrderCheckTemplate: workOrderCheckTemplateRepository,
-  safetyDay: safetyDayRepository,
-  workInHand: workInHandRepository,
-  openingBalances: openingBalanceRepository,
-  quantityChange: quantityChangeRepository,
-  stock: stockRepository,
-  stockOpening: stockOpeningRepository,
-  workOrderAcceptance: workOrderAcceptanceRepository,
-  procurementFiles: procurementFilesRepository,
-  expenseClaim: expenseClaimRepository,
-  imprest: imprestRepository,
-  journal: journalRepository,
-  equipment: equipmentRepository,
-  documentExpiry: documentExpiryRepository,
-  documentCategory: documentCategoryRepository,
-  equipmentAvailability: equipmentAvailabilityRepository,
-  people: peopleRepository,
-  timeAndMaterials: timeAndMaterialsRepository,
-  expenseReceipts: expenseReceiptsRepository,
-  expensePostings: expensePostingsRepository,
-  erpPurchases: erpPurchasesRepository,
-  erpJournalLines: erpJournalLinesRepository,
-  odooLedger: odooLedgerRepository,
-  contact: contactRepository,
-  meeting: meetingRepository,
-  userView: userViewRepository,
-  operator: operatorRepository,
-  usage: usageRepository,
-  orgFeature: orgFeatureRepository,
-  orgSettings: orgSettingsRepository,
-  credits: creditsRepository,
-  externalDomainOwnership: externalDomainOwnershipRepository,
-  erpSnapshots: erpSnapshotsRepository,
-  companyCollections: companyCollectionsRepository,
-  financialStatements: financialStatementsRepository,
-  integrations: integrationsRepository,
-  odoo: odooRepository,
-  reports: reportsRepository,
+  fxRates: lazyRepository(() => import('./fxRates').then((module) => module.fxRatesRepository),
+    { list: true, existing: true, onDate: true, upsert: true, context: true }),
+  m365DocumentSettings: lazyRepository(() => import('./documents').then((module) => module.m365DocumentSettingsRepository),
+    { getDefaultLibrary: true, setDefaultLibrary: true }),
+  m365RecordFolders: lazyRepository(() => import('./documents').then((module) => module.m365RecordFoldersRepository),
+    { ensure: true, linkExisting: true }),
+  recordHistory: lazyRepository(() => import('./recordHistory').then((module) => module.recordHistoryRepository),
+    { list: true, lookupNames: true }),
+  vendorWithholdingSlips: lazyRepository(() => import('./vendorWithholdingSlips').then((module) => module.vendorWithholdingSlipsRepository),
+    { record: true, correct: true, void: true, listSlips: true, listBills: true, coverage: true, readBillContexts: true, get: true }),
+  supplyRisk: lazyRepository(() => import('./supplyRisk').then((module) => module.supplyRiskRepository),
+    { suggestion: true, exposure: true, setStatus: true, setterName: true, warnings: true }),
+  project: lazyRepository(() => import('./projects').then((module) => module.projectRepository),
+    { list: true, listByClient: true, getWithRefs: true, listPipelineStageConfig: true, listPickerOptions: true, listIdentity: true, listNumbers: true, get: true, getMany: true, transition: true, winEligibility: true, create: true, updateHeader: true, updateGetProbability: true, updateGoProbability: true, archive: true, delete: true, setContractValue: true, getVatEditability: true, proposeNumber: true }),
+  projectStage: lazyRepository(() => import('./projectStages').then((module) => module.projectStageRepository),
+    { list: true, redate: true, addSkipped: true, importHistory: true }),
+  projectMoney: lazyRepository(() => import('./projectMoney').then((module) => module.projectMoneyRepository),
+    { collection: true, budgetPositions: true, ownProjectIds: true }),
+  projectOverview: lazyRepository(() => import('./projectOverview').then((module) => module.projectOverviewRepository),
+    { read: true }),
+  dashboard: lazyRepository(() => import('./dashboard').then((module) => module.dashboardRepository),
+    { executive: true, pmProjects: true, winRate: true, lossBreakdown: true, salesPipeline: true, financeBudgetReview: true }),
+  agentRun: lazyRepository(() => import('./agentRuns').then((module) => module.agentRunRepository),
+    { listEvents: true, getHeartbeat: true, listThreads: true, rateEvent: true }),
+  notification: lazyRepository(() => import('./notifications').then((module) => module.notificationRepository),
+    { listPage: true, unreadCount: true, markRead: true }),
+  company: lazyRepository(() => import('./companies').then((module) => module.companyRepository),
+    { listClients: true, list: true, listAll: true, listPage: true, count: true, listOptions: true, get: true, getMany: true, create: true, update: true, setProjectNumberSegment: true, setTaxDefaults: true, archive: true, delete: true }),
+  document: lazyRepository(() => import('./documents').then((module) => module.documentRepository),
+    { list: true, get: true, create: true, linkMicrosoftDocument: true, attachMicrosoftUpload: true, unlinkMicrosoftDocument: true, update: true, transition: true, delete: true, prepareUpload: true, confirmUpload: true, cleanupObject: true, getSignedUrl: true, createRevision: true, getChild: true }),
+  agentAttachment: lazyRepository(() => import('./documents').then((module) => module.agentAttachmentRepository),
+    { prepareUpload: true, confirmUpload: true, cleanupObject: true, createThread: true }),
+  profile: lazyRepository(() => import('./admin').then((module) => module.profileRepository),
+    { listProjectManagers: true, listOrgProfiles: true, listUsers: true, listUsersPage: true, listManagerChoices: true, countActiveAdminsByOrg: true, findUserPage: true, updateUserRole: true, assignUserManager: true, inviteUser: true, setUserStatus: true }),
+  procurement: lazyRepository(() => import('./procurement').then((module) => module.procurementRepository),
+    { itemValuesEditable: true, list: true, listByProject: true, getProjectCommittedSpend: true, getProjectReservedSpend: true, getPoNeededByRequired: true, setPoNeededByRequired: true, getNeededBy: true, setNeededBy: true, captureVendorInvoice: true, listByVendor: true, get: true, transition: true, createQuotation: true, createReceipt: true, createInvoice: true, setEfaktur: true, create: true, createWithItems: true, updateHeader: true, updateVendor: true, createItem: true, updateItem: true, deleteItem: true, selectQuote: true, approveAmount: true, listDocuments: true, createDocument: true, createMicrosoftDocument: true, linkMicrosoftDocument: true, unlinkMicrosoftDocument: true, clearDocumentLink: true, deleteDocument: true, createPurchaseRequest: true, createRfq: true, createPurchaseOrder: true, createPayment: true, purchaseOrderSettings: true, setPurchaseOrderSettings: true, orderJobRoles: true, setOrderJobRoles: true, mayOrderPurchases: true, mayReadPurchaseCases: true }),
+  subcontracts: lazyRepository(() => import('./subcontracts').then((module) => module.subcontractRepository),
+    { getPoPosition: true, listPoRevisions: true, listPoLines: true, setPoLines: true, issuePoLines: true, listSubcontractAcceptances: true, prepareSubcontractAcceptance: true, confirmSubcontractAcceptance: true, withdrawSubcontractAcceptance: true, listPoVariations: true, requestPoVariation: true, decidePoVariation: true, issuePoRevision: true, linkPoVariation: true, getVariationRoute: true, getProjectSubcontractExposure: true, listWorkOrderCostVariations: true, listSubcontractCapExceptions: true, attributeSubcontractBillLines: true, voidSubcontractBill: true, captureSubcontractVendorInvoice: true }),
+  subcontractCertificates: lazyRepository(() => import('./subcontractCertificates').then((module) => module.subcontractCertificateRepository),
+    { list: true, view: true, prepare: true, submit: true, returnToPreparer: true, approve: true, cancel: true, bill: true, setDeselection: true, prepareAcceptance: true, recordBackcharge: true, setBackcharge: true, openBackcharges: true, rateLines: true, setRate: true, subcontractPos: true }),
+  revenue: lazyRepository(() => import('./revenue').then((module) => module.revenueRepository),
+    { createInvoice: true, createPayment: true, setReceivedDate: true, setEfaktur: true, submitInvoice: true, cancelInvoice: true, downloadInvoicePdf: true, cancelPayment: true, applyReceipt: true, unapplyAllocation: true, listInvoices: true, countOverdueInvoices: true, listOverdueInvoiceFacts: true, listPaidPaymentFacts: true, listMonthlyInvoiceFacts: true, hasAnySalesInvoice: true, hasAnyIncomingPayment: true, getInvoice: true, listPayments: true, getPayment: true, getRevenueByProject: true, setProject: true, setBillingKind: true, getProjectFinances: true, getOrgReadsErpLedger: true, proposeInvoicePairs: true, acceptInvoicePairs: true, unpairInvoice: true, compareAndUnpairInvoice: true, listUnpairedNativeInvoices: true, listAcceptedInvoicePairs: true }),
+  timesheet: lazyRepository(() => import('./timesheets').then((module) => module.timesheetRepository),
+    { saveWeek: true, reopen: true, attestNoErpDocument: true, listReopenableApproved: true, hasApprovalWork: true, getApprovalRoute: true, listPushesNeedingAttention: true, confirmEmployeeLink: true, getPushState: true, list: true, listForReview: true, createDraft: true, upsertEntries: true, deleteEntry: true, submit: true, approve: true, reject: true, listAwaitingApproval: true, pushApproved: true }),
+  budget: lazyRepository(() => import('./budget').then((module) => module.budgetRepository),
+    { importLine: true, deriveProjectBudget: true, getActivationMode: true, precheckActivation: true, listOrgDrafts: true, listArchiveLiveTargets: true, listLegacyArchiveLiveTargets: true, listArchiveTargets: true, listVersions: true, createLineItem: true, updateLineItem: true, deleteLineItem: true, createVersion: true, getDistribution: true, saveDistribution: true, switchDraftMode: true, findImportTargetDraft: true, findImportedLine: true, cloneVersion: true, activateVersion: true, returnVersion: true, resubmitVersion: true, archiveVersion: true, deleteDraftVersion: true, listDocumentLinks: true, addDocumentLink: true, removeDocumentLink: true }),
+  task: lazyRepository(() => import('./tasks').then((module) => module.taskRepository),
+    { list: true, listOpenByWorkOrder: true, listDueRows: true, listCalendar: true, listByMeeting: true, listByAssignee: true, get: true, listByIds: true, create: true, createTree: true, update: true, updateStatus: true, delete: true, archive: true, unarchive: true, linkedRecords: true, findOpenForRecord: true, sourceIssues: true, addDependency: true, removeDependency: true }),
+  taskProof: lazyRepository(() => import('./taskProofs').then((module) => module.taskProofRepository),
+    { list: true, add: true, remove: true, url: true }),
+  thirdPartyInspection: lazyRepository(() => import('./thirdPartyInspections').then((module) => module.thirdPartyInspectionRepository),
+    { listForWorkOrder: true, costs: true, prerequisites: true, create: true, raisePurchase: true, recordInvitation: true, recordExecution: true, recordReport: true, waive: true, cancel: true, listFilesBatch: true, addFile: true, fileUrl: true }),
+  incident: lazyRepository(() => import('./incidents').then((module) => module.incidentRepository),
+    { list: true, listPage: true, count: true, get: true, create: true, update: true, transition: true, listFiles: true, uploadFile: true, fileUrl: true, createTask: true, addTask: true, mayTaskIncident: true, setRootCause: true, delete: true }),
+  issueClosingReport: lazyRepository(() => import('./issueClosingReport').then((module) => module.issueClosingReportRepository),
+    { getSettings: true, updateSettings: true, listDepartmentGroups: true, saveDepartmentGroup: true, deleteDepartmentGroup: true, getReport: true, getEffectiveHours: true }),
+  incidentType: lazyRepository(() => import('./incidentTypes').then((module) => module.incidentTypeRepository),
+    { list: true, add: true, rename: true, setArchived: true }),
+  comment: lazyRepository(() => import('./comments').then((module) => module.commentRepository),
+    { list: true, create: true, archive: true }),
+  milestone: lazyRepository(() => import('./workOrders').then((module) => module.milestoneRepository),
+    { list: true, deliveryForProjects: true, deliverySummaryForProjects: true, managementOverviewForProjects: true, milestoneDatesForProjects: true, create: true, update: true, delete: true, setTaskMilestone: true, listTaskGroups: true, createTaskGroup: true, updateTaskGroup: true, deleteTaskGroup: true }),
+  workOrder: lazyRepository(() => import('./workOrders').then((module) => module.workOrderRepository),
+    { listOpenForHome: true, claimDocuments: true, list: true, listAll: true, get: true, create: true, importBatch: true, update: true, setValue: true, transition: true, cancel: true, listCandidateRecords: true, drawdown: true, billing: true, billedMonths: true, unbilled: true, acceptanceAge: true }),
+  progressBilling: lazyRepository(() => import('./workOrders').then((module) => module.progressBillingRepository),
+    { listBoq: true, createBoq: true, updateBoq: true, deleteBoq: true, recordAssessment: true, listClaims: true, createClaim: true, attachEvidence: true, withdrawClaim: true, raiseInvoice: true, raiseNativeInvoice: true, summary: true }),
+  rateCatalogue: lazyRepository(() => import('./rateCatalogue').then((module) => module.rateCatalogueRepository),
+    { listVariants: true, listItems: true, listRates: true, addVariants: true, setDefaultVariant: true, savePricedLine: true, upsertItem: true, priceBoqLine: true }),
+  billingStages: lazyRepository(() => import('./billingStages').then((module) => module.billingStagesRepository),
+    { readBoard: true, readPlanCandidates: true, readUnacceptedProgress: true, getPlanSettings: true, savePlanSettings: true, savePlanReminder: true, saveMonthTarget: true, getTemplate: true, setTemplate: true, setTerms: true, getTerms: true, setInvoiceDeadline: true, setRetention: true, trace: true, attachDocument: true, completeStage: true, noteStage: true, skipStage: true, reconciliation: true, listReleases: true, scheduleRelease: true, release: true, cancelRelease: true, listStepTemplates: true, saveStepTemplate: true, archiveStepTemplate: true, loadTemplateOntoProject: true, loadTemplateOntoClaim: true, updateStep: true, addStep: true, removeStep: true, moveStep: true, waitingSteps: true, overdueStepsByClaim: true, workOrderSteps: true, boardWorkOrderSteps: true, waitingWorkOrderSteps: true, completeWorkOrderStep: true, skipWorkOrderStep: true, assignWorkOrderStep: true, setWorkOrderStepClaimEvidence: true, addWorkOrderStep: true, saveWorkOrderChecklistAsTemplate: true, workOrderChecklistEnabled: true, setWorkOrderChecklistEnabled: true, attachWorkOrderStepDocument: true, defaultStepTemplateId: true, setDefaultStepTemplate: true }),
+  closeoutChecklist: lazyRepository(() => import('./closeoutChecklist').then((module) => module.closeoutChecklistRepository),
+    { assignOwner: true, getTemplate: true, setTemplate: true, listItems: true, listOpenDue: true, waitingItems: true, getCloser: true, attachDocument: true, completeItem: true }),
+  surveyRecord: lazyRepository(() => import('./surveyRecords').then((module) => module.surveyRecordRepository),
+    { list: true, record: true, attachDocuments: true, confirm: true, discard: true }),
+  dailySiteReport: lazyRepository(() => import('./dailySiteReports').then((module) => module.dailySiteReportRepository),
+    { list: true, get: true, listIdleReasons: true, listWeatherConditions: true, listListItems: true, addListItem: true, renameListItem: true, setListItemArchived: true, listContractItems: true, listLinkPeople: true, personName: true, reportHours: true, saveDraft: true, submit: true, withdraw: true, validate: true, returnReport: true, correct: true, revenue: true, workOrderRevenue: true, queue: true, validationRoute: true, validateRoles: true, setValidateRoles: true, uploadPhoto: true, photoUrl: true }),
+  workOrderCheckTemplate: lazyRepository(() => import('./workOrderCheckTemplate').then((module) => module.workOrderCheckTemplateRepository),
+    { list: true, save: true }),
+  safetyDay: lazyRepository(() => import('./safetyDays').then((module) => module.safetyDayRepository),
+    { isEnabled: true, setEnabled: true, listItems: true, addItem: true, renameItem: true, setItemArchived: true, workOrderDays: true, createDay: true, getDay: true, rosterWorkers: true, saveFitness: true, updateFitness: true, deleteFitness: true, answerChecklist: true, saveTalk: true, deleteTalk: true, savePermit: true, setPermitState: true, deletePermit: true, addOfficerEntry: true, submitDay: true, correctDay: true, uploadTalkPhoto: true, deletePhoto: true, photoUrl: true, getSummary: true, getSummaryDetail: true }),
+  workInHand: lazyRepository(() => import('./workInHand').then((module) => module.workInHandRepository),
+    { get: true, getCapacity: true, setCapacity: true }),
+  openingBalances: lazyRepository(() => import('./openingBalances').then((module) => module.openingBalanceRepository),
+    { list: true }),
+  quantityChange: lazyRepository(() => import('./quantityChanges').then((module) => module.quantityChangeRepository),
+    { list: true, get: true, overContract: true, workOrderBudget: true, approvalState: true, versions: true, raise: true, updateDraft: true, submit: true, approve: true, returnRequest: true, withdraw: true, recordSent: true, recordDecision: true, recordForecast: true, getLimit: true, setLimit: true, getApproverRoles: true, setApproverRoles: true, uploadFile: true, archiveFile: true, fileUrl: true }),
+  stock: lazyRepository(() => import('./stock').then((module) => module.stockRepository),
+    { master: { listItemTagNames: true, listUnits: true, listItems: true, listWarehouses: true, listKeepers: true, createUnit: true, updateUnit: true, createItem: true, updateItem: true, createWarehouse: true, updateWarehouse: true, archive: true, setKeeper: true }, documents: { list: true, count: true, get: true, create: true, saveDraft: true, post: true, costs: true, cancel: true, erpState: true, releaseHold: true, issuableWorkItems: true, issueLines: true }, reports: { onHand: true, ledgerPage: true, ledgerAll: true, atRisk: true }, consumption: { report: true }, allowances: { list: true, set: true, clear: true }, reorder: { suggestion: true, worklist: true, setLevel: true } }),
+  stockOpening: lazyRepository(() => import('./stockOpening').then((module) => module.stockOpeningRepository),
+    { preview: true, load: true }),
+  workOrderAcceptance: lazyRepository(() => import('./workOrders').then((module) => module.workOrderAcceptanceRepository),
+    { listByProject: true, listAwaitingConfirmation: true, listLines: true, listProjectLines: true, createLine: true, updateLine: true, deleteLine: true, prepare: true, withdraw: true, confirm: true }),
+  procurementFiles: lazyRepository(() => import('./procurement').then((module) => module.procurementFilesRepository),
+    { list: true, listForParents: true, prepareUpload: true, confirmUpload: true, confirmMicrosoftUpload: true, archive: true, getSignedUrl: true, cleanupObject: true }),
+  expenseClaim: lazyRepository(() => import('./expenses').then((module) => module.expenseClaimRepository),
+    { list: true, page: true, count: true, get: true, lines: true, create: true, update: true, addLine: true, updateLine: true, removeLine: true, transition: true, recordReturn: true, outstanding: true, routes: true, aging: true, agingTotals: true }),
+  imprest: lazyRepository(() => import('./imprest').then((module) => module.imprestRepository),
+    { listFloats: true, countFloats: true, getFloat: true, getPosition: true, getPlanUsage: true, floatChoices: true, listPlans: true, listPlanLines: true, getOpenRequests: true, listReplenishments: true, listCounts: true, listPostingStates: true, setCashAccount: true, listFloatChanges: true, getRequesterRoute: true, listFloatClaims: true, listAwaitingImprest: true, getProcurementLimit: true, setClaimFloat: true, createPlan: true, savePlanLine: true, deletePlanLine: true, setProcurementLimit: true, establishFloat: true, proposeFloatAmount: true, decideFloatChange: true, transitionPlan: true, requestReplenishment: true, transitionReplenishment: true, recordCount: true }),
+  journal: lazyRepository(() => import('./journals').then((module) => module.journalRepository),
+    { list: true, get: true, mayApprove: true, ledgerSetup: true, saveDraft: true, submit: true, approve: true, returnToMaker: true, requestReversal: true, setDeskJournal: true, post: true }),
+  equipment: lazyRepository(() => import('./equipment').then((module) => module.equipmentRepository),
+    { listAssets: true, countAssets: true, createAsset: true, updateAsset: true, deleteAsset: true, listUsage: true, saveUsage: true, transitionUsage: true, approveWeek: true, archiveUsage: true, listUsageTotals: true, listCosting: true, saveCosting: true, endCosting: true, previewCosting: true, listAllocations: true, listRegister: true, listMaintenance: true, listPickers: true, listPendingChanges: true, listAssetMatches: true, acceptAssetMatches: true, sendEquipmentCommand: true }),
+  documentExpiry: lazyRepository(() => import('./documentExpiry').then((module) => module.documentExpiryRepository),
+    { listExpiring: true, listPersonDocuments: true, listForSubject: true, listTypes: true, getPerson: true, create: true, update: true, archive: true, uploadAttachment: true, removeAttachment: true, attachmentUrl: true, listAdminTypes: true, createType: true, updateType: true, archiveType: true, getWarningDays: true, setWarningDays: true, recordRenewal: true }),
+  documentCategory: lazyRepository(() => import('./documentCategories').then((module) => module.documentCategoryRepository),
+    { list: true, create: true, rename: true, setAccess: true, archive: true, restore: true, reorder: true, refileLineage: true }),
+  equipmentAvailability: lazyRepository(() => import('./equipmentAvailability').then((module) => module.equipmentAvailabilityRepository),
+    { endRentalTerm: true, savedRentalChecks: true, rentalInvoiceChoices: true, hourlyRentalCheck: true, rentalCheck: true, proofUrl: true, createRentedAsset: true, listStatusDays: true, listLatestStatusDays: true, listEquipmentProofs: true, setStatusBulk: true, setStatus: true, addProof: true, uploadProof: true, getMetrics: true, listDowntimeFlags: true, setOwnership: true, setWorkingHours: true, getTargets: true, setTargets: true, listRentalTerms: true, saveRentalTerm: true, changeRentalRate: true }),
+  people: lazyRepository(() => import('./people').then((module) => module.peopleRepository),
+    { list: true, create: true, update: true, updateFields: true, markLeft: true }),
+  timeAndMaterials: lazyRepository(() => import('./timeAndMaterials').then((module) => module.timeAndMaterialsRepository),
+    { listRateLines: true, listRateAssignees: true, saveContractRateLine: true, endContractRateLine: true, setContractRateAssignee: true, endContractRateAssignee: true, assembleTmClaim: true, deselectTmSource: true, prepareTmSignoff: true, withdrawTmSignoff: true, confirmTmSignoff: true, invoiceNativeTmClaim: true, listTmClaims: true, previewTmClaim: true, listTmClaimSources: true }),
+  expenseReceipts: lazyRepository(() => import('./expenses').then((module) => module.expenseReceiptsRepository),
+    { list: true, prepareUpload: true, confirmUpload: true, archive: true, getSignedUrl: true, cleanupObject: true }),
+  expensePostings: lazyRepository(() => import('./expensePostings').then((module) => module.expensePostingsRepository),
+    { listForClaim: true, listAccountMap: true }),
+  erpPurchases: lazyRepository(() => import('./erpPurchases').then((module) => module.erpPurchasesRepository),
+    { list: true, listOrphans: true, listLinked: true, link: true, unlink: true }),
+  erpJournalLines: lazyRepository(() => import('./erpJournalLines').then((module) => module.erpJournalLinesRepository),
+    { listProject: true, attach: true, detach: true }),
+  odooLedger: lazyRepository(() => import('./odooLedger').then((module) => module.odooLedgerRepository),
+    { health: true, lines: true, statementCatalogue: true, statement: true, projectLinked: true, companyCurrency: true, switchBasis: true }),
+  contact: lazyRepository(() => import('./companies').then((module) => module.contactRepository),
+    { list: true, listAll: true, listPage: true, count: true, listByCompany: true, get: true, create: true, update: true, archive: true, delete: true, listActivities: true, listActivitiesForContacts: true, listActivitiesPage: true, listActivitiesForContactsPage: true, createActivity: true, updateActivity: true, deleteActivity: true }),
+  meeting: lazyRepository(() => import('./meetings').then((module) => module.meetingRepository),
+    { list: true, listPage: true, count: true, listForContact: true, get: true, create: true, update: true, archive: true, restore: true, delete: true, listAttendees: true, addAttendee: true, removeAttendee: true, listGrants: true, addGrant: true, revokeGrant: true }),
+  userView: lazyRepository(() => import('./admin').then((module) => module.userViewRepository),
+    { list: true, get: true, create: true, update: true, archive: true, delete: true }),
+  operator: lazyRepository(() => import('./admin').then((module) => module.operatorRepository),
+    { isOperator: true }),
+  usage: lazyRepository(() => import('./admin').then((module) => module.usageRepository),
+    { getOrgUsageSummary: true, getOperatorUsageSummary: true, listOperatorOrgs: true, getOrgAgentRunStats: true, getOperatorAgentRunStats: true }),
+  orgFeature: lazyRepository(() => import('./admin').then((module) => module.orgFeatureRepository),
+    { listOwn: true, listForOrg: true, listOverrides: true, getPlanCatalogue: true, getOrgPlan: true, getOwnPlan: true, toggle: true, clearOverride: true, setOrgPlan: true, setGlobal: true, setPlanFeature: true, setPlanLimits: true, setFeedbackSurveys: true, currentPlan: true }),
+  orgSettings: lazyRepository(() => import('./admin').then((module) => module.orgSettingsRepository),
+    { getSetupWorkflowsEnabled: true, setSetupWorkflowsEnabled: true, getDefaultCurrency: true, getLocaleDefaults: true, getLifecycleState: true, getProjectNumberPattern: true, getProjectNumberTimezone: true, setProjectNumberPattern: true, getWithholdingAccounts: true, setWithholdingAccounts: true, getVendorTaxAccounts: true, setVendorTaxAccounts: true, getDownPaymentItem: true, getProcurementGates: true, setProcurementGates: true, setDownPaymentItem: true, getProjectClassificationOptions: true, setProjectClassificationOptions: true, getTaxDefault: true, setTaxDefault: true, getFiscalYearSetting: true, setFiscalYearStartMonth: true, listSpendApprovers: true, addSpendApprover: true, removeSpendApprover: true }),
+  credits: lazyRepository(() => import('./admin').then((module) => module.creditsRepository),
+    { getOrgBalance: true, grant: true }),
+  externalDomainOwnership: lazyRepository(() => import('./admin').then((module) => module.externalDomainOwnershipRepository),
+    { listOwn: true }),
+  erpSnapshots: lazyRepository(() => import('./reporting').then((module) => module.erpSnapshotsRepository),
+    { actuals: true, apAging: true, arAging: true }),
+  companyCollections: lazyRepository(() => import('./companyCollections').then((module) => module.companyCollectionsRepository),
+    { listPartyIds: true, listForCompanies: true, listForErpCustomerIds: true }),
+  financialStatements: lazyRepository(() => import('./financialStatements').then((module) => module.financialStatementsRepository),
+    { catalogue: true, get: true, refreshNow: true }),
+  integrations: lazyRepository(() => import('./integrations').then((module) => module.integrationsRepository),
+    { getErpSetup: true, saveErpDefaults: true, getCompanyDefaultOptions: true, setCompanyDefaults: true, listErpProjects: true, linkErpProject: true, ensureErpProject: true, employErpDomain: true, saveExpenseAccount: true, clearExpenseAccount: true, onboardErpParties: true, getBinding: true, listBindings: true, connectIntegration: true, disconnectIntegration: true, getIntegrationHealth: true, listProjectLists: true, linkProject: true, unlinkProject: true, listProjectBindings: true, listCompanies: true, listItems: true, listPurchaseTaxTemplates: true, startConnectCensus: true, getConnectStatus: true, listConnectProposals: true, acceptConnectProposals: true, searchConnectStaged: true, decideConnectReview: true, unlinkConnectMatch: true, retryConnectSend: true, listAccountSendGroups: true, requestAccountSend: true, setCompany: true }),
+  odoo: lazyRepository(() => import('./odoo').then((module) => module.odooRepository),
+    { listMasterRecords: true, masterSummary: true, getConnection: true, listPurchaseCommands: true, listRevenueCommands: true, listRevenueCommandsForInvoices: true, listRevenueCreditNotes: true, resolveHeldPayment: true, resolveHeldRevenueCommand: true, setup: true }),
+  reports: lazyRepository(() => import('./reporting').then((module) => module.reportsRepository),
+    { managementPack: true, recordProgress: true, figures: true }),
 };
 
 export type {

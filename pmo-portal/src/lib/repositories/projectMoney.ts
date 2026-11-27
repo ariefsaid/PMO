@@ -1,5 +1,5 @@
 /** Project money repository implementation. */
-import { getProjectBudgetPositions, getProjectsMoneyCollection } from '@/src/lib/db/projectMoney';
+import { getMoneyProjectIds, getProjectBudgetPositions, getProjectsMoneyCollection } from '@/src/lib/db/projectMoney';
 import { wrap } from './repositoryErrors';
 import type { ProjectMoneyRepository } from './contracts/projectMoney';
 
@@ -15,4 +15,5 @@ export const projectMoneyRepository: ProjectMoneyRepository = {
     }]));
   }),
   budgetPositions: (ids) => wrap(() => getProjectBudgetPositions(ids)),
+  ownProjectIds: () => wrap(() => getMoneyProjectIds()),
 };

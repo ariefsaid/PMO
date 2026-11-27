@@ -11,7 +11,7 @@ vi.mock('@/src/hooks/useEquipment', () => ({
   useCreateRentedAsset: () => ({ mutateAsync: h.createRented, isPending: false }),
   useUpdateAsset: () => ({ mutateAsync: h.update, isPending: false }),
 }));
-vi.mock('@/src/hooks/useCompanies', () => ({ useCompanies: () => ({ data: [{ id: 'v1', name: 'Rental Co' }] }) }));
+vi.mock('@/src/hooks/useCompanies', () => ({ useCompanyOptions: () => ({ data: [{ id: 'v1', name: 'Rental Co' }] }) }));
 
 import { AssetFormModal } from './AssetFormModal';
 

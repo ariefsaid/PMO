@@ -1,10 +1,13 @@
 import { useProjectClassificationOptions } from '@/src/hooks/useProjectClassificationOptions';
+import { withDefaultProjectManager } from '@/src/lib/projectManagerDefault.mjs';
 import type { ProjectClassification } from '@/src/lib/projectClassification';
 import { companyDisplayName } from '@/src/lib/companyDisplayName';
 import { TaxRateFields } from '@/src/components/ui/TaxRateFields';
 import { useStandaloneTaxFields } from '@/src/hooks/useStandaloneTaxFields';
 import { initials } from '@/src/lib/initials';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { AuthContext } from '@/src/auth/AuthContext';
+import { projectPeopleRights } from '@/src/auth/policy';
 import { useTranslation } from 'react-i18next';
 import { useProjectStatusLabel } from '@/src/hooks/useProjectStatusLabel';
 import type { TFunction } from 'i18next';
@@ -24,7 +27,7 @@ import {
 } from '@/src/components/ui';
 import { useClientCompanies, useProjectManagers } from '@/src/hooks/useProjects';
 import { useProjectNumberProposal } from '@/src/hooks/useProjectNumberProposal';
-import { useCompanies } from '@/src/hooks/useCompanies';
+import { useCompanyOptions } from '@/src/hooks/useCompanies';
 import {
   currencySymbol,
   formatMoneyInputValue,
@@ -72,6 +75,8 @@ export interface ProjectFormInitial extends ProjectClassification {
   code: string | null;
   client_id: string | null;
   project_manager_id: string | null;
+  /** DD-R1125-15: the deputy reads this project's money as its manager does. */
+  deputy_manager_id?: string | null;
   clientName?: string | null;
   /** The end customer (#758) — nullable like the client; `endClientName` seeds the chip label. */
   end_client_id?: string | null;
@@ -97,6 +102,7 @@ interface FormValues {
   clientId: string | null;
   endClientId: string | null;
   pmId: string | null;
+  deputyId: string | null;
   status: ProjectStatus;
   value: string;
   /**
@@ -208,8 +214,8 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
   const { data: clients = [], isError: clientsError } = useClientCompanies();
   const { data: managers = [], isError: pmError } = useProjectManagers();
   // #758: the end customer can be ANY of the org's companies (not just Client-type), so it uses
-  // the broad useCompanies() cache rather than useClientCompanies().
-  const { data: allCompanies = [], isError: endCustomersError } = useCompanies();
+  // the shared company-options cache, including every company type.
+  const { data: allCompanies = [], isError: endCustomersError } = useCompanyOptions();
 
   const form = useEntityForm<FormValues>({
     initialValues: {
@@ -226,6 +232,7 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
       clientId: initial?.client_id ?? null,
       endClientId: initial?.end_client_id ?? null,
       pmId: initial?.project_manager_id ?? null,
+      deputyId: initial?.deputy_manager_id ?? null,
       status: 'Leads',
       value: '',
       taxTreatment: '',
@@ -255,6 +262,13 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
     }
   }, [form, isEdit, numberProposal]);
   const [pmLabel, setPmLabel] = useState<string | null>(initial?.pmName ?? null);
+  const auth = useContext(AuthContext);
+  // Who may set the manager and the deputy here: the database decides (guard_project_people_fields); the form follows it.
+  const people = projectPeopleRights(auth?.role ?? null, auth?.currentUser?.built_in_role, auth?.currentUser?.id,
+    { existing: isEdit, managerId: isEdit ? initial?.project_manager_id : form.values.pmId });
+  const [deputyLabel, setDeputyLabel] = useState<string | null>(null);
+  // The deputy's name comes from the managers list until one is picked here.
+  const deputyName = deputyLabel ?? managers.find((m) => m.id === form.values.deputyId)?.full_name ?? null;
   const [endClientLabel, setEndClientLabel] = useState<string | null>(initial?.endClientName ?? null);
 
   const nameField = form.fieldProps('name');
@@ -372,6 +386,7 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
             client_id: values.clientId,
             end_client_id: values.endClientId,
             project_manager_id: values.pmId,
+            ...(values.deputyId !== (initial.deputy_manager_id ?? null) ? { deputy_manager_id: values.deputyId } : {}),
             start_date: values.startDate || null,
             end_date: values.endDate || null,
             ...(initial.receipt_withholding_article !== undefined
@@ -381,7 +396,7 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
           await onSave(initial.id, input);
         } else if (onSubmit) {
           if (numberProposal.status !== 'success' || !values.pmoProjectNumber.trim()) return;
-          const base = {
+          const base = withDefaultProjectManager({
             ...classification,
             name: values.name.trim(),
             short_name: values.shortName.trim() || null,
@@ -391,9 +406,10 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
             client_id: values.clientId,
             end_client_id: values.endClientId,
             project_manager_id: values.pmId,
+            ...(values.deputyId && people.deputy ? { deputy_manager_id: values.deputyId } : {}),
             start_date: values.startDate || null,
             end_date: values.endDate || null,
-          };
+          }, auth?.currentUser);
           const contractValue = parseMoneyInputAtScale(values.value, 2) ?? 0;
           // #513: the basis travels WITH the value or the value is 0. `CreateProjectInput` is a
           // union on exactly this rule, so the branch below is not defensive style — it is the only
@@ -519,7 +535,7 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
             nounPlural={t('projects:projectForm.endCustomer.nounPlural', 'companies')}
           />
 
-          <Combobox
+          {people.manager && <Combobox
             label={t('projectForm.pm.label', 'Project manager')}
             value={form.values.pmId}
             selectedOption={
@@ -534,7 +550,24 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
             loadOptions={loadManagers}
             placeholder={t('projectForm.pm.placeholder', 'Assign a PM…')}
             noun={t('projectForm.pm.noun', 'manager')}
-          />
+          />}
+
+          {people.deputy && <Combobox
+            label={t('projects:projectForm.deputy.label', 'Deputy manager')}
+            value={form.values.deputyId}
+            selectedOption={
+              form.values.deputyId && deputyName
+                ? { value: form.values.deputyId, label: deputyName, initials: initialsOf(deputyName) }
+                : null
+            }
+            onChange={(v, opt) => {
+              form.setValue('deputyId', v);
+              setDeputyLabel(opt.label);
+            }}
+            loadOptions={loadManagers}
+            placeholder={t('projects:projectForm.deputy.placeholder', 'Assign a deputy…')}
+            noun={t('projects:projectForm.deputy.noun', 'deputy')}
+          />}
 
           {isEdit ? (
             <TextField

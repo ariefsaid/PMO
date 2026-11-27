@@ -13,7 +13,7 @@ describe('query_entity accuracy contracts', () => {
       { id: '3', procurement_id: 'p2', amount: null },
     ];
     const { client, calls } = fakeSupabase((call) => {
-      if (call.table !== 'purchase_orders' || call.terminal !== 'then') return { data: null, error: null };
+      if (call.table !== 'purchase_orders_masked' || call.terminal !== 'then') return { data: null, error: null };
       const range = call.ops.find(([op]) => op === 'range');
       const offset = Number(range?.[1] ?? 0);
       return { data: rows.slice(offset, offset + 1000), error: null };
@@ -23,6 +23,7 @@ describe('query_entity accuracy contracts', () => {
       { key: 'p1', count: 2, sum: 13.01 }, { key: 'p2', count: 1 },
     ], rowCount: 3, truncated: false });
     expect(calls[0].ops).toContainEqual(['range', 0, 999]);
+    expect(calls[0].table).toBe('purchase_orders_masked');
     expect(calls[0].columns).toBe('id,procurement_id,amount');
   });
 

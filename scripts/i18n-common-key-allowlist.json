@@ -1,4 +1,5 @@
 [
+  "ui.listState.readError",
   "admin.expenseMap.error.noCauseRemedy",
   "admin.spendApprovers.form.projectLoadError",
   "combobox.moreHidden",
@@ -265,7 +266,6 @@
   "myTasks.priority.urgent",
   "notFound.back",
   "notFound.body",
-  "notFound.region",
   "notFound.title",
   "procurementDetail.statusOption.submitted",
   "profileSettings.refreshRetry",

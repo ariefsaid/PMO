@@ -35,6 +35,10 @@ insert into projects (id, org_id, name, status, project_manager_id) values
   ('15190000-0000-0000-0000-0000000000c2', '15190000-0000-0000-0000-00000000000a', 'EQU P2', 'Ongoing Project', '15190000-0000-0000-0000-0000000000a4'),
   ('15190000-0000-0000-0000-0000000000c3', '15190000-0000-0000-0000-00000000000a', 'EQU P3', 'Ongoing Project', '15190000-0000-0000-0000-0000000000a3'),
   ('15190000-0000-0000-0000-0000000000cb', '15190000-0000-0000-0000-00000000000b', 'EQU PX', 'Ongoing Project', null);
+-- A Project Manager reads money for their own projects (DD-R1125-14): PM1 is P2's deputy so it reads both projects it is
+-- asked about; PM2 holds the Equipment Manager job role, which reads equipment charges on every project by function.
+update profiles set built_in_role = 'equipment_manager' where id = '15190000-0000-0000-0000-0000000000a4';
+update projects set deputy_manager_id = '15190000-0000-0000-0000-0000000000a3' where id = '15190000-0000-0000-0000-0000000000c2';
 -- A1 loader (hours), A2 truck (days), A3/A4 hire-rate machines (hours), A9 foreign (ids are hex: d1..d4, d9)
 insert into equipment_assets (id, org_id, code, name, default_unit) values
   ('15190000-0000-0000-0000-0000000000d1', '15190000-0000-0000-0000-00000000000a', 'LDR-1', 'Loader 1', 'hours'),
@@ -303,7 +307,7 @@ select is((select equipment_charge_to_date from project_mapped_actuals('15190000
 select is((select count(*)::int from equipment_charge_project_actuals('15190000-0000-0000-0000-0000000000c1')), 1,
   'AC-EQU-012 a Project Manager reads the charge helper for the project');
 select is((select count(*)::int from equipment_charge_org_actuals()), 1, 'AC-EQU-012 a Project Manager reads the org-wide charge helper');
-select pg_temp.act_as('15190000-0000-0000-0000-0000000000a4');   -- PM2 (does not manage P1; amounts audience is role-wide)
+select pg_temp.act_as('15190000-0000-0000-0000-0000000000a4');   -- PM2, Equipment Manager (does not manage P1; amounts audience is role-wide by function)
 select is(pg_temp.col('15190000-0000-0000-0000-0000000000c1','equipment_charge_to_date'), 580.00::numeric,
   'AC-EQU-012 any Project Manager reads the charge (the amounts audience is role-wide, as for ledger actuals)');
 select pg_temp.act_as('15190000-0000-0000-0000-0000000000a5');   -- Executive

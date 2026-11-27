@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import { Button } from '@/src/components/ui';
+import { Button } from '@/src/components/ui/Button';
 import { repositories } from '@/src/lib/repositories';
 import type { ProjectDocumentRow } from '@/src/lib/db/documents';
 import { useViewerOnDemand } from '../viewerContext';

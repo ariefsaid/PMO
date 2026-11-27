@@ -53,6 +53,7 @@ const SafetyDayRecord: React.FC<{ detail: SafetyDayDetail }> = ({ detail }) => {
   const [dialogError, setDialogError] = useState<string | null>(null);
   const [locking, setLocking] = useState(false);
   const [lockError, setLockError] = useState<string | null>(null);
+  const rosterReady = !roster.isPending && !roster.isError;
   const readiness = lockReadiness(detail.checklist, detail.fitness, roster.data ?? []);
 
   const status = deriveSafetyDayStatus({
@@ -108,7 +109,7 @@ const SafetyDayRecord: React.FC<{ detail: SafetyDayDetail }> = ({ detail }) => {
         }
         actions={(
           <div className="flex flex-wrap gap-2">
-            {editable && <Button variant="primary" onClick={() => { setLockError(null); setLocking(true); }} data-testid="safety-submit">{t('actions.submit', 'Submit and lock')}</Button>}
+            {editable && <Button disabled={!rosterReady} variant="primary" onClick={() => { setLockError(null); setLocking(true); }} data-testid="safety-submit">{t('actions.submit', 'Submit and lock')}</Button>}
             {day.status === 'locked' && mayEnter && <Button variant="outline" onClick={() => { setDialogError(null); setCorrecting(true); }} data-testid="safety-correct">{t('actions.correct', 'Correct')}</Button>}
           </div>
         )}
@@ -119,8 +120,10 @@ const SafetyDayRecord: React.FC<{ detail: SafetyDayDetail }> = ({ detail }) => {
         )}
       </RecordHeader>
       <RecordStack>
-        <FitnessPart detail={detail} roster={roster.data ?? []} editable={editable} seePeople={seePeople} />
-        <ToolboxPart detail={detail} roster={roster.data ?? []} editable={editable} seePeople={seePeople} />
+        {roster.isError && <ListState variant="error" title={t("common:ui.errorBoundary.title", "Something went wrong")} onRetry={() => void roster.refetch()} />}
+        {roster.isPending && <ListState variant="loading" />}
+        {rosterReady && <FitnessPart detail={detail} roster={roster.data ?? []} editable={editable} seePeople={seePeople} />}
+        {rosterReady && <ToolboxPart detail={detail} roster={roster.data ?? []} editable={editable} seePeople={seePeople} />}
         <ChecklistPart detail={detail} editable={editable} />
         <PermitsPart detail={detail} editable={editable} />
         <OfficerPart detail={detail} mayEnter={mayEnter} />
@@ -137,7 +140,7 @@ const SafetyDayRecord: React.FC<{ detail: SafetyDayDetail }> = ({ detail }) => {
             )}
           </div>
         )}
-        confirmLabel={t('actions.submit', 'Submit and lock')} confirmDisabled={readiness.noWithoutNote.length > 0} loading={m.submitDay.isPending}
+        confirmLabel={t('actions.submit', 'Submit and lock')} confirmDisabled={!rosterReady || readiness.noWithoutNote.length > 0} loading={m.submitDay.isPending}
         error={lockError} onCancel={() => setLocking(false)} onConfirm={() => void submit()} />
       <ReasonDialog open={correcting} kind="return" title={t('correct.title', 'Correct this safety day')} label={t('correct.label', 'Reason for the correction')}
         confirmLabel={t('correct.confirm', 'Start correction')} loading={m.correctDay.isPending} error={dialogError}

@@ -16,6 +16,19 @@ import type { CostAmountLine, CostReason, FinanceCostSource, PlanKind, PlanLine,
  * org_id is never sent: RLS, the column default and the RPCs scope everything to the caller's org.
  */
 
+export interface DashboardWorkOrderCost {
+  workOrderId: string;
+  currency: string;
+  direct: string | null;
+  plan: string | null;
+}
+
+export async function getDashboardWorkOrderCosts(projectIds: readonly string[]): Promise<DashboardWorkOrderCost[]> {
+  const { data, error } = await supabase.rpc('work_order_dashboard_costs', { p_project_ids: [...projectIds] });
+  if (error) throw new AppError(error.message, error.code);
+  return data as unknown as DashboardWorkOrderCost[];
+}
+
 const MALFORMED = 'malformed-response';
 const SOURCES: readonly FinanceCostSource[] = ['purchase_request', 'purchase_order', 'goods_receipt', 'vendor_bill', 'timesheet_entry', 'stock_document', 'equipment_usage', 'expense_claim', 'attendance_day', 'headcount_day', 'project_actuals', 'purchase_balance', 'other_revenue'];
 const REASONS: readonly CostReason[] = ['counted', 'commitment', 'stocked', 'transfer', 'no-rate', 'not-posted', 'unassigned', 'split-when-custom', 'outside-basis', 'unresolved-direct', 'other-revenue'];
@@ -42,6 +55,10 @@ export async function listProjectCostAmounts(projectId: string): Promise<CostAmo
   const rows = await fetchAllPages<CostAmountRow>((from, to) =>
     supabase.rpc('work_order_cost_amounts', { p_project_id: projectId })
       .order('record_id', { ascending: true }).order('source', { ascending: true }).range(from, to) as unknown as PromiseLike<{ data: CostAmountRow[] | null; error: { message: string; code?: string } | null }>);
+  return parseCostAmountRows(rows);
+}
+
+export function parseCostAmountRows(rows: CostAmountRow[]): CostAmountLine[] {
   return rows.map((r) => {
     // Labour money for a Project Manager is aggregate (migrations 1298, 1721, 1722, 1933): timesheet money one row per work order,
     // discipline and class; class-priced money (attendance, head count) one row per work order and discipline with no class and no
@@ -80,6 +97,10 @@ export async function listProjectPlanLines(projectId: string): Promise<PlanLine[
   const rows = await fetchAllPages<PlanRow>((from, to) =>
     supabase.from('work_order_plan_lines').select('id, work_order_id, section_id, discipline_id, kind, value::text, note')
       .eq('project_id', projectId).order('id', { ascending: true }).range(from, to) as unknown as PromiseLike<{ data: PlanRow[] | null; error: { message: string; code?: string } | null }>);
+  return parsePlanRows(rows);
+}
+
+export function parsePlanRows(rows: PlanRow[]): PlanLine[] {
   return rows.map((r) => {
     const value = String(r.value);
     if (!KINDS.includes(r.kind as PlanKind) || !EXACT.test(value)) throw new AppError('Plan figure: unexpected row', MALFORMED);
@@ -104,6 +125,10 @@ export async function getSharedSplit(projectId: string): Promise<SplitPercent[] 
   const rows = await fetchAllPages<{ work_order_id: string; percent: number | string }>((from, to) =>
     supabase.from('project_shared_cost_splits').select('work_order_id, percent').eq('project_id', projectId)
       .order('work_order_id', { ascending: true }).range(from, to));
+  return parseSplitRows(rows);
+}
+
+export function parseSplitRows(rows: { work_order_id: string; percent: number | string }[]): SplitPercent[] | null {
   if (rows.length === 0) return null;
   return rows.map((r) => {
     const p = num(r.percent);

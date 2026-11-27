@@ -1,6 +1,6 @@
 import { getPlanPurchaseSubmitContext, type PlanPurchaseSubmitContext } from './equipmentPlans';
 import { supabase } from '@/src/lib/supabase/client';
-import { maskSelection, priceSource } from '@/src/lib/priceReadPath';
+import { arePricesHidden, maskSelection, priceSource } from '@/src/lib/priceReadPath';
 import type { Tables } from '@/src/lib/supabase/database.types';
 import type { ProcurementRow, ProcurementWithRefs } from './procurements';
 import { attachApprovalRoutes } from './approvalRoutes';
@@ -171,7 +171,7 @@ export function canCancel(role: string, isRequester: boolean, from: ProcurementS
 // params on the main select, not sub-selects. We fetch all and discard archived in JS.
 const FILE_FIELDS = 'id, title, file_path, archived_at, source, ms_web_url, ms_item_name';
 
-const DETAIL_SELECT = [
+const detailSelect = (includeQuotations: boolean) => [
   '*',
   // The DecisionSupportPanel sources committed spend via useProjectCommittedSpend (the
   // honest Σ-PO-in-Ordered..Paid basis, OD-W5-4) — NOT the static projects.budget/spent
@@ -183,7 +183,7 @@ const DETAIL_SELECT = [
   'approved_by:profiles!procurements_approved_by_id_fkey(full_name)',
   'items:procurement_items(*)',
   // Quotations + their files (compact — title/file_path/archived_at only).
-  `quotations:procurement_quotations(*, files:procurement_quotation_files(${FILE_FIELDS}))`,
+  ...(includeQuotations ? [`quotations:procurement_quotations(*, files:procurement_quotation_files(${FILE_FIELDS}))`] : []),
   // Receipts + their files.
   `receipts:procurement_receipts(*, files:procurement_receipt_files(${FILE_FIELDS}))`,
   // Invoices + their files.
@@ -205,16 +205,21 @@ const DETAIL_SELECT = [
  * org_id is NEVER sent — RLS scopes via auth_org_id().
  */
 export async function getProcurementDetail(id: string): Promise<ProcurementDetail> {
+  const pricesHidden = arePricesHidden();
   const { data, error } = await supabase
     .from(priceSource('procurements') as 'procurements')
-    .select(maskSelection(DETAIL_SELECT))
+    .select(maskSelection(detailSelect(!pricesHidden)))
     .eq('id', id)
     .single();
   if (error) throwRpc(error);
-  const [withRoute] = await attachApprovalRoutes([data as unknown as ProcurementDetail]);
-  const detail = await attachPaymentCeiling(withRoute);
-  detail.planPurchaseContext = await getPlanPurchaseSubmitContext(id);
-  return detail;
+  const row = data as unknown as ProcurementDetail;
+  const base = { ...row, quotations: pricesHidden ? [] : row.quotations ?? [] };
+  const [[withRoute], withCeiling, planPurchaseContext] = await Promise.all([
+    attachApprovalRoutes([base]),
+    attachPaymentCeiling(base),
+    getPlanPurchaseSubmitContext(id),
+  ]);
+  return { ...withRoute, ...withCeiling, planPurchaseContext };
 }
 
 // ---------------------------------------------------------------------------

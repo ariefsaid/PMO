@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
-import { render, screen, within, waitFor, act } from '@testing-library/react';
+import { fireEvent, render, screen, within, waitFor, act } from '@testing-library/react';
 import { toast as sonnerToast } from 'sonner';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, useLocation } from 'react-router';
@@ -335,12 +335,23 @@ describe('Meetings index — list (FR-MTG-028/029)', () => {
     ]);
   });
 
+  it('keeps all ten intermediate search terms out of the server query', async () => {
+    renderPage();
+    const input = screen.getByLabelText(/Search meetings/i);
+    for (let i = 1; i <= 10; i++) {
+      fireEvent.change(input, { target: { value: 'abcdefghij'.slice(0, i) } });
+      expect(useMeetingsSpy.mock.calls.every(([params]) => !params.search)).toBe(true);
+    }
+    expect(input).toHaveValue('abcdefghij');
+    await waitFor(() => expect(useMeetingsSpy).toHaveBeenCalledWith(expect.objectContaining({ search: 'abcdefghij' })));
+  });
+
   it('the search box drives the SERVER query (DD-MTG-5 — notes are the find mechanism)', async () => {
     renderPage();
     await userEvent.type(screen.getByLabelText(/Search meetings/i), 'pipeline');
-    expect(useMeetingsSpy).toHaveBeenNthCalledWith(useMeetingsSpy.mock.calls.length - 1,
+    await waitFor(() => expect(useMeetingsSpy).toHaveBeenNthCalledWith(useMeetingsSpy.mock.calls.length - 1,
       expect.objectContaining({ search: 'pipeline' }),
-    );
+    ));
   });
 });
 

@@ -81,7 +81,8 @@
     "stillNeeded": "Masih dibutuhkan: {{parts}}",
     "title": "Hari keselamatan",
     "version": "Versi {{n}}",
-    "workOrder": "$t(common:terms.clientWorkOrder)"
+    "workOrder": "$t(common:terms.clientWorkOrder)",
+    "invalidWallTime": "Waktu ini tidak ada di zona waktu organisasi"
   },
   "officer": {
     "add": "Tambah entri",

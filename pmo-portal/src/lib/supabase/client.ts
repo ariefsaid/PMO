@@ -1,6 +1,7 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from './database.types';
 import { createReadTimeoutFetch } from './readTimeoutFetch';
+import { recoverySession } from '../../auth/recoverySession';
 
 const url = import.meta.env.VITE_SUPABASE_URL;
 const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -15,3 +16,4 @@ export const supabase: SupabaseClient<Database> = createClient<Database>(url, an
   auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
   global: { fetch: createReadTimeoutFetch() },
 });
+supabase.auth.onAuthStateChange((event, session) => recoverySession.record(event, session));

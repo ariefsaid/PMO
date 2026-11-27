@@ -11,9 +11,11 @@ import { resetActiveLocale, setActiveLocale, setActiveOrgTimezone } from '@/src/
 const h = vi.hoisted(() => ({
   role: 'Project Manager' as string,
   mayOrder: false,
+  costsError: false, filesError: false, retry: vi.fn(),
   list: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
   costs: { data: [] as unknown[] },
   files: { data: [] as unknown[] },
+  fileReads: vi.fn(),
   mutations: {} as Record<string, { mutate: ReturnType<typeof vi.fn>; mutateAsync: ReturnType<typeof vi.fn>; isPending: boolean }>,
 }));
 const render = (ui: React.ReactElement) => rtlRender(<MemoryRouter>{ui}</MemoryRouter>);
@@ -22,8 +24,8 @@ vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'me'
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: h.role }) }));
 vi.mock('@/src/hooks/useThirdPartyInspections', () => ({
   useWorkOrderInspections: () => h.list,
-  useInspectionCosts: () => h.costs,
-  useInspectionFiles: () => h.files,
+  useInspectionCosts: () => ({ ...h.costs, isError: h.costsError, refetch: h.retry }),
+  useInspectionFilesBatch: (ids: string[]) => { h.fileReads(ids); return { ...h.files, isError: h.filesError, refetch: h.retry }; },
   useInspectionMutations: () => h.mutations,
 }));
 
@@ -39,10 +41,36 @@ beforeEach(() => {
   h.list = { data: [], isPending: false, isError: false, refetch: vi.fn() };
   h.costs = { data: [] };
   h.files = { data: [] };
+  h.fileReads.mockClear();
   h.mutations = Object.fromEntries(['create', 'raisePurchase', 'invite', 'execute', 'report', 'waive', 'cancel', 'addFile'].map((k) => [k, mut()]));
 });
 
 describe('InspectionsSection', () => {
+  it.each(['costsError', 'filesError'] as const)('offers retry for %s without implying an empty read', async (key) => {
+    h[key] = true;
+    try {
+      h.list.data = [insp({ status: 'executed', procurement_id: 'purchase' })];
+      const view = render(<InspectionsSection workOrderId="wo" />);
+      await userEvent.click(screen.getByRole('button', { name: /retry|try again/i }));
+      expect(h.retry).toHaveBeenCalled();
+      if (key === 'costsError') expect(screen.queryByText('Purchase raised, no cost yet')).not.toBeInTheDocument();
+      h[key] = false;
+      view.rerender(<MemoryRouter><InspectionsSection workOrderId="wo" /></MemoryRouter>);
+      expect(screen.queryByRole('button', { name: /retry|try again/i })).not.toBeInTheDocument();
+      expect(screen.getByText('Purchase raised, no cost yet')).toBeInTheDocument();
+    } finally { h[key] = false; }
+  });
+  it('reads files once for 30 executed inspections, excluding other states', () => {
+    h.list.data = Array.from({ length: 30 }, (_, n) => insp({ id: `i${n}`, status: 'executed' }));
+    h.list.data.push(insp({ id: 'draft', status: 'requested' }));
+    h.files.data = [{ id: 'f0', inspection_id: 'i0', title: 'First report' }, { id: 'f1', inspection_id: 'i1', title: 'Second report' }];
+    render(<InspectionsSection workOrderId="wo" />);
+    expect(h.fileReads).toHaveBeenCalledTimes(1);
+    expect(h.fileReads).toHaveBeenCalledWith(Array.from({ length: 30 }, (_, n) => `i${n}`));
+    expect(within(screen.getByTestId('inspection-i0')).getByRole('button', { name: 'First report' })).toBeInTheDocument();
+    expect(within(screen.getByTestId('inspection-i0')).queryByRole('button', { name: 'Second report' })).not.toBeInTheDocument();
+    expect(within(screen.getByTestId('inspection-i1')).getByRole('button', { name: 'Second report' })).toBeInTheDocument();
+  });
   it('#1126 an inspection planned for the organisation\'s yesterday is overdue, whatever the browser\'s day', () => {
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(new Date('2026-11-25T18:00:00Z'));

@@ -136,6 +136,10 @@
     "basis": "Dasar tarif",
     "currency": "Mata uang",
     "rentedFrom": "Awal sewa",
+    "endPeriod": "Akhiri masa sewa",
+    "lastRentalDay": "Hari terakhir sewa",
+    "confirmEnd": "Konfirmasi tanggal berakhir",
+    "periodEnded": "Masa sewa telah berakhir",
     "rentedTo": "Akhir sewa (opsional)",
     "saveTerms": "Simpan ketentuan sewa",
     "statusDate": "Tanggal status",
@@ -220,7 +224,8 @@
     "metricAssetsCount": "Alat: {{count}}",
     "files": "Berkas",
     "noDownDays": "Tidak ada hari rusak pada periode ini",
-    "statusCol": "Keadaan"
+    "statusCol": "Keadaan",
+    "loadedScope": "{{count}} mesin dari halaman peralatan yang dimuat. Muat halaman peralatan berikutnya untuk mencari mesin lain."
   },
   "basis": {
     "actual_cost": "Biaya aktual menurut pemakaian",
@@ -336,7 +341,8 @@
     "kindPerson": "Orang",
     "kindEquipment": "Peralatan",
     "groupExpired": "Kedaluwarsa",
-    "groupDue": "Habis dalam 30 hari"
+    "groupDue": "Habis dalam 30 hari",
+    "recordNotFound": "Data tidak ditemukan"
   },
   "nav": {
     "assets": "Aset",
@@ -542,7 +548,8 @@
     "hour": "Jam (00–23)",
     "minute": "Menit",
     "breakdownFrom": "Rusak sejak",
-    "responseTime": "Waktu tanggap"
+    "responseTime": "Waktu tanggap",
+    "loadedScope": "{{count}} mesin sewaan dari halaman peralatan yang dimuat; mesin lain tidak termasuk."
   },
   "home": {
     "newEquipment": "Alat baru",

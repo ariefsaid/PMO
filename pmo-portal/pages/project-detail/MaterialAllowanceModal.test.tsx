@@ -46,6 +46,15 @@ beforeEach(() => {
 });
 
 describe('Material allowance editor', () => {
+  it('requires a fresh quantity after switching to an item without an allowance', async () => {
+    renderIt();
+    await screen.findByRole('list', { name: 'Material allowance' });
+    await pick('cem', /CEM - Cement 50kg/);
+    expect(screen.getByLabelText(/^Planned quantity/)).toHaveValue('60');
+    await pick('cab', /CAB - Cable 4mm/);
+    expect(screen.getByLabelText(/^Planned quantity/)).toHaveValue('');
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+  });
   it('FR-STK-050 lists only this work item\'s allowances, and every field is labelled (axe)', async () => {
     const { baseElement } = renderIt();
     const list = await screen.findByRole('list', { name: 'Material allowance' });

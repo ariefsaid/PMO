@@ -40,14 +40,14 @@ describe('organisation switch registry (#2746)', () => {
       select.mockReturnValueOnce({ limit: () => Promise.resolve({ data: [{ module_stock: false }], error: null }) });
       await expect(orgSwitchRepository.read('moduleStock')).resolves.toBe(false);
       expect(select).toHaveBeenCalledWith('module_stock');
-      select.mockReturnValueOnce(Promise.resolve({ data: [{ id: 'org-1' }], error: null }));
+      select.mockReturnValueOnce({ limit: () => Promise.resolve({ data: [{ id: 'org-1' }], error: null }) });
       update.mockReturnValue({ eq: () => ({ select: () => Promise.resolve({ data: [{ id: 'org-1' }], error: null }) }) });
       await orgSwitchRepository.write('moduleBillingExtras', false);
       expect(update).toHaveBeenCalledWith({ module_billing_extras: false });
     });
 
     it('AC-OSM-007 writes by that row id', async () => {
-      select.mockReturnValue(Promise.resolve({ data: [{ id: 'org-1' }], error: null }));
+      select.mockReturnValue({ limit: () => Promise.resolve({ data: [{ id: 'org-1' }], error: null }) });
       const eq = vi.fn(() => ({ select: () => Promise.resolve({ data: [{ id: 'org-1' }], error: null }) }));
       update.mockReturnValue({ eq });
       await orgSwitchRepository.write('clearance', true);
@@ -56,13 +56,13 @@ describe('organisation switch registry (#2746)', () => {
     });
 
     it('AC-OSM-007 refuses when more than one organisation row is visible', async () => {
-      select.mockReturnValue(Promise.resolve({ data: [{ id: 'a' }, { id: 'b' }], error: null }));
+      select.mockReturnValue({ limit: () => Promise.resolve({ data: [{ id: 'a' }, { id: 'b' }], error: null }) });
       await expect(orgSwitchRepository.write('clearance', true)).rejects.toMatchObject({ code: 'no-org' });
       expect(update).not.toHaveBeenCalled();
     });
 
     it('AC-OSM-007 a write RLS filtered to nothing is refused with 42501', async () => {
-      select.mockReturnValue(Promise.resolve({ data: [{ id: 'org-1' }], error: null }));
+      select.mockReturnValue({ limit: () => Promise.resolve({ data: [{ id: 'org-1' }], error: null }) });
       update.mockReturnValue({ eq: () => ({ select: () => Promise.resolve({ data: [], error: null }) }) });
       await expect(orgSwitchRepository.write('clearance', true)).rejects.toMatchObject({ code: '42501' });
     });

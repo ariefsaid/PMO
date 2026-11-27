@@ -1,3 +1,5 @@
+import { WithheldPrice } from '@/src/components/ui/WithheldPrice';
+import { useMaySeePrices } from '@/src/hooks/useHidePrices';
 import React, { useMemo } from 'react';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
@@ -16,11 +18,12 @@ import { formatCurrency } from '@/src/lib/format';
  */
 export const OpenRequestsSection: React.FC<{ floatId: string; currency: string; onStartPlan: (lines: PlanSeedLine[]) => void }> = ({ floatId, currency, onStartPlan }) => {
   const { t } = useTranslation();
+  const maySeePrices = useMaySeePrices();
   const q = useImprestOpenRequests(floatId);
   const requests = useMemo(() => foldRequests(q.data?.rows ?? []), [q.data]);
   const seed = useMemo(() => seedFromRequests(requests, currency), [requests, currency]);
-  const pricesHidden = requests.length > 0 && requests.every((r) => r.total === null);
-  const money = (v: number | null, cur: string) => (v === null ? '—' : formatCurrency(Number(v), cur));
+  const pricesHidden = !maySeePrices || requests.some((request) => request.total === null || request.lines.some((line) => line.amount === null));
+  const money = (v: number | null, cur: string) => (pricesHidden || v === null ? '—' : formatCurrency(Number(v), cur));
   // One row per request, grouped by purpose: the request and its lines, its work order, its state, and its money on one
   // right edge (the request total, then each line's amount on the line it belongs to).
   const columns: Column<OpenRequest>[] = [
@@ -41,7 +44,7 @@ export const OpenRequestsSection: React.FC<{ floatId: string; currency: string; 
     ) },
   ];
   const reason = pricesHidden
-    ? t('imprest:open.noPrices', "You can't see prices on requests, so amounts can't be filled in. Add the lines yourself in the plan.")
+    ? t('imprest:open.noPrices', 'Add the lines yourself in the plan.')
     : seed.lines.length === 0
       ? t('imprest:open.nothingToStart', 'To start a plan, a request needs a purpose and a visible total above zero in {{currency}}.', { currency })
       : null;
@@ -69,7 +72,7 @@ export const OpenRequestsSection: React.FC<{ floatId: string; currency: string; 
         )}
         {!q.isPending && !q.isError && requests.length > 0 && (
           <div className="space-y-3">
-            {pricesHidden && reason && <p className="px-[var(--panel-inset)] text-control text-muted-foreground" data-testid="open-requests-reason">{reason}</p>}
+            {reason && <div className="px-[var(--panel-inset)] text-control text-muted-foreground" data-testid="open-requests-reason">{pricesHidden && <WithheldPrice />}{reason}</div>}
             {!reason && seed.skipped > 0 && (
               <p className="px-[var(--panel-inset)] text-control text-muted-foreground" data-testid="open-requests-skipped">
                 {t('imprest:open.skipped', '{{count}} request(s) with no purpose, no visible price or another currency are not counted in the plan.', { count: seed.skipped })}

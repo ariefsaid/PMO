@@ -3,7 +3,7 @@ import { QueryClientContext, useMutation, useQueryClient } from '@tanstack/react
 import { equipmentVendorResponseRepository as repo } from '@/src/lib/repositories/equipmentVendorResponse';
 import type { VendorResponseInput } from '@/src/lib/db/equipmentVendorResponse';
 import type { TFunction } from 'i18next';
-import { useCompanies } from '@/src/hooks/useCompanies';
+import { useCompanyOptions } from '@/src/hooks/useCompanies';
 import { splitMinutes } from '@/src/lib/vendorResponse';
 import { AuthContext } from '@/src/auth/AuthContext';
 import { useOrgQuery } from '@/src/hooks/useOrgQuery';
@@ -37,7 +37,7 @@ export function useVendorResponseReady(): boolean {
 }
 
 export function useVendorNames(): (id: string) => string {
-  const vendors = useCompanies('Vendor', { enabled: true });
+  const vendors = useCompanyOptions({ enabled: true }, 'Vendor');
   return (id) => vendors.data?.find((v) => v.id === id)?.name ?? id;
 }
 

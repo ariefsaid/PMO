@@ -244,6 +244,17 @@ export async function listAllWorkOrders(): Promise<WorkOrderListRow[]> {
   return rows.map(({ project, created_at: _created, ...row }) => ({ ...row, project_name: project?.name ?? null }));
 }
 
+export async function listOpenWorkOrdersForHome() {
+  const { data, error } = await supabase.from('work_orders')
+    .select('id, wo_number, title, status')
+    .in('status', ['Draft', 'Issued'])
+    .order('created_at', { ascending: false })
+    .order('id', { ascending: true })
+    .limit(5);
+  if (error) throwWrite(error);
+  return data ?? [];
+}
+
 /** One work order by id, or null when not found / not readable. RLS scopes the row. */
 export async function getWorkOrder(id: string): Promise<WorkOrderRow | null> {
   // #2895: the id is known before either read, so the advisory issue decision travels WITH the row

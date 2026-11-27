@@ -3,7 +3,7 @@ import type { TimesheetDay, TimesheetGridRow } from '@/src/components/ui';
 import type { TimesheetEntryWithProject } from '@/src/lib/db/timesheets';
 import type { EditRow } from '@/src/lib/timesheet-edit';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
-import { formatWeekday } from '@/src/lib/format';
+import { formatNumberExact, formatWeekday } from '@/src/lib/format';
 
 /** The local calendar day as `YYYY-MM-DD` (a storage key, never shown to a person). */
 export const dayKey = (d: Date): string =>
@@ -23,7 +23,7 @@ export function datesInWeek(start: Date): Date[] {
 }
 
 export function entriesToGridRows(
-  entries: TimesheetEntryWithProject[],
+  entries: Pick<TimesheetEntryWithProject, 'project_id' | 'work_order_id' | 'project' | 'work_order' | 'entry_date' | 'hours'>[],
   weekDates: Date[],
   unknownProject: string,
   options?: { groupByWorkOrder?: boolean },
@@ -120,7 +120,7 @@ export function planCopyLastWeekRows(
       code: g.code,
       // Zero days stay blank; non-zero values render as clean input text (2dp rounds away any
       // defensive-sum float dust like 8.100000000000001).
-      hours: g.hours.map((v) => (v === 0 ? '' : String(Math.round(v * 100) / 100))),
+      hours: g.hours.map((v) => (v === 0 ? '' : formatNumberExact(Math.round(v * 100) / 100))),
       note: g.note,
     }));
   return { rows: [...currentRows, ...additions], addedCount: additions.length };

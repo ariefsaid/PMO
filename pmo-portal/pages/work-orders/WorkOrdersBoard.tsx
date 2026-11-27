@@ -12,7 +12,7 @@ import { useTerms } from '@/src/lib/i18n/terms';
 import { statusLabel } from '@/src/lib/status/statusMap';
 import { formatDay, formatTableMoney, formatTileMoney } from '@/src/lib/format';
 import { planVariance } from '@/src/lib/workOrderPlanVsActual';
-import { COST_PROJECT_CAP, useWorkOrderDashboard } from '@/src/hooks/useWorkOrderDashboard';
+import { useWorkOrderDashboard } from '@/src/hooks/useWorkOrderDashboard';
 import type { DashboardRow } from '@/src/lib/workOrderDashboard';
 import type { WorkOrderStatus } from '@/src/lib/db/workOrders';
 import { WorkOrderProjectPanels } from './WorkOrderProjectPanels';
@@ -140,6 +140,9 @@ export const WorkOrdersBoard: React.FC<{ projectId?: string }> = ({ projectId })
 
   // The dashboard's head: money for the work orders in scope (one currency only; a second would need a second line per
   // figure), then the two exceptions as counts that filter the table. Scope = the project (tab or filter), not the search.
+  const mobileColumns = useMemo(() => dropBlankColumns(columns, filtered, undefined, !all.isPending)
+    .filter((column) => !['number', 'project', 'status'].includes(column.key)), [columns, filtered, all.isPending]);
+
   const scoped = useMemo(() => (values.project ? rows.filter((r) => r.project_id === values.project) : rows), [rows, values.project]);
   const tiles = useMemo<StatTile[]>(() => {
     const billed = scoped.map((r) => r.billing).filter((b): b is NonNullable<DashboardRow['billing']> => Boolean(b?.complete));
@@ -220,7 +223,7 @@ export const WorkOrdersBoard: React.FC<{ projectId?: string }> = ({ projectId })
           <StatusPill record="workOrder" state={row.status} />
         </div>}
         mobileCardDetails={(row) => <dl className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-2 text-control">
-          {dropBlankColumns(columns, filtered, undefined, !all.isPending).filter((column) => !['number', 'project', 'status'].includes(column.key)).map((column) => <React.Fragment key={column.key}>
+          {mobileColumns.map((column) => <React.Fragment key={column.key}>
             <dt className="text-muted-foreground">{column.header}</dt>
             <dd className="min-w-0 text-right tabular-nums">{column.cell(row)}</dd>
           </React.Fragment>)}
@@ -241,11 +244,6 @@ export const WorkOrdersBoard: React.FC<{ projectId?: string }> = ({ projectId })
         cardValuesEnd
         filteredEmpty={rows.length > 0 ? { message: t('all.noMatch', 'No work order matches your search'), clearFiltersLabel: ts('ui.filterBar.clear', 'Clear all'), onClearFilters: clear } : undefined}
       />
-      {costState === 'too-many' && !values.project && filtered.length > 0 && (
-        <p className="mt-2 text-control text-muted-foreground" data-testid="work-orders-cost-note">
-          {t('all.costTooMany', 'Direct cost shows for up to {{count}} projects. Choose a project.', { count: COST_PROJECT_CAP })}
-        </p>
-      )}
       {all.figuresError && (
         <p className="mt-2 text-control text-muted-foreground" role="status">
           {t('all.figuresError', "Some figures couldn't load.")}{' '}

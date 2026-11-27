@@ -55,11 +55,12 @@ const SpendApprovers: React.FC = () => {
   const invalidate = () => qc.invalidateQueries({ queryKey: listKey });
   // #2695: amount tiers on the approver lists. Off unless the organisation turns it on (no row = off).
   const tiersKey = ['spend-approval-tiers', orgId] as const;
-  const { data: tiersOn } = useQuery<boolean>({
+  const tiersQuery = useQuery<boolean>({
     queryKey: tiersKey,
     queryFn: () => spendApprovalSettingsRepository.getTiersEnabled(),
     enabled: Boolean(orgId),
   });
+  const tiersOn = tiersQuery.isError ? undefined : tiersQuery.data;
   const tiersMutation = useMutation({
     mutationFn: (enabled: boolean) => spendApprovalSettingsRepository.setTiersEnabled(enabled),
     onSuccess: () => qc.invalidateQueries({ queryKey: tiersKey }),
@@ -83,8 +84,9 @@ const SpendApprovers: React.FC = () => {
   // Who the standard role rules reach: same predicate that offers the Approve button (ADR-0070).
   // Shares the Add modal's query key, so opening the modal does not refetch.
   const { data: people, isError: peopleError, refetch: peopleRefetch } = useQuery({
-    queryKey: ['spend-approver-people', orgId],
+    queryKey: ['org-profiles', orgId],
     queryFn: () => repositories.profile.listOrgProfiles(),
+    staleTime: 5 * 60_000,
     enabled: Boolean(orgId),
   });
   const eligible = useMemo(
@@ -190,7 +192,7 @@ const SpendApprovers: React.FC = () => {
       <>
         <ul className="divide-y divide-border rounded-lg border border-border">
           {rows.map((r) => (
-            <li key={r.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-control">
+            <li key={r.id} className="flex flex-wrap items-center justify-between gap-3 px-3 py-2 text-control">
               <span className="min-w-0">
                 <span className="font-medium">{r.fullName}</span>
                 {scope === 'org' && r.projectName && <span className="ml-2 text-muted-foreground">{r.projectName}</span>}
@@ -251,6 +253,7 @@ const SpendApprovers: React.FC = () => {
               onRetry={() => void peopleRefetch()}
             />
           )}
+          {tiersQuery.isError ? <ListState variant="error" title={t('administration:orgSwitch.loadError', "Couldn't load this setting")} onRetry={() => void tiersQuery.refetch()} /> : tiersQuery.isPending ? <ListState variant="loading" rows={1} /> : null}
           {(canManage || tiersOn === true) && (
             <div data-testid="spend-tiers-setting">
               {canManage ? (
@@ -276,7 +279,7 @@ const SpendApprovers: React.FC = () => {
             </div>
           )}
           <div>
-            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
               <h3 className="text-control font-semibold">
                 {t('admin.spendApprovers.orgSet.title', 'Overhead and over-budget approvers')}
               </h3>
@@ -289,7 +292,7 @@ const SpendApprovers: React.FC = () => {
             {renderRows(orgRows, 'org')}
           </div>
           <div>
-            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
               <h3 className="text-control font-semibold">
                 {t('admin.spendApprovers.projectSet.title', 'Project approvers')}
               </h3>

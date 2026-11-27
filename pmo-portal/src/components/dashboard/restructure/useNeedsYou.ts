@@ -35,7 +35,6 @@ import { useWaitingCloseoutItems } from '@/src/hooks/useCloseoutChecklist';
 import { useWaitingMaterialAlerts } from '@/src/hooks/useWorkOrderMaterialAlerts';
 import { summariseWaitingMaterialAlerts } from '@/src/lib/materialAlertSteps';
 import type { WaitingMaterialAlertsFact } from '@/src/lib/materialAlertSteps';
-import { useCheckInRequests } from '@/src/hooks/usePhoneCheckIn';
 import { summariseWaitingSteps } from '@/src/lib/waitingSteps';
 import { summariseWaitingCloseoutItems } from '@/src/lib/closeoutWaiting';
 import type { WaitingCloseoutItemsFact } from '@/src/lib/closeoutWaiting';
@@ -426,8 +425,6 @@ export function useNeedsYou(role: Role | null): NeedsYouResult {
   const waitingCloseoutQuery = useWaitingCloseoutItems(Boolean(orgId && role) && !isLightAccount(currentUser));
   // material-vs-progress: open alerts on work orders the viewer controls. The responsible person can hold any role; the database returns none to everyone else and refuses a light account, so none is asked.
   const waitingAlertsQuery = useWaitingMaterialAlerts(Boolean(orgId && role) && !isLightAccount(currentUser));
-  // The check-in decisions this person may make; a failed read adds no item and never blocks the list.
-  const checkInsQuery = useCheckInRequests();
 
   const approvalSourcesPending = waiting.isPending;
   const approvalSourcesError = waiting.isError;
@@ -482,7 +479,7 @@ export function useNeedsYou(role: Role | null): NeedsYouResult {
     timesheetStatus: currentTimesheet?.status ?? (currentWeek && !timesheetsQuery.isPending && !timesheetsQuery.isError ? 'Draft' : null),
     engineerTasks: role === 'Engineer' && !myTasksQuery.isPending && !myTasksQuery.isError && currentWeek ? engineerTasksCount : undefined,
     waitingManpower: manpowerToFillQuery.isSuccess ? summariseManpowerToFill(manpowerToFillQuery.data ?? []) ?? undefined : undefined,
-    checkInsWaiting: checkInsQuery.isSuccess ? checkInsQuery.data.length : undefined,
+    checkInsWaiting: waiting.pendingKinds.includes('check_in') || waiting.failedKinds.includes('check_in') ? undefined : waiting.countFor('check_in'),
     waitingBillingSteps: waitingStepsQuery.isSuccess ? summariseWaitingSteps(waitingStepsQuery.data ?? []) ?? undefined : undefined,
     waitingWorkOrderSteps: waitingWoStepsQuery.isSuccess ? summariseWaitingWorkOrderSteps(waitingWoStepsQuery.data ?? [], organizationDay.day ?? orgDayNow()) ?? undefined : undefined,
     waitingCloseoutItems: waitingCloseoutQuery.isSuccess ? summariseWaitingCloseoutItems(waitingCloseoutQuery.data ?? [], organizationDay.day ?? orgDayNow()) ?? undefined : undefined,
@@ -531,7 +528,6 @@ export function useNeedsYou(role: Role | null): NeedsYouResult {
     void expenseClaimsQuery.refetch();
     waiting.refetch();
     void waitingCloseoutQuery.refetch();
-    void checkInsQuery.refetch();
     organizationDay.retry();
   };
 

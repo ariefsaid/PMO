@@ -1,6 +1,7 @@
-import { useCompanies } from '@/src/hooks/useCompanies';
+import { useCompanyOptions } from '@/src/hooks/useCompanies';
 import React, { useMemo, useState, useSyncExternalStore } from 'react';
 import { useTranslation } from 'react-i18next';
+import { stockUnitName } from '@/src/lib/i18n/stockUnitLabel';
 import {
   ListPage, ListState, DataTable, StatusPill, ConfirmDialog, EntityFormModal, TextField, TextArea, SelectField, FormGrid,
   Checkbox, Drawer, Tabs, Button, Icon, useEntityForm, useToast, tabId, tabPanelId,
@@ -89,10 +90,10 @@ const StockSetup: React.FC = () => {
   const canKeepers = may('manage', 'warehouse', ctx);
   const canThreshold = may('manage', 'workOrderIssueThreshold', ctx);
 
-  const unitName = useMemo(() => new Map((allUnits.data ?? []).map((u) => [u.id, u.name])), [allUnits.data]);
+  const unitName = useMemo(() => new Map((allUnits.data ?? []).map((u) => [u.id, stockUnitName(u, t)])), [allUnits.data, t]);
   const tagName = useMemo(() => new Map((itemTags.data ?? []).map((tag) => [tag.id, tag.name])), [itemTags.data]);
   const projectName = useMemo(() => new Map((projects.data ?? []).map((p) => [p.id, p.name])), [projects.data]);
-  const vendorList = useCompanies('Vendor', { enabled: tab === 'warehouses' });
+  const vendorList = useCompanyOptions({ enabled: tab === 'warehouses' }, 'Vendor');
   const vendorName = useMemo(() => new Map((vendorList.data ?? []).map((c) => [c.id, c.name])), [vendorList.data]);
   const personName = useMemo(() => new Map((people.data ?? []).map((p) => [p.id, p.full_name ?? ''])), [people.data]);
   const onHandByItem = useMemo(() => {
@@ -122,7 +123,7 @@ const StockSetup: React.FC = () => {
   const identity = (r: { code: string; name: string; archived_at: string | null }): React.ReactNode => (
     <div className={`min-w-0 ${dim(r)}`}>
       <span className="block truncate record-id font-semibold text-foreground">{r.code}</span>
-      <span className="block truncate text-sm text-muted-foreground">{r.name}</span>
+      <span className="block truncate text-sm text-muted-foreground">{tab === 'units' ? stockUnitName(r as StockUnitRow, t) : r.name}</span>
     </div>
   );
 
@@ -372,7 +373,7 @@ const MasterFormModal: React.FC<FormProps> = ({ which, row, units, projects, tag
   const m = useStockMasterMutations();
   const tagQuery = useStockTags(true, which === 'items' && tagsEnabled);
   const tags = (tagQuery.data ?? []).filter((tag) => !tag.archived_at || tag.id === (row as StockItemRow | null)?.tag_id);
-  const vendors = useCompanies('Vendor', { enabled: which === 'warehouses' });
+  const vendors = useCompanyOptions({ enabled: which === 'warehouses' }, 'Vendor');
   const errorCopy = useErrorCopy();
   const isEdit = !!row;
   const k = which === 'units' ? 'unit' : which === 'items' ? 'item' : 'warehouse';

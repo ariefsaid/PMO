@@ -84,12 +84,14 @@ export function useCompaniesTotal(opts?: { enabled?: boolean }) {
  * export company names and create/edit select (#1989). A picker must offer everyone, not one
  * page (the AdminUsers ruling); the narrow projection keeps that whole-directory read small.
  */
-export function useCompanyOptions(opts?: { enabled?: boolean }) {
+export function useCompanyOptions(opts?: { enabled?: boolean }, type?: CompanyType) {
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
   return useQuery<CompanyOptionRow[]>({
     queryKey: ['companies', orgId, 'options'],
     queryFn: () => repositories.company.listOptions(),
+    select: type ? (rows) => rows.filter((row) => row.type === type) : undefined,
+    staleTime: 5 * 60_000,
     enabled: Boolean(orgId) && opts?.enabled !== false,
   });
 }

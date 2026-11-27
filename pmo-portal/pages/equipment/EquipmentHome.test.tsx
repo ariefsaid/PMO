@@ -25,7 +25,7 @@ vi.mock('@/src/hooks/useEquipment', () => ({
   useCreateRentedAsset: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useUpdateAsset: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
-vi.mock('@/src/hooks/useCompanies', () => ({ useCompanies: () => ({ data: [] }) }));
+vi.mock('@/src/hooks/useCompanies', () => ({ useCompanyOptions: () => ({ data: [] }) }));
 vi.mock('@/src/hooks/useOrgToday', () => ({ useOrgToday: () => '2026-09-11' }));
 vi.mock('@/src/hooks/useResolvedLocale', () => ({ useOrgBusinessTimezone: () => 'UTC' }));
 vi.mock('@/src/auth/useFeature', () => ({ useFeature: () => h.planFeature }));

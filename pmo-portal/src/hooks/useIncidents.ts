@@ -1,7 +1,6 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { repositories } from '@/src/lib/repositories';
 import type { IncidentRow, IncidentDetailRow, IncidentStatus, IncidentInput, IncidentFileRow, IncidentFileKind } from '@/src/lib/db/incidents';
-import type { ComboboxOption } from '@/src/components/ui';
 import { useAuth } from '@/src/auth/useAuth';
 import { withTimeout } from '@/src/lib/withTimeout';
 import { useOrgQuery } from '@/src/hooks/useOrgQuery';
@@ -185,10 +184,10 @@ export function useIncidentEvidenceMutations() {
 export function useAssigneeOptions() {
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
-  return useQuery<ComboboxOption[]>({
-    queryKey: ['fk-options', 'incident-assignee', orgId],
-    queryFn: async () => (await repositories.profile.listOrgProfiles())
-      .filter((p) => p.status === 'active')
+  return useQuery({
+    queryKey: ['org-profiles', orgId],
+    queryFn: () => repositories.profile.listOrgProfiles(),
+    select: (rows) => rows.filter((p) => p.status === 'active')
       .map((p) => ({ value: p.id, label: p.full_name ?? p.email ?? p.id, sub: p.role })),
     enabled: Boolean(orgId),
     staleTime: 5 * 60_000,

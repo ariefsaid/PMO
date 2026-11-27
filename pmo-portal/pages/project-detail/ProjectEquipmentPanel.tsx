@@ -59,7 +59,8 @@ export const ProjectEquipmentPanel: React.FC<{ projectId: string; currency: stri
       <Button variant="outline" size="sm" onClick={() => void totals.refetch()}>{t('equipment:usage.retry', 'Retry')}</Button>
     </div>
   );
-  if (lines.length === 0) return null;
+  const allocationUnavailable = canSeeAmounts && (allocations.isPending || allocations.isError);
+  if (lines.length === 0 && !allocationUnavailable) return null;
 
   const charge = equipmentChargeTotal && !isZero(equipmentChargeTotal) ? formatExactMoney(equipmentChargeTotal, currency, getNumberLocale(), { wholeUnits: true }) : null;
   const missing = (count: number) => count ? ` · ${t('equipment:panel.notRecorded', '{{count}} not recorded', { count })}` : '';
@@ -68,7 +69,7 @@ export const ProjectEquipmentPanel: React.FC<{ projectId: string; currency: stri
     { key: 'work', header: t('equipment:usage.kindWork', 'Work'), align: 'num', cell: (l) => <span className="whitespace-nowrap tabular-nums">{l.unknownWork === l.usageRows ? '—' : `${formatNumberMax2(l.work)} ${unitLabel(t, l.unit, l.work)}`}{missing(l.unknownWork)}</span> },
     { key: 'standby', header: t('equipment:usage.kindStandby', 'Standby'), align: 'num', cell: (l) => <span className="whitespace-nowrap tabular-nums">{l.unknownStandby === l.usageRows ? '—' : `${formatNumberMax2(l.standby)} ${unitLabel(t, l.unit, l.standby)}`}{missing(l.unknownStandby)}</span> },
     { key: 'waiting', header: t('equipment:usage.waiting', 'Waiting approval'), align: 'num', cell: (l) => <span className="tabular-nums">{l.unknownWaiting === l.usageRows ? '—' : l.waiting}{missing(l.unknownWaiting)}</span> },
-    ...(canSeeAmounts ? [
+    ...(canSeeAmounts && !allocationUnavailable ? [
       { key: 'amount', header: t('equipment:panel.columns.allocated', 'Allocated'), align: 'num' as const,
         cell: (l: AssetLine) => l.amount == null ? <span className="text-muted-foreground">—{missing(l.unknownAmount)}</span> : <span className="tabular-nums">{formatCurrency(l.amount, currency)}{missing(l.unknownAmount)}</span> },
       { key: 'basis', header: t('equipment:allocations.basis', 'Basis'),
@@ -78,6 +79,8 @@ export const ProjectEquipmentPanel: React.FC<{ projectId: string; currency: stri
   return (
     <div className="min-w-0 space-y-2" data-testid="project-equipment-panel">
       <h3 className="text-sm font-semibold">{t('equipment:panel.title', 'Equipment · last 12 months')}</h3>
+      {canSeeAmounts && allocations.isError && <ListState variant="error" title={t("equipment:panel.error", "Could not load equipment.")} onRetry={() => { void allocations.refetch(); }} retryLabel={t("equipment:usage.retry", "Retry")} />}
+      {canSeeAmounts && allocations.isPending && <ListState variant="loading" rows={1} />}
       <DataTable<AssetLine> embedded rows={lines} columns={columns} rowKey={(l) => l.assetId} tableId="project-equipment"
         accessibleName={t('equipment:panel.title', 'Equipment · last 12 months')} />
       {charge && <p className="text-sm text-muted-foreground">{t('equipment:panel.internalCharge', 'Includes {{amount}} internal equipment charges (hire rates), not ledger cost', { amount: charge })}</p>}

@@ -23,6 +23,8 @@ insert into public.projects (id,org_id,name,status,currency,contract_value,tax_t
  ('04080000-0000-0000-0000-0000000000d4','04080000-0000-0000-0000-000000000001','BKR P4','Ongoing Project','USD',1000,'exclusive',0,0,1,1,false,'BKR-4'),
  ('04080000-0000-0000-0000-0000000000d7','04080000-0000-0000-0000-000000000001','BKR P7','Ongoing Project','USD',1000,'exclusive',0,0,1,1,false,'BKR-7'),
  ('04080000-0000-0000-0000-0000000000d9','04080000-0000-0000-0000-000000000002','BKR foreign','Ongoing Project','USD',1000,'exclusive',0,0,1,1,false,'BKR-F');
+-- A Project Manager reads project money for their own projects (2750): this Project Manager manages the project under test.
+update public.projects set project_manager_id = '04080000-0000-0000-0000-0000000000a4' where org_id = '04080000-0000-0000-0000-000000000001' and project_manager_id is null;
 insert into public.external_domain_ownership (org_id,external_tier,domain) values ('04080000-0000-0000-0000-000000000001','erpnext','revenue');
 insert into public.sales_invoices (id,org_id,project_id,si_number,invoice_date,amount,erp_outstanding_amount,tax_treatment,
                                    tax_amount,currency,status,erp_docstatus) values

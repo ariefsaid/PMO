@@ -21,7 +21,7 @@ test('JOB-T7 a changed deadline shows its old and new date and who changed it in
   const sfx = uniq();
   const managerName = runId('t7pm');
   worker = await roleJobUser(admin, 'project_manager', managerName);
-  projectId = await ownProject(admin, `JOB-T7 project ${sfx}`);
+  projectId = await ownProject(admin, `JOB-T7 project ${sfx}`, worker.id);
   const task = need('task', await admin.from('tasks').insert({
     org_id: ORG_ID, project_id: projectId, name: `Pour slab ${sfx}`, status: 'To Do', end_date: '2030-01-10',
   }).select('id').single());

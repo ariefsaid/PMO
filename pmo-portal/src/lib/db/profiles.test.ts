@@ -13,6 +13,7 @@ const h = vi.hoisted(() => {
     calls.order.push(args);
     return builder;
   };
+  builder.range = () => builder;
   builder.then = (resolve: (v: unknown) => unknown) => resolve(result.value);
   const select = vi.fn(() => builder);
   const from = vi.fn((table: string) => {
@@ -60,6 +61,7 @@ describe('AC-TASK-008 listOrgProfiles (assignee picker source)', () => {
     };
     const result = await listOrgProfiles();
     expect(h.from).toHaveBeenCalledWith('profiles');
+    expect(h.select).toHaveBeenCalledWith('id,full_name,email,role,built_in_role,status,org_id,manager_id');
     expect(h.calls.order).toContainEqual(['full_name']);
     expect(JSON.stringify(h.calls)).not.toContain('org_id');
     expect(result[0].full_name).toBe('Dana Eng');
