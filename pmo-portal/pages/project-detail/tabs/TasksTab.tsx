@@ -643,7 +643,7 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
         icon="search"
         title={t('projectDetail.tasks.filteredEmptyTitle', 'No tasks match these filters')}
         sub={t('projectDetail.tasks.filteredEmptySub', 'Try another status, assignee, or search term.')}
-        action={{ label: t('projectDetail.tasks.clearFilters', 'Clear filters'), onClick: () => { setStatusFilter('all'); setAssigneeFilter('all'); setSearchText(''); clearSelection(); } }}
+        action={{ label: t('projectDetail.tasks.clearFilters', 'Clear filters'), onClick: () => { setStatusFilter('all'); setAssigneeFilter('all'); setWorkOrderFilter('all'); setSearchText(''); clearSelection(); } }}
       />}
 
       {state === undefined && groupsRequested && <TaskGroupsPanel projectId={projectId} tasks={all} milestones={milestoneList} requested={groupsRequested} />}

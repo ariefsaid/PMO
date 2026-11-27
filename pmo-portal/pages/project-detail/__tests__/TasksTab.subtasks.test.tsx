@@ -172,6 +172,13 @@ describe('TasksTab — subtask nesting in the flat List view (AC-SUB-UI-001/002)
 });
 
 describe('TasksTab — Move offers no parent that would make a cycle (AC-SUB-UI-003)', () => {
+  it('clears the work order filter so tasks return', async () => {
+    listState.data = [{ ...t('p', 'Order task'), work_order_id: 'wo' }];
+    renderTab();
+    await userEvent.selectOptions(screen.getByLabelText('Filter by work order'), 'none');
+    await userEvent.click(screen.getByRole('button', { name: 'Clear filters' }));
+    expect(screen.getByText('Order task')).toBeInTheDocument();
+  });
   const openEditFor = async (taskName: string) => {
     const row = screen.getByText(taskName).closest('tr')!;
     await userEvent.click(within(row).getByRole('button', { name: /row actions/i }));
