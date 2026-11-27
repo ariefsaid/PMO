@@ -46,7 +46,8 @@ insert into projects (id, org_id, code, name, status, project_manager_id) values
   ('30230000-0000-0000-0000-000000000014','30230000-0000-0000-0000-000000000001','P3023-E','Off-org engineer lead','Leads','30230000-0000-0000-0000-0000000000a1'),
   ('30230000-0000-0000-0000-000000000015','30230000-0000-0000-0000-000000000002','P3023-F','On-org lead','Leads','30230000-0000-0000-0000-0000000000b1'),
   ('30230000-0000-0000-0000-000000000016','30230000-0000-0000-0000-000000000001','P3023-G','Off-org internal lead','Leads','30230000-0000-0000-0000-0000000000a1');
-update projects set contract_value = 5000, contract_value_set_at = now()
+update projects set contract_value = 5000, tax_treatment = 'exclusive', tax_amount = 0,
+         contract_value_set_at = now()
   where id in ('30230000-0000-0000-0000-000000000011','30230000-0000-0000-0000-000000000012');
 -- The witnessed lead's value was authored by the org's Admin (outranks the PM: rank limb of
 -- may_approve_work_of) and the Admin is an active member — the permit shape of 0177/0183.
