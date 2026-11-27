@@ -5,9 +5,7 @@ vi.mock('./approvalRoutes', () => ({ attachApprovalRoutes: h.route }));
 vi.mock('./procurementPaymentCeiling', () => ({ attachPaymentCeiling: h.ceiling }));
 vi.mock('./equipmentPlans', () => ({ getPlanPurchaseSubmitContext: h.plan }));
 import { getProcurementDetail } from './procurementLifecycle';
-import { setHidePricesActive, setPricesHidden } from '../priceReadPath';
 it('starts independent purchase enrichments together and preserves their fields', async () => {
-  setHidePricesActive(false); setPricesHidden(false);
   const base = { id: 'purchase', status: 'Requested' };
   h.single.mockResolvedValue({ data: base, error: null });
   let release!: (rows: unknown[]) => void;

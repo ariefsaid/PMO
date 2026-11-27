@@ -4,14 +4,13 @@ import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
-import { setPricesHidden, setHidePricesActive } from '@/src/lib/priceReadPath';
+import { setPricesHidden } from '@/src/lib/priceReadPath';
 import { LineItemsSection } from './LineItemsSection';
 import type { ProcurementItemRow } from '@/src/lib/db/procurementCrud';
 
 const items = [{ id: 'it1', org_id: 'o', procurement_id: 'p', name: 'MIG welding wire', description: null, quantity: 24, rate: null, amount: null,
   erp_docstatus: null, erp_line_amount: null, erp_modified: null }] as unknown as ProcurementItemRow[];
 const renderSection = (over: Partial<React.ComponentProps<typeof LineItemsSection>> = {}) => render(<ToastProvider><LineItemsSection items={items} editable={false} onAdd={vi.fn().mockResolvedValue(undefined)} onUpdate={vi.fn()} onDelete={vi.fn()} onError={vi.fn()} currency="USD" {...over} /></ToastProvider>);
-beforeEach(() => { setHidePricesActive(false); setPricesHidden(false); });
 afterEach(() => act(() => setPricesHidden(false)));
 
 describe('AC-009 line items without prices', () => {

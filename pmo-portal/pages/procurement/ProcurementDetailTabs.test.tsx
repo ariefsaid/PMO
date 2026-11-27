@@ -5,7 +5,6 @@ import userEvent from '@testing-library/user-event';
 import { ToastProvider } from '@/src/components/ui';
 import type { ProcurementDetail } from '@/src/lib/db/procurementLifecycle';
 import type { ProcurementItemRow } from '@/src/lib/db/procurementCrud';
-import { setHidePricesActive, setPricesHidden } from '@/src/lib/priceReadPath';
 import { ProcurementItemsTab } from './ProcurementDetailTabs';
 
 const item: ProcurementItemRow = {
@@ -48,7 +47,6 @@ function itemTabProps(p: ProcurementDetail, crud: unknown, canEditItems: boolean
 afterEach(() => vi.unstubAllGlobals());
 
 describe('ProcurementItemsTab record caller', () => {
-  beforeEach(() => { setHidePricesActive(false); setPricesHidden(false); });
   it('shows the estimated total in the phone line-items list', () => {
     mockPhoneViewport();
     const crud = {

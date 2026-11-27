@@ -2,14 +2,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
-import { setPricesHidden, setHidePricesActive } from '@/src/lib/priceReadPath';
+import { setPricesHidden } from '@/src/lib/priceReadPath';
 import { ProcurementOverviewTab } from './ProcurementOverviewTab';
 
 vi.mock('@/src/components/procurement/DecisionSupportPanel', () => ({ DecisionSupportPanel: () => <div data-testid="decision-support" /> }));
 
 const renderTab = () => render(<MemoryRouter><ProcurementOverviewTab tiles={[]} detailRows={[{ label: 'Project', value: 'Site' }]} events={[]}
   projectId="proj-1" projectName="Site" totalValue={1000} status="Requested" currency="USD" /></MemoryRouter>);
-beforeEach(() => { setHidePricesActive(false); setPricesHidden(false); });
 afterEach(() => act(() => setPricesHidden(false)));
 
 describe('AC-009 overview tab without prices', () => {

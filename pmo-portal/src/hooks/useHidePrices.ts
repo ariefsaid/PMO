@@ -2,7 +2,7 @@ import { useEffect, useSyncExternalStore } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { hidePricesRepository } from '@/src/lib/repositories/hidePrices';
 import { useAuth } from '@/src/auth/useAuth';
-import { arePricesHidden, getPriceVisibility, setHidePricesActive, setPricesHidden, subscribeHidePrices } from '@/src/lib/priceReadPath';
+import { arePricesHidden, isHidePricesActive, setHidePricesActive, setPricesHidden, subscribeHidePrices } from '@/src/lib/priceReadPath';
 
 /** #2699: the organisation setting; only a confirmed off answer selects ordinary reads. */
 export const HIDE_PRICES_ENABLED_KEY = 'org-hide-prices-enabled';
@@ -36,19 +36,13 @@ export function usePriceVisibilitySync(): void {
     staleTime: 5 * 60_000,
     retry: false,
   });
-  const active = enabled.isError ? true : enabled.data ?? null;
-  const callerReady = active === false || enabled.isError || may.isSuccess || may.isError;
-  const hidden = active !== false && (enabled.isError || may.data !== true);
+  const active = enabled.data !== false;
   useEffect(() => {
-    if (active === null) { setPricesHidden(true, false); return; }
-    const previous = getPriceVisibility();
-    setPricesHidden(hidden, callerReady);
-    if (previous !== active) {
-      setHidePricesActive(active);
-      if (previous !== null) void qc.resetQueries({ predicate: (q) => q.queryKey[0] !== HIDE_PRICES_ENABLED_KEY && q.queryKey[0] !== MAY_SEE_PRICES_KEY });
+    if (isHidePricesActive() !== active) { setHidePricesActive(active);
+      void qc.invalidateQueries({ predicate: (q) => q.queryKey[0] !== HIDE_PRICES_ENABLED_KEY && q.queryKey[0] !== MAY_SEE_PRICES_KEY });
     }
-  }, [orgId, active, hidden, callerReady, qc]);
-  useEffect(() => () => { setHidePricesActive(null); setPricesHidden(true, false); }, [orgId]);
+  }, [orgId, active, qc]);
+  useEffect(() => { setPricesHidden(active && may.data !== true); }, [active, may.data]);
 }
 
 /** Should price columns, fields and totals be drawn? The server confirms either the setting is off or the caller may see prices.

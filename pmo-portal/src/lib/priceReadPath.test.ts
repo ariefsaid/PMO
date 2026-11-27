@@ -1,7 +1,5 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { maskSelection, priceEmbed, priceFn, priceSource, setHidePricesActive } from './priceReadPath';
-
-beforeEach(() => setHidePricesActive(false));
 
 afterEach(() => setHidePricesActive(false));
 

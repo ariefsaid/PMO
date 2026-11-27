@@ -2,7 +2,7 @@ import { parseRoute } from './parseRoute';
 import { supabase } from '@/src/lib/supabase/client';
 import { Constants } from '@/src/lib/supabase/database.types';
 import { nullableArg } from './nullableArg';
-import { arePricesHidden, isHidePricesActive, waitForPriceVisibility } from '@/src/lib/priceReadPath';
+import { arePricesHidden, isHidePricesActive } from '@/src/lib/priceReadPath';
 import { AppError } from '@/src/lib/appError';
 import { formatDecimal, mulRound } from '@/src/lib/exactDecimal';
 import type { UserRole } from './adminUsers';
@@ -123,7 +123,6 @@ const toPlan = (r: PlanDbRow): EquipmentPlan => ({
 
 /** The plans of one month (every project the caller may read), with their lines. */
 export async function listPlansForMonth(month: string): Promise<EquipmentPlan[]> {
-  await waitForPriceVisibility(undefined, true);
   // While prices are hidden, do not request the rate column from the masked view (#2788).
   const plans = supabase.from('equipment_plans');
   const lineColumns = arePricesHidden()

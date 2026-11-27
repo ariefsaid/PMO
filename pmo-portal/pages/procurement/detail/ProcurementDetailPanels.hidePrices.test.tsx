@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter } from 'react-router';
 import { act, render, screen } from '@testing-library/react';
 import type { ProcurementDetail } from '@/src/lib/db/procurementLifecycle';
-import { setPricesHidden, setHidePricesActive } from '@/src/lib/priceReadPath';
+import { setPricesHidden } from '@/src/lib/priceReadPath';
 import { ProcurementMoneySummary, ProcurementStageTracker, ProcurementTimeline } from './ProcurementDetailPanels';
 
 vi.mock('../ProcurementFilesSubsection', () => ({ ProcurementFilesSubsection: () => null }));
@@ -18,7 +18,6 @@ const procurement = {
   invoices: [], payments: [], receipts: [], quotations: [], rfqs: [],
 } as unknown as ProcurementDetail;
 
-beforeEach(() => { setHidePricesActive(false); setPricesHidden(false); });
 afterEach(() => act(() => setPricesHidden(false)));
 
 describe('AC-009 procurement record panels without prices', () => {

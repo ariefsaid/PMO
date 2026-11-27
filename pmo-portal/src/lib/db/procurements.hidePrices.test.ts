@@ -1,5 +1,5 @@
 /** AC-003 (#2699) — while the organisation hides prices the procurement reads go through the masked views; off, the table (unchanged). */
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { setHidePricesActive } from '@/src/lib/priceReadPath';
 
 const m = vi.hoisted(() => ({ from: vi.fn(), select: vi.fn() }));
@@ -12,7 +12,6 @@ function chain() {
   c.then = (res: (v: unknown) => unknown) => Promise.resolve({ data: [], error: null }).then(res);
   return c;
 }
-beforeEach(() => setHidePricesActive(false));
 afterEach(() => { setHidePricesActive(false); vi.clearAllMocks(); });
 
 describe('AC-003 procurement read path', () => {

@@ -4,7 +4,7 @@ vi.mock('@/src/lib/supabase/client', () => ({ supabase: { rpc: h.rpc, from: h.fr
 import { correctSlip, getSlip, listBills, listSlips, readBillContexts, recordSlip, voidSlip } from './vendorWithholdingSlips';
 import { setHidePricesActive } from '@/src/lib/priceReadPath';
 
-beforeEach(() => { setHidePricesActive(false); vi.clearAllMocks(); h.result = { data: [{ slip_id: 'slip-1', revision: 1 }], error: null }; h.rpc.mockImplementation(async () => h.result); });
+beforeEach(() => { vi.clearAllMocks(); h.result = { data: [{ slip_id: 'slip-1', revision: 1 }], error: null }; h.rpc.mockImplementation(async () => h.result); });
 const input = { slipId: 'slip-1', vendorId: 'vendor-1', slipNumber: ' BUPOT/1 ', slipDate: '2026-10-01', taxPeriod: '2026-10-01', pphType: 'pph23' as const, taxBase: '999999999999.99', withheldAmount: '0.01', invoiceIds: ['invoice-1'], declaredInvoiceIds: [] };
 
 it('AC-BUPOT-014 DAL record sends only the RPC intent and exact decimal contract', async () => {

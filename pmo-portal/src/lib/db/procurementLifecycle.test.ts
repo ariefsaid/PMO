@@ -269,22 +269,6 @@ describe('getProcurementDetail', () => {
     expect(result.quotations).toEqual([]);
   });
 
-  it('AC-HPG-P2 waits for the caller answer before selecting quotation rows', async () => {
-    setHidePricesActive(null);
-    setPricesHidden(true, false);
-    makeFromBuilder({ data: { id: 'proc-1', title: 'Test Proc', status: 'Draft' }, error: null });
-    const pending = getProcurementDetail('proc-1');
-    await Promise.resolve();
-    expect(mockFrom).not.toHaveBeenCalled();
-    setHidePricesActive(true);
-    await Promise.resolve();
-    expect(mockFrom).not.toHaveBeenCalled();
-    setPricesHidden(false);
-    await pending;
-    expect(mockSelect.mock.calls[0]?.[0]).toContain('quotations:procurement_quotations');
-    expect(mockFrom).toHaveBeenCalledWith('procurements_masked');
-  });
-
   it('AC-SEC-220 (DAL): a procurement awaiting payment carries the server payment ceiling', async () => {
     makeFromBuilder({ data: { id: 'proc-1', status: 'Vendor Invoiced', invoices: [] }, error: null });
     makeRpcBuilder({ data: [{ ok: false, reason: 'vendor bill exceeds approved amount', billed_net: 1200, approved_amount: 1000 }], error: null });

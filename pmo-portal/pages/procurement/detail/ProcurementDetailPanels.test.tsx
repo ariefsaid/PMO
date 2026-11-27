@@ -5,7 +5,6 @@ import userEvent from '@testing-library/user-event';
 import type { ProcurementDetail } from '@/src/lib/db/procurementLifecycle';
 import type { ErpPurchaseRow } from '@/src/lib/repositories/erpPurchases';
 import { FigureScope } from '@/src/components/ui';
-import { setHidePricesActive, setPricesHidden } from '@/src/lib/priceReadPath';
 import { ProcurementBudgetSignal, ProcurementMoneySummary, ProcurementStageTracker, ProcurementTimeline } from './ProcurementDetailPanels';
 
 vi.mock('../ProcurementFilesSubsection', () => ({ ProcurementFilesSubsection: () => null }));
@@ -38,8 +37,6 @@ const overdueInvoice: ErpPurchaseRow = {
   dueDate: dayOffset(-13), billNo: 'INV-88213', currency: 'USD', grandTotal: 62_000, netTotal: 62_000, outstanding: 62_000,
   erpStatus: 'Overdue', isReturn: false, projectIds: [], procurementId: 'p-1', linkId: 'l-1',
 };
-
-beforeEach(() => { setHidePricesActive(false); setPricesHidden(false); });
 
 describe('procurement record panels', () => {
   it.each([[1, 1], [1, 0], [0, 1]])('counts %i invoices and %i payments under their own labels', (invoices, payments) => {

@@ -4,7 +4,7 @@ import { act, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
-import { setPricesHidden, setHidePricesActive } from '@/src/lib/priceReadPath';
+import { setPricesHidden } from '@/src/lib/priceReadPath';
 import { ProcurementListColumns, ProcurementListRow } from './ProcurementListRow';
 
 vi.mock('@/src/components/procurement/DecisionSupportPanel', () => ({ DecisionSupportPanel: () => <div data-testid="decision-support" /> }));
@@ -17,7 +17,6 @@ const row = {
 } as ProcurementWithRefs;
 
 const renderRow = () => render(<MemoryRouter><ProcurementListColumns /><ProcurementListRow row={row} /></MemoryRouter>);
-beforeEach(() => { setHidePricesActive(false); setPricesHidden(false); });
 afterEach(() => act(() => setPricesHidden(false)));
 
 describe('AC-009 procurement list without prices', () => {

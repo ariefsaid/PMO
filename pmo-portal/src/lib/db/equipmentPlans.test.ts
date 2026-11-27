@@ -38,26 +38,9 @@ import {
 } from './equipmentPlans';
 
 beforeEach(() => {
-  setHidePricesActive(false); setPricesHidden(false);
   h.from.mockClear(); h.rpc.mockClear();
   for (const k of Object.keys(h.calls) as (keyof typeof h.calls)[]) h.calls[k].length = 0;
   h.results.length = 0;
-});
-
-it('AC-HPG-P2 waits for caller visibility before choosing plan rate columns', async () => {
-  setHidePricesActive(null);
-  setPricesHidden(true, false);
-  h.push({ data: [], error: null });
-  const result = listPlansForMonth('2026-03-01');
-  await Promise.resolve();
-  expect(h.from).not.toHaveBeenCalled();
-  setHidePricesActive(true);
-  await Promise.resolve();
-  expect(h.from).not.toHaveBeenCalled();
-  setPricesHidden(false);
-  await result;
-  expect(String(h.calls.select[0])).toContain('rate');
-  expect(String(h.calls.select[0])).toContain('equipment_plan_lines_masked');
 });
 
 describe('#2788 hidden prices: the month list reads plan lines through the masked view', () => {
