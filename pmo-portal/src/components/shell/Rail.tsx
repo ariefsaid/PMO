@@ -347,7 +347,7 @@ const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = (
         const whole = entry.intersectionRatio >= 0.99;
         element.style.opacity = whole ? '' : '0';
         element.style.pointerEvents = whole ? '' : 'none';
-        element.toggleAttribute('inert', !whole);
+        // Clipping blocks pointer hits only: Tab must still reach and reveal this destination.
       }
     }, { root: region, threshold: [0, 0.99, 1] });
     const observeLinks = (root: ParentNode) => root.querySelectorAll('a, button').forEach(element => observer.observe(element));

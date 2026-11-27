@@ -161,7 +161,8 @@ it('speed: navigation retains the intersection observer and reveals the active l
     const initial = construct.mock.calls.length;
     const link = screen.getByRole('link', { name: 'Work order' });
     act(() => intersection([{ target: link, intersectionRatio: 0 } as unknown as IntersectionObserverEntry], {} as IntersectionObserver));
-    expect(link).toHaveAttribute('inert');
+    expect(link).not.toHaveAttribute('inert');
+    expect(link.style.pointerEvents).toBe('none');
     expect(link.style.opacity).toBe('0');
     act(() => intersection([{ target: link, intersectionRatio: 1 } as unknown as IntersectionObserverEntry], {} as IntersectionObserver));
     expect(link).not.toHaveAttribute('inert');
@@ -180,7 +181,7 @@ it('speed: navigation retains the intersection observer and reveals the active l
   }
 });
 
-it('signing in attaches clipping so offscreen rail links are skipped by keyboard', () => {
+it('signing in attaches pointer clipping while keeping offscreen rail links keyboard-reachable', () => {
   state.role = '';
   let intersection: IntersectionObserverCallback | undefined;
   const observe = vi.fn();
@@ -199,7 +200,8 @@ it('signing in attaches clipping so offscreen rail links are skipped by keyboard
     const link = screen.getByRole('link', { name: 'Work order' });
     expect(observe).toHaveBeenCalledWith(link);
     act(() => intersection!([{ target: link, intersectionRatio: 0 } as unknown as IntersectionObserverEntry], {} as IntersectionObserver));
-    expect(link).toHaveAttribute('inert');
+    expect(link).not.toHaveAttribute('inert');
+    expect(link.style.pointerEvents).toBe('none');
     act(() => intersection!([{ target: link, intersectionRatio: 1 } as unknown as IntersectionObserverEntry], {} as IntersectionObserver));
     expect(link).not.toHaveAttribute('inert');
     page.unmount();
