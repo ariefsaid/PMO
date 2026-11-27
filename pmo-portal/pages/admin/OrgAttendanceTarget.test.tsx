@@ -31,6 +31,31 @@ beforeEach(() => {
 });
 
 describe('attendance target setting (#2706)', () => {
+  it.each(['80.1', '0.29', '92.25'])('saves the valid target %s from the form', async (value) => {
+    const user = userEvent.setup();
+    renderPanel();
+    const field = screen.getByLabelText('Target rate (%)');
+    await user.clear(field);
+    await user.type(field, value);
+    await user.click(screen.getByRole('button', { name: 'Save target' }));
+    expect(h.mutateAsync).toHaveBeenCalledWith(Number(value));
+    expect(screen.queryByText('Give the target at most two decimals.')).toBeNull();
+  });
+
+  it.each([
+    ['92.255', 'Give the target at most two decimals.'],
+    ['100.01', 'The target runs from 0 to 100.'],
+  ])('refuses the invalid target %s without writing', async (value, message) => {
+    const user = userEvent.setup();
+    renderPanel();
+    const field = screen.getByLabelText('Target rate (%)');
+    await user.clear(field);
+    await user.type(field, value);
+    await user.click(screen.getByRole('button', { name: 'Save target' }));
+    expect(h.mutateAsync).not.toHaveBeenCalled();
+    expect(screen.getByText(message)).toBeInTheDocument();
+  });
+
   it('AC-ATR-009 an Admin sees the saved target and saves a new one', async () => {
     const user = userEvent.setup();
     renderPanel();

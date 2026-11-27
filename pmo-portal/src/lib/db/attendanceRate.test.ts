@@ -81,6 +81,15 @@ describe('getAttendanceTarget', () => {
 });
 
 describe('setAttendanceTarget', () => {
+  it.each([80.1, 0.29, 92.25])('saves and reads back the two-decimal target %s', async (value) => {
+    h.queue.push({ data: [{ id: 'org-1' }], error: null });
+    h.queue.push({ data: [{ id: 'org-1' }], error: null });
+    await setAttendanceTarget(value);
+    expect(h.calls.update).toEqual([{ attendance_target_rate: value }]);
+    h.queue.push({ data: [{ attendance_target_rate: String(value) }], error: null });
+    await expect(getAttendanceTarget()).resolves.toBe(value);
+  });
+
   it('writes the target to the organisation the database said was readable', async () => {
     h.queue.push({ data: [{ id: 'org-1' }], error: null });
     h.queue.push({ data: [{ id: 'org-1' }], error: null });
@@ -150,6 +159,25 @@ describe('listAttendanceRateByCrew', () => {
 });
 
 describe('the shared rules', () => {
+  it('accepts every hundredth from 0.00 through 100.00 without a false precision refusal', () => {
+    const refused: number[] = [];
+    for (let hundredths = 0; hundredths <= 10_000; hundredths++) {
+      const value = Number((hundredths / 100).toFixed(2));
+      if (attendanceTargetIssue(value) !== null) refused.push(value);
+    }
+    expect(refused).toEqual([]);
+  });
+
+  it('refuses every non-zero third decimal in range', () => {
+    const accepted: number[] = [];
+    for (let thousandths = 1; thousandths < 100_000; thousandths++) {
+      if (thousandths % 10 === 0) continue;
+      const value = Number((thousandths / 1_000).toFixed(3));
+      if (attendanceTargetIssue(value) !== 'precision') accepted.push(value);
+    }
+    expect(accepted).toEqual([]);
+  });
+
   it('accepts 0, 100 and two decimals; refuses a range or precision breach', () => {
     expect(attendanceTargetIssue(null)).toBeNull();
     expect(attendanceTargetIssue(0)).toBeNull();
