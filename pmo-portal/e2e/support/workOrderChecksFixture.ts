@@ -8,7 +8,7 @@ async function createChecksFixture() {
   const run = runId('JOBPC12');
   const pcm = await roleJobUser(svc, 'project_control_manager', `${run}-pcm`);
   const pm = await roleJobUser(svc, 'project_manager', `${run}-pm`);
-  const owners = [];
+  const owners: Array<{ user: Awaited<ReturnType<typeof roleJobUser>>; name: string; check: string }> = [];
   for (const [key, suffix, label] of [
     ['engineer', 'eng', 'drawings and scope'],
     ['storekeeper', 'mat', 'material availability'],
