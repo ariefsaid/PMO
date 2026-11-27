@@ -358,7 +358,7 @@ afterEach(() => {
 const endpointLabels = (): string[] => stub.endpoints.map((e) => e.label);
 
 describe('ProjectDetail mount request count (AC-PERF-009 harness, plan T0.2)', () => {
-  it('fires exactly the measured endpoint set on Overview mount, total 7 (Steps 1 and 3 plus the S03 budget reader)', async () => {
+  it('fires exactly the measured endpoint set on Overview mount, total 8 (including the statement binding read at mount)', async () => {
     vi.stubGlobal('IntersectionObserver', stub.IO);
     renderProjectDetail();
     await settleRequests();
@@ -375,9 +375,14 @@ describe('ProjectDetail mount request count (AC-PERF-009 harness, plan T0.2)', (
     // Step 3 (AC-PERF-009): the finance-lens mount is the plan's five route reads (project, overview read,
     // invoices, tasks, procurements) plus one in-tree consumer the plan did not itemize (survey eligibility);
     // #2057 moved ProjectErpLink's two reads behind the Project details popover.
+    // Statements already read the Odoo binding after successful money resolution. Their host
+    // now mounts alongside the money reads to avoid a waterfall, so that same binding read
+    // starts at mount. This fixture has null billing (money unavailable), which previously
+    // prevented the statement host from mounting at all; the successful page total is unchanged.
     expect(endpointLabels().sort()).toEqual(
       [
         'read:projects', // useProject
+        'read:external_org_bindings', // Statement ledger mode starts with its host, independent of money projections.
         'rpc:get_project_overview_read', // finances, billing, BoQ, budget, committed spend, ownership, ledger, milestones, comment count, fx
         'read:sales_invoices',
         'read:tasks',
@@ -388,7 +393,7 @@ describe('ProjectDetail mount request count (AC-PERF-009 harness, plan T0.2)', (
         'rpc:resolved_org_features', // Overview-foot survey eligibility
       ].sort(),
     );
-    expect(endpointLabels()).toHaveLength(7);
+    expect(endpointLabels()).toHaveLength(8);
   });
 
   it('starts the shared budget position in the initial batch while project and overview reads are pending', async () => {
