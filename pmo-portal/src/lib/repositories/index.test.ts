@@ -328,7 +328,7 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
     expect(Object.keys(repositories.company).sort()).toEqual(
       // #1989: count/listAll/listOptions/listPage — the server-paged directory read, its head
       // count, the whole-directory picker rows, and the full-set export read.
-      ['archive', 'count', 'create', 'delete', 'get', 'getMany', 'list', 'listAll', 'listClients', 'listOptions', 'listPage', 'setProjectNumberSegment', 'setTaxDefaults', 'update'].sort(),
+      ['archive', 'count', 'create', 'delete', 'get', 'getMany', 'getTaxNumber', 'list', 'listAll', 'listClients', 'listOptions', 'listPage', 'setProjectNumberSegment', 'setTaxDefaults', 'setTaxNumber', 'update'].sort(),
     );
     expect(Object.keys(repositories.document).sort()).toEqual(
       [
