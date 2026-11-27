@@ -89,7 +89,7 @@ import { AgentContextProvider } from '@/src/lib/agent/context/AgentContextProvid
 import { useAgentContextPublisher } from '@/src/lib/agent/context/useAgentContext';
 import { AccountMenu } from '@/src/components/shell/AccountMenu';
 import { AfterFirstData } from '@/src/components/shell/AfterFirstData';
-import { usePriceVisibilitySync } from '@/src/hooks/useHidePrices';
+import { HIDE_PRICES_ENABLED_KEY, MAY_SEE_PRICES_KEY, usePriceVisibilitySync } from '@/src/hooks/useHidePrices';
 
 // ── Lazy route chunks (lazyWithPreload: each carries an idempotent preload() —
 //    #1834 fires it on nav-link hover/focus/pointerdown and on route entry, so
@@ -308,7 +308,7 @@ const PRELOAD_RULES: PreloadRule[] = [
   { path: '/projects/:projectId', data: ({ projectId }, { client, orgId, overviewAccess }) => { if (projectId) preloadProjectOverview(client, orgId, projectId, overviewAccess); }, chunks: [ProjectDetail], namespaces: ['project', 'projects', 'recordFolders', 'status', 'workOrderPva'] },
   { path: '/sales', chunks: [SalesPipeline], namespaces: ['sales'] },
   // /sales/:id redirects to /projects/:projectId — start that download now.
-  { path: '/sales/:opportunityId', data: ({ opportunityId }, { client, orgId, overviewAccess }) => { if (opportunityId) preloadProjectOverview(client, orgId, opportunityId, overviewAccess); }, chunks: [ProjectDetail], namespaces: ['project', 'projects', 'recordFolders', 'status', 'workOrderPva'] },
+  { path: '/sales/:opportunityId', chunks: [ProjectDetail], namespaces: ['project', 'projects', 'recordFolders', 'status', 'workOrderPva'] },
 
   { path: '/procurement', chunks: [ProcurementPage], namespaces: ['procurement', 'procurementList'] },
   { path: '/procurement/new', chunks: [ProcurementCreate], namespaces: ['procurementCreate', 'purchaseTypes'] },
@@ -756,7 +756,10 @@ export const ShellChrome: React.FC = React.memo(function ShellChrome() {
   const canReadClaims = may('view', 'progressClaim');
   const canViewBilling = may('view', 'salesInvoice');
   const preload = useCallback((href: string) => {
-    preloadForPath(href, orgId && currentUser ? { orgId, client: queryClient, canViewWorkOrderPlan, canReadClaims, canViewBilling, viewer: currentUser, overviewAccess: !loading && session && priceVisibilityReady ? { may, realRole } : undefined } : undefined);
+    const setting = queryClient.getQueryState([HIDE_PRICES_ENABLED_KEY, orgId]);
+    const caller = queryClient.getQueryState([MAY_SEE_PRICES_KEY, orgId, currentUser?.id]);
+    const currentPriceAnswer = setting?.status === 'error' || (setting?.status === 'success' && (setting.data === false || caller?.status === 'success' || caller?.status === 'error'));
+    preloadForPath(href, orgId && currentUser ? { orgId, client: queryClient, canViewWorkOrderPlan, canReadClaims, canViewBilling, viewer: currentUser, overviewAccess: !loading && session && priceVisibilityReady && currentPriceAnswer ? { may, realRole } : undefined } : undefined);
   }, [orgId, canViewWorkOrderPlan, canReadClaims, canViewBilling, currentUser, may, realRole, loading, session, priceVisibilityReady]);
   const { t } = useTranslation();
   const navigate = useNavigate();

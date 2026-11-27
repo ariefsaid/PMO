@@ -30,6 +30,9 @@ it('starts overview reads from route navigation with resolved hook access', () =
   expect(keys).toContainEqual(['project-overview-read', 'org', 'p1', { money: false, commitments: false, budget: false }]);
   expect(keys.some((key) => key[0] === 'tasks')).toBe(false);
   expect(keys.some((key) => key[0] === 'project-budget-positions')).toBe(false);
+  prefetch.mockClear();
+  preloadForPath('/sales/p1', { orgId: 'org', client, overviewAccess: { may: () => true, realRole: 'Finance' } });
+  expect(prefetch).not.toHaveBeenCalled();
   client.clear();
 });
 
