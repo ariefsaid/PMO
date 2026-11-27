@@ -12,6 +12,7 @@ const bill = (amount: number, invoice_date: string | null, voided_at: string | n
 const purchase = (id: string, currency: string, status: string, procurement_invoices: unknown[], payments: unknown[] = []) =>
   ({ id, currency, status, procurement_invoices, payments }) as unknown as ProcurementWithRefs;
 const rows = [
+  purchase('e0', 'EUR', 'Vendor Invoiced', []),
   purchase('e1', 'IDR', 'Vendor Invoiced', [bill(1000, '2026-11-01')], [{ amount: 300, status: 'Paid' }, { amount: 500, status: 'Scheduled' }]),
   purchase('e2', 'IDR', 'Vendor Invoiced', [bill(500, '2026-07-01'), bill(999, '2026-01-01', '2026-02-01T00:00:00Z')]),
   purchase('e3', 'IDR', 'Vendor Invoiced', []),
@@ -26,6 +27,7 @@ const documents = [
   { procurementId: 'e5', doctype: 'Payment Entry', grandTotal: 10, outstanding: null },
 ];
 const server: SupplierPayablesTotal[] = [
+  { currency: 'EUR', invoiceCount: 1, unknownCount: 1, knownCount: 0, knownTotal: 0, notDueCount: 0, notDueTotal: 0, overdueKnownCount: 0, overdueTotal: 0, overdueCount: 0, oldestDays: null },
   { currency: 'IDR', invoiceCount: 4, unknownCount: 2, knownCount: 2, knownTotal: 1200, notDueCount: 1, notDueTotal: 700, overdueKnownCount: 1, overdueTotal: 500, overdueCount: 1, oldestDays: 150 },
   { currency: 'USD', invoiceCount: 2, unknownCount: 0, knownCount: 2, knownTotal: 250.55, notDueCount: 1, notDueTotal: 250.55, overdueKnownCount: 1, overdueTotal: 0, overdueCount: 1, oldestDays: 119 },
 ];
@@ -40,6 +42,10 @@ describe('#3045 supplier figures from the server equal the browser rule', () => 
   });
   it('the test double other suites use makes the same totals from rows as the server', () => {
     expect(supplierTotalsFromRows(linked, '2026-11-28')).toEqual(server);
+  });
+  it('a currency with no invoice dates shows no oldest age, as before', () => {
+    expect(payablesFromTotals(server.slice(0, 1))?.oldestDays).toBeNull();
+    expect(payablesFromTotals(server.slice(0, 1))).toEqual(splitPayables(withLinkedDocuments(rows.slice(0, 1), documents), '2026-11-28'));
   });
   it('nothing waiting for payment is zero purchases, not unknown', () => {
     expect(supplierInvoicesFromTotals([])).toEqual(selectSupplierInvoices([]));

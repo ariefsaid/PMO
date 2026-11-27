@@ -3,7 +3,7 @@
 -- the expected figures are the browser's (pinned by useCompanyFigures.supplierTotals.test.ts on the same rows).
 begin;
 create extension if not exists pgtap;
-select plan(11);
+select plan(12);
 
 insert into public.organizations (id, name, default_currency) values
   ('28140000-0000-0000-0000-00000000000a', 'Payables A', 'IDR'),
@@ -20,6 +20,8 @@ insert into public.profiles (id, org_id, full_name, email, role, status) values
   ('28140000-0000-0000-0000-0000000000b1', '28140000-0000-0000-0000-00000000000b', 'B Fin', 'pay-b@example.test', 'Finance', 'active');
 
 insert into public.procurements (id, org_id, title, requested_by_id, currency, total_value, status) values
+  -- P0 the only waiting purchase in its currency and no supplier invoice date: no age, so no oldest age (not 0 days).
+  ('28140000-0000-0000-0000-0000000000e0', '28140000-0000-0000-0000-00000000000a', 'P0', '28140000-0000-0000-0000-0000000000a1', 'EUR', 10, 'Draft'),
   -- P1 known 1000 - 300 Paid (the Scheduled 500 is not paid) = 700, 27 days old: not due.
   ('28140000-0000-0000-0000-0000000000e1', '28140000-0000-0000-0000-00000000000a', 'P1', '28140000-0000-0000-0000-0000000000a3', 'IDR', 1000, 'Draft'),
   -- P2 known 500, 150 days old: overdue; the voided 999 bill neither counts nor dates it.
@@ -67,12 +69,15 @@ alter table public.procurements enable trigger user;
 create temp table expected (currency text, invoice_count int, unknown_count int, known_count int, known_total numeric,
   not_due_count int, not_due_total numeric, overdue_known_count int, overdue_total numeric, overdue_count int, oldest_days int);
 insert into expected values
+  ('EUR', 1, 1, 0, 0, 0, 0, 0, 0, 0, null),
   ('IDR', 4, 2, 2, 1200, 1, 700, 1, 500, 1, 150),
   ('USD', 2, 0, 2, 250.55, 1, 250.55, 1, 0, 1, 119);
 grant select on expected to authenticated;
 
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"28140000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+select is((select oldest_days from public.get_supplier_payables_totals('2026-11-28') where currency = 'EUR'), null::int,
+  '2814 a currency whose waiting purchases carry no invoice date has no oldest age, not 0 days');
 select results_eq($$ select * from public.get_supplier_payables_totals('2026-11-28') $$,
   $$ select * from expected order by currency $$, '2814 Finance: totals equal the browser rule, currency by currency');
 -- The row-by-row sum the browser makes, from the rows Finance may read, equals the function's known total.
@@ -81,7 +86,7 @@ select is((select sum(known_total) from public.get_supplier_payables_totals('202
      from public.procurements p join public.procurement_invoices i on i.procurement_id = p.id and i.voided_at is null
     where p.status = 'Vendor Invoiced' and p.currency = 'IDR'),
   '2814 Finance: IDR known total equals the row-by-row sum of readable rows');
-select is((select count(*)::int from public.get_supplier_payables_totals('2026-11-28')), 2, '2814 another organisation''s purchases are never counted');
+select is((select count(*)::int from public.get_supplier_payables_totals('2026-11-28')), 3, '2814 another organisation''s purchases are never counted');
 reset role;
 
 set local role authenticated;

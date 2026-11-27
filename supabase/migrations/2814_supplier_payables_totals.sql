@@ -63,7 +63,8 @@ as $$
                or coalesce(pay.any_null, false) or coalesce(erp.pay_null, false) then null
              else greatest(coalesce(inv.total, 0) + coalesce(erp.inv_total, 0) - coalesce(pay.total, 0) - coalesce(erp.pay_total, 0), 0)
            end as unpaid,
-           greatest(0, p_today - inv.first_date) as age
+           -- GREATEST skips NULL: a purchase with no invoice date has no age (the browser's calendarAgeDays gives null).
+           case when inv.first_date is null then null else greatest(0, p_today - inv.first_date) end as age
       from ready r
       left join inv on inv.procurement_id = r.id
       left join pay on pay.procurement_id = r.id
