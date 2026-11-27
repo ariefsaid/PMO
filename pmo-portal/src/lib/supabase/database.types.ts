@@ -1291,6 +1291,7 @@ export type Database = {
           created_at: string
           id: string
           name: string
+          invoice_step: boolean
           optional: boolean
           org_id: string
           owner_role: Database["public"]["Enums"]["user_role"] | null
@@ -1303,6 +1304,7 @@ export type Database = {
           created_at?: string
           id?: string
           name: string
+          invoice_step?: boolean
           optional?: boolean
           org_id: string
           owner_role?: Database["public"]["Enums"]["user_role"] | null
@@ -1315,6 +1317,7 @@ export type Database = {
           created_at?: string
           id?: string
           name?: string
+          invoice_step?: boolean
           optional?: boolean
           org_id?: string
           owner_role?: Database["public"]["Enums"]["user_role"] | null
@@ -1388,6 +1391,7 @@ export type Database = {
           hidden_from_role_keys: string[]
           id: string
           name: string
+          invoice_step: boolean
           optional: boolean
           org_id: string
           owner_role: Database["public"]["Enums"]["user_role"] | null
@@ -1402,6 +1406,7 @@ export type Database = {
           hidden_from_role_keys?: string[]
           id?: string
           name: string
+          invoice_step?: boolean
           optional?: boolean
           org_id: string
           owner_role?: Database["public"]["Enums"]["user_role"] | null
@@ -1416,6 +1421,7 @@ export type Database = {
           hidden_from_role_keys?: string[]
           id?: string
           name?: string
+          invoice_step?: boolean
           optional?: boolean
           org_id?: string
           owner_role?: Database["public"]["Enums"]["user_role"] | null
@@ -2765,6 +2771,7 @@ export type Database = {
           id: string
           name: string
           note: string | null
+          invoice_step: boolean
           optional: boolean
           org_id: string
           overdue_notified_at: string | null
@@ -2788,6 +2795,7 @@ export type Database = {
           id?: string
           name: string
           note?: string | null
+          invoice_step?: boolean
           optional?: boolean
           org_id: string
           overdue_notified_at?: string | null
@@ -2811,6 +2819,7 @@ export type Database = {
           id?: string
           name?: string
           note?: string | null
+          invoice_step?: boolean
           optional?: boolean
           org_id?: string
           overdue_notified_at?: string | null

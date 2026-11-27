@@ -117,14 +117,25 @@ export async function deleteBoqItem(id: string): Promise<void> {
   assertWriteLanded(data, 'Bill of quantities line not found or you do not have permission to delete it.');
 }
 
+interface ClaimStageGateRow { position?: number; completed_on: string | null; skipped_on?: string | null; invoice_step?: boolean }
+
+/**
+ * The steps that still block the claim's invoice. MIRRORS the server gate `billing_stages_open` (migration 2783): a step is open
+ * until completed or skipped, and with an invoice step only the steps before it count (#3022). Change both together.
+ */
+function openStagesBlockingInvoice(stages: ClaimStageGateRow[]): number {
+  const mark = stages.find((s) => s.invoice_step)?.position ?? Infinity;
+  return stages.filter((s) => s.completed_on === null && !s.skipped_on && (s.position ?? 0) < mark).length;
+}
+
 export async function listProjectClaims(projectId: string): Promise<ProgressClaimWithInvoice[]> {
   const { data, error } = await supabase.from('progress_claims')
-    .select('*, lines:progress_claim_lines(*), evidence:progress_claim_evidence(id,document_id,document_status,document_revision), stages:claim_billing_stages(completed_on)')
+    .select('*, lines:progress_claim_lines(*), evidence:progress_claim_evidence(id,document_id,document_status,document_revision), stages:claim_billing_stages(position,completed_on,skipped_on,invoice_step)')
     .eq('project_id', projectId).order('created_at', { ascending: false }).limit(CLAIM_LIST_LIMIT);
   if (error) fail(error);
   // A claim has at most 20 stages (the table's check), so the embedded read is never truncated.
-  const claims = ((data ?? []) as Array<ProgressClaimRow & { lines: ProgressClaimLineRow[]; evidence: ClaimEvidenceRef[]; stages?: Array<{ completed_on: string | null }> | null }>)
-    .map(({ stages, ...claim }) => ({ ...claim, open_stage_count: (stages ?? []).filter((stage) => stage.completed_on === null).length }));
+  const claims = ((data ?? []) as Array<ProgressClaimRow & { lines: ProgressClaimLineRow[]; evidence: ClaimEvidenceRef[]; stages?: ClaimStageGateRow[] | null }>)
+    .map(({ stages, ...claim }) => ({ ...claim, open_stage_count: openStagesBlockingInvoice(stages ?? []) }));
   if (claims.length === 0) return [];
   const { data: invoices, error: invoiceError } = await supabase.from('sales_invoices')
     .select('id,si_number,pmo_number,status,amount').in('id', claims.map((claim) => claim.id));

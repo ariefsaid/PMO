@@ -250,6 +250,20 @@ describe('BillingStepTemplatesModal', () => {
     })));
   });
 
+  it('AC-BIS-001 Finance marks one step as the invoice step; marking another moves the mark', async () => {
+    h.templates = { data: [template()], isPending: false, isError: false };
+    const user = userEvent.setup();
+    view();
+    await user.click(screen.getByRole('button', { name: 'Edit Progress claim' }));
+    const marks = screen.getAllByRole('checkbox', { name: 'Invoice is raised at this step' });
+    await user.click(marks[0]);
+    await user.click(marks[1]);
+    expect(marks.map((m) => m.getAttribute('aria-checked'))).toEqual(['false', 'true']);
+    await user.click(screen.getByRole('button', { name: 'Save template' }));
+    await waitFor(() => expect(h.save.mutateAsync).toHaveBeenCalled());
+    expect(h.save.mutateAsync.mock.calls[0][0].steps.map((s: { invoiceStep?: boolean }) => Boolean(s.invoiceStep))).toEqual([false, true]);
+  });
+
   it('Close dismisses the list modal', async () => {
     const onClose = vi.fn();
     const user = userEvent.setup();

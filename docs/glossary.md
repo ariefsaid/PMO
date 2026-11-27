@@ -480,6 +480,8 @@ _Avoid_: "live connection" unqualified — always name the leg.
 
 **Skipped stage** — an optional billing stage marked not needed by Finance or an Admin, with a date and a reason. It counts as complete for ordering and for the invoice gate, and it is not undone (#2592).
 
+**Invoice step** — the one billing step, if a list names one, at which the claim's invoice is raised. The invoice then waits only for the steps before it; the invoice step and the steps after it (for example tax invoice, submission to the client) stay open and are completed after the invoice. A list with no invoice step needs every step done before the invoice. Set by Finance or an Admin on a template, a project's list or a claim, and fixed once the claim has an invoice. Bahasa Indonesia: Tahap faktur (#3022).
+
 **Billing board** — a read-only screen listing each open claim (not withdrawn, has billing steps, no invoice yet) as a card under its current step, with days on the step and an overdue chip. Each column shows its claim count and exact total by currency; individual cards omit the amount. Nothing is stored for the board, and a claim moves on only by completing its step on the claim. Finance, Executive and Admin can read the board. Bahasa Indonesia: Papan penagihan (#2681).
 
 **Billed month** — a calendar month in the work-order page's "Billed per month" list: the billed work (submitted invoices, excluding tax, no down payments, in the work order's currency) dated in that organisation-local month, the same figure as the work-in-hand screen. The current month reads "to date". Drafts and claims not yet invoiced are not in it. Bahasa Indonesia: Bulan penagihan.
