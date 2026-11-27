@@ -460,9 +460,11 @@ begin
       select array[p.id] from public.projects p where p_kind = 'single' and (p.org_id = c.org_id or p.id = v_other)
       union all select null::uuid[] where p_kind = 'none'
       union all select '{}'::uuid[] where p_kind = 'empty'
-      union all select array_agg(p.id order by p.id) || v_other from public.projects p where p_kind = 'all' and p.org_id = c.org_id
+      -- an aggregate with no group returns a row even when no project matches: HAVING keeps these to their own kind
+      union all select array_agg(p.id order by p.id) || v_other from public.projects p where p.org_id = c.org_id
+                having p_kind = 'all'
       union all select (array_agg(p.id order by p.id))[1:4] || (array_agg(p.id order by p.id))[1] || v_other || null::uuid
-                  from public.projects p where p_kind = 'short' and p.org_id = c.org_id
+                  from public.projects p where p.org_id = c.org_id having p_kind = 'short' and count(*) > 0
     loop
       perform pg_temp.as_user(c.id);
       if not p_internal then execute 'set local role authenticated'; end if;
