@@ -114,7 +114,8 @@ test('JOB-PU6 the officer sets the channel, records the payment, and the stages 
   await page.getByRole('dialog').getByRole('button', { name: 'Mark as Paid', exact: true }).click();
   await expect(page.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Paid', { timeout: 20_000 });
   // The pay stage counts the bill and the payment together, so the recorded payment takes it from one record to two.
-  await expect(stage(page, 'Pay')).toContainText('2 invoice', { timeout: 20_000 });
+  await expect(stage(page, 'Pay')).toContainText('1 invoice', { timeout: 20_000 });
+  await expect(stage(page, 'Pay')).toContainText('1 payment');
   // The checklist reads sourced, received and paid as done states, not only as counts.
   for (const name of ['Order', 'Receive', 'Pay'] as const) {
     await expect(stage(page, name).locator('span').first()).toHaveClass(/text-success-text/);

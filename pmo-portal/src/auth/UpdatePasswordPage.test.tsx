@@ -51,6 +51,7 @@ vi.mock('@/src/lib/supabase/client', () => ({
 
 import { AuthProvider } from './AuthProvider';
 import UpdatePasswordPage from './UpdatePasswordPage';
+import { recoverySession } from './recoverySession';
 
 function renderPage() {
   return render(
@@ -62,7 +63,26 @@ function renderPage() {
   );
 }
 
+it('retains a verified recovery session when the lazy page mounts after URL cleanup', async () => {
+  window.history.replaceState({}, '', '/update-password');
+  const session = { access_token: 'recovery-token', user: { id: 'u1', user_metadata: {} } };
+  recoverySession.record('PASSWORD_RECOVERY', session);
+  auth.getSession.mockResolvedValue({ data: { session } });
+  renderPage();
+  expect(await screen.findByLabelText(/new password/i)).toBeVisible();
+});
+
+it('does not reuse recovery provenance for a different session', async () => {
+  window.history.replaceState({}, '', '/update-password');
+  recoverySession.record('PASSWORD_RECOVERY', { access_token: 'previous-token' });
+  auth.getSession.mockResolvedValue({ data: { session: { access_token: 'other-token', user: { id: 'u2', user_metadata: {} } } } });
+  renderPage();
+  expect(await screen.findByText(/invalid or expired/i)).toBeVisible();
+  expect(screen.queryByLabelText(/new password/i)).toBeNull();
+});
+
 beforeEach(() => {
+  recoverySession.record('SIGNED_OUT', null);
   auth.getSession.mockReset();
   auth.getSession.mockResolvedValue({ data: { session: null } });
   auth.updateUser.mockReset();

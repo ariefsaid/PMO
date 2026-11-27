@@ -4244,3 +4244,5 @@ the owner may revisit it after the client's tests.
 
 - **DD-R1127-1 A Project Manager who creates a project or deal is its manager unless another is chosen, so they keep its money view.**
 - **DD-R1127-2 A route loads its own sections and repository implementations with the route; other routes remain lazy.** See ADR-0126.
+
+- **DD-R1127-3 The purchasing Pay stage counts invoices and payments separately.** One invoice and one payment read as one invoice and one payment; recording a payment never increases the invoice count. The purchase still reaches Paid through the existing payment journey (fd538e6722d).
