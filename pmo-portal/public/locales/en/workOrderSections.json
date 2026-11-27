@@ -27,6 +27,7 @@
   "historyEmpty": "No changes yet.",
   "historyLine": "{{state}} · {{who}} · {{when}}",
   "loadError": "Couldn't load {{sections}}",
+  "progressError": "Couldn't load validated quantities",
   "materials": {
     "add": "Add",
     "chooseItem": "Choose an item",

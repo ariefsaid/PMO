@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 import {
-  Button, Card, CardHead, CardPad, ConfirmDialog, DataTable, DateField, EntityFormModal, FormGrid, Icon, ListState,
+  Button, Card, CardHead, CardPad, ConfirmDialog, DataTable, DateField, EntityFormModal, FormGrid, Icon, ListState, ReadState,
   SelectField, StatusPill, useToast, useUrlFilters, type Column, type SubmitError,
 } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
@@ -171,27 +171,45 @@ export const WorkOrderRoster: React.FC = () => {
       </div>
       {problem && <p role="alert" className="text-sm text-destructive-text">{problem}</p>}
       {!workOrderId && <p className="text-sm text-muted-foreground">{t('crews:pickWorkOrderFirst', 'Choose a work order to see who serves it')}</p>}
-      {workOrderId && roster.isPending && <ListState variant="loading" shape="table" rows={3} />}
-      {workOrderId && !roster.isPending && roster.isError && (
-        <ListState variant="error" title={t('crews:rosterError', "Couldn't load the roster")} onRetry={() => void roster.refetch()} retryLabel={t('crews:retry', 'Retry')} />
-      )}
-      {workOrderId && !roster.isPending && !roster.isError && (
-        (roster.data ?? []).length === 0 ? (
-          <div className="flex flex-wrap items-center gap-3">
-            <p className="text-sm text-foreground">{t('crews:noCrewThatDay', 'No crew serves this work order that day')}</p>
-            {rosterAction}
-          </div>
-        ) : (
-          <div className="grid gap-6 xl:grid-cols-2">{(roster.data ?? []).map((c) => <RosterCrewCard key={c.crew_id} crew={c} onLeave={onLeave} releaseHolds={releaseHolds} />)}</div>
-        )
+      {workOrderId && (
+        <ReadState
+          query={roster}
+          loading={{ shape: 'table', rows: 3 }}
+          errorTitle={t('crews:rosterError', "Couldn't load the roster")}
+          retryLabel={t('crews:retry', 'Retry')}
+          empty={(
+            <div className="flex flex-wrap items-center gap-3">
+              <p className="text-sm text-foreground">{t('crews:noCrewThatDay', 'No crew serves this work order that day')}</p>
+              {rosterAction}
+            </div>
+          )}
+        >
+          {(rows) => (
+            <div className="grid gap-6 xl:grid-cols-2">
+              {rows.map((c) => <RosterCrewCard key={c.crew_id} crew={c} onLeave={onLeave} releaseHolds={releaseHolds} />)}
+            </div>
+          )}
+        </ReadState>
       )}
       {workOrderId && (
         <Card seam>
           <CardHead actions={rosterAction}>{t('crews:placements', 'Roster placements')}</CardHead>
-            <DataTable<WorkOrderCrewRow> embedded rows={placements.data ?? []} columns={columns} rowKey={(p) => p.id} tableId="work-order-crews-table"
-              rowMenu={(p) => (canManage && (!p.valid_to || p.valid_to >= today) ? [{ label: t('crews:endRoster', 'End roster placement'), onClick: () => setEnding(p) }] : [])}
-              state={(placements.data ?? []).length === 0 ? 'empty' : undefined}
-              emptyTitle={t('crews:noPlacements', 'No crew has been rostered here')} />
+          <ReadState
+            query={placements}
+            renderLoading={() => <CardPad><ListState variant="loading" shape="table" rows={2} /></CardPad>}
+            wrapError={(node) => <CardPad>{node}</CardPad>}
+            errorTitle={t('crews:placementsError', "Couldn't load roster placements")}
+            retryLabel={t('crews:retry', 'Retry')}
+            empty={(
+              <DataTable<WorkOrderCrewRow> embedded rows={[]} columns={columns} rowKey={(p) => p.id} tableId="work-order-crews-table"
+                state="empty" emptyTitle={t('crews:noPlacements', 'No crew has been rostered here')} />
+            )}
+          >
+            {(rows) => (
+              <DataTable<WorkOrderCrewRow> embedded rows={rows} columns={columns} rowKey={(p) => p.id} tableId="work-order-crews-table"
+                rowMenu={(p) => (canManage && (!p.valid_to || p.valid_to >= today) ? [{ label: t('crews:endRoster', 'End roster placement'), onClick: () => setEnding(p) }] : [])} />
+            )}
+          </ReadState>
         </Card>
       )}
       {rostering && workOrderId && <RosterCrewModal workOrderId={workOrderId} from={date} onClose={() => setRostering(false)} />}

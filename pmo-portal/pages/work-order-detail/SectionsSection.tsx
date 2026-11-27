@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button, ConfirmDialog, ListState, RecordSection, StatusPill, SelectField, useToast, type StatusVariant } from '@/src/components/ui';
+import { Button, ConfirmDialog, ListState, RecordSection, resolveReadState, StatusPill, SelectField, useToast, type StatusVariant } from '@/src/components/ui';
 import { RowMenu } from '@/src/components/ui/RowMenu';
 import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
@@ -63,13 +63,19 @@ export const SectionsSection: React.FC<Props> = ({ workOrder }) => {
     return () => { live = false; };
   }, [loadProfiles]);
 
-  const validated = useMemo(() => {
-    try { return quantitiesByUnit(progress.data ?? []); } catch { return new Map<string | null, { unit: string; quantity: string }[]>(); }
-  }, [progress.data]);
+  const progressState = useMemo(() => {
+    try {
+      return { map: quantitiesByUnit(progress.data ?? []), failed: Boolean(progress.isError) };
+    } catch {
+      return { map: new Map<string | null, { unit: string; quantity: string }[]>(), failed: true };
+    }
+  }, [progress.data, progress.isError]);
+  const validated = progressState.map;
   const viewOnly = realRole !== effectiveRole;
   const base = useMemo(() => ({ currentUserId: userId, record: { viewOnly, status: workOrder.status } }), [userId, viewOnly, workOrder.status]);
   const canAdd = may('create', 'workOrderSection', base);
-  const rows = roll.data ?? [];
+  const rollPhase = resolveReadState(roll);
+  const rows = rollPhase.status === 'ready' || rollPhase.status === 'empty' ? rollPhase.data : [];
   const sections = rows.filter((r) => r.sectionId !== null);
   const remainder = rows.find((r) => r.sectionId === null) ?? null;
   const visible = sections.filter((r) => showArchived || r.archivedAt === null);
@@ -79,15 +85,15 @@ export const SectionsSection: React.FC<Props> = ({ workOrder }) => {
   const sectionWord = terms.section.toLowerCase();
   const vars = { section: sectionWord, sections: terms.sections.toLowerCase() };
 
-  if (roll.isPending && !canAdd) return null;
-  if (roll.isSuccess && sections.length === 0 && !canAdd) return null;
+  if (rollPhase.status === 'loading' && !canAdd) return null;
+  if ((rollPhase.status === 'empty' || (rollPhase.status === 'ready' && !rollPhase.refreshError && sections.length === 0)) && !canAdd) return null;
 
   const title = terms.sections;
-  if (roll.isPending) return <RecordSection title={title} data-testid="wo-page-sections"><ListState variant="loading" rows={3} /></RecordSection>;
-  if (roll.isError) {
+  if (rollPhase.status === 'loading') return <RecordSection title={title} data-testid="wo-page-sections"><ListState variant="loading" rows={3} /></RecordSection>;
+  if (rollPhase.status === 'error') {
     return (
       <RecordSection title={title} data-testid="wo-page-sections">
-        <ListState variant="error" title={t('loadError', "Couldn't load {{sections}}", vars)} retryLabel={t('retry', 'Try again')} onRetry={() => void roll.refetch()} />
+        <ListState variant="error" title={t('loadError', "Couldn't load {{sections}}", vars)} retryLabel={t('retry', 'Try again')} onRetry={rollPhase.onRetry} />
       </RecordSection>
     );
   }
@@ -133,6 +139,12 @@ export const SectionsSection: React.FC<Props> = ({ workOrder }) => {
         {hasArchived && <Button variant="ghost" size="sm" onClick={() => setShowArchived((v) => !v)}>{showArchived ? t('hideArchived', 'Hide archived') : t('showArchived', 'Show archived')}</Button>}
         {canAdd && <Button variant="outline" size="sm" onClick={() => setEditing('new')}>{t('add', 'Add {{section}}', vars)}</Button>}
       </>}>
+      {rollPhase.status === 'ready' && rollPhase.refreshError && (
+        <ListState variant="error" quiet className="mb-3" title={t('loadError', "Couldn't load {{sections}}", vars)} retryLabel={t('retry', 'Try again')} onRetry={rollPhase.refreshError.onRetry} />
+      )}
+      {progressState.failed && (
+        <ListState variant="error" quiet className="mb-3" title={t('progressError', "Couldn't load validated quantities")} retryLabel={t('retry', 'Try again')} onRetry={() => void progress.refetch?.()} />
+      )}
       {problem && <p role="alert" className="mb-3 text-control text-destructive" data-testid="wo-sections-problem">{problem}</p>}
       {summaryText && <p className="mb-2 text-control text-muted-foreground">{summaryText}</p>}
       {visible.length === 0 ? (

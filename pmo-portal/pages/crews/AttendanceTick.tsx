@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-  Button, Card, CardHead, CardPad, Combobox, ConfirmDialog, DataTable, DateField, FieldError, ListState, MobileActionBar, ReasonDialog, SelectField, StatusPill, TextField,
+  Button, Card, CardHead, CardPad, Combobox, ConfirmDialog, DataTable, DateField, FieldError, ListState, MobileActionBar, ReadState, ReasonDialog, resolveReadState, SelectField, StatusPill, TextField,
   useToast, useUrlFilters, type Column,
 } from '@/src/components/ui';
 import { FileInput } from '@/src/components/ui/FormFields';
@@ -296,9 +296,11 @@ const AwaitingApproval: React.FC = () => {
   const { decideWeek } = useAttendanceMutations();
   const [returning, setReturning] = useState<AwaitingWeek | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
+  const phase = resolveReadState(awaiting);
   const weeks = useMemo(() => {
     const byKey = new Map<string, AwaitingWeek>();
-    for (const r of awaiting.data ?? []) {
+    const source = phase.status === 'ready' ? phase.data : [];
+    for (const r of source) {
       const weekStart = isoWeekStart(r.work_date);
       const key = `${r.worker_id}:${weekStart}`;
       const w = byKey.get(key) ?? { workerId: r.worker_id, weekStart, hours: 0, days: 0, orders: [], recordedByViewer: false };
@@ -309,7 +311,7 @@ const AwaitingApproval: React.FC = () => {
       byKey.set(key, w);
     }
     return [...byKey.values()].sort((a, b) => a.weekStart.localeCompare(b.weekStart));
-  }, [awaiting.data, viewerId]);
+  }, [phase, viewerId]);
   const nameOf = (id: string) => workers.data?.find((w) => w.id === id)?.display_name ?? '—';
   const decide = async (w: AwaitingWeek, decision: 'approve' | 'reject', reason: string | null) => {
     setProblem(null);
@@ -318,7 +320,7 @@ const AwaitingApproval: React.FC = () => {
       toast(decision === 'approve' ? t('crews:approved', 'Week approved') : t('crews:returned', 'Week returned'), undefined, 'success');
     } catch (err) { setProblem(writeError(err)); }
   };
-  if (weeks.length === 0) return null;
+  if (phase.status === 'empty') return null;
   const columns: Column<AwaitingWeek>[] = [
     { key: 'person', header: t('crews:person', 'Person'), kind: 'primary', rowHeader: true, cell: (w) => nameOf(w.workerId) },
     { key: 'orders', header: t('crews:workOrders', 'Work orders'), cell: (w) => w.orders.join(', ') },
@@ -338,7 +340,18 @@ const AwaitingApproval: React.FC = () => {
     <Card seam className="bg-waiting-surface" role="region" aria-labelledby="attendance-awaiting-title">
       <CardHead id="attendance-awaiting-title">{t('crews:awaitingTitle', 'Weeks waiting for your approval')}</CardHead>
       {problem && <p role="alert" className="px-4 py-2 text-sm text-destructive-text">{problem}</p>}
-      <DataTable<AwaitingWeek> embedded rows={weeks} columns={columns} rowKey={(w) => `${w.workerId}:${w.weekStart}`} tableId="attendance-awaiting-table" />
+      <ReadState
+        query={awaiting}
+        renderLoading={() => <CardPad><ListState variant="loading" rows={2} /></CardPad>}
+        wrapError={(node) => <CardPad>{node}</CardPad>}
+        errorTitle={t('crews:awaitingError', "Couldn't load weeks waiting for your approval")}
+        retryLabel={t('crews:retry', 'Retry')}
+        empty={null}
+      >
+        {() => (
+          <DataTable<AwaitingWeek> embedded rows={weeks} columns={columns} rowKey={(w) => `${w.workerId}:${w.weekStart}`} tableId="attendance-awaiting-table" />
+        )}
+      </ReadState>
       <ReasonDialog open={returning !== null} kind="return" subject={returning ? nameOf(returning.workerId) : undefined}
         onCancel={() => setReturning(null)}
         onConfirm={(reason: string) => { const w = returning; setReturning(null); if (w) void decide(w, 'reject', reason); }} />
