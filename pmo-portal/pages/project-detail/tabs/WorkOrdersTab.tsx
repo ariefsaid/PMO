@@ -450,13 +450,7 @@ const WorkOrdersTabInner: React.FC<WorkOrdersTabProps> = ({ projectId, currency,
 
   const attachEvidence = async (documentId: string) => {
     if (!evidenceFor) return;
-    try {
-      await billingMutations.attachEvidence.mutateAsync({ claimId: evidenceFor, documentId });
-      toast(t('projectDetail.billing.claims.toast.evidenceAttached', 'Evidence attached'), undefined, 'success');
-      setEvidenceFor(null);
-    } catch (err) {
-      failClaim(err);
-    }
+    await billingMutations.attachEvidence.mutateAsync({ claimId: evidenceFor, documentId });
   };
 
   // A time-and-materials claim is invoiced from its own section, so the native raise covers the other claim kinds.
