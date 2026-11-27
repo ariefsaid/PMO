@@ -639,7 +639,7 @@ const NoteCell: React.FC<{
       onChange={(next) => onNoteChange?.(rowId, next)}
       // Demoted to a single bottom hairline (Single-Border Rule) so the note reads
       // quieter than the bordered hour cells; touch-target keeps a ≥44px hit-area.
-      className="touch-target mt-1 min-h-12 w-full resize-none overflow-hidden rounded-none border-0 border-b border-border bg-transparent px-0 py-1 text-base leading-6 text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:border-ring md:text-control"
+      className="touch-target mt-1 min-h-12 w-full resize-none overflow-hidden rounded-none border-0 border-b border-border bg-transparent px-0 py-3 md:py-1 text-base leading-6 text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:border-ring md:text-control"
     />
   );
 };
