@@ -20,6 +20,7 @@ import {
   projectStatusGroup,
   transitionProject,
   listPipelineStageConfig,
+  legalProjectTransitionsFor,
   LEGAL_PROJECT_TRANSITIONS,
   PIPELINE_STATUSES,
 } from './projectTransitions';
@@ -205,5 +206,47 @@ describe('AC-2379-1 app move list equals the database map', () => {
     for (const [from, targets] of Object.entries(dbMap)) {
       expect([...LEGAL_PROJECT_TRANSITIONS[from]].sort(), `moves from ${from}`).toEqual([...targets].sort());
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// AC-3023 — the feature-aware move list: with the sales-pipeline module off, a
+// Lead gains the direct win and pipeline stages drop out; with it on, the map is
+// the static one, unchanged (the enforcement is the RPC; pgTAP AC-3023 owns it).
+// ---------------------------------------------------------------------------
+describe('AC-3023 legalProjectTransitionsFor', () => {
+  it('with the pipeline on, every status offers exactly the static map', () => {
+    for (const [from, targets] of Object.entries(LEGAL_PROJECT_TRANSITIONS)) {
+      expect(legalProjectTransitionsFor(from, true), `moves from ${from}`).toEqual(targets);
+    }
+  });
+
+  it('with the pipeline off, a Lead gains the direct win and keeps its non-pipeline exits', () => {
+    expect(legalProjectTransitionsFor('Leads', false)).toEqual([
+      'Loss Tender', 'Internal Project', 'Declined', 'Won, Pending KoM',
+    ]);
+  });
+
+  it('with the pipeline off, a Lead cannot enter a pipeline stage', () => {
+    const targets = legalProjectTransitionsFor('Leads', false);
+    for (const stage of PIPELINE_STATUSES) {
+      expect(targets, `${stage} is not offered`).not.toContain(stage);
+    }
+  });
+
+  it('with the pipeline off, statuses outside the pipeline keep their on-hand legs', () => {
+    expect(legalProjectTransitionsFor('Won, Pending KoM', false)).toEqual([
+      'Ongoing Project', 'On Hold', 'Close Out',
+    ]);
+    expect(legalProjectTransitionsFor('Ongoing Project', false)).toEqual(['On Hold', 'Close Out']);
+    expect(legalProjectTransitionsFor('On Hold', false)).toEqual(['Ongoing Project', 'Close Out']);
+    expect(legalProjectTransitionsFor('Close Out', false)).toEqual(['Ongoing Project']);
+    expect(legalProjectTransitionsFor('Internal Project', false)).toEqual([]);
+  });
+
+  it('with the pipeline off, a mid-pipeline status (feature switched off late) loses its stage moves', () => {
+    expect(legalProjectTransitionsFor('Quotation Submitted', false)).toEqual([
+      'Won, Pending KoM', 'Loss Tender', 'Declined',
+    ]);
   });
 });

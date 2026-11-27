@@ -84,6 +84,28 @@ export const LOST_STATUSES: readonly string[] = ['Loss Tender', 'Declined'];
 export const INTERNAL_STATUSES: readonly string[] = ['Internal Project'];
 
 /**
+ * The legal next statuses for a project at `status`, given whether the organisation's
+ * sales-pipeline module is ON (#3023). The RPC (transition_project) remains the only
+ * enforcement authority; this is the affordance seam that must match it.
+ *
+ *   • Feature ON  — the static map above, unchanged (its owning proof is pgTAP AC-1000 and the
+ *     AC-2379-1 parity walk).
+ *   • Feature OFF — no pipeline stage can be entered (the RPC asserts the feature), so pipeline
+ *     targets are dropped, and a Lead gains the direct win: Leads → Won, Pending KoM, from where
+ *     the ordinary Won, Pending KoM → Ongoing Project leg starts the delivery. Without this the
+ *     organisation could create a Lead but never start it.
+ */
+export function legalProjectTransitionsFor(status: string, salesPipelineOn: boolean): ProjectStatus[] {
+  const base = (LEGAL_PROJECT_TRANSITIONS[status] ?? []) as ProjectStatus[];
+  if (salesPipelineOn) return base;
+  const reachable = base.filter((s) => !PIPELINE_STATUSES.includes(s as string));
+  if (status === 'Leads' && !reachable.includes('Won, Pending KoM')) {
+    return [...reachable, 'Won, Pending KoM'];
+  }
+  return reachable;
+}
+
+/**
  * Returns the OD-SP-1 group for a given project status (AC-1001, FR-PR-012).
  * This is the foundation #5 reuses for its lens membership.
  */

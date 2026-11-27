@@ -46,13 +46,16 @@ insert into projects (id, org_id, code, name, status, project_manager_id) values
   ('30230000-0000-0000-0000-000000000014','30230000-0000-0000-0000-000000000001','P3023-E','Off-org engineer lead','Leads','30230000-0000-0000-0000-0000000000a1'),
   ('30230000-0000-0000-0000-000000000015','30230000-0000-0000-0000-000000000002','P3023-F','On-org lead','Leads','30230000-0000-0000-0000-0000000000b1'),
   ('30230000-0000-0000-0000-000000000016','30230000-0000-0000-0000-000000000001','P3023-G','Off-org internal lead','Leads','30230000-0000-0000-0000-0000000000a1');
-update projects set contract_value = 5000, tax_treatment = 'exclusive', tax_amount = 0,
-         contract_value_set_at = now()
+update projects set contract_value = 5000, tax_treatment = 'exclusive', tax_amount = 0
   where id in ('30230000-0000-0000-0000-000000000011','30230000-0000-0000-0000-000000000012');
--- The witnessed lead's value was authored by the org's Admin (outranks the PM: rank limb of
--- may_approve_work_of) and the Admin is an active member — the permit shape of 0177/0183.
+-- The value-set trigger stamps set_by = auth.uid() = NULL here (setup runs without claims), which is the
+-- permitted server-side witness. So the two witness shapes are set explicitly afterwards:
+-- witnessed = authored by the org's Admin (outranks the PM, an active member: the permit shape of
+-- 0177/0183); unwitnessed = authored by the PM who will try to win it (author = approver: refused).
 update projects set contract_value_set_by = '30230000-0000-0000-0000-0000000000a2'
   where id = '30230000-0000-0000-0000-000000000012';
+update projects set contract_value_set_by = '30230000-0000-0000-0000-0000000000a1'
+  where id = '30230000-0000-0000-0000-000000000011';
 
 -- ── The job (role: Project Manager, organisation without the pipeline) ──────
 set local role authenticated;
@@ -66,7 +69,7 @@ select is(
 
 -- The role-job leg: the PM wins the Lead (contract ref + date), then starts it.
 select lives_ok(
-  $$ select transition_project('30230000-0000-0000-0000-000000000010','Won, Pending KoM','CPO-3023','2026-11-28') $$,
+  $$ select transition_project('30230000-0000-0000-0000-000000000010','Won, Pending KoM','CPO-3023','2026-01-15') $$,
   'AC-3023: Leads → Won, Pending KoM is accepted for a pipeline-off organisation (no pipeline stage)');
 
 select lives_ok(
@@ -84,13 +87,13 @@ select is(
   'AC-3023: the win recorded the customer contract reference');
 
 select ok(
-  (select decided_at is not null and contract_date = date '2026-11-28'
+  (select decided_at is not null and contract_date = date '2026-01-15'
      from projects where id = '30230000-0000-0000-0000-000000000010'),
   'AC-3023: the win recorded the contract date and the decision stamp');
 
 -- The witnessed priced lead also wins: the money SoD is untouched by the new branch.
 select lives_ok(
-  $$ select transition_project('30230000-0000-0000-0000-000000000012','Won, Pending KoM','CPO-3023W','2026-11-28') $$,
+  $$ select transition_project('30230000-0000-0000-0000-000000000012','Won, Pending KoM','CPO-3023W','2026-01-15') $$,
   'AC-3023: a priced Lead whose value a senior member set still wins (money SoD intact)');
 
 -- ── The refusals that must NOT move ─────────────────────────────────────────
@@ -103,15 +106,17 @@ select throws_ok(
 
 -- The money SoD holds on the new branch: an unwitnessed priced Lead refuses with the witness code.
 select throws_ok(
-  $$ select transition_project('30230000-0000-0000-0000-000000000011','Won, Pending KoM','CPO-3023U','2026-11-28') $$,
+  $$ select transition_project('30230000-0000-0000-0000-000000000011','Won, Pending KoM','CPO-3023U','2026-01-15') $$,
   '42501', null,
   'AC-3023: an unwitnessed priced Lead cannot be won by the PM (money SoD intact)');
 
 -- The role gate holds on the new branch: an Engineer cannot change a project's status at all.
+set local request.jwt.claims = '{"sub":"30230000-0000-0000-0000-0000000000a3","role":"authenticated"}';
 select throws_ok(
-  $$ select transition_project('30230000-0000-0000-0000-000000000014','Won, Pending KoM','CPO-3023E','2026-11-28') $$,
+  $$ select transition_project('30230000-0000-0000-0000-000000000014','Won, Pending KoM','CPO-3023E','2026-01-15') $$,
   '42501', null,
   'AC-3023: an Engineer is still refused (role gate intact)');
+set local request.jwt.claims = '{"sub":"30230000-0000-0000-0000-0000000000a1","role":"authenticated"}';
 
 -- The preflight stays witness-aware on the new branch (the screen shows the same diagnosis).
 -- Still the pipeline-off org's PM: the preflight is org-scoped.
@@ -124,7 +129,7 @@ select is(
 set local request.jwt.claims = '{"sub":"30230000-0000-0000-0000-0000000000b1","role":"authenticated"}';
 
 select throws_ok(
-  $$ select transition_project('30230000-0000-0000-0000-000000000015','Won, Pending KoM','CPO-3023ON','2026-11-28') $$,
+  $$ select transition_project('30230000-0000-0000-0000-000000000015','Won, Pending KoM','CPO-3023ON','2026-01-15') $$,
   'P0001', null,
   'AC-3023: with the feature on, Leads → Won stays an illegal jump (the map is unchanged)');
 

@@ -7,6 +7,7 @@ import { useMayViewProjectMoney } from "@/src/hooks/useProjectMoneyScope";
 import { usePermission } from '@/src/auth/usePermission';
 import { useIsDesktop } from '@/src/components/ui/useIsDesktop';
 import { useOrgToday } from '@/src/hooks/useOrgToday';
+import { useFeature } from '@/src/auth/useFeature';
 import { useSalesPipeline } from '@/src/hooks/useDashboard';
 import { useProjectWinEligibility } from '@/src/hooks/useProjectTransitions';
 import { invalidateProjectProjections } from '@/src/hooks/projectQueryKeys';
@@ -16,7 +17,7 @@ import { formatIsoDay, formatPercent } from '@/src/lib/format';
 import { orgStageName } from '@/src/lib/status/orgStageNames';
 import { useProjectStatusLabel } from '@/src/hooks/useProjectStatusLabel';
 import {
-  LEGAL_PROJECT_TRANSITIONS, PIPELINE_STATUSES, projectStatusGroup, type TransitionProjectOpts,
+  legalProjectTransitionsFor, PIPELINE_STATUSES, projectStatusGroup, type TransitionProjectOpts,
 } from '@/src/lib/db/projectTransitions';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import type { LostReasonValue } from '@/components/project-status/LostReasonFields';
@@ -88,7 +89,10 @@ export function useDealActions(project: ProjectWithRefs) {
   const status = project.status as string;
   const cached = pipeline?.projects.find((p) => p.id === project.id);
   const canEditProbability = canTransition && PIPELINE_STATUSES.includes(status);
-  const legal = useMemo(() => LEGAL_PROJECT_TRANSITIONS[status] ?? [], [status]);
+  // #3023: with the sales-pipeline module off, a Lead's only exit is the direct win (then the
+  // ordinary start); every pipeline stage is refused by the RPC, so the affordance drops them.
+  const salesPipelineOn = useFeature('sales_pipeline');
+  const legal = useMemo(() => legalProjectTransitionsFor(status, salesPipelineOn), [status, salesPipelineOn]);
   const winIsLegal = legal.includes('Won, Pending KoM');
   const eligibility = useProjectWinEligibility(project.id, canTransition && winIsLegal, project.contract_value_set_at);
   const canWin = canTransition && winIsLegal && eligibility.data === 'allowed' && !eligibility.isPending && !eligibility.isFetching && !eligibility.isError;
