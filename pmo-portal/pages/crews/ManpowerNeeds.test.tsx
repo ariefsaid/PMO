@@ -9,13 +9,14 @@ const h = vi.hoisted(() => ({
   canManage: true,
   needs: { data: undefined as unknown[] | undefined, isPending: false, isError: false, refetch: vi.fn() },
   progressErr: false, linksErr: false, refetchProgress: vi.fn(), refetchLinks: vi.fn(),
+  progressPending: false,
   progress: [{ need_id: 'n1', asked: 3, linked: 2, filled: 1, in_progress: 1, open_count: 1 }] as unknown[],
   links: [{ id: 'l1', need_id: 'n1', person_id: 'p1' }] as unknown[],
   link: vi.fn().mockResolvedValue(undefined), unlink: vi.fn().mockResolvedValue(undefined), update: vi.fn().mockResolvedValue(undefined),
 }));
 vi.mock('@/src/hooks/useManpowerNeeds', () => ({
   useManpowerNeeds: () => h.needs,
-  useManpowerProgress: () => ({ data: h.progressErr ? undefined : h.progress, isError: h.progressErr, refetch: h.refetchProgress }),
+  useManpowerProgress: () => ({ data: h.progressErr || h.progressPending ? undefined : h.progress, isPending: h.progressPending, isError: h.progressErr, refetch: h.refetchProgress }),
   useManpowerLinks: () => ({ data: h.linksErr ? undefined : h.links, isError: h.linksErr, refetch: h.refetchLinks }),
   useCanManageManpower: () => ({ data: h.canManage }),
   useManpowerMutations: () => ({ create: { mutateAsync: vi.fn() }, update: { mutateAsync: h.update }, link: { mutateAsync: h.link }, unlink: { mutateAsync: h.unlink } }),
@@ -78,6 +79,16 @@ describe('AC-MPN-008 manpower needs', () => {
     const read = (label: string) => Array.from(card.querySelectorAll('dt')).find((d) => d.textContent === label)?.nextElementSibling?.textContent;
     expect([read('Asked'), read('Filled'), read('In progress'), read('To fill')]).toEqual(['3', '1', '1', '1']);
     expect(screen.getByText('Worker One')).toBeInTheDocument();
+  });
+
+  it('keeps staffing counts unknown while progress is pending', () => {
+    h.progressPending = true;
+    try {
+      view();
+      const card = screen.getByTestId('manpower-need-n1');
+      const read = (label: string) => Array.from(card.querySelectorAll('dt')).find((d) => d.textContent === label)?.nextElementSibling?.textContent;
+      expect([read('Filled'), read('In progress'), read('To fill')]).toEqual(['—', '—', '—']);
+    } finally { h.progressPending = false; }
   });
 
   it('shows a dash and the reason where the database hides filled and in progress, and offers no Mark as met', () => {
