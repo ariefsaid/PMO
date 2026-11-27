@@ -1,6 +1,6 @@
 -- 2789: project_budget_positions reads ledger actuals only for the projects asked (up to 10), not the whole organisation.
 -- Proof that nothing else changed: the 0859 body (the definition live before 2789) is kept below verbatim as _ppb_0859
--- inside this transaction, and old = new (EXCEPT ALL both ways, zero rows) for every active profile of every organisation
+-- (and approval routing's 2769 figures as _core_2769) inside this transaction, and old = new (EXCEPT ALL both ways, zero rows) for every active profile of every organisation
 -- (seeded and fixture: an accounting-ledger organisation with rules, a group account, an equipment pool, hire charges and a
 -- placed invoice; a document-basis organisation), for every project of the caller's organisation and lists of every kind,
 -- both as a signed-in client and inside definer code. Then function-call and ledger-row counts show the one-project path no
@@ -11,7 +11,7 @@
 -- the one-project and ten-project call-count rows fail.
 begin;
 create extension if not exists pgtap;
-select plan(25);
+select plan(30);
 
 -- the definition before 2789 (0859), verbatim but for its name
 create function public._ppb_0859(p_project_ids uuid[] default null)
@@ -195,6 +195,71 @@ language sql stable security invoker set search_path = public, pg_catalog as $$
 $$;
 grant execute on function public._ppb_0859(uuid[]) to authenticated;
 
+-- approval routing's figures before 2789 (2769), verbatim but for its name
+CREATE FUNCTION public._core_2769(p_project_ids uuid[])
+ RETURNS TABLE(project_id uuid, figures jsonb)
+ LANGUAGE sql
+ STABLE
+ SET search_path TO 'public', 'pg_temp'
+AS $function$
+  with g as materialized (
+    select public.is_active_member() and public.holds_spend_approval_authority(public.auth_role()) as ok
+  ), pos as materialized (
+    select pp.* from public.project_budget_positions(p_project_ids) pp where (select ok from g)
+  ), erp_rec as materialized (
+    -- With an accounting system the by-category Actual of every project is read once (project_mapped_actuals_all is
+    -- project_finance_actuals' ledger branch for every visible project, proven row for row).
+    select a.project_id,
+           jsonb_object_agg(a.category::text, jsonb_build_object('mapped', a.mapped, 'amount', a.actuals_to_date)) as by_category
+      from (select 1 where exists (select 1 from pos where pos.ledger_basis = 'erp')) one
+      cross join lateral public.project_mapped_actuals_all(null) a
+     where a.project_id in (select pos.project_id from pos where pos.ledger_basis = 'erp')
+     group by a.project_id
+  )
+  select pp.project_id,
+         jsonb_build_object(
+           'basis', pp.ledger_basis,
+           'ledger_currency', pp.currency,
+           'budget_currency', pp.budget_currency,
+           'proj_budget', pp.active_budget_amount::numeric,
+           'proj_spent', pp.spent::numeric + cl.amount,
+           'proj_open', case when pp.ledger_basis = 'erp' then cs.open else pp.open_commitment::numeric end,
+           'proj_reserved', rs.reserved,
+           'proj_foreign', coalesce(cs.foreign_amount, false) or rs.foreign_amount or cl.foreign_amount,
+           'recorded', coalesce(er.by_category, rec.by_category, '{}'::jsonb))
+    from pos pp
+    left join lateral (
+      select coalesce(sum(c.amount) filter (where c.currency = pp.budget_currency), 0) as open,
+             coalesce(bool_or(c.currency is distinct from pp.budget_currency and c.amount <> 0), false) as foreign_amount
+        from public.project_committed_spend(pp.project_id) c
+       where pp.ledger_basis = 'erp') cs on true
+    cross join lateral (
+      select coalesce(sum(greatest(0, pr.total_value,
+                    coalesce((select sum(i.amount) from public.procurement_items i where i.procurement_id = pr.id), 0)))
+                    filter (where pr.currency = pp.budget_currency), 0) as reserved,
+             coalesce(bool_or(pr.currency is distinct from pp.budget_currency), false) as foreign_amount
+        from public.procurements pr
+       where pr.org_id = public.auth_org_id() and pr.project_id = pp.project_id
+         and pr.status in ('Approved','Vendor Quoted','Quote Selected')) rs
+    cross join lateral (
+      select coalesce(sum(greatest(0, c.amount)) filter (where c.currency = pp.budget_currency), 0) as amount,
+             coalesce(bool_or(c.currency is distinct from pp.budget_currency), false) as foreign_amount
+        from public.expense_claims c
+       where c.org_id = public.auth_org_id() and c.project_id = pp.project_id
+         and c.kind = 'claim' and c.status in ('Approved','Paid')
+         and not (pp.ledger_basis = 'erp' and exists (
+           select 1 from public.expense_posting_erp_mirror m
+            where m.claim_id = c.id and m.posting = 'approval' and m.push_state = 'pushed'
+              and m.erp_cancelled_at is null and coalesce(m.erp_docstatus, 1) <> 2))) cl
+    left join erp_rec er on er.project_id = pp.project_id
+    left join lateral (
+      select jsonb_object_agg(a.category::text, jsonb_build_object('mapped', a.mapped, 'amount', a.actuals_to_date)) as by_category
+        from public.project_finance_actuals(pp.project_id) a
+       where pp.ledger_basis = 'pmo' and a.category is not null) rec on true
+$function$
+;
+grant execute on function public._core_2769(uuid[]) to authenticated;
+
 -- ── fixture: Z = accounting-ledger organisation with rules, a group account, an equipment pool, hire charges and a placed
 -- invoice; Y = document-basis organisation. 'Z' ids 27890000-…-0000000000xx, 'Y' ids 27890000-…-00000000bbxx.
 insert into organizations (id, name, default_currency, default_timezone) values
@@ -367,28 +432,59 @@ create function pg_temp.cmp(p_ids uuid[]) returns table(diff bigint, n bigint, e
          (select count(*) from o),
          (select count(*) from o where ledger_basis = 'erp' and spent is not null),
          (select count(*) from o where ledger_basis = 'pmo' and spent is not null) $$;
+create function pg_temp.cmp_core(p_ids uuid[]) returns table(diff bigint, n bigint, erp_spent bigint, pmo_spent bigint) language sql as $$
+  with o as materialized (select * from public._core_2769(p_ids)),
+       x as materialized (select * from public.spend_route_project_figures_core(p_ids))
+  select (select count(*) from (select * from o except all select * from x) a)
+       + (select count(*) from (select * from x except all select * from o) b),
+         (select count(*) from o),
+         (select count(*) from o where figures->>'basis' = 'erp' and figures->'recorded' <> '{}'::jsonb
+                                   and jsonb_path_exists(figures->'recorded', '$.*.amount ? (@ != null)')),
+         (select count(*) from o where figures->>'basis' = 'pmo' and figures->>'proj_spent' is not null) $$;
 -- every active profile of every organisation (seeded and fixture), each kind of list, as a client or inside definer code
-create function pg_temp.parity(p_kind text, p_internal boolean)
-returns table(diff bigint, lists bigint, n bigint, erp_spent bigint, pmo_spent bigint, callers bigint) language plpgsql as $$
-declare c record; v_ids uuid[]; r record; v_other uuid;
+create function pg_temp.parity(p_kind text, p_internal boolean, p_fn text default 'positions')
+returns table(diff bigint, lists bigint, n bigint, erp_spent bigint, pmo_spent bigint, callers bigint, errors bigint) language plpgsql as $$
+declare c record; v_ids uuid[]; r record; v_other uuid; v_old text; v_new text;
 begin
-  diff := 0; lists := 0; n := 0; erp_spent := 0; pmo_spent := 0; callers := 0;
-  for c in select pr.id, pr.org_id from public.profiles pr where pr.status = 'active' order by pr.id loop
+  errors := 0; diff := 0; lists := 0; n := 0; erp_spent := 0; pmo_spent := 0; callers := 0;
+  for c in select pr.id, pr.org_id from public.profiles pr
+            where pr.status = 'active'
+              -- routing figures cost more per call: every fixture profile, and one seeded profile per organisation and role
+              and (p_fn = 'positions' or pr.org_id in ('27890000-0000-0000-0000-00000000000a', '27890000-0000-0000-0000-00000000000b')
+                   or pr.id in (select distinct on (q.org_id, q.role) q.id from public.profiles q where q.status = 'active'
+                                 order by q.org_id, q.role, q.id))
+            order by pr.id loop
     callers := callers + 1;
     select p.id into v_other from public.projects p where p.org_id <> c.org_id order by p.id limit 1;
     for v_ids in
       select array[p.id] from public.projects p where p_kind = 'single' and (p.org_id = c.org_id or p.id = v_other)
       union all select null::uuid[] where p_kind = 'none'
       union all select '{}'::uuid[] where p_kind = 'empty'
-      union all select array_agg(p.id order by p.id) || v_other from public.projects p where p_kind = 'all' and p.org_id = c.org_id
+      -- an aggregate with no group returns a row even when no project matches: HAVING keeps these to their own kind
+      union all select array_agg(p.id order by p.id) || v_other from public.projects p where p.org_id = c.org_id
+                having p_kind = 'all'
       union all select (array_agg(p.id order by p.id))[1:4] || (array_agg(p.id order by p.id))[1] || v_other || null::uuid
-                  from public.projects p where p_kind = 'short' and p.org_id = c.org_id
+                  from public.projects p where p.org_id = c.org_id having p_kind = 'short' and count(*) > 0
     loop
       perform pg_temp.as_user(c.id);
       if not p_internal then execute 'set local role authenticated'; end if;
-      select * into r from pg_temp.cmp(v_ids);
+      begin
+        if p_fn = 'positions' then select * into r from pg_temp.cmp(v_ids); else select * into r from pg_temp.cmp_core(v_ids); end if;
+        diff := diff + r.diff; n := n + r.n; erp_spent := erp_spent + r.erp_spent; pmo_spent := pmo_spent + r.pmo_spent;
+      exception when others then
+        -- an error is parity only when both bodies raise the same one
+        errors := errors + 1; v_old := null; v_new := null;
+        begin
+          if p_fn = 'positions' then perform count(*) from public._ppb_0859(v_ids); else perform count(*) from public._core_2769(v_ids); end if;
+        exception when others then v_old := sqlstate || ' ' || sqlerrm; end;
+        begin
+          if p_fn = 'positions' then perform count(*) from public.project_budget_positions(v_ids);
+          else perform count(*) from public.spend_route_project_figures_core(v_ids); end if;
+        exception when others then v_new := sqlstate || ' ' || sqlerrm; end;
+        if v_old is null or v_old is distinct from v_new then diff := diff + 1; end if;
+      end;
       execute 'reset role';
-      diff := diff + r.diff; lists := lists + 1; n := n + r.n; erp_spent := erp_spent + r.erp_spent; pmo_spent := pmo_spent + r.pmo_spent;
+      lists := lists + 1;
     end loop;
   end loop;
   return next;
@@ -439,8 +535,8 @@ select k.kind, m.internal, x.*
   from unnest(array['single','none','empty','all','short']) k(kind)
   cross join unnest(array[false, true]) m(internal)
   cross join lateral pg_temp.parity(k.kind, m.internal) x;
-select diag(format('parity %s %s: %s lists, %s rows, %s ledger rows with spent, %s document rows with spent, %s callers, %s differing',
-               kind, case when internal then 'definer' else 'client' end, lists, n, erp_spent, pmo_spent, callers, diff))
+select diag(format('parity %s %s: %s lists, %s rows, %s ledger rows with spent, %s document rows with spent, %s callers, %s raised the same error both ways, %s differing',
+               kind, case when internal then 'definer' else 'client' end, lists, n, erp_spent, pmo_spent, callers, errors, diff))
   from _p order by kind, internal;
 select is((select diff from _p where kind = 'single' and not internal), 0::bigint, 'parity: one project at a time, as each caller');
 select is((select diff from _p where kind = 'none' and not internal), 0::bigint, 'parity: no list (every project), as each caller');
@@ -452,7 +548,15 @@ select is((select diff from _p where kind = 'none' and internal), 0::bigint, 'pa
 select is((select diff from _p where kind = 'empty' and internal), 0::bigint, 'parity: an empty list, inside definer code');
 select is((select diff from _p where kind = 'all' and internal), 0::bigint, 'parity: every project plus another organisation''s, inside definer code');
 select is((select diff from _p where kind = 'short' and internal), 0::bigint, 'parity: a short list, inside definer code');
-select ok((select callers >= 50 and lists >= 600 from _p where kind = 'single' and not internal),
+-- exact coverage, whatever the seed holds: every active profile once, and for each one every project of its organisation
+-- plus one other organisation's project; the fixture's ten profiles and fifteen projects are among them
+select ok((select x.callers = (select count(*) from public.profiles where status = 'active')
+              and x.lists = (select sum(1 + (select count(*) from public.projects p where p.org_id = pr.org_id))
+                               from public.profiles pr where pr.status = 'active')
+              and x.callers >= 10 + (select count(*) from public.profiles where status = 'active' and org_id not in
+                                      ('27890000-0000-0000-0000-00000000000a', '27890000-0000-0000-0000-00000000000b'))
+              and x.lists >= 7 * 13 + 3 * 4   -- the fixture alone: 7 ledger profiles x (12 + 1), 3 document profiles x (3 + 1)
+             from _p x where x.kind = 'single' and not x.internal),
   'parity covered every active profile (seeded and fixture) and every project of its organisation');
 select ok((select erp_spent >= 40 from _p where kind = 'single' and not internal),
   'parity compared ledger-basis rows that carry a spent figure');
@@ -460,6 +564,20 @@ select ok((select pmo_spent >= 3 from _p where kind = 'single' and not internal)
   'parity compared document-basis rows that carry a spent figure');
 select ok((select bool_and(n > 0) from _p where kind in ('single','none','all','short')),
   'every parity kind compared rows');
+
+-- ── parity for approval routing's figures (spend_route_project_figures_core) ───────────────────────
+create temp table _r on commit drop as
+select k.kind, m.internal, x.*
+  from unnest(array['single','empty','all','short']) k(kind)
+  cross join unnest(array[false, true]) m(internal)
+  cross join lateral pg_temp.parity(k.kind, m.internal, 'routing') x;
+select diag(format('routing parity %s %s: %s lists, %s rows, %s ledger rows with a recorded amount, %s document rows with spent, %s raised the same error both ways, %s differing',
+               kind, case when internal then 'definer' else 'client' end, lists, n, erp_spent, pmo_spent, errors, diff))
+  from _r order by kind, internal;
+select is((select sum(diff) from _r where not internal), 0::numeric, 'routing parity: every kind of list, as each caller');
+select is((select sum(diff) from _r where internal), 0::numeric, 'routing parity: every kind of list, inside definer code (the approval routes)');
+select ok((select sum(erp_spent) >= 20 and sum(pmo_spent) >= 3 from _r where kind = 'single'),
+  'routing parity compared ledger rows with a recorded amount and document rows with spent');
 
 -- ── the per-project path reads only the asked project ──────────────────────────────────────────────
 set local track_functions = 'all';
@@ -483,6 +601,11 @@ select is(pg_temp.count_calls('27890000-0000-0000-0000-0000000000a2',
             array['cost_attribution_org_actuals','project_mapped_actuals_all','cost_attribution_engine']),
           array[0, 0, 10]::bigint[],
           'ten projects: one engine pass per project, no organisation pass');
+select is(pg_temp.count_calls('27890000-0000-0000-0000-0000000000a2',
+            'select count(*) from public.spend_route_project_figures_core(array[''27890000-0000-0000-0000-0000000000c3''::uuid])',
+            array['project_mapped_actuals_all','cost_attribution_org_actuals','equipment_charge_org_actuals']),
+          array[0, 0, 0]::bigint[],
+          'routing figures for one project: no organisation-wide reader runs (before 2789: project_mapped_actuals_all twice)');
 -- what each path assembles: before, the organisation's actuals for every project; after, the asked project's categories
 set local role authenticated;
 select pg_temp.as_user('27890000-0000-0000-0000-0000000000a2');
@@ -498,19 +621,27 @@ select gen_random_uuid(), '27890000-0000-0000-0000-00000000000a', '2789 Z bulk '
 insert into erp_actuals_snapshot (org_id, project_id, account, fiscal_year, debit, credit, net, as_of, snapshot_id, created_at)
 select org_id, id, 'Cost - ZC', '2025', 10, 0, 10, now(), '27890000-0000-0000-0000-0000000005a2', now()
   from projects where name like '2789 Z bulk%';
-create function pg_temp.parity_one(p_sub uuid) returns bigint language plpgsql as $$
+-- fresh statistics for the fixture, so the attribution engine's plan (and the timings below) do not depend on whatever the
+-- shared database's tables last held (rolled back with the transaction)
+analyze public.projects, public.erp_gl_entry_mirror, public.erp_account_mirror, public.cost_attribution_rules,
+  public.cost_attribution_rule_targets, public.erp_actuals_snapshot, public.equipment_usage_entries,
+  public.erp_capture_invoice_assignments, public.budget_category_account_map;
+create function pg_temp.parity_one(p_sub uuid, p_fn text default 'positions') returns bigint language plpgsql as $$
 declare v_id uuid; d bigint := 0;
 begin
   for v_id in select p.id from public.projects p where p.org_id = '27890000-0000-0000-0000-00000000000a' loop
     perform pg_temp.as_user(p_sub);
     execute 'set local role authenticated';
-    d := d + (select x.diff from pg_temp.cmp(array[v_id]) x);
+    d := d + case when p_fn = 'positions' then (select x.diff from pg_temp.cmp(array[v_id]) x)
+                  else (select x.diff from pg_temp.cmp_core(array[v_id]) x) end;
     execute 'reset role';
   end loop;
   return d;
 end $$;
 select is(pg_temp.parity_one('27890000-0000-0000-0000-0000000000a2') + pg_temp.parity_one('27890000-0000-0000-0000-0000000000a4'), 0::bigint,
   'parity at 134 projects: every project one at a time, as Finance and as a Project Manager limited to own projects');
+select is(pg_temp.parity_one('27890000-0000-0000-0000-0000000000a2', 'routing'), 0::bigint,
+  'routing parity at 134 projects: every project one at a time, as Finance');
 select diag(format('ms per call at 134 projects, one project: before %s, after %s; twelve projects (organisation pass both): before %s, after %s',
   pg_temp.ms('27890000-0000-0000-0000-0000000000a2', 'select count(*) from public._ppb_0859(array[''27890000-0000-0000-0000-0000000000c1''::uuid])', 10),
   pg_temp.ms('27890000-0000-0000-0000-0000000000a2', 'select count(*) from public.project_budget_positions(array[''27890000-0000-0000-0000-0000000000c1''::uuid])', 10),
