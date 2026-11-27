@@ -10,9 +10,9 @@ import { useEnabledOffWhenModuleOff } from '@/src/hooks/moduleGate';
 export const MATERIAL_REQUEST_QUERY_ROOT = 'material-requests';
 
 
-export function useMaterialRequests(filter: MaterialRequestFilter) {
+export function useMaterialRequests(filter: MaterialRequestFilter, enabled = true) {
   const orgId = useOrgId();
-  return useQuery({ queryKey: [MATERIAL_REQUEST_QUERY_ROOT, orgId, 'list', filter], queryFn: () => repo.list(filter), enabled: Boolean(orgId) });
+  return useQuery({ queryKey: [MATERIAL_REQUEST_QUERY_ROOT, orgId, 'list', filter], queryFn: () => repo.list(filter), enabled: enabled && Boolean(orgId) });
 }
 
 export function useMaterialRequest(id: string | undefined) {

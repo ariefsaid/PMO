@@ -4,20 +4,28 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, expect, it, vi } from 'vitest';
 
 const h = vi.hoisted(() => ({
-  listForWorkOrder: vi.fn(), costs: vi.fn(), listFiles: vi.fn(),
+  listForWorkOrder: vi.fn(), costs: vi.fn(), listFilesBatch: vi.fn(),
   create: vi.fn(), raisePurchase: vi.fn(), recordInvitation: vi.fn(), recordExecution: vi.fn(),
   recordReport: vi.fn(), waive: vi.fn(), cancel: vi.fn(), addFile: vi.fn(),
 }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { org_id: 'org-1' } }) }));
 vi.mock('@/src/lib/repositories', () => ({ repositories: { thirdPartyInspection: h } }));
 import {
-  useInspectionCosts, useInspectionFiles, useInspectionMutations, useWorkOrderInspections,
+  useInspectionCosts, useInspectionFilesBatch, useInspectionMutations, useWorkOrderInspections,
 } from './useThirdPartyInspections';
 
 const wrapper = () => {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
   return ({ children }: { children: React.ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>;
 };
+
+it('refreshes the batched file read after attaching a report', async () => {
+  const { result } = renderHook(() => ({ files: useInspectionFilesBatch(['i1', 'i2']), mutations: useInspectionMutations('wo1') }), { wrapper: wrapper() });
+  await waitFor(() => expect(result.current.files.isSuccess).toBe(true));
+  expect(h.listFilesBatch).toHaveBeenCalledTimes(1);
+  await act(async () => { await result.current.mutations.addFile.mutateAsync({ inspection: { id: 'i1', org_id: 'org-1' }, file: new File(['x'], 'report.pdf'), liveCount: 0 }); });
+  await waitFor(() => expect(h.listFilesBatch).toHaveBeenCalledTimes(2));
+});
 
 beforeEach(() => { for (const m of Object.values(h)) m.mockReset().mockResolvedValue([]); });
 
@@ -34,12 +42,12 @@ it('the work order list, costs and files read through the repository and wait fo
   await waitFor(() => expect(costs.result.current.isSuccess).toBe(true));
   expect(h.costs).toHaveBeenCalledWith('wo1');
 
-  const idleFiles = renderHook(() => useInspectionFiles(undefined), { wrapper: wrapper() });
+  const idleFiles = renderHook(() => useInspectionFilesBatch([]), { wrapper: wrapper() });
   expect(idleFiles.result.current.fetchStatus).toBe('idle');
-  h.listFiles.mockResolvedValue([{ id: 'f1' }]);
-  const files = renderHook(() => useInspectionFiles('i1'), { wrapper: wrapper() });
+  h.listFilesBatch.mockResolvedValue([{ id: 'f1' }]);
+  const files = renderHook(() => useInspectionFilesBatch(['i1']), { wrapper: wrapper() });
   await waitFor(() => expect(files.result.current.data).toEqual([{ id: 'f1' }]));
-  expect(h.listFiles).toHaveBeenCalledWith('i1');
+  expect(h.listFilesBatch).toHaveBeenCalledWith(['i1']);
 });
 
 it('the state machine mutations forward their payloads', async () => {
