@@ -238,6 +238,34 @@ export async function listAllCrewMembers(): Promise<Pick<CrewMemberRow, 'id' | '
   });
 }
 
+const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
+const ID_CHUNK = 200;
+
+/** The placements in force on one day (the same rows `listAllCrewMembers` returns, narrowed in the database). */
+export async function listCrewPlacementsOn(date: string): Promise<Pick<CrewMemberRow, 'id' | 'crew_id' | 'worker_id' | 'valid_from' | 'valid_to'>[]> {
+  if (!ISO_DAY.test(date)) throw new AppError('Invalid date', 'INVALID_DATE');
+  return fetchAllRowsByKeyset(async (afterId, limit) => {
+    let q = supabase.from('crew_members').select('id, crew_id, worker_id, valid_from, valid_to')
+      .lte('valid_from', date).or(`valid_to.is.null,valid_to.gte.${date}`).order('id', { ascending: true });
+    if (afterId !== null) q = q.gt('id', afterId);
+    return q.limit(limit);
+  });
+}
+
+/** The named live people only (same row shape and order as `listCrewWorkers`), read in small chunks. */
+export async function listCrewWorkersByIds(ids: readonly string[]): Promise<CrewWorkerRow[]> {
+  const unique = [...new Set(ids)];
+  const chunks: string[][] = [];
+  for (let i = 0; i < unique.length; i += ID_CHUNK) chunks.push(unique.slice(i, i + ID_CHUNK));
+  const pages = await Promise.all(chunks.map(async (chunk) => {
+    const { data, error } = await supabase.from('people_directory').select('id, display_name:name, archived_at')
+      .in('id', chunk).is('archived_at', null).order('id', { ascending: true }).limit(ID_CHUNK);
+    fail(error);
+    return (data ?? []) as unknown as CrewWorkerRow[];
+  }));
+  return pages.flat().sort((a, b) => a.display_name.localeCompare(b.display_name) || a.id.localeCompare(b.id));
+}
+
 export async function createCrewWorker(input: CrewWorkerInput): Promise<CrewWorkerRow> {
   const { display_name, ...person } = input;
   // `people.code` (P-0001, …) is assigned by the database's people_assign_code trigger (migration 1042), which
