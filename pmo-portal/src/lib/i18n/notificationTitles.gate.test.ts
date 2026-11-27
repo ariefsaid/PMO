@@ -8,6 +8,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import en from '../../../public/locales/en/notifications.json';
 import id from '../../../public/locales/id/notifications.json';
+import { PERSON_TEXT_TITLE_KEYS } from './notificationCopy';
 import { matchNotificationTitle, NOTIFICATION_NOUN_KEYS, NOTIFICATION_TITLE_TEMPLATE_KEYS } from './notificationTitles';
 
 const text = (catalogue: Record<string, unknown>, path: string): unknown => path.split('.').reduce<unknown>((node, part) => (node as Record<string, unknown> | undefined)?.[part], catalogue);
@@ -19,6 +20,10 @@ describe('notification templates carry both languages', () => {
     expect(new Set(NOTIFICATION_TITLE_TEMPLATE_KEYS).size).toBe(NOTIFICATION_TITLE_TEMPLATE_KEYS.length);
     expect(Object.keys(en.titles).sort()).toEqual([...NOTIFICATION_TITLE_TEMPLATE_KEYS].sort());
     expect(Object.keys(id.titles).sort()).toEqual([...NOTIFICATION_TITLE_TEMPLATE_KEYS].sort());
+  });
+
+  it('names only registered keys in the person-text list', () => {
+    for (const key of PERSON_TEXT_TITLE_KEYS) expect(NOTIFICATION_TITLE_TEMPLATE_KEYS, key).toContain(key);
   });
 
   it.each(NOTIFICATION_TITLE_TEMPLATE_KEYS)('title %s has English and Bahasa Indonesia text', (key) => {
