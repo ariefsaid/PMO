@@ -157,13 +157,14 @@ export const CompanyFormModal: React.FC<CompanyFormModalProps> = ({
           ? { short_name: values.short_name.trim() || null }
           : {}),
         // #3025: the vendor master data travels whenever the form could have shown it — present
-        // for a vendor (so clearing works), omitted otherwise so a client edit never writes it.
+        // on a vendor edit (so clearing works), only the filled fields on a create, and omitted
+        // otherwise so a client edit never writes it.
         ...(values.type === 'Vendor'
-          ? {
+          ? Object.fromEntries(Object.entries({
             vendor_code: values.vendorCode.trim() || null,
             address: values.address.trim() || null,
             payment_terms_days: values.paymentTermsDays.trim() === '' ? null : Number(values.paymentTermsDays.trim()),
-          }
+          }).filter(([, v]) => isEdit || v !== null))
           : {}),
       };
       try {
