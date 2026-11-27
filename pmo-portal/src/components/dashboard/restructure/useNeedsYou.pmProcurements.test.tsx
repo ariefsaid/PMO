@@ -5,7 +5,7 @@ import { renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 const h = vi.hoisted(() => ({
-  useProcurements: vi.fn((_opts?: { enabled?: boolean }) => ({ data: undefined, isPending: false, isError: false, refetch: vi.fn() })),
+  useProcurements: vi.fn((_opts?: { enabled?: boolean; lean?: boolean }) => ({ data: undefined, isPending: false, isError: false, refetch: vi.fn() })),
 }));
 
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'pm-1', org_id: 'org-1' }, role: 'Project Manager' }) }));
@@ -46,7 +46,8 @@ describe('PM home purchase read', () => {
     const wrapper = ({ children }: { children: React.ReactNode }) => React.createElement(QueryClientProvider, { client }, children);
     const { result } = renderHook(() => useNeedsYou('Project Manager'), { wrapper });
     await waitFor(() => expect(result.current.isPending).toBe(false));
-    expect(h.useProcurements).toHaveBeenCalled();
-    expect(h.useProcurements.mock.calls.every(([opts]) => opts?.enabled === false)).toBe(true);
+    const leanReads = h.useProcurements.mock.calls.filter(([opts]) => opts?.lean === true);
+    expect(leanReads.length).toBeGreaterThan(0);
+    expect(leanReads.every(([opts]) => opts?.enabled === false)).toBe(true);
   });
 });
