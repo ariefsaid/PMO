@@ -1147,6 +1147,6 @@
     "planningChange": "category and line date",
     "dateChange": "Order and line dates: {{lines}}",
     "attributionChange": "work order and discipline",
-    "partialSave": "Saved: {{saved}}. Not saved: {{unsaved}}. {{reason}}"
+    "partialSave": "Saved: {{saved}}. Save not confirmed: {{unconfirmed}}. Not attempted: {{unattempted}}. {{reason}}"
   }
 }

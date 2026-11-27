@@ -57,16 +57,19 @@ beforeEach(() => {
 });
 
 describe('LinePlanPanel: when and for what each line is needed, in one table', () => {
-  it('names saved and unsaved line changes when a later line write fails', async () => {
+  it('names saved, unconfirmed and unattempted line changes when a later write fails', async () => {
     h.planningOn = true;
     h.setLine.mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error('Write failed'));
-    renderPanel({ projectId: null, items: ITEMS.map((i) => ({ ...i, category_id: null })) });
+    renderPanel({ projectId: null, items: [...ITEMS, { id: 'l3', name: 'Conduit' }].map((i) => ({ ...i, category_id: null })) });
     await userEvent.selectOptions(within(rowOf('Cable')).getByRole('combobox'), 'c1');
     await userEvent.selectOptions(within(rowOf('Pipe')).getByRole('combobox'), 'c1');
+    await userEvent.selectOptions(within(rowOf('Conduit')).getByRole('combobox'), 'c1');
     await userEvent.click(screen.getByRole('button', { name: 'Save' }));
     const error = await screen.findByRole('alert');
     expect(error).toHaveTextContent('Saved: Cable');
-    expect(error).toHaveTextContent('Not saved: Pipe');
+    expect(error).toHaveTextContent('Save not confirmed: Pipe');
+    expect(error).toHaveTextContent('Not attempted: Conduit');
+    expect(h.setLine).toHaveBeenCalledTimes(2);
     expect(error).toHaveTextContent(/failed/i);
   });
   it('AC-PLP-010 nothing to plan (no setting on, no project) renders nothing', () => {

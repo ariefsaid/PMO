@@ -148,9 +148,10 @@ export const LinePlanPanel: React.FC<LinePlanPanelProps> = ({ procurementId, ite
       setSaved(true);
     } catch (e) {
       const error = classifyMutationError(e);
-      setFailure(t('linePlan.partialSave', 'Saved: {{saved}}. Not saved: {{unsaved}}. {{reason}}', {
+      setFailure(t('linePlan.partialSave', 'Saved: {{saved}}. Save not confirmed: {{unconfirmed}}. Not attempted: {{unattempted}}. {{reason}}', {
         saved: writes.slice(0, completed).map((w) => w.label).join('; ') || t('linePlanning.none', 'None'),
-        unsaved: writes.slice(completed).map((w) => w.label).join('; '),
+        unconfirmed: writes[completed]?.label ?? t('linePlanning.none', 'None'),
+        unattempted: writes.slice(completed + 1).map((w) => w.label).join('; ') || t('linePlanning.none', 'None'),
         reason: error.detail || error.headline,
       }));
     } finally {
