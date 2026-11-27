@@ -35,7 +35,7 @@ CREATE OR REPLACE FUNCTION public.billing_stages_open(p_claim uuid)
  RETURNS boolean
  LANGUAGE sql
  STABLE SECURITY DEFINER
- SET search_path TO 'public', 'pg_temp'
+ SET search_path = public, pg_temp
 AS $function$
   select exists (select 1 from public.claim_billing_stages s where s.claim_id = p_claim and s.completed_on is null and s.skipped_on is null
                    and s.position < coalesce((select i.position from public.claim_billing_stages i
@@ -48,7 +48,7 @@ CREATE OR REPLACE FUNCTION public.save_billing_step_template(p_template uuid, p_
  RETURNS uuid
  LANGUAGE plpgsql
  SECURITY DEFINER
- SET search_path TO 'public', 'pg_temp'
+ SET search_path = public, pg_temp
 AS $function$
 declare
   v_org   uuid      := public.auth_org_id();
@@ -169,7 +169,7 @@ CREATE OR REPLACE FUNCTION public.set_billing_stage_template(p_project uuid, p_s
  RETURNS integer
  LANGUAGE plpgsql
  SECURITY DEFINER
- SET search_path TO 'public', 'pg_temp'
+ SET search_path = public, pg_temp
 AS $function$
 declare
   v_org   uuid      := public.auth_org_id();
@@ -245,7 +245,7 @@ CREATE OR REPLACE FUNCTION public.load_billing_step_template_onto_project(p_proj
  RETURNS integer
  LANGUAGE plpgsql
  SECURITY DEFINER
- SET search_path TO 'public', 'pg_temp'
+ SET search_path = public, pg_temp
 AS $function$
 declare v_org uuid := public.auth_org_id(); v_role user_role := public.auth_role(); v_n int;
 begin
@@ -281,7 +281,7 @@ CREATE OR REPLACE FUNCTION public.load_billing_step_template_onto_claim(p_claim 
  RETURNS integer
  LANGUAGE plpgsql
  SECURITY DEFINER
- SET search_path TO 'public', 'pg_temp'
+ SET search_path = public, pg_temp
 AS $function$
 declare
   v_org uuid := public.auth_org_id(); v_role user_role := public.auth_role();
@@ -335,7 +335,7 @@ CREATE OR REPLACE FUNCTION public.instantiate_claim_billing_stages()
  RETURNS trigger
  LANGUAGE plpgsql
  SECURITY DEFINER
- SET search_path TO 'public', 'pg_temp'
+ SET search_path = public, pg_temp
 AS $function$
 begin
   if new.kind <> 'progress' then return new; end if;
@@ -360,7 +360,7 @@ CREATE OR REPLACE FUNCTION public.update_claim_billing_step(p_stage uuid, p_patc
  RETURNS void
  LANGUAGE plpgsql
  SECURITY DEFINER
- SET search_path TO 'public', 'pg_temp'
+ SET search_path = public, pg_temp
 AS $function$
 declare
   v_org    uuid := public.auth_org_id();
