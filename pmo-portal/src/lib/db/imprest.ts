@@ -1,5 +1,6 @@
 import { parseRoute } from './parseRoute';
 import { supabase } from '@/src/lib/supabase/client';
+import { nullableArg } from './nullableArg';
 import { AppError, assertWriteLanded } from '@/src/lib/appError';
 import { invokeWithTimeout } from '@/src/lib/supabase/invokeWithTimeout';
 import { throwInvokeError } from '@/src/lib/repositories/repositoryErrors';
@@ -207,28 +208,28 @@ export async function deletePlanLine(lineId: string): Promise<void> {
   fail(error);
   assertWriteLanded(data, 'the plan line was not removed: the plan is no longer a Draft you authored');
 }
-const rpc = async (fn: string, args: Record<string, unknown>): Promise<unknown> => {
-  const { data, error } = await supabase.rpc(fn as never, args as never);
+const rpcData = async <T>(call: PromiseLike<{ data: T; error: { message: string; code?: string } | null }>): Promise<T> => {
+  const { data, error } = await call;
   fail(error);
   return data;
 };
-export const setProcurementLimit = (amount: number) => rpc('set_imprest_procurement_limit', { p_amount: amount });
+export const setProcurementLimit = (amount: number) => rpcData(supabase.rpc('set_imprest_procurement_limit', { p_amount: amount }));
 export const establishFloat = (projectId: string, custodianId: string, amount: number) =>
-  rpc('establish_imprest_float', { p_project: projectId, p_custodian: custodianId, p_amount: amount }) as Promise<string>;
+  rpcData(supabase.rpc('establish_imprest_float', { p_project: projectId, p_custodian: custodianId, p_amount: amount })) as Promise<string>;
 export const proposeFloatAmount = (floatId: string, amount: number) =>
-  rpc('propose_imprest_float_amount', { p_float: floatId, p_amount: amount }) as Promise<string>;
+  rpcData(supabase.rpc('propose_imprest_float_amount', { p_float: floatId, p_amount: amount })) as Promise<string>;
 export const decideFloatChange = (changeId: string, approve: boolean, notes?: string) =>
-  rpc('decide_imprest_float_change', { p_change: changeId, p_approve: approve, p_notes: notes ?? null });
+  rpcData(supabase.rpc('decide_imprest_float_change', { p_change: changeId, p_approve: approve, p_notes: nullableArg(notes ?? null) }));
 export const transitionPlan = (planId: string, to: 'Submitted' | 'Approved' | 'Rejected' | 'Cancelled' | 'Draft', notes?: string) =>
-  rpc('transition_imprest_plan', { p_id: planId, p_to: to, p_notes: notes ?? null });
+  rpcData(supabase.rpc('transition_imprest_plan', { p_id: planId, p_to: to, p_notes: nullableArg(notes ?? null) }));
 export const requestReplenishment = (floatId: string, kind: 'replenishment' | 'funding' = 'replenishment') =>
-  rpc('request_imprest_replenishment', { p_float: floatId, p_kind: kind }) as Promise<string>;
+  rpcData(supabase.rpc('request_imprest_replenishment', { p_float: floatId, p_kind: kind })) as Promise<string>;
 export const transitionReplenishment = (id: string, to: 'Approved' | 'Rejected' | 'Paid' | 'Cancelled',
                                         opts: { notes?: string; paymentReference?: string } = {}) =>
-  rpc('transition_imprest_replenishment', { p_id: id, p_to: to, p_notes: opts.notes ?? null,
-                                            p_payment_reference: to === 'Paid' ? (opts.paymentReference ?? null) : null });
+  rpcData(supabase.rpc('transition_imprest_replenishment', { p_id: id, p_to: to, p_notes: nullableArg(opts.notes ?? null),
+                                            p_payment_reference: nullableArg(to === 'Paid' ? (opts.paymentReference ?? null) : null) }));
 export const recordCount = (floatId: string, counted: number, note?: string) =>
-  rpc('record_imprest_count', { p_float: floatId, p_counted: counted, p_note: note ?? null }) as Promise<string>;
+  rpcData(supabase.rpc('record_imprest_count', { p_float: floatId, p_counted: counted, p_note: nullableArg(note ?? null) })) as Promise<string>;
 
 /** NFR-IMP-008: a movement whose ERP posting is not done. `held` and a posting cancelled in the ERP read as uncertain. */
 export type PostingState = 'pending' | 'failed' | 'uncertain';

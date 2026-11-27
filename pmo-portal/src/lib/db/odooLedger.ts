@@ -4,6 +4,7 @@
  */
 import { AppError } from '@/src/lib/appError';
 import { supabase } from '@/src/lib/supabase/client';
+import { nullableArg } from './nullableArg';
 
 export type OdooLedgerState = 'fresh' | 'stale' | 'catching-up' | 'unavailable';
 export type OdooCheckStatus = 'matches' | 'differs' | 'not-checked';
@@ -76,7 +77,6 @@ export interface GetOdooStatementInput { statement: OdooStatementKind; periodKin
 export interface SwitchOdooLedgerBasisInput { confirmDifference?: boolean; reason?: string }
 
 type Rec = Record<string, unknown>;
-type RpcClient = { rpc: (fn: string, args?: Rec) => PromiseLike<{ data: unknown; error: { message: string; code?: string; details?: string } | null }> };
 
 const INVALID_RESPONSE = 'The ledger service returned an invalid response.';
 const INVALID_INPUT = 'Invalid ledger request.';
@@ -93,8 +93,7 @@ const str = (v: unknown): string | null => (typeof v === 'string' ? v : null);
 const money = (v: unknown): string => (typeof v === 'string' || typeof v === 'number' ? String(v) : bad());
 const num = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) ? v : bad());
 
-async function call(fn: string, args: Rec): Promise<unknown> {
-  const { data, error } = await (supabase as unknown as RpcClient).rpc(fn, args);
+function unwrap<T>({ data, error }: { data: T; error: { message: string; code?: string; details?: string } | null }): T {
   if (error) throw new AppError(error.message, error.code, error.details);
   return data;
 }
@@ -127,7 +126,7 @@ function check(v: unknown): OdooLedgerCheck | null {
 
 export async function getOdooLedgerHealth(projectId?: string): Promise<OdooLedgerHealth> {
   if (projectId !== undefined && !UUID.test(projectId)) throw new AppError(INVALID_INPUT, 'odoo-ledger-invalid-input');
-  const d = await call('get_odoo_ledger_health', { p_project_id: projectId ?? null });
+  const d = unwrap(await supabase.rpc('get_odoo_ledger_health', { p_project_id: nullableArg(projectId ?? null) }));
   if (!isRec(d) || typeof d.state !== 'string' || !STATES.includes(d.state) || typeof d.caughtUp !== 'boolean') return bad();
   const unmapped = amountGroup(d.unmapped);
   return {
@@ -145,7 +144,7 @@ export async function getOdooLedgerHealth(projectId?: string): Promise<OdooLedge
 
 export async function getOdooLedgerLines(input: { projectId: string; category: string; after?: string | null; limit?: number }): Promise<OdooLedgerLinesPage> {
   if (!UUID.test(input.projectId) || input.category.trim() === '') throw new AppError(INVALID_INPUT, 'odoo-ledger-invalid-input');
-  const d = await call('get_odoo_ledger_lines', { p_project_id: input.projectId, p_category: input.category, p_after: input.after ?? null, p_limit: input.limit ?? 50 });
+  const d = unwrap(await supabase.rpc('get_odoo_ledger_lines', { p_project_id: input.projectId, p_category: input.category, p_after: nullableArg(input.after ?? null), p_limit: input.limit ?? 50 }));
   if (!isRec(d) || !Array.isArray(d.lines) || typeof d.linked !== 'boolean') return bad();
   return {
     linked: d.linked,
@@ -167,7 +166,7 @@ function pair(v: unknown): OdooStatementPair {
 
 export async function getOdooStatementCatalogue(projectId?: string): Promise<OdooStatementCatalogue> {
   if (projectId !== undefined && !UUID.test(projectId)) throw new AppError(INVALID_INPUT, 'odoo-ledger-invalid-input');
-  const d = await call('get_odoo_statement_catalogue', { p_project_id: projectId ?? null });
+  const d = unwrap(await supabase.rpc('get_odoo_statement_catalogue', { p_project_id: nullableArg(projectId ?? null) }));
   if (!isRec(d)) return bad();
   if (d.state === 'not_in_use') return { state: 'not_in_use' };
   if (d.state === 'unavailable') return { state: 'unavailable', companyLabel: str(d.companyLabel) };
@@ -212,7 +211,7 @@ function provenance(v: unknown): OdooStatementProvenance {
 export async function getOdooStatement(input: GetOdooStatementInput): Promise<OdooStatementRead> {
   if (!STATEMENTS.includes(input.statement) || !PERIOD_KINDS.includes(input.periodKind) || !FIRST_OF_MONTH.test(input.periodStart) ||
       (input.projectId !== undefined && !UUID.test(input.projectId))) throw new AppError(INVALID_INPUT, 'odoo-ledger-invalid-input');
-  const d = await call('get_odoo_statement', { p_kind: input.statement, p_period: { kind: input.periodKind, start: input.periodStart }, p_project_id: input.projectId ?? null });
+  const d = unwrap(await supabase.rpc('get_odoo_statement', { p_kind: input.statement, p_period: { kind: input.periodKind, start: input.periodStart }, p_project_id: nullableArg(input.projectId ?? null) }));
   if (!isRec(d)) return bad();
   if (d.state === 'not_in_use') return { state: 'not_in_use' };
   if (d.state === 'unavailable') return { state: 'unavailable', companyLabel: str(d.companyLabel) };
@@ -254,6 +253,6 @@ export async function getOdooCompanyCurrency(): Promise<string | null> {
 /** Admin only (the RPC re-checks the real role). A refusal keeps its reason slug as the message and `P0001` as the code. */
 export async function switchOdooLedgerBasis(input: SwitchOdooLedgerBasisInput = {}): Promise<string> {
   const reason = input.reason?.trim() || null;
-  const d = await call('switch_odoo_ledger_basis', { p_confirm_difference: input.confirmDifference === true, p_reason: reason });
+  const d = unwrap(await supabase.rpc('switch_odoo_ledger_basis', { p_confirm_difference: input.confirmDifference === true, p_reason: nullableArg(reason) }));
   return typeof d === 'string' ? d : bad();
 }
