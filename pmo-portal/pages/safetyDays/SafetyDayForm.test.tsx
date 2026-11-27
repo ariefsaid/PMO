@@ -25,6 +25,8 @@ const h = vi.hoisted(() => {
     role: 'Admin',
     userId: 'u1',
     attendance: [{ worker_id: 'w1', status: 'present' }, { worker_id: 'w2', status: 'present' }] as { worker_id: string; status: string }[],
+    // the server's own missing-rule for the day (safety_work_order_days); null = not answered
+    serverMissing: ['fitness_check'] as string[] | null,
   };
 });
 vi.mock('@/src/hooks/useSafetyDays', () => ({
@@ -32,6 +34,7 @@ vi.mock('@/src/hooks/useSafetyDays', () => ({
   useSafetyRoster: () => ({ data: h.roster, isError: h.rosterError, refetch: h.retryRoster }),
   useSafetyList: (kind: string) => ({ data: h.lists[kind] ?? [] }),
   useSafetyMutations: () => h.m,
+  useSafetyWorkOrderDays: () => ({ data: h.serverMissing ? [{ work_date: '2026-03-10', missing: h.serverMissing }] : undefined, isPending: false, isError: !h.serverMissing }),
 }));
 vi.mock('@/src/hooks/useProjects', () => ({ useProject: () => ({ data: { id: 'p1', project_manager_id: 'pm1' } }) }));
 vi.mock('@/src/hooks/useCrews', () => ({ useAttendanceDay: () => ({ data: h.attendance, isPending: false, isError: false }) }));
@@ -71,7 +74,7 @@ const view = () => render(
 beforeEach(() => { h.rosterError = false;
   h.attendance = [{ worker_id: 'w1', status: 'present' }, { worker_id: 'w2', status: 'present' }];
   act(() => { sonnerToast.dismiss(); }); // Sonner's store replays still-active toasts into the next Toaster — clear them.
-  h.role = 'Admin';
+  h.role = 'Admin'; h.serverMissing = ['fitness_check'];
   h.query = { data: detail(), isPending: false, isError: false, refetch: vi.fn() };
   Object.values(h.m).forEach((x) => x.mutateAsync.mockReset().mockResolvedValue(undefined));
 });
@@ -156,6 +159,25 @@ describe('SafetyDayForm', () => {
     await user.click(screen.getByTestId('safety-submit'));
     expect(await screen.findByTestId('safety-lock-unchecked')).toHaveTextContent('Not yet checked: Budi');
     expect(screen.getByTestId('safety-lock-unchecked')).not.toHaveTextContent('Sari');
+  });
+
+  it('#2998 an Engineer who cannot read attendance (zero rows) still sees the fitness gap, header and dialog naming the same set', async () => {
+    h.role = 'Engineer'; h.attendance = []; // row rules return nothing, no error
+    const user = userEvent.setup();
+    view();
+    expect(screen.getByTestId('safety-missing')).toHaveTextContent('Fitness check');
+    await user.click(screen.getByTestId('safety-submit'));
+    expect(await screen.findByTestId('safety-lock-unchecked')).toHaveTextContent('Not yet checked: Budi, Sari');
+  });
+
+  it('#2998 the server says no fitness check is missing: neither header nor dialog names one', async () => {
+    h.serverMissing = [];
+    const user = userEvent.setup();
+    view();
+    expect(screen.getByTestId('safety-missing')).not.toHaveTextContent('Fitness check');
+    await user.click(screen.getByTestId('safety-submit'));
+    await screen.findByRole('dialog');
+    expect(screen.queryByTestId('safety-lock-unchecked')).not.toBeInTheDocument();
   });
 
   const confirmLock = async (user: ReturnType<typeof userEvent.setup>) => {

@@ -7,7 +7,7 @@ import { useEffectiveRole } from '@/src/auth/impersonation';
 import { can } from '@/src/auth/policy';
 import { useProject } from '@/src/hooks/useProjects';
 import { useAttendanceDay } from '@/src/hooks/useCrews';
-import { useSafetyDay, useSafetyMutations, useSafetyRoster } from '@/src/hooks/useSafetyDays';
+import { useSafetyDay, useSafetyMutations, useSafetyRoster, useSafetyWorkOrderDays } from '@/src/hooks/useSafetyDays';
 import { classifyMutationError, joinSentences } from '@/src/lib/classifyMutationError';
 import { formatDay } from '@/src/lib/format';
 import { SAFETY_PART_LABEL } from '@/src/lib/safetyDay';
@@ -50,18 +50,24 @@ const SafetyDayRecord: React.FC<{ detail: SafetyDayDetail }> = ({ detail }) => {
   const editable = day.status === 'draft' && mayEnter;
   const roster = useSafetyRoster(day.work_order_id, day.work_date);
   const attendance = useAttendanceDay(day.work_order_id, day.work_date);
+  const serverDay = useSafetyWorkOrderDays(day.work_order_id, day.work_date, day.work_date, true);
   const m = useSafetyMutations();
   const [correcting, setCorrecting] = useState(false);
   const [dialogError, setDialogError] = useState<string | null>(null);
   const [locking, setLocking] = useState(false);
   const [lockError, setLockError] = useState<string | null>(null);
   const rosterReady = !roster.isPending && !roster.isError;
-  const attendanceReady = !attendance.isPending && !attendance.isError;
-  // The fitness-check population the database's own missing-rule counts (safety_day_missing, migration 1412):
-  // workers recorded present on the day. Decided once here, so the still-needed line and the lock dialog
-  // name the same set (#2998).
+  const serverReady = !serverDay.isPending;
+  // The database's own missing-rule (safety_day_missing, migration 1412) is the authority on whether a fitness check
+  // is still owed; any member can read its answer through safety_work_order_days. Attendance rows are readable only
+  // to crew roles, so they merely narrow WHO is named: when they come back empty (an Engineer's row rules) or the
+  // server could not answer, the unchecked roster is named instead. Header and lock dialog share this set (#2998).
+  const serverMissing = serverDay.data?.find((r) => r.work_date === day.work_date)?.missing ?? null;
+  const fitnessOwed = serverMissing === null || serverMissing.includes('fitness_check');
+  const checked = (id: string) => detail.fitness.some((f) => f.worker_id === id && f.result !== 'not_checked');
   const presentIds = new Set((attendance.data ?? []).filter((r) => r.status === 'present').map((r) => r.worker_id));
-  const present = (roster.data ?? []).filter((w) => presentIds.has(w.worker_id));
+  const narrowed = (roster.data ?? []).filter((w) => presentIds.has(w.worker_id));
+  const present = !fitnessOwed ? [] : narrowed.some((w) => !checked(w.worker_id)) ? narrowed : (roster.data ?? []);
   const readiness = lockReadiness(detail.checklist, detail.fitness, present);
 
   const status = deriveSafetyDayStatus({
@@ -117,7 +123,7 @@ const SafetyDayRecord: React.FC<{ detail: SafetyDayDetail }> = ({ detail }) => {
         }
         actions={(
           <div className="flex flex-wrap gap-2">
-            {editable && <Button disabled={!rosterReady || !attendanceReady} variant="primary" onClick={() => { setLockError(null); setLocking(true); }} data-testid="safety-submit">{t('actions.submit', 'Submit and lock')}</Button>}
+            {editable && <Button disabled={!rosterReady || !serverReady} variant="primary" onClick={() => { setLockError(null); setLocking(true); }} data-testid="safety-submit">{t('actions.submit', 'Submit and lock')}</Button>}
             {day.status === 'locked' && mayEnter && <Button variant="outline" onClick={() => { setDialogError(null); setCorrecting(true); }} data-testid="safety-correct">{t('actions.correct', 'Correct')}</Button>}
           </div>
         )}
