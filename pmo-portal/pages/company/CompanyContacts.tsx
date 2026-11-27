@@ -9,7 +9,7 @@ import { useContactsByCompany } from '@/src/hooks/useContacts';
  * account card and the page's contacts list, moved verbatim off CompanyDetail.
  */
 
-/** A contact shortcut from the alphabetically sorted list; no primary designation is inferred. */
+/** The existing account-card contact shortcut. */
 export const PrimaryContactField: React.FC<{ companyId: string }> = ({ companyId }) => {
   const { t } = useTranslation();
   const { data, isPending } = useContactsByCompany(companyId);
@@ -18,7 +18,7 @@ export const PrimaryContactField: React.FC<{ companyId: string }> = ({ companyId
   return (
     <div className="flex flex-col gap-0.5">
       <dt className="text-control font-semibold text-muted-foreground">
-        {t('companyDetail.contacts.listLabel', 'Contacts list')}
+        {t('companyDetail.field.primaryContact', 'Primary contact')}
       </dt>
       <dd className="text-control text-foreground">
         <Link
@@ -80,7 +80,7 @@ export const CompanyContactsList: React.FC<{ companyId: string }> = ({ companyId
   }
 
   return (
-    <ul className="flex flex-col gap-1" aria-label={t('companyDetail.contacts.listLabel', 'Contacts list')}>
+    <ul className="flex flex-col gap-1" aria-label={t('companyDetail.field.primaryContact', 'Primary contact')}>
       {contacts.map((c) => (
         <li key={c.id}>
           <Link

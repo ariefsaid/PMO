@@ -162,7 +162,7 @@ describe('VAT editability is read on demand (AC-PERF-001, plan Step 1a)', () => 
     expect(screen.getByRole('checkbox', { name: /Subject to VAT/i })).toBeDisabled();
 
     // Exactly ONE request for the whole open — the enabled-flip and the begin-edit refetch dedupe.
-    expect(stub.vatResolvers).toHaveLength(1);
+    await waitFor(() => expect(stub.vatResolvers).toHaveLength(1));
 
     // A live invoice resolves: the flag stays locked with the reason stated.
     resolveVat(0, { eligible: false, reason: 'vat-live-invoice', hasInvoices: true });
@@ -177,6 +177,7 @@ describe('VAT editability is read on demand (AC-PERF-001, plan Step 1a)', () => 
   it('unlocks the PPN flag once an eligible read resolves', async () => {
     renderCompactHeader();
     await openValueEditor();
+    await waitFor(() => expect(stub.vatResolvers).toHaveLength(1));
     resolveVat(0, { eligible: true, reason: null, hasInvoices: false });
     await waitFor(() =>
       expect(screen.getByTestId('contract-vat-flag-hint')).toHaveTextContent(/Editable until an invoice is raised/i),

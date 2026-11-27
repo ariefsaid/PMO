@@ -30,11 +30,6 @@ import { ImpersonationBanner } from '@/src/auth/ImpersonationBanner';
 import { useAuth } from '@/src/auth/useAuth';
 import { useOperatorMembership } from '@/src/auth/useIsOperator';
 import LoginPage from '@/src/auth/LoginPage';
-import TermsPage from './pages/Terms';
-import PrivacyPage from './pages/Privacy';
-import ResetPasswordPage from '@/src/auth/ResetPasswordPage';
-import UpdatePasswordPage from '@/src/auth/UpdatePasswordPage';
-import OAuthConsentPage from '@/src/auth/OAuthConsentPage';
 import {
   AppShell,
   Rail,
@@ -99,7 +94,17 @@ import { usePriceVisibilitySync } from '@/src/hooks/useHidePrices';
 // ── Lazy route chunks (lazyWithPreload: each carries an idempotent preload() —
 //    #1834 fires it on nav-link hover/focus/pointerdown and on route entry, so
 //    the chunk downloads in parallel with the route's data instead of after it) ─
-const ExecutiveDashboard = lazyWithPreload(() => import('./pages/ExecutiveDashboard'));
+const TermsPage = lazyWithPreload(() => import('./pages/Terms'));
+const PrivacyPage = lazyWithPreload(() => import('./pages/Privacy'));
+const ResetPasswordPage = lazyWithPreload(() => import('@/src/auth/ResetPasswordPage'));
+const UpdatePasswordPage = lazyWithPreload(() => import('@/src/auth/UpdatePasswordPage'));
+const OAuthConsentPage = lazyWithPreload(() => import('@/src/auth/OAuthConsentPage'));
+const ExecutiveDashboard = lazyWithPreload(() => {
+  // Start the actionable billing read's module with the dashboard, rather than after its first paint.
+  // The query owns failures; this optional warmup never holds the home screen behind an import error.
+  void import('@/src/lib/repositories/billingStages').catch(() => undefined);
+  return import('./pages/ExecutiveDashboard');
+});
 const Projects = lazyWithPreload(() => import('./pages/Projects'));
 const ProjectNew = lazyWithPreload(() => import('./pages/ProjectNew'));
 const ProjectDetail = lazyWithPreload(() => import('./pages/project-detail/ProjectDetail'));

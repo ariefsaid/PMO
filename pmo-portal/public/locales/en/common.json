@@ -1304,7 +1304,6 @@
         "sub": "Something went wrong. Try again.",
         "title": "Couldn't load contacts"
       },
-      "listLabel": "Contacts list",
       "loading": "Loading…",
       "loadingLabel": "Loading contacts",
       "openRow": "Open",
@@ -1316,6 +1315,7 @@
       "title": "Couldn't load company"
     },
     "field": {
+      "primaryContact": "Primary contact",
       "clientNumberSegment": "Client number segment"
     },
     "notFound": {

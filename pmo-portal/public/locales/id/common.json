@@ -1304,7 +1304,6 @@
         "sub": "Terjadi kesalahan. Coba lagi.",
         "title": "Gagal memuat kontak"
       },
-      "listLabel": "Daftar kontak",
       "loading": "Memuat…",
       "loadingLabel": "Memuat kontak",
       "openRow": "Buka",
@@ -1316,6 +1315,7 @@
       "title": "Gagal memuat perusahaan"
     },
     "field": {
+      "primaryContact": "Kontak utama",
       "clientNumberSegment": "Segmen nomor klien"
     },
     "notFound": {

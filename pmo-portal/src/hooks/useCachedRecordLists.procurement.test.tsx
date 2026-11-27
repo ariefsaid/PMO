@@ -9,10 +9,7 @@ const { getDetail, actor } = vi.hoisted(() => ({
   actor: { org_id: 'org-1', id: 'user-1', role: 'Finance' },
 }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: actor }) }));
-vi.mock('@/src/lib/db/procurementLifecycle', async (original) => ({
-  ...await original<typeof import('@/src/lib/db/procurementLifecycle')>(),
-  getProcurementDetail: getDetail,
-}));
+vi.mock('@/src/lib/repositories', () => ({ repositories: { procurement: { get: getDetail } } }));
 
 import { useCachedRecordLists } from './useCachedRecordLists';
 import { useProcurementDetail } from './useProcurementDetail';
