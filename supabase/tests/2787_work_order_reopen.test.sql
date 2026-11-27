@@ -25,7 +25,7 @@ insert into profiles (id, org_id, full_name, email, role, status, built_in_role)
   ('27870000-0000-0000-0000-0000000000b3', '27870000-0000-0000-0000-0000000000a1', 'WR Finance',       'wr-fin@example.com',           'Finance',         'active',   'finance_officer'),
   ('27870000-0000-0000-0000-0000000000b4', '27870000-0000-0000-0000-0000000000a1', 'WR Executive',     'wr-exec@example.com',          'Executive',       'active',   'executive'),
   ('27870000-0000-0000-0000-0000000000b5', '27870000-0000-0000-0000-0000000000a1', 'WR Engineer',      'wr-eng@example.com',           'Engineer',        'active',   'engineer'),
-  ('27870000-0000-0000-0000-0000000000b6', '27870000-0000-0000-0000-0000000000a1', 'WR Inactive',      'wr-inactive@example.com',      'Admin',           'inactive', 'administrator'),
+  ('27870000-0000-0000-0000-0000000000b6', '27870000-0000-0000-0000-0000000000a1', 'WR Inactive',      'wr-inactive@example.com',      'Admin',           'disabled', 'administrator'),
   ('27870000-0000-0000-0000-0000000000b0', '27870000-0000-0000-0000-0000000000a2', 'WR Foreign Admin', 'wr-foreign-admin@example.com', 'Admin',           'active',   'administrator');
 
 insert into projects (id, org_id, name, status, currency, contract_value, tax_treatment, tax_amount) values
