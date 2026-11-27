@@ -115,6 +115,7 @@ export function createFigureAgreementRepositoryModule<T extends { repositories: 
   const override = (name: string, methods: Record<string, unknown>) => ({ ...(base[name] ?? {}), ...methods });
   const repositories = {
     ...base,
+    orgDefaults: override('orgDefaults', { getLocaleDefaults: async () => ({ defaultLocale: 'en', defaultNumberLocale: 'en-US', defaultTimezone: 'UTC' }) }),
     orgSettings: override('orgSettings', { getLocaleDefaults: async () => ({ defaultLocale: 'en', defaultNumberLocale: 'en-US', defaultTimezone: 'UTC' }) }),
     fxRates: override('fxRates', { context: async () => ({ currency: 'USD', timezone: 'UTC' }) }),
     project: override('project', {

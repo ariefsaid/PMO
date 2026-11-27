@@ -1,6 +1,7 @@
 import type { StockOpeningRepository } from './stockOpening';
 import type { TaskProofRepository } from './taskProofs';
 import type { ThirdPartyInspectionRepository } from './contracts/thirdPartyInspections';
+import type { OrgDefaultsRepository } from './orgDefaults';
 /**
  * Typed repository interfaces — the API seam (ADR-0017).
  *
@@ -196,6 +197,7 @@ export interface Repositories {
   operator: OperatorRepository;
   usage: UsageRepository;
   orgFeature: OrgFeatureRepository;
+  orgDefaults: OrgDefaultsRepository;
   orgSettings: OrgSettingsRepository;
   credits: CreditsRepository;
   externalDomainOwnership: ExternalDomainOwnershipRepository;
@@ -258,6 +260,7 @@ export type { ErpJournalLineRepository } from './contracts/erpJournalLines';
 export type { OdooLedgerRepository } from './contracts/odooLedger';
 export type { VendorWithholdingSlipsRepository } from './contracts/vendorWithholdingSlips';
 export type { SupplyRiskRepository } from './contracts/supplyRisk';
+export type { OrgDefaultsRepository } from './orgDefaults';
 export type { CreditsRepository, ExternalDomainOwnershipRepository, OperatorRepository, OrgFeatureRepository, OrgSettingsRepository, ProfileRepository, UsageRepository, UserViewRepository } from './contracts/admin';
 export type { ErpSnapshotsRepository, FinancialStatementsRepository, FxCommitCounts, FxRateInput, FxRateMatch, FxRatePage, FxRateRow, FxRatesRepository, ReportsRepository } from './contracts/reporting';
 export type { AccountSendGroup, CompanyDefaultOptions, CompanyDefaultSlot, CompanyDefaultsSetResponse, ClickUpListItem, ConnectCredential, ConnectCensusRow, ConnectCounts, ConnectDomain, ConnectKind, ConnectProposal, ConnectReviewChoice, ConnectStatus, ConnectStagedRecord, ConnectTier, ConnectAcceptResult, ConnectResponse, DisconnectResponse, ErpProjectLink, ErpProjectOption, ErpSetupReadiness, ExternalTier, IntegrationBinding, IntegrationHealth, IntegrationStatus, IntegrationsRepository, LinkClickUpProjectInput, LinkDirection, LinkInput, LinkResponse, ProjectBinding, UnlinkInput, UnlinkResponse } from './contracts/integrations';

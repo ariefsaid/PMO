@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { repositories, type OrgLocaleDefaultsRow } from '@/src/lib/repositories';
 import { useAuth } from '@/src/auth/useAuth';
@@ -19,10 +20,19 @@ const NO_ORG_DEFAULTS: OrgLocaleDefaultsRow = {
  * give the user; both read the SAME cached query.
  */
 function useOrgLocaleDefaultsQuery() {
-  const { currentUser } = useAuth();
+  const { currentUser, session } = useAuth();
+  const readDefaults = () => repositories.orgDefaults.getLocaleDefaults();
+  // Warm the shared `organizations` read as soon as the session is known so it runs in parallel
+  // with `profiles` instead of waiting for `currentUser`. `readOrgSettings()` deduplicates calls
+  // within 5 s, so the query below adopts the already in-flight read under the same org_id key.
+  useEffect(() => {
+    if (session?.user && !currentUser) {
+      void readDefaults().catch(() => undefined);
+    }
+  }, [session?.user, currentUser]);
   return useQuery<OrgLocaleDefaultsRow>({
     queryKey: ['org-locale-defaults', currentUser?.org_id],
-    queryFn: () => repositories.orgSettings.getLocaleDefaults(),
+    queryFn: readDefaults,
     enabled: Boolean(currentUser),
     ...SESSION_QUERY_OPTIONS,
     placeholderData: NO_ORG_DEFAULTS,
@@ -41,6 +51,28 @@ export function useOrgDefaultsReady(): boolean {
   const { currentUser } = useAuth();
   const { isPlaceholderData, isError } = useOrgLocaleDefaultsQuery();
   return !currentUser || !isPlaceholderData || isError;
+}
+
+/**
+ * True once the user's effective UI language is known (FR-L10N-003):
+ * - while auth is still resolving (`loading === true`), returns false so no catalogue is requested
+ *   before we know whether a session exists and what language the profile wants;
+ * - signed-out pages (`!loading && !currentUser`) return true immediately (preserves signed-out behaviour);
+ * - signed-in users with an explicit `profile.locale` return true as soon as the profile resolves;
+ * - signed-in users inheriting the organisation default (`currentUser.locale == null`) wait for `orgDefaultsReady`.
+ */
+export function useLocaleReady(): boolean {
+  const { loading, currentUser } = useAuth();
+  const orgDefaultsReady = useOrgDefaultsReady();
+  if (loading) return false;
+  if (!currentUser) return true;
+  return Boolean(currentUser.locale) || orgDefaultsReady;
+}
+
+/** True when a signed-in user is active so boot preloads the authenticated shell's namespaces. */
+export function useHasSignedInShell(): boolean {
+  const { currentUser } = useAuth();
+  return Boolean(currentUser);
 }
 
 /** The organization's own date boundary, used when a client date must match a server guard. */
