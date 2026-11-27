@@ -180,7 +180,11 @@ test('Admin hides purchase and stock prices from a requester while a procurement
     authoredRequestId = requesterPage.url().match(/\/procurement\/([0-9a-f-]{36})/)?.[1];
     if (!authoredRequestId) throw new Error('The request was not created');
     await requesterPage.getByRole('tab', { name: /^Line items/ }).click();
-    await expect(requesterPage.getByText('Sarung tangan kerja', { exact: true })).toBeVisible({ timeout: 20_000 });
+    await expect(requesterPage.getByTestId('line-items-section').getByText('Sarung tangan kerja', { exact: true })).toBeVisible({ timeout: 20_000 });
+    await requesterPage.getByLabel('New item description').fill('Additional material');
+    await requesterPage.getByLabel('New item quantity').fill('3');
+    await requesterPage.getByRole('button', { name: /add line item/i }).click();
+    await expect(requesterPage.getByTestId('line-items-section').getByText('Additional material', { exact: true })).toBeVisible();
     await expectNoPriceFigures(requesterPage);
     await requesterPage.getByRole('button', { name: 'Submit for approval', exact: true }).click();
     await expect(requesterPage.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Requested');

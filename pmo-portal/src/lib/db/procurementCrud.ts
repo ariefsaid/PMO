@@ -249,15 +249,12 @@ export async function createProcurementItem(
   input: ProcurementItemInput,
 ): Promise<ProcurementItemRow> {
   if (arePricesHidden()) return createItemPriceHidden(procurementId, input);
-  // The visible-price form allows an omitted estimate. Keep the actual null
-  // payload so Postgres can enforce the current column contract; generated
-  // types currently model this field as non-nullable.
   const itemInsert = {
     ...(input.id !== undefined ? { id: input.id } : {}),
     procurement_id: procurementId,
     name: input.name,
     quantity: input.quantity,
-    rate: input.rate,
+    rate: input.rate ?? 0,
     ...(input.description !== undefined ? { description: input.description } : {}),
     ...(input.stockItemId !== undefined ? { stock_item_id: input.stockItemId } : {}),
   } as unknown as TablesInsert<'procurement_items'>;
@@ -276,7 +273,7 @@ export async function createProcurementItem(
     if (readError) throwWrite(readError);
     const row = existing as ProcurementItemRow | null;
     const quantity = numericAtDatabaseScale(input.quantity);
-    const rate = input.rate === null ? null : numericAtDatabaseScale(input.rate);
+    const rate = numericAtDatabaseScale(input.rate ?? 0);
     const matches = row !== null
       && quantity !== null && rate !== null
       && row.id === input.id
@@ -300,7 +297,7 @@ async function createItemPriceHidden(procurementId: string, input: ProcurementIt
     ...(input.id !== undefined ? { id: input.id } : {}),
     name: input.name,
     quantity: input.quantity,
-    rate: input.rate,
+    rate: input.rate ?? 0,
     ...(input.description !== undefined ? { description: input.description } : {}),
     ...(input.stockItemId !== undefined ? { stock_item_id: input.stockItemId } : {}),
   };

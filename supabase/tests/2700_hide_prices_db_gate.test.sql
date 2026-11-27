@@ -13,7 +13,7 @@
 --   drop the price test from the order-roles guard (2701) ...................... AC-HPG-040
 --   drop the order-roles test from set_hide_prices_enabled (2701) .............. AC-HPG-039
 begin;
-select plan(45);
+select plan(64);
 
 insert into organizations (id, name, built_in_roles_enabled) values
   ('27000000-0000-0000-0000-000000000001', 'HPG Org A', true),
@@ -338,6 +338,44 @@ select lives_ok($$select needed_by from procurements_masked where id = '27000000
 select lives_ok($$insert into purchase_request_files (purchase_request_id, title, uploaded_by_id) values ('27000000-0000-0000-0000-000000000131', 'Request evidence', '27000000-0000-0000-0000-0000000000e1')$$, 'AC-HPG-043 requester attaches own request evidence');
 select is((select count(*) from procurements_masked where org_id = '27000000-0000-0000-0000-000000000002'), 0::bigint, 'AC-HPG-044 requester sees no other organisation requests');
 select throws_ok($$insert into purchase_request_files (purchase_request_id, title, uploaded_by_id) values ('27000000-0000-0000-0000-000000000134', 'Request evidence', '27000000-0000-0000-0000-0000000000e1')$$, '42501', null, 'AC-HPG-045 requester cannot attach to another organisation');
+select throws_ok($q$insert into purchase_request_files (purchase_request_id,uploaded_by_id,file_path) values ('27000000-0000-0000-0000-000000000133','27000000-0000-0000-0000-0000000000e1','27000000-0000-0000-0000-000000000001/27000000-0000-0000-0000-000000000104/purchase_request/27000000-0000-0000-0000-000000000999/proof.pdf')$q$, '42501', null, 'AC-HPG-049 another requester file insert remains closed');
+reset role;
+insert into purchase_request_files (org_id,purchase_request_id,title) values ('27000000-0000-0000-0000-000000000001','27000000-0000-0000-0000-000000000133','Other evidence');
+set local role authenticated;
+select is((select count(*) from purchase_request_files where purchase_request_id='27000000-0000-0000-0000-000000000133'),0::bigint,'AC-HPG-050 another requester files remain private');
+select is((select count(*) from purchase_request_files where purchase_request_id='27000000-0000-0000-0000-000000000131'),1::bigint,'AC-HPG-051 own evidence can be read');
+reset role;
+alter table purchase_request_files disable trigger zz_purchase_request_file_path_guard;
+set local role authenticated;
+select throws_ok($q$insert into purchase_request_files (purchase_request_id,uploaded_by_id,file_path) values ('27000000-0000-0000-0000-000000000131','27000000-0000-0000-0000-0000000000e1','27000000-0000-0000-0000-000000000001/27000000-0000-0000-0000-000000000104/purchase_request/27000000-0000-0000-0000-000000000999/proof.pdf')$q$, '42501', null, 'AC-HPG-052 file policy binds other purchase');
+select throws_ok($q$insert into purchase_request_files (purchase_request_id,uploaded_by_id,file_path) values ('27000000-0000-0000-0000-000000000131','27000000-0000-0000-0000-0000000000e1','27000000-0000-0000-0000-000000000001/27000000-0000-0000-0000-000000000101/invoice/27000000-0000-0000-0000-000000000999/proof.pdf')$q$, '42501', null, 'AC-HPG-052 file policy binds other phase');
+select throws_ok($q$insert into purchase_request_files (purchase_request_id,uploaded_by_id,file_path) values ('27000000-0000-0000-0000-000000000131','27000000-0000-0000-0000-0000000000e1','27000000-0000-0000-0000-000000000002/27000000-0000-0000-0000-000000000101/purchase_request/27000000-0000-0000-0000-000000000999/proof.pdf')$q$, '42501', null, 'AC-HPG-052 file policy binds other organisation');
+reset role;
+alter table purchase_request_files enable trigger zz_purchase_request_file_path_guard;
+create temp table evidence_rule as select pg_get_expr(polwithcheck,polrelid) as expr from pg_policy where polname='purchase_request_files_requester_insert';
+alter policy purchase_request_files_requester_insert on purchase_request_files with check (true);
+set local role authenticated;
+select throws_ok($q$insert into purchase_request_files (purchase_request_id,uploaded_by_id,file_path) values ('27000000-0000-0000-0000-000000000131','27000000-0000-0000-0000-0000000000e1','27000000-0000-0000-0000-000000000001/27000000-0000-0000-0000-000000000104/purchase_request/27000000-0000-0000-0000-000000000999/proof.pdf')$q$, '23514', null, 'AC-HPG-053 file guard binds the parent');
+select throws_ok($q$insert into purchase_request_files (purchase_request_id,uploaded_by_id,file_path) values ('27000000-0000-0000-0000-000000000131','27000000-0000-0000-0000-0000000000e1','27000000-0000-0000-0000-000000000001/27000000-0000-0000-0000-000000000101/invoice/27000000-0000-0000-0000-000000000999/proof.pdf')$q$, '23514', null, 'AC-HPG-053 file guard binds the phase');
+select throws_ok($q$insert into purchase_request_files (purchase_request_id,uploaded_by_id,file_path) values ('27000000-0000-0000-0000-000000000131','27000000-0000-0000-0000-0000000000e1','27000000-0000-0000-0000-000000000002/27000000-0000-0000-0000-000000000101/purchase_request/27000000-0000-0000-0000-000000000999/proof.pdf')$q$, '23514', null, 'AC-HPG-053 file guard binds the organisation');
+reset role;
+do $restore$ begin execute 'alter policy purchase_request_files_requester_insert on purchase_request_files with check ('||(select expr from evidence_rule)||')'; end $restore$;
+set local role authenticated;
+select lives_ok($q$insert into purchase_request_files (purchase_request_id,uploaded_by_id,file_path) values ('27000000-0000-0000-0000-000000000131','27000000-0000-0000-0000-0000000000e1','27000000-0000-0000-0000-000000000001/27000000-0000-0000-0000-000000000101/purchase_request/27000000-0000-0000-0000-000000000999/proof.pdf')$q$, 'AC-HPG-054 own evidence path is accepted');
+select lives_ok($q$insert into storage.objects(bucket_id,name) values ('procurement-files','27000000-0000-0000-0000-000000000001/27000000-0000-0000-0000-000000000101/purchase_request/27000000-0000-0000-0000-000000000999/proof.pdf')$q$, 'AC-HPG-055 own request storage insert');
+select throws_ok($q$insert into storage.objects(bucket_id,name) values ('procurement-files','27000000-0000-0000-0000-000000000001/27000000-0000-0000-0000-000000000104/purchase_request/27000000-0000-0000-0000-000000000999/proof.pdf')$q$, '42501', null, 'AC-HPG-056 storage insert excludes other requester');
+select throws_ok($q$insert into storage.objects(bucket_id,name) values ('procurement-files','27000000-0000-0000-0000-000000000001/27000000-0000-0000-0000-000000000101/invoice/27000000-0000-0000-0000-000000000999/proof.pdf')$q$, '42501', null, 'AC-HPG-056 storage insert excludes other phase');
+select throws_ok($q$insert into storage.objects(bucket_id,name) values ('procurement-files','27000000-0000-0000-0000-000000000002/27000000-0000-0000-0000-000000000101/purchase_request/27000000-0000-0000-0000-000000000999/proof.pdf')$q$, '42501', null, 'AC-HPG-056 storage insert excludes other organisation');
+reset role;
+insert into storage.objects(bucket_id,name) values ('procurement-files','27000000-0000-0000-0000-000000000001/27000000-0000-0000-0000-000000000104/purchase_request/27000000-0000-0000-0000-000000000999/proof.pdf') on conflict (bucket_id,name) do nothing;
+insert into storage.objects(bucket_id,name) values ('procurement-files','27000000-0000-0000-0000-000000000001/27000000-0000-0000-0000-000000000101/invoice/27000000-0000-0000-0000-000000000999/proof.pdf') on conflict (bucket_id,name) do nothing;
+insert into storage.objects(bucket_id,name) values ('procurement-files','27000000-0000-0000-0000-000000000002/27000000-0000-0000-0000-000000000101/purchase_request/27000000-0000-0000-0000-000000000999/proof.pdf') on conflict (bucket_id,name) do nothing;
+set local role authenticated;
+select is((select count(*) from storage.objects where name='27000000-0000-0000-0000-000000000001/27000000-0000-0000-0000-000000000101/purchase_request/27000000-0000-0000-0000-000000000999/proof.pdf'),1::bigint,'AC-HPG-057 own object read');
+select is((select count(*) from storage.objects where name='27000000-0000-0000-0000-000000000001/27000000-0000-0000-0000-000000000104/purchase_request/27000000-0000-0000-0000-000000000999/proof.pdf'),0::bigint,'AC-HPG-058 storage read excludes other requester');
+select is((select count(*) from storage.objects where name='27000000-0000-0000-0000-000000000001/27000000-0000-0000-0000-000000000101/invoice/27000000-0000-0000-0000-000000000999/proof.pdf'),0::bigint,'AC-HPG-058 storage read excludes other phase');
+select is((select count(*) from storage.objects where name='27000000-0000-0000-0000-000000000002/27000000-0000-0000-0000-000000000101/purchase_request/27000000-0000-0000-0000-000000000999/proof.pdf'),0::bigint,'AC-HPG-058 storage read excludes other organisation');
+select lives_ok($q$select procurement_item_add('27000000-0000-0000-0000-000000000102', '{"name":"Additional material","quantity":2,"rate":null}'::jsonb)$q$, 'AC-HPG-059 requester adds an unpriced draft line');
 reset role;
 select * from finish();
 rollback;
