@@ -1,4 +1,4 @@
--- 2789 rollback: restore the 0859 body verbatim.
+-- 2789 rollback: restore the 0859 and 2769 bodies verbatim.
 create or replace function public.project_budget_positions(p_project_ids uuid[] default null)
 returns table(
   project_id uuid,
@@ -178,3 +178,66 @@ language sql stable security invoker set search_path = public, pg_catalog as $$
               else r.used_ratio >= 0.9 end as at_risk
     from ratios r
 $$;
+
+CREATE OR REPLACE FUNCTION public.spend_route_project_figures_core(p_project_ids uuid[])
+ RETURNS TABLE(project_id uuid, figures jsonb)
+ LANGUAGE sql
+ STABLE
+ SET search_path TO 'public', 'pg_temp'
+AS $function$
+  with g as materialized (
+    select public.is_active_member() and public.holds_spend_approval_authority(public.auth_role()) as ok
+  ), pos as materialized (
+    select pp.* from public.project_budget_positions(p_project_ids) pp where (select ok from g)
+  ), erp_rec as materialized (
+    -- With an accounting system the by-category Actual of every project is read once (project_mapped_actuals_all is
+    -- project_finance_actuals' ledger branch for every visible project, proven row for row).
+    select a.project_id,
+           jsonb_object_agg(a.category::text, jsonb_build_object('mapped', a.mapped, 'amount', a.actuals_to_date)) as by_category
+      from (select 1 where exists (select 1 from pos where pos.ledger_basis = 'erp')) one
+      cross join lateral public.project_mapped_actuals_all(null) a
+     where a.project_id in (select pos.project_id from pos where pos.ledger_basis = 'erp')
+     group by a.project_id
+  )
+  select pp.project_id,
+         jsonb_build_object(
+           'basis', pp.ledger_basis,
+           'ledger_currency', pp.currency,
+           'budget_currency', pp.budget_currency,
+           'proj_budget', pp.active_budget_amount::numeric,
+           'proj_spent', pp.spent::numeric + cl.amount,
+           'proj_open', case when pp.ledger_basis = 'erp' then cs.open else pp.open_commitment::numeric end,
+           'proj_reserved', rs.reserved,
+           'proj_foreign', coalesce(cs.foreign_amount, false) or rs.foreign_amount or cl.foreign_amount,
+           'recorded', coalesce(er.by_category, rec.by_category, '{}'::jsonb))
+    from pos pp
+    left join lateral (
+      select coalesce(sum(c.amount) filter (where c.currency = pp.budget_currency), 0) as open,
+             coalesce(bool_or(c.currency is distinct from pp.budget_currency and c.amount <> 0), false) as foreign_amount
+        from public.project_committed_spend(pp.project_id) c
+       where pp.ledger_basis = 'erp') cs on true
+    cross join lateral (
+      select coalesce(sum(greatest(0, pr.total_value,
+                    coalesce((select sum(i.amount) from public.procurement_items i where i.procurement_id = pr.id), 0)))
+                    filter (where pr.currency = pp.budget_currency), 0) as reserved,
+             coalesce(bool_or(pr.currency is distinct from pp.budget_currency), false) as foreign_amount
+        from public.procurements pr
+       where pr.org_id = public.auth_org_id() and pr.project_id = pp.project_id
+         and pr.status in ('Approved','Vendor Quoted','Quote Selected')) rs
+    cross join lateral (
+      select coalesce(sum(greatest(0, c.amount)) filter (where c.currency = pp.budget_currency), 0) as amount,
+             coalesce(bool_or(c.currency is distinct from pp.budget_currency), false) as foreign_amount
+        from public.expense_claims c
+       where c.org_id = public.auth_org_id() and c.project_id = pp.project_id
+         and c.kind = 'claim' and c.status in ('Approved','Paid')
+         and not (pp.ledger_basis = 'erp' and exists (
+           select 1 from public.expense_posting_erp_mirror m
+            where m.claim_id = c.id and m.posting = 'approval' and m.push_state = 'pushed'
+              and m.erp_cancelled_at is null and coalesce(m.erp_docstatus, 1) <> 2))) cl
+    left join erp_rec er on er.project_id = pp.project_id
+    left join lateral (
+      select jsonb_object_agg(a.category::text, jsonb_build_object('mapped', a.mapped, 'amount', a.actuals_to_date)) as by_category
+        from public.project_finance_actuals(pp.project_id) a
+       where pp.ledger_basis = 'pmo' and a.category is not null) rec on true
+$function$
+;
