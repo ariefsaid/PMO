@@ -115,3 +115,12 @@ describe('getWorkOrderMaterialCompletion (AC-WMC-006)', () => {
     expect(withCost.valueTotals).toEqual({ issued: '4.0000', returned: '0', balance: '4.0000' });
   });
 });
+
+it.each([{ data: [], error: null }, { data: null, error: { message: "posted attachment", code: "P0001" } }])("keeps the attachment object when row deletion is refused (%j)", async (result) => {
+  let objectExists = true;
+  h.remove.mockImplementation(async () => { objectExists = false; return { error: null }; });
+  h.deleteRow.mockReturnValue({ eq: () => ({ select: async () => result }) });
+  await expect(deleteStockDocumentFile("f1", "org/doc/f1/slip.pdf")).rejects.toThrow();
+  expect(objectExists).toBe(true);
+  expect(h.remove).not.toHaveBeenCalled();
+});

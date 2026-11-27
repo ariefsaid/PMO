@@ -71,3 +71,12 @@ describe('repositories.revenue.createInvoice — the native RPC receives the who
     expect(h.rpc).toHaveBeenLastCalledWith('set_sales_invoice_billing_kind', { p_si_id: 'si-1', p_billing_kind: 'contract' });
   });
 });
+
+ it("AC-NPA-001 retries carry one receipt identity and a new form carries another", async () => {
+  const input = { customerId: "c-1", paidAmount: 100, date: "2026-10-07" };
+  const intent = { id: "receipt-1", idempotencyKey: "key-1" };
+  await repositories.revenue.createPayment(input, intent);
+  await repositories.revenue.createPayment(input, intent);
+  await repositories.revenue.createPayment(input, { id: "receipt-2", idempotencyKey: "key-2" });
+  expect(h.rpc.mock.calls.map((call) => call[1].p_receipt_id)).toEqual(["receipt-1", "receipt-1", "receipt-2"]);
+ });
