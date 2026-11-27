@@ -4,7 +4,9 @@
 -- non-edit roles and every other organisation — gets nothing. The org seam is stamped from the
 -- parent company, so no write can place the value in a foreign organisation even by naming one.
 -- The ERP mirror column erp_tax_id is untouched: nothing in 2788 reads or writes it.
--- Mutation-check: drop the four-role conjunct from either policy and every Engineer leg goes
+-- Mutation-check: drop the active-member and CRM conjuncts together (org_feature_enabled is
+-- itself false for an inactive caller) and the deactivated legs go red; drop the restrictive
+-- light_account_deny_select and the field-account leg goes red; drop the four-role conjunct from either policy and every Engineer leg goes
 -- red; drop the org conjunct and the second-organisation legs go red; loosen the with-check and
 -- the cross-org stamp refusal goes red.
 -- Isolated orgs; UUID prefix 30250000-… (issue #3025).
@@ -38,7 +40,11 @@ insert into profiles (id, org_id, full_name, email, role) values
 -- A deactivated Finance member (token still valid) and a field account whose base role is a
 -- vendor-edit role: the active-member and field-account conditions are what must stop them.
 update profiles set status = 'disabled' where id = '30250000-0000-0000-0000-0000000000a6';
+-- The sync trigger would move a foreman's access level to its base; the fixture keeps Project
+-- Manager so only the field-account policy can stop the read (defence in depth, AC-LA-014).
+alter table profiles disable trigger profiles_zz_built_in_role_sync;
 update profiles set built_in_role = 'foreman' where id = '30250000-0000-0000-0000-0000000000a7';
+alter table profiles enable trigger profiles_zz_built_in_role_sync;
 
 insert into companies (id, org_id, name, type) values
   ('30250000-0000-0000-0000-000000000010','30250000-0000-0000-0000-000000000001','Paku Mas Supply','Vendor'),
