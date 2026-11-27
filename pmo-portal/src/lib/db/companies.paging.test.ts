@@ -75,7 +75,9 @@ describe('listCompaniesPage (server directory page, #1989)', () => {
     const page = await listCompaniesPage({ page: 1, pageSize: 50 });
     expect(h.calls.from).toEqual(['companies']);
     // Explicit projection, never select(*): the wide row is the directory's response cost.
-    expect(h.calls.select[0][0]).toBe('id,name,short_name,type,client_number_segment,supply_risk_status');
+    expect(h.calls.select[0][0]).toBe(
+      'id,name,short_name,type,client_number_segment,supply_risk_status,vendor_code,address,payment_terms_days',
+    );
     expect(h.calls.select[0][1]).toMatchObject({ count: 'exact' });
     expect(h.calls.is).toEqual([['archived_at', null]]);
     expect(h.calls.eq).toEqual([]);
