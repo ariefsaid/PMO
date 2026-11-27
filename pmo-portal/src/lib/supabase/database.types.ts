@@ -40433,6 +40433,7 @@ export type Database = {
         Returns: Json
       }
       om_material_set_scale: { Args: { p_steps: Json }; Returns: Json }
+      shell_bootstrap: { Args: never; Returns: Json }
     }
     Enums: {
       budget_category:
