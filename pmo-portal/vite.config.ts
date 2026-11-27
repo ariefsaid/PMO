@@ -1,3 +1,4 @@
+import BalancedSequencer from './unit-sequencer.mjs';
 import path from 'path';
 import { execSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
@@ -182,6 +183,7 @@ export default defineConfig({
     },
   },
   test: {
+    sequence: { sequencer: BalancedSequencer },
     // The Mac is shared by several sessions (PMO + MOS) and CI runs the full suite on every PR, so a
     // local run defaults to 2 workers; CI keeps Vitest's default (all cores of its dedicated runner).
     maxWorkers: process.env.CI ? undefined : 2,

@@ -116,7 +116,7 @@ export default defineConfig({
   webServer: [
     {
       command: e2eServer === 'build'
-        ? `npx vite build && npx vite preview --port ${appPort} --strictPort`
+        ? `bash ../scripts/e2e-build-cache.sh dist && npx vite preview --port ${appPort} --strictPort`
         : `npm run dev -- --port ${appPort} --strictPort`,
       url: appUrl,
       // The authoritative CI/local-promotion lane must serve this checkout, never
@@ -131,7 +131,7 @@ export default defineConfig({
       // In build mode the analytics env below is baked in at `vite build` time (import.meta.env is
       // a build-time substitution) — exactly what the lane's CONTROL assertion verifies each run.
       command: e2eServer === 'build'
-        ? `npx vite build --outDir dist-consent && npx vite preview --outDir dist-consent --port ${consentPort} --strictPort`
+        ? `bash ../scripts/e2e-build-cache.sh dist-consent && npx vite preview --outDir dist-consent --port ${consentPort} --strictPort`
         : `npm run dev -- --port ${consentPort} --strictPort`,
       url: consentUrl,
       reuseExistingServer: false,
