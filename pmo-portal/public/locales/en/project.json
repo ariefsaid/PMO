@@ -1225,6 +1225,7 @@
         "all": "All"
       },
       "scopeAriaLabel": "Task scope",
+      "filters": "Filters",
       "filter": {
         "status": "Filter by status",
         "allStatuses": "All statuses",

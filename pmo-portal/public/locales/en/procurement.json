@@ -33,6 +33,7 @@
       "itemRequired": "Item is required.",
       "required": "{{label}} is required.",
       "positive": "{{label}} must be greater than 0 with no more than 2 decimal places.",
+      "nonnegative": "{{label}} cannot be negative and must have no more than 2 decimal places.",
       "format": "{{label}} must use \"{{group}}\" to group thousands and \"{{decimal}}\" for decimals — for example {{example}}.",
       "quantityLabel": "Quantity",
       "unitPriceLabel": "Unit price"
@@ -770,6 +771,7 @@
   },
   "approvalQueue": {
     "pickItem": "Pick an item above to see it and decide.",
+    "back": "Back",
     "headingAll": "Purchases and timesheets",
     "waitingDays_one": "{{count}} day waiting",
     "waitingDays_other": "{{count}} days waiting",

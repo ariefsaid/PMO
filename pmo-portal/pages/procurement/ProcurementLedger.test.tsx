@@ -5,7 +5,7 @@
  * empty/filtered-empty states. Uses RTL + the real DataTable (not mocked).
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, within, waitFor } from '@testing-library/react';
+import { act, render, screen, fireEvent, within, waitFor } from '@testing-library/react';
 import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router';
@@ -16,6 +16,7 @@ import enCommon from '@/public/locales/en/common.json';
 import idCommon from '@/public/locales/id/common.json';
 import enProcurement from '@/public/locales/en/procurement.json';
 import idProcurement from '@/public/locales/id/procurement.json';
+import { setPricesHidden } from '@/src/lib/priceReadPath';
 
 // ---------------------------------------------------------------------------
 // Stubs — vi.hoisted keeps mock factories before the import block
@@ -245,6 +246,43 @@ const BASE_PROPS = {
   canWrite: true,
   invoices: [] as Parameters<typeof ProcurementLedger>[0]['invoices'],
 };
+
+it('hides and restores the amount when price visibility changes while the ledger stays mounted', () => {
+  act(() => setPricesHidden(false));
+  const view = wrap(<ProcurementLedger {...BASE_PROPS} rows={[SAMPLE_ROWS[0]]} />);
+  const table = screen.getByRole('table');
+  const amountColumnIndex = Array.from(table.querySelectorAll('thead th')).findIndex((header) => header.getAttribute('data-col-key') === 'amount');
+  const row = within(table).getByRole('row', { name: /PAY-2026-0033/ });
+  const visibleAmount = row.children[amountColumnIndex]?.textContent;
+  expect(amountColumnIndex).toBeGreaterThanOrEqual(0);
+  expect(visibleAmount).toMatch(/478,500/);
+
+  try {
+    act(() => setPricesHidden(true));
+    expect(within(table).queryByRole('columnheader', { name: /^Amount$/ })).not.toBeInTheDocument();
+    expect(within(table).getByRole('row', { name: /PAY-2026-0033/ })).not.toHaveTextContent(/478,500/);
+    act(() => setPricesHidden(false));
+    expect(within(table).getByRole('columnheader', { name: /^Amount$/ })).toBeInTheDocument();
+    expect(row.children[amountColumnIndex]?.textContent).toBe(visibleAmount);
+  } finally {
+    view.unmount();
+    act(() => setPricesHidden(false));
+  }
+});
+
+it('omits the wholly withheld amount column and keeps the document row', () => {
+  act(() => setPricesHidden(true));
+  try {
+    wrap(<ProcurementLedger {...BASE_PROPS} rows={[SAMPLE_ROWS[0]]} />);
+    const table = screen.getByRole('table');
+    const row = within(table).getByRole('row', { name: /PAY-2026-0033/ });
+
+    expect(within(table).queryByRole('columnheader', { name: /^Amount$/ })).not.toBeInTheDocument();
+    expect(row).not.toHaveTextContent(/478,500/);
+    expect(within(row).getByText('Cleared')).toBeInTheDocument();
+    expect(screen.queryByText('Prices are hidden from requesters.')).not.toBeInTheDocument();
+  } finally { act(() => setPricesHidden(false)); }
+});
 
 describe('PR-1 Bahasa rendered-copy contract', () => {
   it('renders translated filters, headers, record types, and capture action', () => {

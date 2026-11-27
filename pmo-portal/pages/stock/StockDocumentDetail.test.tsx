@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { describe, it, expect, vi, afterEach, beforeAll, beforeEach } from 'vitest';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -7,6 +7,7 @@ import React from 'react';
 import i18next from 'i18next';
 import type { Role } from '@/src/auth/AuthContext';
 import { ToastProvider } from '@/src/components/ui';
+import { setPricesHidden } from '@/src/lib/priceReadPath';
 import { AppError } from '@/src/lib/appError';
 import stockEn from '@/public/locales/en/stock.json';
 
@@ -78,7 +79,21 @@ beforeEach(() => {
   consumption.report.mockResolvedValue({ from: 'a', to: 'b', months: [], allowances: [], unplanned: [] });
 });
 
+afterEach(() => act(() => setPricesHidden(false)));
+
 describe('StockDocumentDetail (AC-STK-032)', () => {
+  it('keeps the receipt and its entries readable when the ledger omits stock values', async () => {
+    act(() => setPricesHidden(true));
+    documents.get.mockResolvedValue(detail({ kind: 'receive', number: 'RCV-1' }));
+    reports.ledgerAll.mockResolvedValue([{ ...entry, kind: 'receive', qtyDelta: '30' }]);
+    renderPage();
+    expect(await screen.findByText('RCV-1')).toBeVisible();
+    expect(screen.queryByText('—')).toBeNull();
+    expect(screen.getByText('Prices are hidden from requesters.')).toBeVisible();
+    expect(await screen.findByText('+30 bag')).toBeVisible();
+    expect(screen.queryByRole('columnheader', { name: /^Value$/ })).toBeNull();
+  });
+
   it('AC-WORP-004 opens the readable work order named by the stock document', async () => {
     documents.get.mockResolvedValue(detail({ work_order_id: 'wo1' }));
     renderPage();

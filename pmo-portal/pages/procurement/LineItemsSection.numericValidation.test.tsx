@@ -1,9 +1,9 @@
 /**
  * AC-W3-NUM-002 — LineItemsSection: quantity and rate numeric validation.
  *
- * quantity AND rate are required and must parse to a number > 0.
- * Empty / non-numeric / ≤ 0 on either field → inline error on the offending
- * field AND Add (and edit-Save) is blocked (onAdd/onUpdate NOT called).
+ * Quantity is required and positive. The estimate is optional (DD-R1125-16);
+ * a supplied estimate must be numeric, nonnegative and within scale.
+ * Invalid input shows an inline error and blocks Add or edit-Save.
  * A valid line still adds as today.
  *
  * The inline errors live below the CellInput in the add-row / edit-row — we
@@ -136,23 +136,34 @@ describe('AC-W3-NUM-002 LineItemsSection — quantity/rate numeric validation', 
     expect(onAdd).not.toHaveBeenCalled();
   });
 
-  it('AC-W3-NUM-002: zero rate ("0") shows inline error and blocks onAdd', async () => {
+  it('AC-W3-NUM-002: zero estimate adds the line', async () => {
     const { onAdd } = renderSection();
     const row = screen.getByTestId('line-item-add-row');
     await userEvent.type(within(row).getByLabelText(/new item description/i), 'Bolts');
     await userEvent.type(within(row).getByLabelText(/new item quantity/i), '5');
     await userEvent.type(within(row).getByLabelText(/new item unit price/i), '0');
     await userEvent.click(within(row).getByRole('button', { name: /add line item/i }));
-    expect(within(row).getByRole('alert')).toBeInTheDocument();
-    expect(onAdd).not.toHaveBeenCalled();
+    expect(within(row).queryByRole('alert')).not.toBeInTheDocument();
+    expect(onAdd).toHaveBeenCalledWith({ name: 'Bolts', quantity: 5, rate: 0 });
   });
 
-  it('AC-W3-NUM-002: empty rate (only name + qty) shows inline error and blocks onAdd', async () => {
+  it('AC-W3-NUM-002: omitted estimate adds the item and quantity', async () => {
     const { onAdd } = renderSection();
     const row = screen.getByTestId('line-item-add-row');
     await userEvent.type(within(row).getByLabelText(/new item description/i), 'Bolts');
     await userEvent.type(within(row).getByLabelText(/new item quantity/i), '5');
     // rate left blank
+    await userEvent.click(within(row).getByRole('button', { name: /add line item/i }));
+    expect(within(row).queryByRole('alert')).not.toBeInTheDocument();
+    expect(onAdd).toHaveBeenCalledWith({ name: 'Bolts', quantity: 5, rate: null });
+  });
+
+  it('AC-W3-NUM-002: negative estimate shows an inline error and blocks onAdd', async () => {
+    const { onAdd } = renderSection();
+    const row = screen.getByTestId('line-item-add-row');
+    await userEvent.type(within(row).getByLabelText(/new item description/i), 'Bolts');
+    await userEvent.type(within(row).getByLabelText(/new item quantity/i), '5');
+    await userEvent.type(within(row).getByLabelText(/new item unit price/i), '-1');
     await userEvent.click(within(row).getByRole('button', { name: /add line item/i }));
     expect(within(row).getByRole('alert')).toBeInTheDocument();
     expect(onAdd).not.toHaveBeenCalled();

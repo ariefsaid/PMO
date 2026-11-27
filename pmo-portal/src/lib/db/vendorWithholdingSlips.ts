@@ -1,6 +1,7 @@
 import { supabase } from '@/src/lib/supabase/client';
 import type { Database } from '@/src/lib/supabase/database.types';
 import type { CorrectSlipInput, DecimalMoney, RecordSlipInput, SlipWriteResult, VoidSlipInput } from '@/src/lib/vendorWithholdingSlip';
+import { priceSource } from '@/src/lib/priceReadPath';
 
 type Functions = Database['public']['Functions'];
 type SlipRow = Functions['list_vendor_withholding_slips']['Returns'][number];
@@ -96,7 +97,7 @@ export async function readBillContexts(input: ReadBillContextsInput): Promise<Bi
   const projectIds = [...new Set(input.projectIds.filter(Boolean))].sort();
   const [procurementResult, projectResult] = await Promise.all([
     procurementIds.length
-      ? supabase.from('procurements').select('id,title').in('id', procurementIds)
+      ? supabase.from(priceSource('procurements') as 'procurements').select('id,title').in('id', procurementIds)
       : Promise.resolve({ data: [], error: null }),
     projectIds.length
       ? supabase.from('projects').select('id,name,pmo_project_number').in('id', projectIds)

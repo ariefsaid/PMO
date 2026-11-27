@@ -78,7 +78,8 @@ function renderAddFlow(createFormLayout: boolean) {
             setCurrentItems([{
               id: 'added-item', org_id: 'org-1', procurement_id: 'pr1',
               name: input.name, description: input.description ?? null,
-              quantity: input.quantity, rate: input.rate, amount: input.quantity * input.rate,
+              quantity: input.quantity, rate: input.rate as number,
+              amount: input.rate === null ? null as unknown as number : input.quantity * input.rate,
               erp_docstatus: null, erp_line_amount: null, erp_modified: null,
               category_id: null, needed_by: null, work_order_id: null, discipline_id: null, stock_item_id: input.stockItemId ?? null,
             }]);
@@ -114,12 +115,22 @@ describe('AC-PROC-003 LineItemsSection (editable line-items table)', () => {
     try {
       const { onUpdate } = renderSection({ items: [{ ...items[0], rate: null as unknown as number, amount: null as unknown as number }] });
       await userEvent.click(screen.getByRole('button', { name: /edit MIG welding wire/i }));
-      expect(screen.getByLabelText(/edit unit price for MIG welding wire/i)).toHaveValue('');
+      expect(screen.queryByLabelText(/edit unit price for MIG welding wire/i)).toBeNull();
       const qty = screen.getByLabelText(/edit quantity for MIG welding wire/i);
       await userEvent.clear(qty);
       await userEvent.type(qty, '5');
       await userEvent.click(screen.getByRole('button', { name: /^save$/i }));
       expect(onUpdate).toHaveBeenCalledWith('it1', { name: 'MIG welding wire', quantity: 5 });
+    } finally { setPricesHidden(false); }
+  });
+  it('leaves the single withheld notice in the record money block, not in line items', () => {
+    setPricesHidden(true);
+    try {
+      renderSection({ items: [{ ...items[0], rate: null as unknown as number, amount: null as unknown as number }] });
+      const table = screen.getByRole('table', { name: 'Line items' });
+
+      expect(within(table).queryByRole('columnheader', { name: 'Unit price' })).not.toBeInTheDocument();
+      expect(screen.queryByText('Prices are hidden from requesters.')).not.toBeInTheDocument();
     } finally { setPricesHidden(false); }
   });
   it('saves a label without resending protected values', async () => {
@@ -197,6 +208,25 @@ describe('AC-PROC-003 LineItemsSection (editable line-items table)', () => {
     expect(await screen.findByText('$15')).toBeInTheDocument();
     expect(screen.getAllByText('$31')).toHaveLength(2);
     expect(screen.getByRole('group', { name: 'Estimated total' })).toHaveTextContent('$31');
+  });
+
+  it('DD-R1125-16 lets a requester who sees prices add an item and quantity without an estimate', async () => {
+    const onAdd = renderAddFlow(false);
+    await userEvent.type(screen.getByLabelText('New item description'), 'Clip');
+    await userEvent.type(screen.getByLabelText('New item quantity'), '2');
+    await userEvent.click(screen.getByRole('button', { name: /add line item/i }));
+
+    expect(onAdd).toHaveBeenCalledWith({ name: 'Clip', quantity: 2, rate: null });
+  });
+
+  it('DD-R1125-16 allows a zero estimate when a requester who sees prices enters one', async () => {
+    const { onAdd } = renderSection({ items: [] });
+    await userEvent.type(screen.getByLabelText('New item description'), 'Clip');
+    await userEvent.type(screen.getByLabelText('New item quantity'), '2');
+    await userEvent.type(screen.getByLabelText('New item unit price'), '0');
+    await userEvent.click(screen.getByRole('button', { name: /add line item/i }));
+
+    expect(onAdd).toHaveBeenCalledWith({ name: 'Clip', quantity: 2, rate: 0 });
   });
 
   it('FR-L10N-020: rows and the footer total render in the PROCUREMENT currency, not USD', () => {

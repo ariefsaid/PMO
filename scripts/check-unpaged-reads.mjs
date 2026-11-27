@@ -110,18 +110,15 @@ const ALLOWLIST = {
   'pmo-portal/src/lib/db/revenue.ts :: sales_invoices #1': 'bounded: .in(id) name lookup over ids already in hand',
   'pmo-portal/src/lib/db/stockAllowances.ts :: boq_material_allowances #1': 'bounded: material allowances of one project BOQ',
   'pmo-portal/src/lib/db/subcontracts.ts :: purchase_order_revisions #1': 'bounded: revisions/lines/variations of one PO',
-  'pmo-portal/src/lib/db/subcontracts.ts :: purchase_order_lines #1': 'bounded: revisions/lines/variations of one PO',
   'pmo-portal/src/lib/db/subcontracts.ts :: po_variations #1': 'bounded: revisions/lines/variations of one PO',
   'pmo-portal/src/lib/db/timesheetPush.ts :: timesheets #1': 'bounded: chunked <=100 ids per request',
   'pmo-portal/src/lib/db/timesheetPush.ts :: erp_employees #1': 'bounded: employees with a proposed link, one-off setup queue',
   'pmo-portal/src/lib/db/timesheetTransition.ts :: external_command_outbox #1': 'bounded: non-terminal push commands for the sheets above',
-  'pmo-portal/src/lib/db/vendorWithholdingSlips.ts :: procurements #1': 'bounded: .in(id) over one slip batch',
   'pmo-portal/src/lib/db/vendorWithholdingSlips.ts :: projects #1': 'bounded: .in(id) over one slip batch',
   'pmo-portal/src/lib/db/workOrderBilling.ts :: sales_invoices #1': 'bounded: .in(id) over the listed work orders / invoices',
   'pmo-portal/src/lib/db/workOrderBilling.ts :: projects #1': 'bounded: .in(id) over the listed work orders / invoices',
   'pmo-portal/src/lib/db/workOrderBilling.ts :: work_orders #1': 'bounded: .in(id) over the listed work orders / invoices',
   'pmo-portal/src/lib/db/emailNotifications.ts :: email_event_settings #1': 'bounded: four event keys by CHECK (migration 1220), one row per key per org',
-  'pmo-portal/src/lib/db/paymentChannels.ts :: procurements #1': 'bounded: .in(id) over the request ids already in hand',
   'pmo-portal/src/lib/db/scheduledReports.ts :: profiles #1': 'bounded: org members (users), well under 1000; revisit past ~1000 users',
 };
 

@@ -335,14 +335,14 @@ it('crm_activities is readable, maps to its table, and never exposes org_id (ten
   expect(seam.error).toMatch(/unknown filter column|org_id/i);
 });
 
-it('Defect-2 a curated entity maps to its REAL table — procurements → procurements table', async () => {
+it('Defect-2 procurements reads through the visibility-aware view', async () => {
   const fromSpy = vi.fn().mockReturnValue({
     select: vi.fn().mockReturnValue({ limit: vi.fn().mockResolvedValue({ data: [], error: null }) }),
   });
   const ctx = { jwt: 'j', userId: 'u', orgId: 'o', supabase: { from: fromSpy } } as unknown as DeputyContext;
 
-  await runQueryEntity({ entity: 'procurements', columns: ['id'] }, ctx);
-  expect(fromSpy).toHaveBeenCalledWith('procurements');
+  expect(await runQueryEntity({ entity: 'procurements', columns: ['id'] }, ctx)).toEqual({ rowCount: 0, rows: [] });
+  expect(fromSpy).toHaveBeenCalledWith('procurements_masked');
 });
 
 it('Defect-2 milestones maps to its real table project_milestones (friendly key ≠ table name)', async () => {

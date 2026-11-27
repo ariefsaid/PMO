@@ -2,6 +2,7 @@ import { supabase } from '@/src/lib/supabase/client';
 import { nullableArg } from './nullableArg';
 import { AppError } from '@/src/lib/appError';
 import { fetchAllPages } from '@/src/lib/pagedRead';
+import { priceSource } from '@/src/lib/priceReadPath';
 
 /**
  * Payment channel DAL (#2698, migrations 1355/1356, docs/specs/purchase-payment-channel.spec.md). The switch, the list and
@@ -58,7 +59,7 @@ export async function setProcurementPaymentChannel(procurementId: string, channe
 
 /** One request's channel (id and name), or nulls when none is set. */
 export async function getProcurementPaymentChannel(procurementId: string): Promise<ProcurementPaymentChannel> {
-  const { data, error } = await supabase.from('procurements').select('payment_channel_id,payment_channel:org_payment_channels(name)').eq('id', procurementId).maybeSingle();
+  const { data, error } = await supabase.from(priceSource('procurements') as 'procurements').select('payment_channel_id,payment_channel:org_payment_channels(name)').eq('id', procurementId).maybeSingle();
   if (error) fail(error);
   return { channelId: data?.payment_channel_id ?? null, name: data?.payment_channel?.name ?? null };
 }
@@ -66,7 +67,7 @@ export async function getProcurementPaymentChannel(procurementId: string): Promi
 /** The channel name per request, for a list of requests (requests with none are left out). */
 export async function getPaymentChannelNames(procurementIds: readonly string[]): Promise<Record<string, string>> {
   if (procurementIds.length === 0) return {};
-  const { data, error } = await supabase.from('procurements').select('id,payment_channel:org_payment_channels(name)').in('id', [...procurementIds]).not('payment_channel_id', 'is', null);
+  const { data, error } = await supabase.from(priceSource('procurements') as 'procurements').select('id,payment_channel:org_payment_channels(name)').in('id', [...procurementIds]).not('payment_channel_id', 'is', null);
   if (error) fail(error);
   const out: Record<string, string> = {};
   for (const r of data ?? []) if (r.payment_channel) out[r.id] = r.payment_channel.name;

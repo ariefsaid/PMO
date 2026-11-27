@@ -2,6 +2,7 @@ import { beforeEach, expect, it, vi } from 'vitest';
 const h = vi.hoisted(() => ({ rpc: vi.fn(), from: vi.fn(), result: { data: [] as unknown, error: null as unknown } }));
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { rpc: h.rpc, from: h.from } }));
 import { correctSlip, getSlip, listBills, listSlips, readBillContexts, recordSlip, voidSlip } from './vendorWithholdingSlips';
+import { setHidePricesActive } from '@/src/lib/priceReadPath';
 
 beforeEach(() => { vi.clearAllMocks(); h.result = { data: [{ slip_id: 'slip-1', revision: 1 }], error: null }; h.rpc.mockImplementation(async () => h.result); });
 const input = { slipId: 'slip-1', vendorId: 'vendor-1', slipNumber: ' BUPOT/1 ', slipDate: '2026-10-01', taxPeriod: '2026-10-01', pphType: 'pph23' as const, taxBase: '999999999999.99', withheldAmount: '0.01', invoiceIds: ['invoice-1'], declaredInvoiceIds: [] };
@@ -58,6 +59,26 @@ it('AC-UXT-007 batches unique case and project labels in two RLS-scoped reads', 
     { table: 'projects', columns: 'id,name,pmo_project_number', ids: ['project-a'] },
   ]);
   expect(JSON.stringify(calls)).not.toMatch(/org_id|rpc|write/i);
+});
+
+it('AC-UXT-007 reads procurement labels from the masked view while price hiding is active', async () => {
+  setHidePricesActive(true);
+  h.from.mockImplementation((table: 'procurements' | 'procurements_masked' | 'projects') => {
+    const rows = table === 'projects' ? [] : [{ id: 'case-a', title: 'Case North' }];
+    const builder = {
+      select: vi.fn(() => builder),
+      in: vi.fn(() => builder),
+      then: (resolve: (value: unknown) => unknown) => Promise.resolve({ data: rows, error: null }).then(resolve),
+    };
+    return builder;
+  });
+
+  await expect(readBillContexts({ procurementIds: ['case-a'], projectIds: [] })).resolves.toEqual({
+    procurements: { 'case-a': 'Case North' }, projects: {},
+  });
+
+  expect(h.from).toHaveBeenCalledWith('procurements_masked');
+  setHidePricesActive(false);
 });
 
 it('AC-BUPOT-014 DAL keeps the database error code and stable DETAIL', async () => {

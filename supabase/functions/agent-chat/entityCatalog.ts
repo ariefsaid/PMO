@@ -4,7 +4,7 @@
  * ⚠ Vocabulary: "entity" here names any queryable record type generically (a table + column
  * whitelist entry). It is NOT the operating-company **Entity** dimension of docs/GLOSSARY.md.
  *
- * Resolves an `AGENT_READ_ENTITIES` key to its normalized entry `{ table, allowedColumns,
+ * Resolves an `AGENT_READ_ENTITIES` key to its normalized entry `{ tableOrView, allowedColumns,
  * requiredFilter? }`, drawing from TWO sources so neither the model nor the read path has to know
  * which source a given entity lives in:
  *   1. `AGENT_ENTITY_TABLES` (readEntities.ts, agent-curated, dependency-free leaf) — procurements,
@@ -30,7 +30,7 @@ import { AGENT_ENTITY_TABLES } from './readEntities.ts';
 
 /** Normalized entry the read path + prompt both consume. */
 export interface AgentEntityEntry {
-  /** Real Postgres table the caller-JWT client reads from. */
+  /** Caller-JWT table or masked view the read uses. */
   table: string;
   /** The only columns a query may SELECT or FILTER on (org_id never included). */
   allowedColumns: ReadonlySet<string>;

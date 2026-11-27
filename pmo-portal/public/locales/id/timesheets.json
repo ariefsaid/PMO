@@ -18,6 +18,7 @@
     "heading": "Antrean persetujuan tim",
     "bulkFailedLabel": "Minggu ini tidak dapat disetujui",
     "bulkFailedLead": "Minggu ini tidak dapat disetujui (pemisahan tugas atau data usang). Tetap dipilih agar Anda dapat mencoba lagi.",
+    "selectTimesheets": "Pilih timesheet",
     "awaiting": "{{total}} menunggu Anda",
     "empty": "Tidak ada yang menunggu Anda",
     "emptySub": "$t(common:terms.timesheet) yang diajukan anggota tim akan muncul di sini untuk ditinjau.",

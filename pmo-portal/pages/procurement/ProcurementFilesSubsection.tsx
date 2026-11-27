@@ -24,6 +24,7 @@ export interface ProcurementFilesSubsectionProps {
   procurementId: string;
   /** Whether write affordances (upload/archive) are shown. UX gate; RLS is authoritative. */
   canWrite: boolean;
+  canRemove?: boolean;
   /** Current user id stamped onto new file rows (who uploaded). */
   uploadedById: string | null;
   /**
@@ -63,6 +64,7 @@ export const ProcurementFilesSubsection: React.FC<ProcurementFilesSubsectionProp
   parentId,
   procurementId,
   canWrite,
+  canRemove = canWrite,
   uploadedById,
   files: embedded,
   loading,
@@ -211,7 +213,7 @@ export const ProcurementFilesSubsection: React.FC<ProcurementFilesSubsectionProp
                   >
                     <Icon name="download" className="size-4" />
                   </button>}
-                  {canWrite && (
+                  {canRemove && (
                     <button
                       type="button"
                       onClick={() => setPendingArchive(f)}

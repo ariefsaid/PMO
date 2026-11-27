@@ -1,3 +1,4 @@
+import { WithheldPrice } from '@/src/components/ui/WithheldPrice';
 import { Avatar } from '@/src/components/ui/Avatar';
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router';
@@ -284,7 +285,7 @@ export const ProcurementMoneySummary: React.FC<ProcurementMoneySummaryProps> = (
   // The record's one hidden-figures line lives here, so any figure hidden on the record keeps this block.
   const anyHidden = shown.some((entry) => entry.hidden) || (figureScope?.hidden.length ?? 0) > 0;
   // No figure, no hidden figure and no budget line: no empty block.
-  if (!maySeePrices) return null; // #2699: no price figures, no block
+  if (!maySeePrices) return <section data-testid="procurement-money-summary" className="border-t border-border pt-3"><WithheldPrice /></section>;
   if (visible.length === 0 && !anyHidden && !budgetSignal && !isEngineer) return null;
   // When another panel (e.g. Budget impact) already owns the figures and only a hidden-figures line remains,
   // show that line directly without an empty "Money" heading above it.
@@ -365,13 +366,14 @@ export interface ProcurementTimelineProps {
   linkedDocuments: readonly ErpPurchaseRow[];
   isEngineer: boolean;
   canWriteFiles: boolean;
+  canWriteRequestFiles?: boolean;
   uploadedById: string | null;
   onFullHistory: () => void;
   focusedRecordId?: string;
   workOrderLinks?: Record<string, { id: string; label: string }>;
 }
 
-export const ProcurementTimeline: React.FC<ProcurementTimelineProps> = ({ procurement, ledgerRows, linkedDocuments, isEngineer, canWriteFiles, uploadedById, onFullHistory, focusedRecordId, workOrderLinks = {} }) => {
+export const ProcurementTimeline: React.FC<ProcurementTimelineProps> = ({ procurement, ledgerRows, linkedDocuments, isEngineer, canWriteFiles, canWriteRequestFiles = false, uploadedById, onFullHistory, focusedRecordId, workOrderLinks = {} }) => {
   const { t } = useTranslation('procurementRecord');
   const maySeePrices = useMaySeePrices(); // #2699
   const [filter, setFilter] = useState<'all' | 'financial' | 'has-file'>('all');
@@ -500,7 +502,7 @@ export const ProcurementTimeline: React.FC<ProcurementTimelineProps> = ({ procur
                       {(() => {
                         const phase = phaseByType[entry.ledger.type];
                         const files = filesBatch.data?.[procurementFileParentKey(phase, entry.ledger.recordId)];
-                        return <ProcurementFilesSubsection phase={phase} parentId={entry.ledger.recordId} procurementId={procurement.id} canWrite={canWriteFiles} uploadedById={uploadedById} files={files ?? []} loading={files === undefined && !filesBatch.isError} failed={files === null || (files === undefined && filesBatch.isError)} />;
+                        return <ProcurementFilesSubsection phase={phase} parentId={entry.ledger.recordId} procurementId={procurement.id} canWrite={canWriteFiles || (phase === 'purchase_request' && canWriteRequestFiles)} canRemove={canWriteFiles} uploadedById={uploadedById} files={files ?? []} loading={files === undefined && !filesBatch.isError} failed={files === null || (files === undefined && filesBatch.isError)} />;
                       })()}
                     </>}
                   </div>

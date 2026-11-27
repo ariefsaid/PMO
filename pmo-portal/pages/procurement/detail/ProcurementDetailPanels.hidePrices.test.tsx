@@ -27,14 +27,15 @@ describe('AC-009 procurement record panels without prices', () => {
     expect(screen.getByTestId('procurement-money-summary')).toBeInTheDocument();
     expect(screen.getAllByText(/62,000/).length).toBeGreaterThan(0);
   });
-  it('draws no money block, no stage amount and no timeline amount when the server hides prices', () => {
+  it('shows one notice in the record money block and no stage or timeline amount when the server hides prices', () => {
     act(() => setPricesHidden(true));
     render(<MemoryRouter>
       <ProcurementMoneySummary procurement={procurement} linkedDocuments={[]} isEngineer={false} budgetSignal={null} />
       <ProcurementStageTracker procurement={procurement} linkedDocuments={[]} />
       <ProcurementTimeline procurement={procurement} ledgerRows={[]} linkedDocuments={[]} isEngineer={false} canWriteFiles={false} uploadedById={null} onFullHistory={vi.fn()} />
     </MemoryRouter>);
-    expect(screen.queryByTestId('procurement-money-summary')).toBeNull();
+    expect(screen.getByTestId('procurement-money-summary')).toHaveTextContent('Prices are hidden from requesters.');
+    expect(screen.getByTestId('procurement-money-summary').textContent).toBe('Prices are hidden from requesters.');
     expect(screen.queryByText(/62,000/)).toBeNull();
     expect(screen.queryByText('—')).toBeNull();
   });

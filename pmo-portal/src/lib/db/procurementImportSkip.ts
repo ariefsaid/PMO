@@ -1,4 +1,5 @@
 import { supabase } from '@/src/lib/supabase/client';
+import { priceSource } from '@/src/lib/priceReadPath';
 
 /** Bounded, RLS-scoped identity reads for procurement imports. */
 
@@ -112,7 +113,7 @@ export const supabaseImportSkipLookup: ImportSkipLookup = {
 
   async findExistingCase(importKey, importBatchId) {
     const { data, error } = await supabase
-      .from('procurements')
+      .from(priceSource('procurements') as 'procurements')
       .select('id')
       .eq('import_key', importKey)
       .eq('import_batch_id', importBatchId)

@@ -114,7 +114,7 @@ const WorkOrdersTabInner: React.FC<WorkOrdersTabProps> = ({ projectId, currency,
   const lists = useWorkOrderLists();
 
   const { data, isPending, isFetching, isError, refetch } = useProjectWorkOrders(projectId);
-  const { update, setValue, transition } = useWorkOrderMutations(projectId);
+  const { create, update, setValue, transition } = useWorkOrderMutations(projectId);
 
   // `undefined` = closed · a row = edit that draft's body. New work orders are created on the Work orders tab.
   const [formFor, setFormFor] = useState<WorkOrderRow | undefined>(undefined);
@@ -856,6 +856,7 @@ const WorkOrdersTabInner: React.FC<WorkOrdersTabProps> = ({ projectId, currency,
         projectId={projectId}
         projectName={projectName}
         liveDownPayment={liveDownPayment}
+        onCreateOrder={async (input) => { await create.mutateAsync({ input, projectId }); setFormFor(undefined); }}
         evidenceAttachedIds={(claimRows.find((claim) => claim.id === evidenceFor)?.evidence ?? []).map((evidence) => evidence.document_id)}
         evidenceEarlierIds={(() => {
           const current = claimRows.find((claim) => claim.id === evidenceFor);

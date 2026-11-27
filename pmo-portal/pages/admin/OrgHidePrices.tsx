@@ -8,7 +8,7 @@ import { hidePricesRepository } from '@/src/lib/repositories/hidePrices';
 import { HIDE_PRICES_ENABLED_KEY, useHidePricesEnabled } from '@/src/hooks/useHidePrices';
 
 /**
- * Administration › People › Hide prices from requesters (#2699). One organization setting, off by default: while off, every screen is
+ * Administration › Accounting › Hide prices from requesters (#2699). One organization setting, off by default: while off, every screen is
  * what it was. Admin-only via `can('manage', 'orgAccounting')` (UX); the server setter enforces it (ADR-0016).
  */
 const OrgHidePrices: React.FC = () => {

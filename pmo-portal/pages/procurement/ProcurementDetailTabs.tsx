@@ -95,7 +95,10 @@ export interface QuotesTabProps {
 export const ProcurementQuotesTab: React.FC<QuotesTabProps> = ({ p, selectedQuote, vendorMap, mutations, crud, canAddQuote, canSelectQuote, canManageFiles, currentUserId, onMutationError }) => {
   const { t } = useTranslation();
   const { toast } = useToast();
-  const maySeePrices = useMaySeePrices(); // #2699: a requester sees the quotation, not its price
+  const maySeePrices = useMaySeePrices();
+  // The record's money block carries the screen's single withholding notice. The DAL
+  // also omits quote rows for this role, so this panel has no amount-bearing data to render.
+  if (!maySeePrices) return null;
   return (
     <VendorQuotesTab
       quotations={p.quotations}
