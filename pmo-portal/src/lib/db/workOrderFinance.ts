@@ -1,6 +1,7 @@
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError } from '@/src/lib/appError';
 import { fetchAllPages } from '@/src/lib/pagedRead';
+import { wireValidator } from '@/src/lib/wireDoc';
 import type { CostAmountLine, CostReason, FinanceCostSource, PlanKind, PlanLine, SplitPercent } from '@/src/lib/workOrderPlanVsActual';
 
 /**
@@ -29,20 +30,10 @@ export async function getDashboardWorkOrderCosts(projectIds: readonly string[]):
   return data as unknown as DashboardWorkOrderCost[];
 }
 
-const MALFORMED = 'malformed-response';
+const v = wireValidator('Work-order cost read', 'malformed-response');
 const SOURCES: readonly FinanceCostSource[] = ['purchase_request', 'purchase_order', 'goods_receipt', 'vendor_bill', 'timesheet_entry', 'stock_document', 'equipment_usage', 'expense_claim', 'attendance_day', 'headcount_day', 'project_actuals', 'purchase_balance', 'other_revenue'];
 const REASONS: readonly CostReason[] = ['counted', 'commitment', 'stocked', 'transfer', 'no-rate', 'not-posted', 'unassigned', 'split-when-custom', 'outside-basis', 'unresolved-direct', 'other-revenue'];
 const KINDS: readonly PlanKind[] = ['direct_budget', 'indirect_budget', 'equipment_hours', 'crew_hours'];
-const EXACT = /^-?\d+(\.\d{1,2})?$/;
-
-function str(v: unknown): string | null {
-  return typeof v === 'string' && v.length > 0 ? v : null;
-}
-function num(v: unknown): number | null {
-  if (v === null || v === undefined) return null;
-  const n = typeof v === 'number' ? v : Number(v);
-  return Number.isFinite(n) ? n : null;
-}
 
 interface CostAmountRow {
   source: string; record_id: string; project_id: string | null; work_order_id: string | null; discipline_id: string | null;
@@ -60,19 +51,17 @@ export async function listProjectCostAmounts(projectId: string): Promise<CostAmo
 
 export function parseCostAmountRows(rows: CostAmountRow[]): CostAmountLine[] {
   return rows.map((r) => {
+    const source = v.oneOf(r.source, SOURCES, 'source');
+    const reason = v.oneOf(r.reason, REASONS, 'reason');
     // Labour money for a Project Manager is aggregate (migrations 1298, 1721, 1722, 1933): timesheet money one row per work order,
     // discipline and class; class-priced money (attendance, head count) one row per work order and discipline with no class and no
     // quantity. No record id and no date either way. Every other row resolves to its record.
-    const aggregatedLabour = (r.source === 'timesheet_entry' || r.source === 'attendance_day' || r.source === 'headcount_day') && r.reason === 'counted'
-      && r.record_id === null && (!!r.labour_class_id || r.source !== 'timesheet_entry');
-    if (!SOURCES.includes(r.source as FinanceCostSource) || !REASONS.includes(r.reason as CostReason)
-        || (!aggregatedLabour && !str(r.record_id))) {
-      throw new AppError('Work-order cost read: unexpected row', MALFORMED);
-    }
-    const amount = r.amount === null ? null : String(r.amount);
-    if (amount !== null && !EXACT.test(amount)) throw new AppError('Work-order cost read: unreadable amount', MALFORMED);
+    const aggregatedLabour = (source === 'timesheet_entry' || source === 'attendance_day' || source === 'headcount_day') && reason === 'counted'
+      && r.record_id === null && (!!r.labour_class_id || source !== 'timesheet_entry');
+    if (!aggregatedLabour) v.str(r.record_id, 'record_id');
+    const amount = r.amount === null ? null : v.money(String(r.amount), 'amount');
     return {
-      source: r.source as FinanceCostSource,
+      source,
       recordId: r.record_id,
       projectId: r.project_id,
       workOrderId: r.work_order_id,
@@ -81,8 +70,8 @@ export function parseCostAmountRows(rows: CostAmountRow[]): CostAmountLine[] {
       reference: r.reference,
       currency: r.currency,
       amount,
-      reason: r.reason as CostReason,
-      quantity: num(r.quantity),
+      reason,
+      quantity: v.numOrNull(r.quantity, 'quantity'),
       quantityUnit: r.quantity_unit,
       personId: r.person_id,
       ...(r.labour_class_id ? { labourClassId: r.labour_class_id } : {}),
@@ -102,9 +91,9 @@ export async function listProjectPlanLines(projectId: string): Promise<PlanLine[
 
 export function parsePlanRows(rows: PlanRow[]): PlanLine[] {
   return rows.map((r) => {
-    const value = String(r.value);
-    if (!KINDS.includes(r.kind as PlanKind) || !EXACT.test(value)) throw new AppError('Plan figure: unexpected row', MALFORMED);
-    return { id: r.id, workOrderId: r.work_order_id, sectionId: r.section_id, disciplineId: r.discipline_id, kind: r.kind as PlanKind, value, note: r.note };
+    const kind = v.oneOf(r.kind, KINDS, 'kind');
+    const value = v.money(String(r.value), 'value');
+    return { id: r.id, workOrderId: r.work_order_id, sectionId: r.section_id, disciplineId: r.discipline_id, kind, value, note: r.note };
   });
 }
 
@@ -131,8 +120,7 @@ export async function getSharedSplit(projectId: string): Promise<SplitPercent[] 
 export function parseSplitRows(rows: { work_order_id: string; percent: number | string }[]): SplitPercent[] | null {
   if (rows.length === 0) return null;
   return rows.map((r) => {
-    const p = num(r.percent);
-    if (p === null) throw new AppError('Shared-cost split: unreadable percentage', MALFORMED);
+    const p = v.num(r.percent, 'percent');
     return { workOrderId: r.work_order_id, percent: String(Number(p.toFixed(4))) };
   });
 }

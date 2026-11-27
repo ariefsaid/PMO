@@ -67,6 +67,14 @@ describe('AC-LA-011 phone home screen', () => {
     mount();
     expect(await screen.findByRole('link', { name: /TST-7/ })).toHaveAttribute('href', '/stock/transfers/d1');
   });
+  it('#2976 shows retry instead of hiding deliveries when the deliveries read fails', async () => {
+    h.deliveries.mockRejectedValueOnce(new Error('network down'));
+    mount();
+    expect((await screen.findByText("Couldn't load deliveries")).closest('[role="alert"]')).toBeInTheDocument();
+    h.deliveries.mockResolvedValueOnce([{ id: 'd1', number: 'TST-7', description: 'Cement, 10 bags', lineCount: 1 }]);
+    await userEvent.setup().click(screen.getByRole('button', { name: /retry/i }));
+    expect(await screen.findByRole('link', { name: /TST-7/ })).toHaveAttribute('href', '/stock/transfers/d1');
+  });
   it('a Foreman sees the crew roster, a Field user does not', async () => {
     mount();
     expect(await screen.findByTestId('crew-roster')).toBeInTheDocument();

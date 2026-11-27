@@ -1,5 +1,6 @@
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError, assertWriteLanded } from '@/src/lib/appError';
+import { wireValidator, type WireRecord } from '@/src/lib/wireDoc';
 import type { AcStatus, Bands, PerformanceRow, PerformanceWorkOrderStatus } from '@/src/lib/workOrderPerformance';
 
 /**
@@ -19,29 +20,23 @@ export interface ProjectPerformanceRead {
   omitted: number;
 }
 
-const MALFORMED = 'malformed-performance';
-const STATUSES: readonly string[] = ['Draft', 'Issued', 'Closed', 'Cancelled'];
-const AC_STATUSES: readonly string[] = ['complete', 'incomplete', 'not_comparable'];
+const STATUSES: readonly PerformanceWorkOrderStatus[] = ['Draft', 'Issued', 'Closed', 'Cancelled'];
+const AC_STATUSES: readonly AcStatus[] = ['complete', 'incomplete', 'not_comparable'];
 export const DEFAULT_BANDS: Bands = { low: '0.90', high: '1.10' };
 
-const bad = (field: string): never => { throw new AppError(`Work order performance: ${field} is missing or malformed`, MALFORMED); };
-const str = (v: unknown, f: string): string => (typeof v === 'string' && v !== '' ? v : bad(f));
-const strOrNull = (v: unknown, f: string): string | null => (v === null || v === undefined ? null : str(v, f));
-const decimal = (v: unknown, f: string): string => (typeof v === 'string' && /^-?\d+\.\d{2}$/.test(v) ? v : bad(f));
-const decimalOrNull = (v: unknown, f: string): string | null => (v === null || v === undefined ? null : decimal(v, f));
-const count = (v: unknown, f: string): number => (typeof v === 'number' && Number.isInteger(v) && v >= 0 ? v : bad(f));
-const band = (v: unknown, f: string): string => (typeof v === 'string' && /^\d+\.\d{2}$/.test(v) ? v : bad(f));
+const v = wireValidator('Work order performance', 'malformed-performance');
+const { str, nonEmptyStrOrNull: strOrNull } = v;
+const decimalOrNull = (val: unknown, f: string): string | null =>
+  val === null || val === undefined ? null : typeof val === 'string' && /^-?\d+\.\d{2}$/.test(val) ? val : v.fail(f);
+const count = (val: unknown, f: string): number => v.int(val, f, { min: 0 });
+const band = (val: unknown, f: string): string => (typeof val === 'string' && /^\d+\.\d{2}$/.test(val) ? val : v.fail(f));
 
-function parseRow(r: Record<string, unknown>): PerformanceRow {
-  const status = str(r.status, 'status');
-  const acStatus = str(r.ac_status, 'ac_status');
-  if (!STATUSES.includes(status)) bad('status');
-  if (!AC_STATUSES.includes(acStatus)) bad('ac_status');
+function parseRow(r: WireRecord): PerformanceRow {
   return {
     workOrderId: str(r.work_order_id, 'work_order_id'),
     woNumber: strOrNull(r.wo_number, 'wo_number'),
     title: str(r.title, 'title'),
-    status: status as PerformanceWorkOrderStatus,
+    status: v.oneOf(r.status, STATUSES, 'status'),
     currency: str(r.currency, 'currency'),
     asOf: str(r.as_of, 'as_of'),
     startDate: strOrNull(r.start_date, 'start_date'),
@@ -51,26 +46,23 @@ function parseRow(r: Record<string, unknown>): PerformanceRow {
     unratedLines: count(r.unrated_lines, 'unrated_lines'),
     pv: decimalOrNull(r.pv, 'pv'),
     ac: decimalOrNull(r.ac, 'ac'),
-    acStatus: acStatus as AcStatus,
+    acStatus: v.oneOf(r.ac_status, AC_STATUSES, 'ac_status'),
     undatedCostLines: count(r.undated_cost_lines, 'undated_cost_lines'),
   };
 }
 
 export function parseProjectPerformance(data: unknown): ProjectPerformanceRead {
-  if (typeof data !== 'object' || data === null || Array.isArray(data)) return bad('response');
-  const d = data as Record<string, unknown>;
+  const d = v.rec(data, 'response');
   if (d.enabled === false) {
     return { enabled: false, asOf: null, bands: DEFAULT_BANDS, rows: [], truncated: false, omitted: 0 };
   }
-  if (d.enabled !== true) return bad('enabled');
-  const bands = d.bands as Record<string, unknown> | undefined;
-  if (!bands) return bad('bands');
-  if (!Array.isArray(d.rows)) return bad('rows');
+  if (d.enabled !== true) return v.fail('enabled');
+  const bands = v.rec(d.bands, 'bands');
   return {
     enabled: true,
     asOf: str(d.as_of, 'as_of'),
     bands: { low: band(bands.low, 'bands.low'), high: band(bands.high, 'bands.high') },
-    rows: d.rows.map((r) => parseRow(r as Record<string, unknown>)),
+    rows: v.arr(d.rows, 'rows').map((r, i) => parseRow(v.rec(r, `rows[${i}]`))),
     truncated: d.truncated === true,
     omitted: count(d.omitted, 'omitted'),
   };

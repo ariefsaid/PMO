@@ -1,6 +1,7 @@
 // @e2e-isolation: self-isolated — creates a unique project and purchase each run; issued PO lines and revisions are append-only, so it archives the fixture project after the journey.
 /** AC-SCA-001 — goal: verified subcontract work cannot be billed above its issued PO quantity. */
 import { test, expect, type Page, type TestInfo } from '@playwright/test';
+import { prepareSubcontractJourney } from './support/subcontractJourneySetup';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { requireServiceRoleKey, signIn } from './helpers';
 import { requireMatchingLocalSupabaseUrls } from '../src/lib/testing/localSupabaseUrl';
@@ -18,22 +19,22 @@ async function capture(page: Page, testInfo: TestInfo, state: string) {
   await page.screenshot({ path: testInfo.outputPath(`subcontract-${state}.png`), fullPage: true });
 }
 
-test('AC-SCA-001 verified subcontract work is billed only after a PO variation is approved and issued', async ({ page }, testInfo) => {
+let admin: SupabaseClient<Database>;
+let projectId = '', purchaseId = '', poId = '', docId = '', boqItemId = '', itemCode = '';
+test.beforeEach(async () => {
   const serviceKey = requireServiceRoleKey();
   if (!serviceKey) throw new Error('AC-SCA-001 requires the local fixture service client');
   const url = requireMatchingLocalSupabaseUrls(undefined, undefined);
-  const admin: SupabaseClient<Database> = createClient<Database>(url, serviceKey, { auth: { persistSession: false } });
+  admin = createClient<Database>(url, serviceKey, { auth: { persistSession: false } });
   const suffix = `SCA-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-  const projectId = crypto.randomUUID();
-  const purchaseId = crypto.randomUUID();
-  const poId = crypto.randomUUID();
-  const docId = crypto.randomUUID();
-  let vendorId: string | undefined;
-  let budgetVersionId: string | undefined;
+  projectId = crypto.randomUUID();
+  purchaseId = crypto.randomUUID();
+  poId = crypto.randomUUID();
+  docId = crypto.randomUUID();
   const title = `Subcontract cap ${suffix}`;
   const documentTitle = `Signed acceptance ${suffix}`;
 
-  try {
+
     const [pm, executive] = await Promise.all([
       admin.from('profiles').select('id, org_id').eq('email', 'pm@acme.test').single().throwOnError(),
       admin.from('profiles').select('id').eq('email', 'exec@acme.test').single().throwOnError(),
@@ -41,13 +42,13 @@ test('AC-SCA-001 verified subcontract work is billed only after a PO variation i
     const orgId = pm.data.org_id;
     const execId = executive.data.id;
 
-    vendorId = (await admin.from('companies').insert({ org_id: orgId, name: `Subcontract vendor ${suffix}`, type: 'Vendor' }).select('id').single().throwOnError()).data.id;
+    const vendorId = (await admin.from('companies').insert({ org_id: orgId, name: `Subcontract vendor ${suffix}`, type: 'Vendor' }).select('id').single().throwOnError()).data.id;
     await admin.from('projects').insert({
       id: projectId, org_id: orgId, name: `Subcontract cap project ${suffix}`, status: 'Ongoing Project', currency: 'IDR',
       project_manager_id: pm.data.id,
     }).throwOnError();
     const version = await admin.from('budget_versions').insert({ org_id: orgId, project_id: projectId, name: `SCA budget ${suffix}`, version: 1, status: 'Draft', currency: 'IDR' }).select('id').single().throwOnError();
-    budgetVersionId = version.data.id;
+    const budgetVersionId = version.data.id;
     await admin.from('budget_line_items').insert({ org_id: orgId, budget_version_id: budgetVersionId, category: 'Subcontractors', budgeted_amount: 20_000_000 }).throwOnError();
     await admin.from('budget_versions').update({ status: 'Active' }).eq('id', budgetVersionId).throwOnError();
     await admin.from('spend_approvers').insert({ org_id: orgId, project_id: projectId, profile_id: execId }).throwOnError();
@@ -56,7 +57,7 @@ test('AC-SCA-001 verified subcontract work is billed only after a PO variation i
       { org_id: orgId, project_id: projectId, item_code: `L1-${suffix}`, description: `Concrete placement ${suffix}`, unit: 'm3', quantity: 120, rate: 100_000 },
       { org_id: orgId, project_id: projectId, item_code: `L2-${suffix}`, description: `Formwork ${suffix}`, unit: 'm2', quantity: 20, rate: 50_000 },
     ]).select('id, item_code').throwOnError();
-    const boqItemId = items.data.find((item) => item.item_code.startsWith('L1-'))!.id;
+    boqItemId = items.data.find((item) => item.item_code.startsWith('L1-'))!.id;
     expect(items.data).toHaveLength(2);
 
     await admin.from('procurements').insert({
@@ -75,7 +76,14 @@ test('AC-SCA-001 verified subcontract work is billed only after a PO variation i
     } satisfies Omit<TablesInsert<'project_documents'>, 'category_id'>;
     await admin.from('project_documents').insert(acceptanceDocument as TablesInsert<'project_documents'>).throwOnError();
 
-    const itemCode = `L1-${suffix}`;
+    itemCode = `L1-${suffix}`;
+});
+
+test.afterEach(async () => {
+  if (projectId) await admin.from('projects').update({ archived_at: new Date().toISOString() }).eq('id', projectId).throwOnError();
+});
+
+test('AC-SCA-001 the PM sets and issues the subcontract PO quantities', async ({ page }, testInfo) => {
     await signIn(page, 'pm@acme.test');
     await page.goto(`/procurement/${purchaseId}/items`);
     await expect(page.getByTestId('procurement-loading')).not.toBeVisible({ timeout: 20_000 });
@@ -88,14 +96,23 @@ test('AC-SCA-001 verified subcontract work is billed only after a PO variation i
     await confirm(page, 'Issue');
     await expect(page.getByRole('row', { name: new RegExp(itemCode) })).toContainText('100');
     await capture(page, testInfo, 'issued-lines');
+});
 
+test('AC-SCA-001 the PM prepares signed acceptance for verified work', async ({ page }, _testInfo) => {
+  await prepareSubcontractJourney('issued', { poId, purchaseId, boqItemId, docId });
+  await signIn(page, 'pm@acme.test');
+  await page.goto(`/procurement/${purchaseId}/items`);
+  await expect(page.getByTestId('procurement-loading')).not.toBeVisible({ timeout: 20_000 });
     await page.getByRole('button', { name: 'Record acceptance' }).click();
     const acceptanceDialog = page.getByRole('dialog', { name: 'Record acceptance' });
     await acceptanceDialog.getByLabel('Signed acceptance document').selectOption({ value: docId });
     await acceptanceDialog.getByLabel(new RegExp(`${itemCode}.*verified to date`)).fill('120');
     await acceptanceDialog.getByRole('button', { name: 'Prepare acceptance' }).click();
     await expect(acceptanceDialog).toBeHidden();
+});
 
+test('AC-SCA-001 Finance confirms another person acceptance', async ({ page }, testInfo) => {
+  await prepareSubcontractJourney('prepared', { poId, purchaseId, boqItemId, docId });
     await signIn(page, 'finance@acme.test');
     await page.goto(`/procurement/${purchaseId}/items`);
     await expect(page.getByTestId('procurement-loading')).not.toBeVisible({ timeout: 20_000 });
@@ -104,7 +121,13 @@ test('AC-SCA-001 verified subcontract work is billed only after a PO variation i
     await reviewDialog.getByRole('button', { name: 'Confirm acceptance' }).click();
     await expect(reviewDialog).toBeHidden();
     await capture(page, testInfo, 'confirmed-acceptance');
+});
 
+test('AC-SCA-001 Finance can bill only the issued quantity', async ({ page }, testInfo) => {
+  await prepareSubcontractJourney('confirmed', { poId, purchaseId, boqItemId, docId });
+  await signIn(page, 'finance@acme.test');
+  await page.goto(`/procurement/${purchaseId}/items`);
+  await expect(page.getByTestId('procurement-loading')).not.toBeVisible({ timeout: 20_000 });
     await page.getByRole('button', { name: 'Record another document' }).click();
     await page.getByRole('menuitem', { name: 'Supplier invoice' }).click();
     const firstBillLines = page.getByTestId('subcontract-bill-lines');
@@ -122,7 +145,13 @@ test('AC-SCA-001 verified subcontract work is billed only after a PO variation i
     await expect(firstBillRow.getByRole('cell').nth(5)).toHaveText('0');
     await expect(firstBillRow.getByRole('cell').nth(6)).toContainText('20');
     await capture(page, testInfo, 'first-bill-capped');
+});
 
+test('AC-SCA-001 Finance requests a variation for verified additional work', async ({ page }, testInfo) => {
+  await prepareSubcontractJourney('billed', { poId, purchaseId, boqItemId, docId });
+  await signIn(page, 'finance@acme.test');
+  await page.goto(`/procurement/${purchaseId}/items`);
+  await expect(page.getByTestId('procurement-loading')).not.toBeVisible({ timeout: 20_000 });
     const line = page.getByTestId('subcontract-lines').getByRole('row', { name: new RegExp(itemCode) });
     await expect(line.getByRole('cell').nth(5)).toHaveText('0');
     await expect(line).toContainText('20');
@@ -135,7 +164,10 @@ test('AC-SCA-001 verified subcontract work is billed only after a PO variation i
     await capture(page, testInfo, 'variation-route');
     await variationDialog.getByRole('button', { name: 'Done' }).click();
     await expect(page.getByTestId('po-variations')).toContainText('Requested');
+});
 
+test('AC-SCA-001 the Executive approves the requested variation', async ({ page }, testInfo) => {
+  await prepareSubcontractJourney('requested', { poId, purchaseId, boqItemId, docId });
     await signIn(page, 'exec@acme.test');
     await page.goto(`/procurement/${purchaseId}/items`);
     await expect(page.getByTestId('procurement-loading')).not.toBeVisible({ timeout: 20_000 });
@@ -143,7 +175,10 @@ test('AC-SCA-001 verified subcontract work is billed only after a PO variation i
     await confirm(page, 'Approve');
     await expect(page.getByTestId('po-variations')).toContainText('Approved');
     await capture(page, testInfo, 'variation-approved');
+});
 
+test('AC-SCA-001 Finance issues the approved PO revision', async ({ page }, testInfo) => {
+  await prepareSubcontractJourney('approved', { poId, purchaseId, boqItemId, docId });
     await signIn(page, 'finance@acme.test');
     await page.goto(`/procurement/${purchaseId}/items`);
     await expect(page.getByTestId('procurement-loading')).not.toBeVisible({ timeout: 20_000 });
@@ -151,7 +186,13 @@ test('AC-SCA-001 verified subcontract work is billed only after a PO variation i
     await confirm(page, 'Issue revision');
     await expect(page.getByTestId('po-variations')).toContainText('Revised');
     await capture(page, testInfo, 'revision-issued');
+});
 
+test('AC-SCA-001 Finance bills the revised balance and reconciles the ledger', async ({ page }, testInfo) => {
+  await prepareSubcontractJourney('revised', { poId, purchaseId, boqItemId, docId });
+  await signIn(page, 'finance@acme.test');
+  await page.goto(`/procurement/${purchaseId}/items`);
+  await expect(page.getByTestId('procurement-loading')).not.toBeVisible({ timeout: 20_000 });
     await page.getByRole('button', { name: 'Record another document' }).click();
     await page.getByRole('menuitem', { name: 'Supplier invoice' }).click();
     const secondBillInput = page.getByTestId('subcontract-bill-lines').getByRole('textbox', { name: new RegExp(itemCode) });
@@ -176,9 +217,5 @@ test('AC-SCA-001 verified subcontract work is billed only after a PO variation i
     expect(issuedLines.data).toHaveLength(1);
     const billedLines = await admin.from('procurement_invoice_lines').select('quantity').in('invoice_id', bills.data.map((bill) => bill.id)).eq('boq_item_id', boqItemId).throwOnError();
     expect(billedLines.data.reduce((total, billLine) => total + Number(billLine.quantity), 0)).toBeLessThanOrEqual(Number(issuedLines.data[0].quantity));
-  } finally {
-    // Issued PO revisions and their lines are append-only. Keep the ledger intact and archive the
-    // unique project, matching the existing contract-quantities e2e fixture policy.
-    await admin.from('projects').update({ archived_at: new Date().toISOString() }).eq('id', projectId).throwOnError();
-  }
+
 });

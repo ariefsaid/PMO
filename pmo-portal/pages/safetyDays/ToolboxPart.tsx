@@ -90,10 +90,7 @@ export const ToolboxPart: React.FC<{ detail: SafetyDayDetail; roster: RosterWork
             {roster.length === 0 && <p className="text-muted-foreground">{t('toolbox.noRoster', 'No one is rostered on this work order for this date')}</p>}
             <div className="grid gap-2 sm:grid-cols-2">
               {roster.map((w) => (
-                <label key={w.worker_id} className="flex items-center gap-2">
-                  <Checkbox checked={picked.includes(w.worker_id)} label={w.display_name} onChange={(on) => setPicked((p) => (on ? [...p, w.worker_id] : p.filter((x) => x !== w.worker_id)))} />
-                  <span aria-hidden>{w.display_name}</span>
-                </label>
+                <Checkbox key={w.worker_id} label={w.display_name} checked={picked.includes(w.worker_id)} onChange={(on) => setPicked((p) => (on ? [...p, w.worker_id] : p.filter((x) => x !== w.worker_id)))}>{w.display_name}</Checkbox>
               ))}
             </div>
           </fieldset>

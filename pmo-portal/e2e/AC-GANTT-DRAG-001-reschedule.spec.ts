@@ -1,6 +1,8 @@
-// @e2e-isolation: self-isolated — each run creates its own uniquely named task on the seed project and deletes it at the end; nothing else is touched.
+// @e2e-isolation: self-isolated — each test creates its own project and uniquely named task and deletes it at the end; nothing else is touched.
 import { test, expect, type Locator, type Page } from '@playwright/test';
 import { login, pinEnglishLocale, waitForFonts } from './helpers';
+import { seedSession } from './support/seedSession';
+import { serviceClient, projectWithWorkOrders, cleanupAll, need } from './support/jobFixtures';
 import { formatDay } from '../src/lib/format';
 
 /**
@@ -16,7 +18,23 @@ import { formatDay } from '../src/lib/format';
 
 test.setTimeout(180_000);
 
-const PROJECT_ID = '40000000-0000-0000-0000-000000000001';
+let PROJECT_ID = '';
+let name = '';
+let taskId = '';
+
+test.beforeEach(async ({ request: _request }, testInfo) => {
+  const admin = serviceClient('Gantt fixture');
+  name = `E2E-Gantt-${crypto.randomUUID()}`;
+  PROJECT_ID = (await projectWithWorkOrders(admin, name, [])).projectId;
+  const pm = await seedSession('pm@acme.test');
+  const readOnly = testInfo.title.includes('read-only');
+  taskId = need('task', await pm.from('tasks').insert({ project_id: PROJECT_ID, name, status: 'To Do', start_date: iso(monthDay(readOnly ? 12 : 10)), end_date: iso(monthDay(readOnly ? 16 : 14)) }).select('id').single()).id;
+});
+
+test.afterEach(async () => {
+  const admin = serviceClient('Gantt cleanup');
+  await cleanupAll(admin, [['tasks', 'id', [taskId]], ['projects', 'id', [PROJECT_ID]]]);
+});
 
 const iso = (d: Date) => d.toISOString().slice(0, 10); // e2e-org-day: allow — the Gantt (and its Today button) run on the browser's UTC clock; seeded days match that same UTC month
 const now = new Date();
@@ -63,22 +81,9 @@ async function dragBar(page: Page, name: string, days: number) {
   await page.mouse.up();
 }
 
-test('AC-GANTT-DRAG-001: PM drags a bar 2 days and the new dates persist; a read-only role cannot move it', async ({ page, browser }) => {
-  const name = `E2E-Gantt-${Date.now()}`;
+test('AC-GANTT-DRAG-001: PM drags a bar two days and its new dates persist', async ({ page }) => {
   await pinEnglishLocale(page);
   await login(page, 'pm@acme.test');
-
-  // Seed the task through the real form (own row, unique name).
-  await openTasks(page);
-  await page.getByRole('button', { name: /new task/i }).first().click();
-  const dialog = page.getByRole('dialog');
-  await dialog.getByLabel(/task name/i).fill(name);
-  await dialog.getByLabel(/start date/i).fill(iso(START));
-  await dialog.getByLabel(/due date/i).fill(iso(END));
-  await dialog.getByRole('button', { name: /create task/i }).click();
-  await expect(dialog).not.toBeVisible({ timeout: 15_000 });
-
-  try {
     // ── PM drags +2 days ──
     let panel = await openTimeline(page);
     await expect(taskRow(panel, name).getByText(rangeText(START, END))).toBeVisible({ timeout: 15_000 });
@@ -89,10 +94,12 @@ test('AC-GANTT-DRAG-001: PM drags a bar 2 days and the new dates persist; a read
     await page.reload();
     panel = await openTimeline(page);
     await expect(taskRow(panel, name).getByText(rangeText(moved[0], moved[1]))).toBeVisible({ timeout: 20_000 });
+});
 
+test('AC-GANTT-DRAG-001: a read-only role cannot move a bar or save changed dates', async ({ page }) => {
     // ── Read-only role: same drag, nothing saves ──
-    const roCtx = await browser.newContext();
-    const ro = await roCtx.newPage();
+    const ro = page;
+    const moved = [monthDay(12), monthDay(16)] as const;
     await pinEnglishLocale(ro);
     await login(ro, 'finance@acme.test');
     const roPanel = await openTimeline(ro);
@@ -106,14 +113,4 @@ test('AC-GANTT-DRAG-001: PM drags a bar 2 days and the new dates persist; a read
     const roAfter = await openTimeline(ro);
     await expect(taskRow(roAfter, name).getByText(rangeText(moved[0], moved[1]))).toBeVisible({ timeout: 20_000 });
     expect(writes).toEqual([]);
-    await roCtx.close();
-  } finally {
-    // Cleanup: delete the owned task.
-    await openTasks(page);
-    const row = page.locator('table tbody tr').filter({ has: page.getByRole('button', { name: `Open task ${name}`, exact: true }) });
-    await row.getByRole('button', { name: 'Row actions' }).click();
-    await page.getByRole('menuitem', { name: /delete/i }).click();
-    await page.getByRole('alertdialog').getByRole('button', { name: /delete task/i }).click();
-    await expect(row).not.toBeVisible({ timeout: 15_000 });
-  }
 });

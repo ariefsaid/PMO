@@ -54,6 +54,7 @@ export interface DsrWorkOrderRef { label: string; currency: string; orderValue: 
 export interface DsrReportDetail {
   report: DsrReport;
   workOrder: DsrWorkOrderRef | null;
+  project?: { id: string; name: string; project_manager_id: string | null; pm: { full_name: string | null } | null } | null;
   progress: DsrProgressLine[];
   idle: DsrIdlePeriod[];
   consumables: DsrConsumable[];
@@ -139,10 +140,10 @@ export async function listReports(filter: DsrListFilter, page = 0): Promise<{ ro
 
 export async function getReport(id: string): Promise<DsrReportDetail | null> {
   const { data, error } = await db.from('daily_site_reports')
-    .select(`${HEADER}, work_orders(title, wo_number, currency, order_value)`).eq('id', id).maybeSingle();
+    .select(`${HEADER}, work_orders(title, wo_number, currency, order_value), project:projects!daily_site_reports_project_id_fkey(id, name, project_manager_id, pm:profiles!projects_project_manager_id_fkey(full_name))`).eq('id', id).maybeSingle();
   if (error) fail(error);
   if (!data) return null;
-  const { work_orders: wo, ...report } = data as DsrReport & { work_orders: { title: string; wo_number: string | null; currency: string; order_value: number } | null };
+  const { work_orders: wo, project, ...report } = data as DsrReport & { project: DsrReportDetail['project']; work_orders: { title: string; wo_number: string | null; currency: string; order_value: number } | null };
   const [progress, idle, consumables, photos, events] = await Promise.all([
     fetchAllPages<DsrProgressLine>((f, t) => db.from('dsr_progress_lines').select('id, position, work_order_line_id, sub_stage, quantity, unit, section_id').eq('report_id', id).order('position').range(f, t)),
     fetchAllPages<DsrIdlePeriod>((f, t) => db.from('dsr_idle_periods').select('id, position, minutes, reason_id').eq('report_id', id).order('position').range(f, t)),
@@ -151,7 +152,7 @@ export async function getReport(id: string): Promise<DsrReportDetail | null> {
     fetchAllPages<DsrEvent>((f, t) => db.from('dsr_events').select('id, action, actor_id, reason, at').eq('report_id', id).order('at').order('id').range(f, t)),
   ]);
   const workOrder = wo ? { label: [wo.wo_number, wo.title].filter(Boolean).join(' · '), currency: wo.currency, orderValue: Number(wo.order_value) } : null;
-  return { report, workOrder, progress, idle, consumables, photos, events };
+  return { report, project: project ?? null, workOrder, progress, idle, consumables, photos, events };
 }
 
 async function listOptions(table: 'dsr_idle_reasons' | 'dsr_weather_conditions'): Promise<DsrListOption[]> {

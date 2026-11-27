@@ -104,6 +104,7 @@ const make = (status: string, extra: Partial<DsrReportDetail['report']> = {}): D
     validated_at: null, returned_reason: null, variant_id: null, start_time: '07:00:00', end_time: '17:30:00', total_minutes: 630,
     weather_id: null, weather_note: null, note: null, crew_id: null, person_id: null, area_id: null, ...extra,
   },
+  get project() { return { id: 'p1', name: 'Pipeline', project_manager_id: h.pm, pm: h.pmName ? { full_name: h.pmName } : null }; },
   workOrder: { label: 'WO-1 · Pipe run', currency: 'USD', orderValue: 1000 },
   progress: [
     { id: 'pl1', position: 1, work_order_line_id: 'l1', sub_stage: null, quantity: 10, unit: 'm' },
