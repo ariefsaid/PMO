@@ -65,8 +65,11 @@ const renderShell = (ui: React.ReactNode) =>
       </MemoryRouter>,
     ),
   );
-// The slot imports the panel chunk on first open; warm it so the cold jsdom import is not inside findByRole's 1 s.
-beforeAll(async () => { await import('@/src/components/panel/AssistantPanel'); await import('@/src/components/shell/CommandPalette'); }, 60_000);
+// Cold dynamic imports block the jsdom thread for ~1 s wherever they land. The lazy chunks that load during these shell
+// renders (panel, palette, and the dashboard the shell mounts at `/`) are warmed here so none finishes inside a case's 1 s findByRole.
+beforeAll(async () => {
+  await Promise.all([import('@/src/components/panel/AssistantPanel'), import('@/src/components/shell/CommandPalette'), import('@/pages/ExecutiveDashboard')]);
+}, 60_000);
 beforeEach(() => { roleState.value = null; });
 
 describe('Ask AI palette integration', () => {
