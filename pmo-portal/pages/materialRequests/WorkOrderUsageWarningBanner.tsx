@@ -5,15 +5,18 @@ import { AuthContext } from '@/src/auth/AuthContext';
 import { useInstalledUsageWarnings } from '@/src/hooks/useMaterialRequests';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import { formatQuantity } from '@/src/lib/stockFormat';
+import { ListState } from '@/src/components/ui';
 
 /**
  * Items on a work order whose INSTALLED material has reached the usage warning share of plan (usage-warning spec FR-UW-006).
- * Information only: renders nothing while no warning is recorded (every work order while the threshold is unset) or the read fails.
+ * Information only: an unavailable check offers retry without blocking work.
  * Outside the app's providers there is nothing to read, so it renders nothing.
  */
 const Inner: React.FC<{ workOrderId: string }> = ({ workOrderId }) => {
   const { t } = useTranslation('materialRequests');
-  const rows = useInstalledUsageWarnings(workOrderId).data ?? [];
+  const query = useInstalledUsageWarnings(workOrderId);
+  if (query.isError) return <ListState variant="error" quiet title={t('usage.warningLoadError', 'Material usage warnings are unavailable.')} onRetry={() => void query.refetch()} />;
+  const rows = query.data ?? [];
   if (rows.length === 0) return null;
   const fmt = (n: number) => formatQuantity(String(n), getNumberLocale());
   return (
