@@ -1,6 +1,7 @@
 import { supabase } from '@/src/lib/supabase/client';
 import { nullableArg } from './nullableArg';
 import { AppError } from '@/src/lib/appError';
+import { priceSource } from '@/src/lib/priceReadPath';
 
 /**
  * Purchase types (#2697, migrations 1350-1352; spec docs/specs/purchase-type-rental-extension.spec.md).
@@ -84,8 +85,8 @@ export async function getRentalLinks(procurementId: string, extendsId: string | 
   type Row = { id: string; title: string; rental_from: string | null; rental_to: string | null; status: string };
   const map = (r: Row): RentalLink => ({ id: r.id, title: r.title, rentalFrom: r.rental_from, rentalTo: r.rental_to, status: r.status });
   const [exts, parent] = await Promise.all([
-    supabase.from('procurements').select(cols).eq('extends_procurement_id', procurementId).order('rental_from', { ascending: true }).limit(50),
-    extendsId ? supabase.from('procurements').select(cols).eq('id', extendsId).limit(1) : Promise.resolve({ data: [] as Row[], error: null }),
+    supabase.from(priceSource('procurements') as 'procurements').select(cols).eq('extends_procurement_id', procurementId).order('rental_from', { ascending: true }).limit(50),
+    extendsId ? supabase.from(priceSource('procurements') as 'procurements').select(cols).eq('id', extendsId).limit(1) : Promise.resolve({ data: [] as Row[], error: null }),
   ]);
   if (exts.error) fail(exts.error);
   if (parent.error) fail(parent.error);

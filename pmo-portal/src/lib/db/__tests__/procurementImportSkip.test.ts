@@ -1,4 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { setHidePricesActive } from '@/src/lib/priceReadPath';
 
 /**
  * AC-IDEM-006 (real lookup) — proves the LIVE supabaseImportSkipLookup builds the correct
@@ -54,6 +55,7 @@ function colFilters(calls: Call[]): string[] {
 }
 
 describe('supabaseImportSkipLookup.findExistingCase — AC-IDEM-006 (real lookup)', () => {
+  afterEach(() => setHidePricesActive(false));
   beforeEach(() => {
     fromCalls.length = 0;
   });
@@ -75,6 +77,16 @@ describe('supabaseImportSkipLookup.findExistingCase — AC-IDEM-006 (real lookup
     currentBuilder = makeFakeBuilder(null);
     const result = await supabaseImportSkipLookup.findExistingCase('CASE-NEW', 'batch-1');
     expect(result).toBeNull();
+  });
+
+  it('uses the masked procurement view for a price-hidden requester', async () => {
+    setHidePricesActive(true);
+    currentBuilder = makeFakeBuilder({ id: 'proc-1' });
+
+    await supabaseImportSkipLookup.findExistingCase('CASE-1', 'batch-1');
+
+    expect(fromCalls).toEqual(['procurements_masked']);
+    expect(currentBuilder.calls.find((call) => call.method === 'select')?.args).toEqual(['id']);
   });
 });
 

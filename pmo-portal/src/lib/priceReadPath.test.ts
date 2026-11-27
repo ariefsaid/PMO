@@ -33,6 +33,12 @@ describe('AC-003 (#2699) setting on: the request screens read the masked views',
     expect(maskSelection('invoices:procurement_invoices(*, voider:profiles!x(full_name))')).toBe('invoices:procurement_invoices_masked(*, voider:profiles!x(full_name))');
     expect(priceEmbed('payments', 'amount')).toBe('payments:payments_masked(amount)');
   });
+
+  it('preserves PostgREST foreign-key and join hints when rewriting an embed', () => {
+    setHidePricesActive(true);
+    expect(maskSelection('purchase_orders!inner(id, procurements!purchase_orders_procurement_id_fkey!inner(title))'))
+      .toBe('purchase_orders:purchase_orders_masked!inner(id, procurements:procurements_masked!purchase_orders_procurement_id_fkey!inner(title))');
+  });
 });
 
 describe('#2788 planned equipment rates follow the read path', () => {

@@ -41,7 +41,7 @@ interface DraftLine {
   id: string;
   name: string;
   quantity: number;
-  rate: number;
+  rate: number | null;
   amount: number | null;
   description: string | null;
   stockItemId?: string | null;
@@ -269,14 +269,14 @@ export default function ProcurementCreate() {
     return standardChoices;
   }, [canCaptureDocuments, realRole, t]);
 
-  const makeDraftLine = (line: { name: string; quantity: number; rate: number; description?: string; stockItemId?: string | null }): DraftLine => ({
+  const makeDraftLine = (line: { name: string; quantity: number; rate: number | null; description?: string; stockItemId?: string | null }): DraftLine => ({
     ...line,
     stock_item_id: line.stockItemId ?? null,
     id: crypto.randomUUID(),
-    amount: itemsNetTotal([{ quantity: line.quantity, rate: line.rate }]),
+    amount: line.rate === null ? null : itemsNetTotal([{ quantity: line.quantity, rate: line.rate }]),
     description: line.description ?? null,
   });
-  const addLine = async (line: { name: string; quantity: number; rate: number; description?: string; stockItemId?: string | null }) => {
+  const addLine = async (line: { name: string; quantity: number; rate: number | null; description?: string; stockItemId?: string | null }) => {
     const row = makeDraftLine(line);
     setLines((current) => [...current, row]);
     return row;
@@ -285,7 +285,7 @@ export default function ProcurementCreate() {
     setLines((current) => current.map((line) => {
       if (line.id !== id) return line;
       const updated = { ...line, ...patch, ...(patch.stockItemId !== undefined ? { stock_item_id: patch.stockItemId } : {}), quantity: patch.quantity ?? line.quantity, rate: patch.rate ?? line.rate };
-      return { ...updated, amount: itemsNetTotal([{ quantity: updated.quantity, rate: updated.rate }]) };
+      return { ...updated, amount: updated.rate === null ? null : itemsNetTotal([{ quantity: updated.quantity, rate: updated.rate }]) };
     }));
   };
   const removeLine = async (id: string) => setLines((current) => current.filter((line) => line.id !== id));

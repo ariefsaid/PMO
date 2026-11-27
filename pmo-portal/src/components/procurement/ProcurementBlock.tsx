@@ -1,3 +1,4 @@
+import { WithheldPrice } from '@/src/components/ui/WithheldPrice';
 import React, { useCallback, useDeferredValue, useMemo, useState } from 'react';
 import { useMayOrderPurchases } from '@/src/hooks/useOrderJobRoles';
 import { Avatar } from '@/src/components/ui/Avatar';
@@ -841,6 +842,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
 
   return (
     <div className="space-y-4">
+      {!maySeePrices && data && <WithheldPrice />}
       {isPending ? (
         <div className={projectId ? undefined : 'rounded-lg border border-border bg-card'}><ListState variant="loading" rows={3} /></div>
       ) : !isError && data && (
@@ -1182,7 +1184,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
                       <span className="min-w-0">
                         <span className="block text-foreground">{item.name}{item.description ? ` · ${item.description}` : ''}</span>
                         <span className="block tabular text-muted-foreground">
-                          {canSeeMoney
+                          {canSeeMoney && item.rate != null
                             ? `${formatQuantity(String(item.quantity), getNumberLocale())} × ${formatCurrency(Number(item.rate), drawerDetails!.currency ?? selected.currency)}`
                             : formatQuantity(String(item.quantity), getNumberLocale())}
                         </span>

@@ -1,3 +1,5 @@
+import { WithheldPrice } from '@/src/components/ui/WithheldPrice';
+import { useMaySeePrices } from '@/src/hooks/useHidePrices';
 import { stockUnitCode } from "@/src/lib/i18n/stockUnitLabel";
 import React, { useCallback, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
@@ -39,6 +41,7 @@ const compareBalanceRows = (a: StockOnHandRow, b: StockOnHandRow): number =>
 
 const StockOnHand: React.FC = () => {
   const { t } = useTranslation('stock');
+  const maySeePrices = useMaySeePrices();
   const may = usePermission();
   const woTransfers = useOrgSwitch('stockWoTransfers').data === true;   // the move between work orders starts here too, not only under Documents
   const { realRole, effectiveRole } = useEffectiveRole();
@@ -108,7 +111,7 @@ const StockOnHand: React.FC = () => {
   const pageRows = rows.slice((page - 1) * pageSize, page * pageSize);
   const tagNames = useMemo(() => [...new Set(allRows.flatMap((r) => (r.tagName ? [r.tagName] : [])))].sort((a, b) => a.localeCompare(b)), [allRows]);
   // Cost columns follow the DATA, not the role: if the server omitted them they are absent, never a fabricated 0.
-  const showCost = (onHand.data ?? []).some((r) => r.valueOnHand !== undefined);
+  const showCost = maySeePrices && (onHand.data ?? []).some((r) => r.valueOnHand !== undefined);
 
   // The code is only said when two warehouses share a name.
   const sharedNames = useMemo(() => {
@@ -172,7 +175,7 @@ const StockOnHand: React.FC = () => {
         key: 'request', header: t('requestPurchase.column'), align: 'num',
         cell: (r) => {
           const b = (below.data ?? []).find((x) => x.itemId === r.itemId && x.warehouseId === r.warehouseId);
-          return b ? <Button variant="outline" size="sm" aria-label={t('requestPurchase.rowLabel', { item: r.itemCode })} onClick={() => requestPurchase(b, r.avgCost)}>{t('requestPurchase.action')}</Button> : null;
+          return b ? <Button variant="outline" size="sm" aria-label={t('requestPurchase.rowLabel', { item: r.itemCode })} onClick={() => requestPurchase(b, maySeePrices ? r.avgCost : undefined)}>{t('requestPurchase.action')}</Button> : null;
         },
       });
     }
@@ -183,7 +186,7 @@ const StockOnHand: React.FC = () => {
       });
     }
     return cols;
-  }, [t, loc, currency, showCost, sharedNames, belowOnly, canRequest, below.data, requestPurchase, rsvOn, figureOf, mayReserveAt]);
+  }, [t, loc, currency, showCost, maySeePrices, sharedNames, belowOnly, canRequest, below.data, requestPurchase, rsvOn, figureOf, mayReserveAt]);
 
   const lookupError = warehouses.isError || keepers.isError || (belowOnly && below.isError);
   const state: 'loading' | 'empty' | 'error' | undefined =
@@ -202,7 +205,7 @@ const StockOnHand: React.FC = () => {
       title={
         <>
           {t('onHand.title')}
-          {state === undefined && (
+      {state === undefined && (
             /* The count is a count OF BALANCES: the title says so, so "21" never stands alone. */
             <span className="ml-2.5 align-middle text-control font-semibold tabular-nums text-muted-foreground">
               {rows.length < allRows.length
@@ -249,7 +252,7 @@ const StockOnHand: React.FC = () => {
           )}
           <TextField label={t('onHand.filters.search')} hideLabel value={search} onChange={setSearch} placeholder={t('onHand.filters.search')} type="search" />
         </div>
-        <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+        <div className="flex w-full flex-wrap items-center gap-x-5 gap-y-2" data-testid="stock-onhand-toolbar-controls">
           {/* The shared Checkbox carries its own visible words inside the hit target (A2's `children`
               API), so the words toggle it and a screen reader hears the name once. The 32px box keeps
               the control's centre on the same line as the fields beside it. */}
@@ -263,6 +266,7 @@ const StockOnHand: React.FC = () => {
               {t('onHand.filters.includeZero')}
             </Checkbox>
           </div>
+          {!maySeePrices && onHand.isSuccess && <div className="ml-auto max-sm:w-full"><WithheldPrice /></div>}
         </div>
       </StockFilters>
       <div className="flex flex-col">

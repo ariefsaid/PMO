@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { setHidePricesActive } from '@/src/lib/priceReadPath';
 
 const h = vi.hoisted(() => {
   const result = { data: null as unknown, error: null as unknown };
@@ -42,6 +43,7 @@ beforeEach(() => {
   h.result.data = null;
   h.result.error = null;
 });
+afterEach(() => setHidePricesActive(false));
 
 describe('subcontract DAL (src/lib/db/subcontracts.ts)', () => {
   it('FR-SCA-050 getPoPosition calls subcontract_po_position with poId and preserves nulls on billed/payable', async () => {
@@ -85,10 +87,21 @@ describe('subcontract DAL (src/lib/db/subcontracts.ts)', () => {
     h.result.data = [{ id: 'line-1', revision: 2 }];
     const res = await listPoLines('po-1', 2);
     expect(h.from).toHaveBeenCalledWith('purchase_order_lines');
-    expect(h.chain.select).toHaveBeenCalledWith('*');
+    expect(h.chain.select).toHaveBeenCalledWith('id,org_id,po_id,boq_item_id,quantity,revision,unit,created_at');
     expect(h.chain.eq).toHaveBeenCalledWith('po_id', 'po-1');
     expect(h.chain.eq).toHaveBeenCalledWith('revision', 2);
     expect(res).toEqual([{ id: 'line-1', revision: 2 }]);
+  });
+
+  it('reads subcontract PO lines through the masked view when price hiding is active', async () => {
+    setHidePricesActive(true);
+    h.result.data = [{ id: 'line-1', revision: 2 }];
+
+    const rows = await listPoLines('po-1', 2);
+
+    expect(h.from).toHaveBeenCalledWith('purchase_order_lines_masked');
+    expect(h.chain.select).toHaveBeenCalledWith('id,org_id,po_id,boq_item_id,quantity,revision,unit,created_at');
+    expect(rows).toEqual([{ id: 'line-1', revision: 2 }]);
   });
 
   it('FR-SCA-001 setPoLines calls set_subcontract_po_lines with poId and mapped lines', async () => {

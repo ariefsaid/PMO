@@ -6,7 +6,7 @@ import {
 } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { orgDayNow } from '@/src/hooks/useOrgToday';
-import type { WorkOrderPatch, SetWorkOrderValueInput, WorkOrderRow } from '@/src/lib/db/workOrders';
+import type { WorkOrderInput, WorkOrderPatch, SetWorkOrderValueInput, WorkOrderRow } from '@/src/lib/db/workOrders';
 import type { PrepareWorkOrderAcceptanceInput, WorkOrderAcceptanceWithLines, WorkOrderLineRow } from '@/src/lib/db/workOrderAcceptances';
 import type { BoqItemRow, ProgressAssessmentInput, ProgressClaimInput, ProgressClaimWithInvoice } from '@/src/lib/db/progressBilling';
 import type { ProjectDocumentRow } from '@/src/lib/db/documents';
@@ -48,7 +48,7 @@ const WorkOrdersModals: React.FC<{
   // Modal state (closed = null/undefined, exactly as the tab holds it).
   assessOpen: boolean;
   percentOpen: boolean;
-  formFor: WorkOrderRow | undefined;
+  formFor: WorkOrderRow | null | undefined;
   linesFor: WorkOrderRow | null;
   bastFor: { row: WorkOrderRow; draft: WorkOrderAcceptanceWithLines | null } | null;
   withdrawFor: WorkOrderAcceptanceWithLines | null;
@@ -78,6 +78,7 @@ const WorkOrdersModals: React.FC<{
   onError: (err: unknown) => void;
   onClosePercent: () => void;
   onCloseForm: () => void;
+  onCreateOrder: (input: WorkOrderInput) => Promise<void>;
   onUpdateOrder: (id: string, patch: WorkOrderPatch) => Promise<void>;
   onCloseLines: () => void;
   onCreateLine: (workOrderId: string, boqItemId: string, quantity: number) => Promise<void>;
@@ -119,7 +120,7 @@ const WorkOrdersModals: React.FC<{
     canIssue, canEditLinesFor,
     onCloseAssessment, onSaveAssessment, onError,
     onClosePercent,
-    onCloseForm, onUpdateOrder,
+    onCloseForm, onCreateOrder, onUpdateOrder,
     onCloseLines, onCreateLine, onUpdateLine, onDeleteLine,
     onCloseBast, onSaveBast, onWithdrawBast, onCloseWithdraw, onConfirmBast, onCloseConfirm,
     currentValueText, onCloseValue, onSaveValue,
@@ -179,11 +180,12 @@ const WorkOrdersModals: React.FC<{
       {percentOpen && <RecordProgressModal open onClose={onClosePercent} projectId={projectId} projectName={projectName}
         defaultMonth={thisMonth()} deliveryPct={null} />}
 
-      {formFor && (
+      {formFor !== undefined && (
         <WorkOrderFormModal
           workOrder={formFor}
           currencySymbolPrefix={currencyPrefix}
           onClose={onCloseForm}
+          onCreate={onCreateOrder}
           onUpdate={onUpdateOrder}
         />
       )}

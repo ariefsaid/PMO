@@ -1,3 +1,4 @@
+import { WithheldPrice } from '@/src/components/ui/WithheldPrice';
 import { usePurchaseCaseRead } from '@/src/hooks/usePurchaseCaseRead';
 import { useMayOrderPurchases } from '@/src/hooks/useOrderJobRoles';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
@@ -552,6 +553,8 @@ const ProcurementPage: React.FC = () => {
             <ListState variant="empty" title={t('noMatch.title', 'No procurements match these filters')} sub={t('noMatch.sub', 'Clear a filter or change the search to see more procurements.')} action={{ label: t('noMatch.clear', 'Clear filters'), onClick: clearFilters }} />
           )}
 
+          {ready && tab !== 'orphans' && currentView !== 'table' && !maySeePrices && <WithheldPrice />}
+
           {ready && tab !== 'orphans' && filtered.length > 0 && currentView === 'board' && (
             <ProcurementBoard procurements={filtered} onOpen={onOpen} viewerRole={realRole as ProcurementListRole} needsYouReasons={currentNeedsReasons} homeCurrency={home} />
           )}
@@ -566,7 +569,7 @@ const ProcurementPage: React.FC = () => {
         </div>
 
         {/* Position figures come after the rows that wait on the person (screen rule: order). */}
-        {ready && (
+        {ready && maySeePrices && (
           <ProcurementKpiRow rows={all} role={realRole as ProcurementListRole} />
         )}
 

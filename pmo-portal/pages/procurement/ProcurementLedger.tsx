@@ -1,3 +1,4 @@
+import { useMaySeePrices } from '@/src/hooks/useHidePrices';
 /**
  * ProcurementLedger — the Documents tab case ledger (Slice 2).
  *
@@ -407,6 +408,7 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
   const [voidTarget, setVoidTarget] = useState<LedgerRow | null>(null);
   const focusedInvoiceTarget = useRef<HTMLElement | null>(null);
   const { t } = useTranslation(['common', 'procurement']);
+  const maySeePrices = useMaySeePrices();
   const may = usePermission();
   // Migration 0350: a role that reads no vendor bills or payments must not read their absence as "none exist".
   // Said once, only where a bill is expected (the case has reached Vendor Invoiced).
@@ -481,6 +483,7 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
   const amountColumn = useMemo<Column<LedgerRow>>(() => ({
     key: 'amount', size: 136, header: <LedgerHeader translationKey="procurementLedger.amount" fallback="Amount" />, align: 'num',
     cell: (row) => {
+      if (!maySeePrices) return <span className="text-muted-foreground">—</span>;
       if (row.amount == null && row.valueFromLines !== undefined) {
         return <span className="inline-flex flex-col items-end"><span className="whitespace-nowrap tabular-nums" data-testid="receipt-value">{formatCurrency(row.valueFromLines, row.currency)}</span><span className="text-xs text-muted-foreground">{t('procurement:ledger.valueFromLines', 'From the order lines')}</span></span>;
       }
@@ -489,7 +492,7 @@ export const ProcurementLedger: React.FC<ProcurementLedgerProps> = ({
       // The amount answers "how much": the figure, with its tax basis under it on the same right edge.
       return <span className="inline-flex min-w-0 max-w-full flex-col items-end gap-0.5 text-right max-sm:items-start max-sm:text-left"><span className="whitespace-nowrap tabular-nums">{formatCurrency(row.amount, row.currency)}</span><TaxBasisLabel treatment={row.taxTreatment} taxBaseUnknown={row.taxBaseUnknown} taxRate={row.taxRate} taxBaseNumerator={row.taxBaseNumerator} taxBaseDenominator={row.taxBaseDenominator} /></span>;
     },
-  }), [t]);
+  }), [t, maySeePrices]);
 
   // A bill's withholding answers its own question (what is withheld, what the supplier nets, is the slip on file) in its
   // own column, so the amount cell carries one figure. Only bills fill it; with no bill the column is not drawn.

@@ -1,5 +1,5 @@
 import { supabase } from '@/src/lib/supabase/client';
-import type { Tables } from '@/src/lib/supabase/database.types';
+import type { Tables, TablesInsert } from '@/src/lib/supabase/database.types';
 import { arePricesHidden, isHidePricesActive } from '@/src/lib/priceReadPath';
 import { assertWriteLanded } from '@/src/lib/appError';
 import { ProcurementError } from './procurementLifecycle';
@@ -97,10 +97,14 @@ export interface NewProcurementInput {
 export async function createProcurement(
   input: NewProcurementInput,
   requestedById: string,
-): Promise<Tables<'procurements'>> {
-  const { data, error } = await supabase
+): Promise<Pick<Tables<'procurements'>, 'id'>> {
+  // Import callers only need the id. Return the client-generated id so a price-hidden requester
+  // never asks PostgREST to return the protected raw procurement row after this insert.
+  const id = crypto.randomUUID();
+  const { error } = await supabase
     .from('procurements')
     .insert({
+      id,
       title: input.title,
       requested_by_id: requestedById,
       project_id: input.projectId,
@@ -109,11 +113,9 @@ export async function createProcurement(
       ...(input.importKey !== undefined ? { import_key: input.importKey } : {}),
       ...(input.importBatchId !== undefined ? { import_batch_id: input.importBatchId } : {}),
       ...(input.importedAt !== undefined ? { imported_at: input.importedAt } : {}),
-    })
-    .select()
-    .single();
+    });
   if (error) throwWrite(error);
-  return data as Tables<'procurements'>;
+  return { id };
 }
 
 export interface AtomicProcurementInput {
@@ -141,7 +143,7 @@ export async function createProcurementWithItems(input: AtomicProcurementInput):
       ...(input.header.disciplineId ? { discipline_id: input.header.disciplineId } : {}),
     },
     p_items: input.lines.map((line) => ({
-      id: line.id, name: line.name, quantity: line.quantity, rate: line.rate,
+      id: line.id, name: line.name, quantity: line.quantity, rate: line.rate ?? 0,
       description: line.description ?? null,
       ...(line.stockItemId ? { stock_item_id: line.stockItemId } : {}),
     })),
@@ -207,7 +209,7 @@ export interface ProcurementItemInput {
   id?: string;
   name: string;
   quantity: number;
-  rate: number;
+  rate: number | null;
   description?: string | null;
   /** Optional organisation standard item picked from `stock_items` (TC-PFE-13). */
   stockItemId?: string | null;
@@ -247,17 +249,18 @@ export async function createProcurementItem(
   input: ProcurementItemInput,
 ): Promise<ProcurementItemRow> {
   if (arePricesHidden()) return createItemPriceHidden(procurementId, input);
+  const itemInsert = {
+    ...(input.id !== undefined ? { id: input.id } : {}),
+    procurement_id: procurementId,
+    name: input.name,
+    quantity: input.quantity,
+    rate: input.rate ?? 0,
+    ...(input.description !== undefined ? { description: input.description } : {}),
+    ...(input.stockItemId !== undefined ? { stock_item_id: input.stockItemId } : {}),
+  } as unknown as TablesInsert<'procurement_items'>;
   const { data, error } = await supabase
     .from('procurement_items')
-    .insert({
-      ...(input.id !== undefined ? { id: input.id } : {}),
-      procurement_id: procurementId,
-      name: input.name,
-      quantity: input.quantity,
-      rate: input.rate,
-      ...(input.description !== undefined ? { description: input.description } : {}),
-      ...(input.stockItemId !== undefined ? { stock_item_id: input.stockItemId } : {}),
-    })
+    .insert(itemInsert)
     .select()
     .single();
   if (error?.code === '23505' && input.id !== undefined) {
@@ -270,7 +273,7 @@ export async function createProcurementItem(
     if (readError) throwWrite(readError);
     const row = existing as ProcurementItemRow | null;
     const quantity = numericAtDatabaseScale(input.quantity);
-    const rate = numericAtDatabaseScale(input.rate);
+    const rate = numericAtDatabaseScale(input.rate ?? 0);
     const matches = row !== null
       && quantity !== null && rate !== null
       && row.id === input.id
@@ -294,7 +297,7 @@ async function createItemPriceHidden(procurementId: string, input: ProcurementIt
     ...(input.id !== undefined ? { id: input.id } : {}),
     name: input.name,
     quantity: input.quantity,
-    rate: input.rate,
+    rate: input.rate ?? 0,
     ...(input.description !== undefined ? { description: input.description } : {}),
     ...(input.stockItemId !== undefined ? { stock_item_id: input.stockItemId } : {}),
   };
@@ -312,7 +315,7 @@ async function maskedItemAfterWrite(row: ProcurementItemRow): Promise<Procuremen
 }
 
 /** Patch for an existing line item — name/quantity/rate (+ optional description/stockItemId). */
-export type ProcurementItemPatch = Partial<ProcurementItemInput>;
+export type ProcurementItemPatch = Omit<Partial<ProcurementItemInput>, 'rate'> & { rate?: number };
 
 /**
  * Updates a line item by id (AC-PROC-003). org_id / amount are NEVER written.

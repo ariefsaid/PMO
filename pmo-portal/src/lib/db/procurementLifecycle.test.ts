@@ -31,6 +31,7 @@ import {
   isPreCutoverProcurement,
   ProcurementError,
 } from './procurementLifecycle';
+import { setHidePricesActive, setPricesHidden } from '@/src/lib/priceReadPath';
 
 // ---------------------------------------------------------------------------
 // Builder helpers (mirrors budgets.test.ts)
@@ -57,6 +58,8 @@ function makeFromBuilder(resolved: { data: unknown; error: unknown }) {
 }
 
 beforeEach(() => {
+  setHidePricesActive(false);
+  setPricesHidden(false);
   mockRpc.mockReset();
   mockFrom.mockReset();
   mockSelect.mockReset();
@@ -252,6 +255,18 @@ describe('getProcurementDetail', () => {
     expect(mockEq).toHaveBeenCalledWith('id', 'proc-1');
     expect(mockSingle).toHaveBeenCalled();
     expect(result).toMatchObject({ id: 'proc-1', title: 'Test Proc' });
+  });
+
+  it('#2789: a requester with hidden prices does not select quotation price rows', async () => {
+    setHidePricesActive(true);
+    setPricesHidden(true);
+    makeFromBuilder({ data: { id: 'proc-1', title: 'Test Proc', status: 'Draft' }, error: null });
+
+    const result = await getProcurementDetail('proc-1');
+
+    expect(mockFrom).toHaveBeenCalledWith('procurements_masked');
+    expect(mockSelect.mock.calls[0]?.[0]).not.toContain('quotations:procurement_quotations');
+    expect(result.quotations).toEqual([]);
   });
 
   it('AC-SEC-220 (DAL): a procurement awaiting payment carries the server payment ceiling', async () => {
