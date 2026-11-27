@@ -101,3 +101,5 @@ describe('StockTransferSend (AC-TST-023)', () => {
     expect(within(receiver).queryByRole('option', { name: 'Me' })).not.toBeInTheDocument();
   });
 });
+
+it("asks before leaving a transfer with a note", async () => { renderPage(); await userEvent.type(screen.getByRole("textbox", {name: /note/i}), "Keep this draft"); await userEvent.click(screen.getByRole("button", {name: "Cancel"})); expect(h.navigate).not.toHaveBeenCalled(); expect(screen.getByRole("button", {name: /keep editing/i})).toBeInTheDocument(); });

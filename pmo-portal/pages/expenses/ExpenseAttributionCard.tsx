@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Button, RecordSection, useToast } from '@/src/components/ui';
+import { Button, ListState, RecordSection, useToast } from '@/src/components/ui';
 import { CostAttributionFields } from '@/src/components/workOrders/CostAttributionFields';
 import { useAttributionErrorText } from '@/src/components/workOrders/costAttributionError';
 import { useProjectWorkOrders } from '@/src/hooks/useWorkOrders';
@@ -38,8 +38,8 @@ export const ExpenseAttributionCard: React.FC<Props> = ({ claim, canEdit }) => {
   });
   if (claim.kind !== 'claim' || !claim.project_id) return null;
 
-  const wo = (workOrders.data ?? []).find((w) => w.id === claim.work_order_id);
-  const disc = (disciplines.data ?? []).find((d) => d.id === claim.discipline_id);
+  const wo = (workOrders.isError ? [] : workOrders.data ?? []).find((w) => w.id === claim.work_order_id);
+  const disc = (disciplines.isError ? [] : disciplines.data ?? []).find((d) => d.id === claim.discipline_id);
   return (
     <RecordSection
       title={t('workOrderCost:expenseClaim.title', 'Work order and discipline')}
@@ -47,6 +47,8 @@ export const ExpenseAttributionCard: React.FC<Props> = ({ claim, canEdit }) => {
         <Button variant="outline" size="sm" onClick={() => setEditing(true)}>{t('workOrderCost:expenseClaim.edit', 'Change')}</Button>
       )}
     >
+      {workOrders.isError && <ListState variant="error" title={t("common:ui.errorBoundary.title", "Something went wrong")} onRetry={() => void workOrders.refetch()} />}
+      {disciplines.isError && <ListState variant="error" title={t("common:ui.errorBoundary.title", "Something went wrong")} onRetry={() => void disciplines.refetch()} />}
       {editing ? (
         <div className="flex flex-col gap-3">
           <div className="grid grid-cols-1 gap-x-4 gap-y-3.5 sm:grid-cols-2">
@@ -61,11 +63,11 @@ export const ExpenseAttributionCard: React.FC<Props> = ({ claim, canEdit }) => {
         <dl className="grid grid-cols-1 gap-x-4 gap-y-2 text-sm sm:grid-cols-2">
           <div>
             <dt className="text-muted-foreground">{t('workOrderCost:workOrder', 'Work order')}</dt>
-            <dd data-testid="expense-work-order">{claim.work_order_id ? (wo ? wo.wo_number ?? wo.title : '…') : t('workOrderCost:projectLevel', 'Project level')}</dd>
+            <dd data-testid="expense-work-order">{claim.work_order_id ? (wo ? wo.wo_number ?? wo.title : workOrders.isError ? '—' : '…') : t('workOrderCost:projectLevel', 'Project level')}</dd>
           </div>
           <div>
             <dt className="text-muted-foreground">{t('workOrderCost:discipline', 'Discipline')}</dt>
-            <dd data-testid="expense-discipline">{claim.discipline_id ? (disc ? disc.name : '…') : t('workOrderCost:noDiscipline', 'No discipline')}</dd>
+            <dd data-testid="expense-discipline">{claim.discipline_id ? (disc ? disc.name : disciplines.isError ? '—' : '…') : t('workOrderCost:noDiscipline', 'No discipline')}</dd>
           </div>
         </dl>
       )}

@@ -15,7 +15,7 @@ const h = vi.hoisted(() => {
   const mutation = () => ({ mutateAsync: vi.fn(), isPending: false });
   return {
     query: { data: undefined as SafetyDayDetail | undefined, isPending: false, isError: false, refetch: vi.fn() },
-    roster: [{ worker_id: 'w1', display_name: 'Budi' }, { worker_id: 'w2', display_name: 'Sari' }] as { worker_id: string; display_name: string }[],
+    rosterError: false, retryRoster: vi.fn(), roster: [{ worker_id: 'w1', display_name: 'Budi' }, { worker_id: 'w2', display_name: 'Sari' }] as { worker_id: string; display_name: string }[],
     lists: { check_type: [{ id: 'ct1', label: 'Breathalyser' }], permit_type: [], checklist_item: [] } as Record<string, { id: string; label: string }[]>,
     m: {
       saveFitness: mutation(), deleteFitness: mutation(), answerChecklist: mutation(), saveTalk: mutation(), deleteTalk: mutation(),
@@ -28,7 +28,7 @@ const h = vi.hoisted(() => {
 });
 vi.mock('@/src/hooks/useSafetyDays', () => ({
   useSafetyDay: () => h.query,
-  useSafetyRoster: () => ({ data: h.roster }),
+  useSafetyRoster: () => ({ data: h.roster, isError: h.rosterError, refetch: h.retryRoster }),
   useSafetyList: (kind: string) => ({ data: h.lists[kind] ?? [] }),
   useSafetyMutations: () => h.m,
 }));
@@ -66,7 +66,7 @@ const view = () => render(
   </QueryClientProvider>,
 );
 
-beforeEach(() => {
+beforeEach(() => { h.rosterError = false;
   act(() => { sonnerToast.dismiss(); }); // Sonner's store replays still-active toasts into the next Toaster — clear them.
   h.role = 'Admin';
   h.query = { data: detail(), isPending: false, isError: false, refetch: vi.fn() };
@@ -196,3 +196,7 @@ describe('SafetyDayForm', () => {
     expect((await screen.findAllByText(/Update failed/)).length).toBeGreaterThan(0);
   });
 });
+
+it("shows roster failure and prevents locking unknown readiness", async () => { h.rosterError = true; view(); expect(screen.getByRole("button", {name: /retry/i})).toBeInTheDocument(); expect(screen.getByTestId("safety-submit")).toBeDisabled(); });
+
+it("explains a failed attendance photo open", async () => { const {repositories} = await import("@/src/lib/repositories"); vi.mocked(repositories.safetyDay.photoUrl).mockRejectedValueOnce(new TypeError("Failed to fetch")); h.query.data = detail({}, {talks: [{id: "t1", topic: "PPE", presenter: "Budi", held_at: "2026-03-10T01:00:00Z", attendees: [], photos: [{id: "p1", file_path: "p.jpg"}]}]}); view(); await userEvent.click(screen.getByRole("button", {name: "Attendance photo 1"})); expect(await screen.findByText(/Update failed/i)).toBeInTheDocument(); });

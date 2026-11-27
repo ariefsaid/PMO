@@ -133,7 +133,7 @@ const EquipmentAvailabilityScreen: React.FC = () => {
         </RecordSection>
       )}
 
-      {view === 'check' && canCheck && <RentalInvoiceCheck assets={rows.filter((a) => (a as { ownership?: string }).ownership === 'rented')} today={today} monthFrom={monthFrom} canIncludeUnproven={canIncludeUnproven} statusLabel={(value) => statusLabel(t, value)} />}
+      {view === 'check' && canCheck && <RentalInvoiceCheck assets={pages.flatMap((p) => p.rows).filter((a) => (a as { ownership?: string }).ownership === 'rented')} today={today} monthFrom={monthFrom} canIncludeUnproven={canIncludeUnproven} statusLabel={(value) => statusLabel(t, value)} />}
       </RecordStack>
       {/* Organisation settings for the figures above: working hours (utilisation) and the targets (#2701). */}
       {canConfigure && <Drawer open={settingsOpen} onClose={() => setSettingsOpen(false)} title={t('equipment:availability.settings', 'Targets and hours')}>

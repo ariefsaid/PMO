@@ -1,20 +1,22 @@
+import { getActiveOrgTimezone } from "@/src/lib/locale/activeLocale";
 import React, { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button, Checkbox, RecordSection, TextField, useToast } from '@/src/components/ui';
 import { useSafetyMutations } from '@/src/hooks/useSafetyDays';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { repositories } from '@/src/lib/repositories';
-import { formatDay } from '@/src/lib/format';
+import { formatDay, zonedDatetimeLocalToInstant } from '@/src/lib/format';
 import type { RosterWorker, SafetyDayDetail, SafetyTalk } from '@/src/lib/db/safetyDays';
 import { workerName } from './partHelpers';
 
 const PhotoLink: React.FC<{ path: string; label: string }> = ({ path, label }) => {
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   return (
-    <Button variant="outline" size="sm" disabled={busy} onClick={async () => {
-      setBusy(true);
-      try { window.open(await repositories.safetyDay.photoUrl(path), '_blank', 'noopener'); } finally { setBusy(false); }
-    }}>{label}</Button>
+    <><Button variant="outline" size="sm" disabled={busy} onClick={async () => {
+      setBusy(true); setError(null);
+      try { window.open(await repositories.safetyDay.photoUrl(path), '_blank', 'noopener'); } catch (err) { setError(classifyMutationError(err).headline); } finally { setBusy(false); }
+    }}>{label}</Button>{error && <p role="alert">{error}</p>}</>
   );
 };
 
@@ -64,11 +66,12 @@ export const ToolboxPart: React.FC<{ detail: SafetyDayDetail; roster: RosterWork
   const [picked, setPicked] = useState<string[]>([]);
   const [visitor, setVisitor] = useState('');
   const attendees = [...picked.map((workerId) => ({ workerId })), ...(visitor.trim() ? [{ visitorName: visitor.trim() }] : [])];
-  const ok = topic.trim() && presenter.trim() && /^\d{2}:\d{2}$/.test(time) && attendees.length > 0;
+  const heldAt = zonedDatetimeLocalToInstant(`${detail.day.work_date}T${time}`, getActiveOrgTimezone())?.toISOString();
+  const ok = heldAt && topic.trim() && presenter.trim() && /^\d{2}:\d{2}$/.test(time) && attendees.length > 0;
 
   const save = async () => {
     try {
-      await m.saveTalk.mutateAsync({ dayId: detail.day.id, topic, presenter, heldAt: new Date(`${detail.day.work_date}T${time}:00`).toISOString(), attendees });
+      await m.saveTalk.mutateAsync({ dayId: detail.day.id, topic, presenter, heldAt: heldAt!, attendees });
       setTopic(''); setPresenter(''); setPicked([]); setVisitor('');
     } catch (err) { const { headline, detail: d } = classifyMutationError(err); toast(headline, d, 'warning'); }
   };
@@ -80,7 +83,7 @@ export const ToolboxPart: React.FC<{ detail: SafetyDayDetail; roster: RosterWork
         <form className="mt-4 grid gap-3 sm:grid-cols-2" onSubmit={(e) => { e.preventDefault(); if (ok) void save(); }}>
           <TextField label={t('toolbox.topic', 'Topic')} value={topic} onChange={setTopic} required />
           <TextField label={t('toolbox.presenter', 'Presenter')} value={presenter} onChange={setPresenter} required />
-          <TextField label={t('toolbox.time', 'Held at')} type="time" value={time} onChange={setTime} required />
+          <TextField label={t('toolbox.time', 'Held at')} type="time" value={time} onChange={setTime} required error={heldAt ? undefined : t("form.invalidWallTime", "This time does not exist in the organisation timezone")} />
           <TextField label={t('toolbox.visitor', 'Named visitor (optional)')} value={visitor} onChange={setVisitor} />
           <fieldset className="sm:col-span-2">
             <legend className="mb-1 font-medium">{t('toolbox.attendees', 'Attendees from the roster')}</legend>

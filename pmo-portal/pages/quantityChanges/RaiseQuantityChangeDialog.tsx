@@ -1,7 +1,7 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { EntityFormModal, SelectField, TextArea, TextField } from '@/src/components/ui';
+import { EntityFormModal, ListState, SelectField, TextArea, TextField } from '@/src/components/ui';
 import { useAuth } from '@/src/auth/useAuth';
 import { useProjects } from '@/src/hooks/useProjects';
 import { useOverContract, useQuantityChangeMutations, useWorkOrderRequestBudget } from '@/src/hooks/useQuantityChanges';
@@ -125,10 +125,12 @@ export const RaiseQuantityChangeDialog: React.FC<{
           {atLimit ? ` · ${t('raise.limitReached', 'This work order has reached its request limit')}` : ''}
         </p>
       )}
-      {workOrderId && !allocated.isPending && !over.isPending && eligible.length === 0 && (
+      {workOrderId && !allocated.isPending && !over.isPending && !allocated.isError && !over.isError && eligible.length === 0 && (
         <p className="text-muted-foreground">{t('raise.noLines', 'No allocated contract line on this work order is over its contract quantity')}</p>
       )}
-      {eligible.map((r) => {
+      {workOrderId && allocated.isError && <ListState variant="error" title={t("common:ui.errorBoundary.title", "Something went wrong")} onRetry={() => void allocated.refetch()} />}
+      {workOrderId && over.isError && <ListState variant="error" title={t("common:ui.errorBoundary.title", "Something went wrong")} onRetry={() => void over.refetch()} />}
+      {(!allocated.isError && !over.isError ? eligible : []).map((r) => {
         const e = errorFor(r);
         return (
           <fieldset key={r.boq_item_id} className="space-y-2 rounded-lg border border-border p-3" data-testid="qcr-raise-line">

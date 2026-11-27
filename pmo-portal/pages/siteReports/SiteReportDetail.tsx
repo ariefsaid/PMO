@@ -139,6 +139,7 @@ const SiteReportRecord: React.FC<{ detail: DsrReportDetail }> = ({ detail }) => 
   const itemById = useMemo(() => new Map(items.map((i) => [i.id, i])), [items]);
   const currency = detail.workOrder?.currency ?? 'XXX';
   const money = (v: string | number) => formatCurrency(Number(v), currency, { precision: 'minor' });
+  const ratesReady = !revenue.isPending && !revenue.isError && revenue.data !== undefined;
   const rateByLine = new Map((revenue.data ?? []).map((r) => [r.line_id, r]));
   // Saved lines carry the server's rate (live for a draft, frozen once validated); the exact total is summed here.
   const lineRevenue = dsrReportRevenue(detail.progress.map((l) => ({ quantity: l.quantity, rate: rateByLine.get(l.id)?.rate ?? null })));
@@ -215,7 +216,7 @@ const SiteReportRecord: React.FC<{ detail: DsrReportDetail }> = ({ detail }) => 
           </span>
         }
         stats={seeRevenue ? [
-          { label: t('revenue.day', 'Day revenue'), value: <span data-testid="dsr-total">{money(lineRevenue.total)}</span> },
+          { label: t('revenue.day', 'Day revenue'), value: ratesReady ? <span data-testid="dsr-total">{money(lineRevenue.total)}</span> : revenue.isError ? t("common:ui.errorBoundary.title", "Something went wrong") : t("common:ui.listState.loading", "Loading…") },
           ...(seeWorkOrderRevenue && woRevenue.data !== undefined && detail.workOrder ? [{ label: t('revenue.toDate', 'Validated to date'), value: `${money(woRevenue.data)} / ${money(detail.workOrder.orderValue)}` }] : []),
         ] : undefined}
         actions={narrow ? undefined : (
@@ -236,6 +237,7 @@ const SiteReportRecord: React.FC<{ detail: DsrReportDetail }> = ({ detail }) => 
         {report.correction_reason && <p className="text-foreground">{t('detail.correction', { defaultValue: 'Correction: {{reason}}', reason: report.correction_reason })}</p>}
       </RecordHeader>
 
+      {seeRevenue && revenue.isError && <ListState variant="error" title={t("common:ui.errorBoundary.title", "Something went wrong")} onRetry={() => void revenue.refetch()} />}
       <RecordStack>
         {report.status === 'returned' && (
           <div role="status" className="rounded-lg border border-warning/30 bg-waiting-surface px-3.5 py-3" data-testid="dsr-returned">
@@ -245,7 +247,7 @@ const SiteReportRecord: React.FC<{ detail: DsrReportDetail }> = ({ detail }) => 
         )}
 
         <RecordSection title={t('progress.title', 'Progress')} data-testid="dsr-progress">
-          {seeRevenue && lineRevenue.unratedCount > 0 && (
+          {seeRevenue && ratesReady && lineRevenue.unratedCount > 0 && (
             <p className="text-foreground">{t('progress.unrated', { defaultValue: '{{count}} lines without a rate', count: lineRevenue.unratedCount })}</p>
           )}
           {form.progress.length === 0 && !editable && <p className="text-muted-foreground">{t('progress.none', 'No progress recorded')}</p>}
@@ -259,7 +261,7 @@ const SiteReportRecord: React.FC<{ detail: DsrReportDetail }> = ({ detail }) => 
           {form.progress.length > 0 && <ul className="space-y-3">
             {form.progress.map((line, i) => {
               const saved = detail.progress[i];
-              const rated = saved && saved.work_order_line_id === line.workOrderLineId ? lineRevenue.lines[i] : undefined;
+              const rated = ratesReady && saved && saved.work_order_line_id === line.workOrderLineId ? lineRevenue.lines[i] : undefined;
               const item = itemById.get(line.workOrderLineId);
               const hasSection = (sections.data ?? []).some(s => s.sectionId) || Boolean(line.sectionId);
               return (

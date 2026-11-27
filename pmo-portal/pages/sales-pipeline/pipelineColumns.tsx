@@ -13,7 +13,7 @@ import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import type { PipelineProject } from '@/src/lib/db/dashboard';
 import {
   weightedValue,
-  daysSince,
+  daysSinceLatestTouch,
   isStaleBid,
   ATTENTION_THRESHOLD_DAYS,
 } from '../../components/salesPipeline';
@@ -197,7 +197,7 @@ export function buildPipelineColumns({
       size: 104,
       align: 'num',
       cell: (r) => {
-        const days = daysSince(r.last_update);
+        const days = daysSinceLatestTouch(r);
         if (days === null) {
           return (
             <span
@@ -231,7 +231,7 @@ export function buildPipelineColumns({
         );
       },
       exportValue: (r) => {
-        const days = daysSince(r.last_update);
+        const days = daysSinceLatestTouch(r);
         if (days === null) return '';
         return days === 0 ? 'today' : days === 1 ? '1 day ago' : `${days} days ago`;
       },

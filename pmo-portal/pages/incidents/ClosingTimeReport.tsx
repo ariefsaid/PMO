@@ -58,7 +58,7 @@ export const ClosingTimeReport: React.FC = () => {
   const may = usePermission();
   const canView = may('view', 'incident');
 
-  const { data: settings, isPending: isSettingsPending } = useIssueClosingReportSettings();
+  const { data: settings, isPending: isSettingsPending, isError: isSettingsError, refetch: retrySettings } = useIssueClosingReportSettings();
   const [preset, setPreset] = useState<DatePreset>('30d');
   const [customFrom, setCustomFrom] = useState<string>('');
   const [customTo, setCustomTo] = useState<string>('');
@@ -185,6 +185,8 @@ export const ClosingTimeReport: React.FC = () => {
     );
   }
 
+  if (isSettingsError) return <ListState variant="error" title={t("common:ui.errorBoundary.title", "Something went wrong")} onRetry={() => void retrySettings()} />;
+
   if (!settings?.enabled) {
     return (
       <div className="p-4 sm:p-6 space-y-4" data-testid="closing-report-disabled">
@@ -296,7 +298,7 @@ export const ClosingTimeReport: React.FC = () => {
       </Card>
 
       {/* Summary KPI Cards */}
-      <div className="grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-border bg-border md:grid-cols-4" data-testid="closing-report-kpis">
+      {!reportQuery.isPending && !reportQuery.isError && <div className="grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-border bg-border md:grid-cols-4" data-testid="closing-report-kpis">
         <div className="bg-card">
           <CardPad className="p-4 space-y-1">
             <span className="text-control text-muted-foreground">
@@ -350,7 +352,7 @@ export const ClosingTimeReport: React.FC = () => {
             </p>
           </CardPad>
         </div>
-      </div>
+      </div>}
 
       {/* Data Table */}
       {/* A query that never fires stays `pending` forever: only show the skeleton while a read is in flight. */}
