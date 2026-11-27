@@ -297,8 +297,9 @@ set local role authenticated;
 select is((select requested::numeric from om_material_lines('30100000-0000-0000-0000-000000001401','30100000-0000-0000-0000-000000002001')),0::numeric,'AC-003 cancelled requisition contributes no Requested quantity');
 reset role;
 -- The native reversal writes its correcting movement and immutable reversal witness.
-insert into procurements(id,org_id,title,status,currency,requested_by_id,total_value,approved_total_value,approved_by_id) values
- ('30100000-0000-0000-0000-000000009101','30100000-0000-0000-0000-00000000010a','Synthetic order receipt','Ordered','IDR','30100000-0000-0000-0000-0000000001a2',0,0,'30100000-0000-0000-0000-0000000001a1');
+insert into companies(id,org_id,name,type) values('30100000-0000-0000-0000-000000009104','30100000-0000-0000-0000-00000000010a','Synthetic supplier','Vendor');
+insert into procurements(id,org_id,title,status,currency,requested_by_id,total_value,approved_total_value,approved_by_id,vendor_id) values
+ ('30100000-0000-0000-0000-000000009101','30100000-0000-0000-0000-00000000010a','Synthetic order receipt','Ordered','IDR','30100000-0000-0000-0000-0000000001a2',0,0,'30100000-0000-0000-0000-0000000001a1','30100000-0000-0000-0000-000000009104');
 insert into purchase_orders(id,org_id,procurement_id,po_number,status,currency) values
  ('30100000-0000-0000-0000-000000009102','30100000-0000-0000-0000-00000000010a','30100000-0000-0000-0000-000000009101','OM-SYN-PO','Issued','IDR');
 insert into order_receiving_requests(id,org_id,po_id,receiver_id,warehouse_id,receipt_date,counted_lines,stock_document_id) values
