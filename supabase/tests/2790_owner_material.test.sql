@@ -258,5 +258,31 @@ select ok(light_can_see_work_order('30100000-0000-0000-0000-000000001401'),'AC-0
 select is((select count(*) from owner_material_posted_quantities),0::bigint,'AC-005 phone scope excludes material movement quantities');
 select is((select count(*) from owner_material_unallocated_totals),0::bigint,'AC-005 phone scope excludes unallocated quantities');
 reset role;
+select set_config('request.jwt.claims','{}',true);
+insert into stock_tags(id,org_id,name,zero_cost) values('30100000-0000-0000-0000-000000009001','30100000-0000-0000-0000-00000000010a','Synthetic owner tag',true);
+set local role authenticated;
+select pg_temp.act_as('30100000-0000-0000-0000-0000000001a1');
+select is((select unallocated_movement_count from om_material_rollup('30100000-0000-0000-0000-0000000001d1',1,50,'30100000-0000-0000-0000-000000001401')),0::bigint,'AC-003 bought-stock lines are excluded from owner-material unplaced count');
+reset role;
+-- This fixture changes the tag before any tagged stock is moved; use a distinct owner item.
+select set_config('request.jwt.claims','{}',true);
+insert into stock_items(id,org_id,code,name,unit_id,tag_id) values
+ ('30100000-0000-0000-0000-000000009002','30100000-0000-0000-0000-00000000010a','OWNER-ONLY','Synthetic owner item','30100000-0000-0000-0000-000000001301','30100000-0000-0000-0000-000000009001');
+set local role authenticated;
+select pg_temp.act_as('30100000-0000-0000-0000-0000000001a1');
+insert into material_docs values('owner-unallocated',create_stock_document(
+ jsonb_build_object('kind','receive','warehouse_id','30100000-0000-0000-0000-000000006001'),
+ '[{"item_id":"30100000-0000-0000-0000-000000009002","quantity":1,"unit_cost":0}]',true));
+select set_cost_attribution('stock_document',array[(select id from material_docs where kind='owner-unallocated')],'30100000-0000-0000-0000-000000001401',null);
+select is((select unallocated_movement_count from om_material_rollup('30100000-0000-0000-0000-0000000001d1',1,50,'30100000-0000-0000-0000-000000001401')),1::bigint,'AC-003 owner-supplied unplaced line is counted');
+reset role;
+update client_requisitions set status='draft' where id='30100000-0000-0000-0000-000000007001';
+set local role authenticated;
+select is((select requested::numeric from om_material_lines('30100000-0000-0000-0000-000000001401','30100000-0000-0000-0000-000000002001')),7::numeric,'AC-003 Requested retains every noncancelled requisition state');
+reset role;
+update client_requisitions set status='cancelled' where id='30100000-0000-0000-0000-000000007001';
+set local role authenticated;
+select is((select requested::numeric from om_material_lines('30100000-0000-0000-0000-000000001401','30100000-0000-0000-0000-000000002001')),0::numeric,'AC-003 cancelled requisition contributes no Requested quantity');
+reset role;
 select * from finish();
 rollback;

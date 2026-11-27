@@ -220,5 +220,17 @@ select is(om_material_import('synthetic-opening',2,
  jsonb_set(pg_temp.payload('boundary-value'),'{entities,0,lines,0,evidence,reference}',to_jsonb(repeat('X',4096))),false)->>'complete','true','AC-006 bounded scalar evidence remains accepted');
 select is(om_material_import('synthetic-opening',2,
  jsonb_set(pg_temp.payload('multibyte-value'),'{entities,0,lines,0,evidence,reference}',to_jsonb(repeat('界',1366))),false)->>'complete','false','AC-006 evidence bounds count UTF-8 bytes');
+insert into results values('partial-source',om_material_import('synthetic-opening',2,
+ jsonb_set(pg_temp.payload('partial-source'),'{entities,0}',(pg_temp.payload('partial-source')->'entities'->0)||
+ jsonb_build_object('skipped_source_rows',3,'skipped_reason_codes','["missing_unit","field_length_exceeded"]'::jsonb)),true));
+select is((select v->>'complete' from results where k='partial-source'),'true','AC-006 valid lines load with source omission metadata');
+select is((select skipped_source_rows from om_material_section_rollup('30110000-0000-0000-0000-000000001401') where section_name='North'),3,'AC-006 section read returns source rows omitted');
+select is((select skipped_reason_codes from om_material_section_rollup('30110000-0000-0000-0000-000000001401') where section_name='North'),array['missing_unit','field_length_exceeded'],'AC-006 section read returns omission reasons');
+select is((select partial_section_count from om_material_rollup('30110000-0000-0000-0000-0000000001d1',1,50,'30110000-0000-0000-0000-000000001401')),1::bigint,'AC-006 work-order read marks partial sections');
+select is(om_material_import('synthetic-opening',2,
+ jsonb_set(pg_temp.payload('partial-source'),'{entities,0}',(pg_temp.payload('partial-source')->'entities'->0)||jsonb_build_object('skipped_source_rows',0,'skipped_reason_codes','[]'::jsonb)),true)->>'complete','true','AC-006 clean reload replaces omission metadata even with identical line hashes');
+select is((select skipped_source_rows from om_material_section_rollup('30110000-0000-0000-0000-000000001401') where section_name='North'),0,'AC-006 clean reload clears omitted count');
+select is((select skipped_reason_codes from om_material_section_rollup('30110000-0000-0000-0000-000000001401') where section_name='North'),array[]::text[],'AC-006 clean reload clears omitted reasons');
+select is((select partial_section_count from om_material_rollup('30110000-0000-0000-0000-0000000001d1',1,50,'30110000-0000-0000-0000-000000001401')),0::bigint,'AC-006 clean reload clears partial work-order marker');
 select * from finish();
 rollback;
