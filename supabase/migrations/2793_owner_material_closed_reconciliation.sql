@@ -6,6 +6,7 @@
 -- 'Work order is frozen' — proven 2793_owner_material_closed_reconciliation.test.sql).
 -- Mutation: remove 'Closed' from the status list (`-- mut:material_reconciliation_closed`) and the
 -- closed-order acceptance assertions go red.
+-- drops: om_material_set_reconciliation(uuid,uuid,text) | "if v_wo.id is null or v_wo.status not in ('Draft','Issued') or v_section.archived_at is not null then" | The status check now also admits 'Closed' (restated on the next line of the body); every other check is unchanged.
 -- Rollback: supabase/migrations/rollback/2793_owner_material_closed_reconciliation_down.sql
 create or replace function public.om_material_set_reconciliation(p_section_id uuid,p_step_id uuid,p_reason text default null) returns jsonb
 language plpgsql volatile security definer set search_path=public,pg_temp as $$

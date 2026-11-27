@@ -6,6 +6,9 @@
 -- Approval routing's figures (spend_route_project_figures_core, 2769) read the by-category Actual the same way.
 -- Rows and figures are unchanged (parity proof: supabase/tests/2789_project_budget_positions_scoped.test.sql).
 -- Same signature, security invoker, owner, search_path and grants (create or replace keeps them).
+-- drops: spend_route_project_figures_core(uuid[]) | "select a.project_id," | The by-category Actual now reads the asked projects only; the figures returned are unchanged.
+-- drops: spend_route_project_figures_core(uuid[]) | "jsonb_object_agg(a.category::text, jsonb_build_object('mapped', a.mapped, 'amount', a.actuals_to_date)) as by_category" | The by-category Actual now reads the asked projects only; the figures returned are unchanged.
+-- drops: spend_route_project_figures_core(uuid[]) | "group by a.project_id" | The by-category Actual now reads the asked projects only; the figures returned are unchanged.
 -- Rollback: supabase/migrations/rollback/2789_project_budget_positions_scoped_down.sql (the 0859 and 2769 bodies verbatim).
 
 create or replace function public.project_budget_positions(p_project_ids uuid[] default null)
