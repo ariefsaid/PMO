@@ -72,6 +72,6 @@ test('JOB-SD2998 an Engineer locking a safety day is told which present workers 
     if (workOrderId) ok('work order cleanup', await svc.from('work_orders').delete().eq('id', workOrderId));
     if (projectId) ok('project cleanup', await svc.from('projects').delete().eq('id', projectId));
     if (switchTouched) ok('org switch restore', await svc.from('organizations').update({ safety_records_enabled: switchBefore ?? false }).eq('id', ORG_ID));
-    await safetyOfficer.cleanup();
+    await engineer.cleanup();
   }
 });
