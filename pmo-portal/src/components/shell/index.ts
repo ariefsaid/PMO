@@ -3,7 +3,7 @@ export { Rail } from './Rail';
 export { PhoneNavBar, type PhoneNavBarProps } from './PhoneNavBar';
 export { LegacyHomeRedirect } from './LegacyHomeRedirect';
 export { ContextBar } from './ContextBar';
-export { CommandPalette, type PaletteItem } from './CommandPalette';
+export type { PaletteItem } from './CommandPalette';
 export { Breadcrumb, type BreadcrumbPart } from './Breadcrumb';
 export { BackBar, type BackBarProps } from './BackBar';
 export {

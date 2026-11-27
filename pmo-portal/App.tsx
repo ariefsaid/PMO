@@ -34,7 +34,6 @@ import {
   AppShell,
   Rail,
   ContextBar,
-  CommandPalette,
   PhoneNavBar,
   LegacyHomeRedirect,
   modulesForRoleWithOperator,
@@ -94,6 +93,8 @@ import { usePriceVisibilitySync } from '@/src/hooks/useHidePrices';
 // ── Lazy route chunks (lazyWithPreload: each carries an idempotent preload() —
 //    #1834 fires it on nav-link hover/focus/pointerdown and on route entry, so
 //    the chunk downloads in parallel with the route's data instead of after it) ─
+// Perf: the palette and cmdk are needed only once ⌘K / Search is first used. Own chunk, mounted on first open, then kept mounted.
+const CommandPalette = lazyWithPreload(() => import('@/src/components/shell/CommandPalette').then((m) => ({ default: m.CommandPalette })));
 const TermsPage = lazyWithPreload(() => import('./pages/Terms'));
 const PrivacyPage = lazyWithPreload(() => import('./pages/Privacy'));
 const ResetPasswordPage = lazyWithPreload(() => import('@/src/auth/ResetPasswordPage'));
@@ -755,6 +756,8 @@ export const ShellChrome: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [paletteSeen, setPaletteSeen] = useState(false);
+  useEffect(() => { if (paletteOpen) setPaletteSeen(true); }, [paletteOpen]);
   const [railOpen, setRailOpen] = useState(false);
   usePriceVisibilitySync();
   const paletteTriggerRef = useRef<HTMLElement | null>(null);
@@ -1066,24 +1069,28 @@ export const ShellChrome: React.FC = () => {
         <AppRoutes />
       </AppShell>
       <SurveyHost />
-      <CommandPalette
-        open={paletteOpen}
-        items={paletteItems}
-        onClose={() => setPaletteOpen(false)}
-        returnFocusTo={paletteTriggerRef.current}
-        loading={recordSearch.nothingAnswered}
-        loadingMore={recordSearch.isPending && !recordSearch.nothingAnswered}
-        error={recordSearch.isError}
-        onRetry={recordSearch.refetch}
-        onAskAi={
-          assistantEntitled
-            ? (query) => {
-                setPaletteOpen(false);
-                openPanel(query);
-              }
-            : undefined
-        }
-      />
+      {(paletteOpen || paletteSeen) && (
+        <Suspense fallback={null}>
+          <CommandPalette
+            open={paletteOpen}
+            items={paletteItems}
+            onClose={() => setPaletteOpen(false)}
+            returnFocusTo={paletteTriggerRef.current}
+            loading={recordSearch.nothingAnswered}
+            loadingMore={recordSearch.isPending && !recordSearch.nothingAnswered}
+            error={recordSearch.isError}
+            onRetry={recordSearch.refetch}
+            onAskAi={
+              assistantEntitled
+                ? (query) => {
+                    setPaletteOpen(false);
+                    openPanel(query);
+                  }
+                : undefined
+            }
+          />
+        </Suspense>
+      )}
     </>
   );
 };
