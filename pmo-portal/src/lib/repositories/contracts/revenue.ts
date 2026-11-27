@@ -54,7 +54,6 @@ export interface RevenueRepository {
   /** List sales invoices in the caller's org (RLS scopes org). */
   listInvoices(params?: { projectId?: string; status?: SalesInvoiceRow['status']; nativeOnly?: boolean }): Promise<SalesInvoiceRow[]>;
   /** Count overdue open client invoices from a narrow projection for the navigation rail. */
-  countOverdueInvoices(today: string): Promise<number>;
   /** Dashboard: open client invoices, only the columns the overdue tile reads. */
   listOverdueInvoiceFacts(): Promise<OverdueInvoiceFact[]>;
   /** Dashboard: Paid receipts, only the columns the collected figure reads. */

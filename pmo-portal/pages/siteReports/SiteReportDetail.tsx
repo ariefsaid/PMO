@@ -12,7 +12,6 @@ import { useAuth } from '@/src/auth/useAuth';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { can } from '@/src/auth/policy';
 import { useWorkOrderSectionRollup } from '@/src/hooks/useWorkOrderSections';
-import { useProject } from '@/src/hooks/useProjects';
 import {
   useDailySiteReport, useDailySiteReportMutations, useDailySiteReportRevenue, useDsrLookups, useWorkOrderValidatedRevenue,
 } from '@/src/hooks/useDailySiteReports';
@@ -74,7 +73,7 @@ const SiteReportRecord: React.FC<{ detail: DsrReportDetail }> = ({ detail }) => 
   const jobRoleLabel = useBuiltInRoleName();
   const { report } = detail;
   const sections = useWorkOrderSectionRollup(report.work_order_id);
-  const project = useProject(report.project_id).data ?? null;
+  const project = detail.project ?? null;
   const qsReportRevenue = useOrgSwitch('qsReportRevenue').data === true;
   const ctx = { realRole, builtInRoleKey, dailyReportValidateRoles, currentUserId: userId, record: { status: report.status, qs_report_revenue_enabled: qsReportRevenue, author_id: report.author_id, project_manager_id: project?.project_manager_id ?? null } };
   const editable = (report.status === 'draft' || report.status === 'returned')
