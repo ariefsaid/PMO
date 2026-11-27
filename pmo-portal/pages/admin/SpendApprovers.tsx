@@ -190,7 +190,7 @@ const SpendApprovers: React.FC = () => {
       <>
         <ul className="divide-y divide-border rounded-lg border border-border">
           {rows.map((r) => (
-            <li key={r.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-control">
+            <li key={r.id} className="flex flex-wrap items-center justify-between gap-3 px-3 py-2 text-control">
               <span className="min-w-0">
                 <span className="font-medium">{r.fullName}</span>
                 {scope === 'org' && r.projectName && <span className="ml-2 text-muted-foreground">{r.projectName}</span>}
@@ -276,7 +276,7 @@ const SpendApprovers: React.FC = () => {
             </div>
           )}
           <div>
-            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
               <h3 className="text-control font-semibold">
                 {t('admin.spendApprovers.orgSet.title', 'Overhead and over-budget approvers')}
               </h3>
@@ -289,7 +289,7 @@ const SpendApprovers: React.FC = () => {
             {renderRows(orgRows, 'org')}
           </div>
           <div>
-            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
               <h3 className="text-control font-semibold">
                 {t('admin.spendApprovers.projectSet.title', 'Project approvers')}
               </h3>

@@ -465,6 +465,7 @@ export function DataTable<Row>({
     <div ref={rootRef} className={cn(
       !embedded && 'rounded-b-lg border border-border bg-card',
       !embedded && 'overflow-hidden',
+      embedded && '[&_[data-dt-cards]>li]:px-0',
       className,
     )}>
       {isDesktop ? (

@@ -333,7 +333,7 @@
     "accountSearch": "Search account name or number",
     "bindingRequired": "An active ERPNext connection is needed to load these choices.",
     "bindingLoadError": "Couldn't check ERPNext setup. Retry before deciding whether a connection is needed.",
-    "catalogueLoadError": "Couldn't load chart accounts",
+    "catalogueLoadError": "Accounts unavailable",
     "checkingBinding": "Checking ERPNext setup…",
     "downPaymentHeading": "Down payments",
     "downPaymentIntro": "The ERPNext item that bills a customer advance and recovers it from billing claims.",

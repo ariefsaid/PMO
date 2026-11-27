@@ -333,7 +333,7 @@
     "accountSearch": "Cari nama atau nomor akun",
     "bindingRequired": "Koneksi ERPNext aktif diperlukan untuk memuat pilihan ini.",
     "bindingLoadError": "Penyiapan ERPNext tidak dapat diperiksa. Coba lagi sebelum memutuskan apakah koneksi diperlukan.",
-    "catalogueLoadError": "Tidak dapat memuat bagan akun",
+    "catalogueLoadError": "Bagan akun tidak tersedia",
     "checkingBinding": "Memeriksa penyiapan ERPNext…",
     "downPaymentHeading": "Uang muka",
     "downPaymentIntro": "Item ERPNext untuk menagih uang muka pelanggan dan memulihkannya dari klaim penagihan.",

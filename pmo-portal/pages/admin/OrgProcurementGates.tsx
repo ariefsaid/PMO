@@ -73,7 +73,7 @@ export default function OrgProcurementGates() {
             </ul>
           )}
         {!canManage && <p className="mt-2 text-control text-muted-foreground">{t('procurement:gates.onlyAdmin', 'Only an Admin can change this.')}</p>}
-        <p role="status" className="mt-1 min-h-5 text-control text-muted-foreground">
+        <p role="status" className="mt-1 empty:hidden text-control text-muted-foreground">
           {mutation.isPending ? t('procurement:gates.saving', 'Saving…') : mutation.isSuccess ? t('procurement:gates.saved', 'Saved') : ''}
         </p>
         {saveError && <FieldError>{saveError.detail || saveError.headline}</FieldError>}

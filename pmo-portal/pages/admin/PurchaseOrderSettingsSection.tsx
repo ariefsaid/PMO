@@ -186,7 +186,7 @@ export default function PurchaseOrderSettingsSection() {
             </div>
 
             {/* Signature Blocks List */}
-            <div className="space-y-3">
+            <div className="space-y-1">
               <div>
                 <h3 className="text-sm font-semibold">
                   {t('procurement:poSettings.signatureBlocksHeading', 'Signature blocks')}

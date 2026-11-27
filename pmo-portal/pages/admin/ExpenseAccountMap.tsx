@@ -143,19 +143,19 @@ const ExpenseAccountMap: React.FC = () => {
       {/* S-12 (UX-080/RF-053): one gate banner per readiness state, each naming its own missing step.
           The map stays readable in every state; only mapping actions wait for readiness. */}
       {readiness.state === 'notConnected' && (
-        <GateNotice variant="blocked" className="mt-3">
+        <GateNotice inline variant="blocked" className="mt-3">
           <p>{t('admin.expenseMap.notReady', 'Connect ERPNext before mapping expense accounts.')}</p>
           <Link to="/administration/integrations" className={buttonClasses('outline', 'sm', 'mt-2')}>{t('admin.expenseMap.openIntegrations', 'Open integrations')}</Link>
         </GateNotice>
       )}
       {readiness.state === 'inactive' && (
-        <GateNotice variant="blocked" className="mt-3">
+        <GateNotice inline variant="blocked" className="mt-3">
           <p>{t('uxs12.expensePosting.adminInactive', 'Expense posting is off. Switch it on in Integrations, under ERPNext setup.')}</p>
           <Link to="/administration/integrations" className={buttonClasses('outline', 'sm', 'mt-2')}>{t('admin.expenseMap.openIntegrations', 'Open integrations')}</Link>
         </GateNotice>
       )}
       {readiness.state === 'unavailable' && (
-        <GateNotice variant="blocked" className="mt-3">
+        <GateNotice inline variant="blocked" className="mt-3">
           <p>{t('uxs12.expensePosting.adminUnknown', 'Couldn\'t check whether expense posting is ready. Try checking again.')}</p>
           <Button variant="outline" size="sm" className="mt-2" onClick={readiness.retry}>{t('uxs12.expensePosting.retryReadiness', 'Check again')}</Button>
         </GateNotice>
