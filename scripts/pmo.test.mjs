@@ -1042,7 +1042,7 @@ test('AC-CLI-014: profiles cannot be created or updated from the CLI', async () 
 // ── AC-CLI-007: no delete ────────────────────────────────────────────────────────────────────────
 
 test('AC-CLI-007: the CLI offers no delete — no verb, no DELETE request, a clear refusal', async () => {
-  assert.deepEqual([...COMMANDS].sort(), ['accounts', 'attribution', 'bid', 'budgets', 'connect', 'correct', 'create', 'documents', 'equipment', 'erp', 'get', 'load', 'login', 'logout', 'm365', 'org', 'purchases', 'rpc', 'stage-date', 'stages', 'tm', 'update', 'whoami']);
+  assert.deepEqual([...COMMANDS].sort(), ['accounts', 'attribution', 'bid', 'budgets', 'connect', 'correct', 'create', 'documents', 'equipment', 'erp', 'get', 'load', 'login', 'logout', 'm365', 'material', 'org', 'purchases', 'rpc', 'stage-date', 'stages', 'tm', 'update', 'whoami']);
   const fake = await fakeSupabase();
   const configDir = tmpDir();
   try {

@@ -1,0 +1,861 @@
+/**
+ * Owner-supplied material workbook loader (`pmo material load`, #3010, Contract v2 + v1.1).
+ *
+ * - Spawns an explicitly configured isolated Python venv (`-I`) to parse untrusted XLSX files
+ *   without executing formulas, macros, or external links. Never auto-installs packages.
+ * - Previews by default; only `--confirm` writes.
+ * - Step 1 (Contract v1.1): creates missing work orders via existing `import_work_orders` RPC
+ *   using explicit commercial inputs from the private mapping (never guessed).
+ * - Step 2: sends catalogue chunks (<= 500 entries) via `om_material_import`.
+ * - Step 3: sends accepted sections (1 section per call, <= 200 lines) via `om_material_import`
+ *   using Contract v2 opening stage totals + verbatim `evidence`.
+ * - Never changes `source_key` on retry; transport unknown-outcome errors halt with resume guidance.
+ *
+ * Node 22 standard library only.
+ */
+import { execFile } from 'node:child_process';
+import crypto from 'node:crypto';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+export const MATERIAL_SCHEMA_VERSION = 2;
+export const MAX_CATALOGUE_CHUNK = 500;
+export const MAX_SECTION_LINES = 200;
+export const MAX_WORK_ORDER_CHUNK = 500;
+export const DEFAULT_PYTHON_BIN = '/tmp/owner-material-loader-venv/bin/python';
+export const MATERIAL_LOAD_RPCS = Object.freeze(['om_material_config', 'om_material_import', 'import_work_orders']);
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const CURRENCY_RE = /^[A-Z]{3}$/;
+const PARSER_SCRIPT = path.join(path.dirname(fileURLToPath(import.meta.url)), 'owner-material-workbook.py');
+
+const ALLOWED_MAP_KEYS = new Set([
+  'source_key',
+  'as_of',
+  'policy',
+  'work_order_defaults',
+  'owner_warehouses',
+  'workbook',
+  'sheets',
+  'consolidations',
+  'reconciliation_scale',
+  'zero_cost_tag_id',
+  'report_path',
+]);
+
+const ALLOWED_POLICY_KEYS = new Set(['closing_conflict']);
+
+const ALLOWED_WORKBOOK_KEYS = new Set([
+  'item_list_sheet',
+  'reconciliation_sheet',
+  'rollup_sheet',
+  'validation_only_sheets',
+  'excluded_sheets',
+  'template_sheets',
+  'location_sheet',
+]);
+
+const ALLOWED_LOCATION_SHEET_KEYS = new Set([
+  'header_contains',
+  'max_header_scan_rows',
+  'two_row_marker',
+  'title_cell',
+  'excluded_columns',
+  'warehouse_band',
+  'columns',
+  'sub_header_columns',
+  'evidence_columns',
+]);
+
+const ALLOWED_WO_DEFAULT_KEYS = new Set([
+  'tax_treatment',
+  'tax_amount',
+  'order_value',
+  'currency',
+  'description',
+  'start_date',
+  'end_date',
+  'area_id',
+]);
+
+const ALLOWED_SHEET_KEYS = new Set([
+  'ignore',
+  'owner_order_number',
+  'location_name',
+  'section_code',
+  'owner_cost_code',
+  'title',
+  'as_of',
+  'receiving_location_code',
+  'reconciliation_step',
+  'order_value',
+  'tax_treatment',
+  'tax_amount',
+  'currency',
+  'description',
+  'start_date',
+  'end_date',
+  'area_id',
+]);
+
+export class MaterialLoadError extends Error {
+  /** @param {string} message @param {{exit?: number, code?: string, details?: unknown}} [opts] */
+  constructor(message, opts = {}) {
+    super(message);
+    this.exit = opts.exit ?? 2;
+    this.code = opts.code ?? 'material_load_error';
+    this.details = opts.details;
+  }
+}
+
+export class MaterialOutcomeUnknown extends Error {
+  constructor({ sourceKey, entityKey, stage }) {
+    super(
+      `The ${stage} write for '${entityKey}' may or may not have committed: the connection failed before an answer came back. ` +
+        `Re-run the identical command with the same mapping (source_key='${sourceKey}') to resume safely; never retry with a new source_key.`,
+    );
+    this.code = 'outcome_unknown';
+    this.sourceKey = sourceKey;
+    this.entityKey = entityKey;
+    this.stage = stage;
+  }
+}
+
+/** Deterministic key-sorted JSON serialization for canonical payload hashing. */
+export function canonicalJson(value) {
+  if (value === null || typeof value !== 'object') return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
+  const keys = Object.keys(value).sort();
+  return `{${keys.map((k) => `${JSON.stringify(k)}:${canonicalJson(value[k])}`).join(',')}}`;
+}
+
+export function canonicalHash(value) {
+  return crypto.createHash('sha256').update(canonicalJson(value)).digest('hex');
+}
+
+function isPlainObject(v) {
+  return v !== null && typeof v === 'object' && !Array.isArray(v);
+}
+
+function isPlaceholder(v) {
+  return typeof v === 'string' && /^REQUIRED(?:$|[\s:_-])/i.test(v.trim());
+}
+
+/**
+ * Validate the private mapping file strictly before spawning Python or calling the server.
+ * Rejects unknown keys everywhere so typos cannot silently fall back to defaults.
+ */
+export function validateMapping(mapping) {
+  const problems = [];
+  if (!isPlainObject(mapping)) {
+    return ['mapping must be a JSON object'];
+  }
+  for (const key of Object.keys(mapping)) {
+    if (!ALLOWED_MAP_KEYS.has(key)) {
+      problems.push(`unknown mapping key '${key}'`);
+    }
+  }
+  if (typeof mapping.source_key !== 'string' || !mapping.source_key.trim()) {
+    problems.push('source_key must be a non-empty string');
+  }
+  if (mapping.as_of !== undefined && (typeof mapping.as_of !== 'string' || !ISO_DATE_RE.test(mapping.as_of))) {
+    problems.push('as_of must be an ISO calendar date (YYYY-MM-DD)');
+  }
+  if (mapping.policy !== undefined) {
+    if (!isPlainObject(mapping.policy)) {
+      problems.push('policy must be an object');
+    } else {
+      for (const k of Object.keys(mapping.policy)) {
+        if (!ALLOWED_POLICY_KEYS.has(k)) problems.push(`unknown policy key '${k}'`);
+      }
+      if (
+        mapping.policy.closing_conflict !== undefined &&
+        !['refuse', 'movements_win'].includes(mapping.policy.closing_conflict)
+      ) {
+        problems.push("policy.closing_conflict must be 'refuse' or 'movements_win'");
+      }
+    }
+  }
+  if (mapping.owner_warehouses !== undefined) {
+    if (!isPlainObject(mapping.owner_warehouses)) {
+      problems.push('owner_warehouses must be an object');
+    } else {
+      for (const [header, target] of Object.entries(mapping.owner_warehouses)) {
+        if (typeof target === 'string') {
+          if (!target.trim()) problems.push(`owner_warehouses['${header}'] must be non-empty`);
+        } else if (isPlainObject(target)) {
+          if (typeof target.code !== 'string' || !target.code.trim()) {
+            problems.push(`owner_warehouses['${header}'].code must be a non-empty string`);
+          }
+        } else {
+          problems.push(`owner_warehouses['${header}'] must be a string code or {code, name}`);
+        }
+      }
+    }
+  }
+  if (mapping.work_order_defaults !== undefined) {
+    if (!isPlainObject(mapping.work_order_defaults)) {
+      problems.push('work_order_defaults must be an object');
+    } else {
+      for (const k of Object.keys(mapping.work_order_defaults)) {
+        if (!ALLOWED_WO_DEFAULT_KEYS.has(k)) problems.push(`unknown work_order_defaults key '${k}'`);
+      }
+    }
+  }
+  if (mapping.workbook !== undefined) {
+    if (!isPlainObject(mapping.workbook)) {
+      problems.push('workbook must be an object');
+    } else {
+      for (const k of Object.keys(mapping.workbook)) {
+        if (!ALLOWED_WORKBOOK_KEYS.has(k)) problems.push(`unknown workbook key '${k}'`);
+      }
+      const loc = mapping.workbook.location_sheet;
+      if (!isPlainObject(loc)) {
+        problems.push('workbook.location_sheet must be an object');
+      } else {
+        for (const k of Object.keys(loc)) {
+          if (!ALLOWED_LOCATION_SHEET_KEYS.has(k)) problems.push(`unknown workbook.location_sheet key '${k}'`);
+        }
+        if (!Array.isArray(loc.header_contains) || loc.header_contains.length === 0) {
+          problems.push('workbook.location_sheet.header_contains must be a non-empty array');
+        }
+        if (!isPlainObject(loc.columns) || !loc.columns.item_code) {
+          problems.push('workbook.location_sheet.columns.item_code is required');
+        }
+      }
+    }
+  }
+  if (mapping.sheets !== undefined) {
+    if (!isPlainObject(mapping.sheets)) {
+      problems.push('sheets must be an object');
+    } else {
+      for (const [sheetName, cfg] of Object.entries(mapping.sheets)) {
+        if (!isPlainObject(cfg)) {
+          problems.push(`sheets['${sheetName}'] must be an object`);
+          continue;
+        }
+        for (const k of Object.keys(cfg)) {
+          if (!ALLOWED_SHEET_KEYS.has(k)) problems.push(`unknown sheets['${sheetName}'] key '${k}'`);
+        }
+        if (cfg.as_of !== undefined && (typeof cfg.as_of !== 'string' || !ISO_DATE_RE.test(cfg.as_of))) {
+          problems.push(`sheets['${sheetName}'].as_of must be YYYY-MM-DD`);
+        }
+      }
+    }
+  }
+  if (mapping.zero_cost_tag_id !== undefined && !UUID_RE.test(String(mapping.zero_cost_tag_id))) {
+    problems.push('zero_cost_tag_id must be a UUID');
+  }
+  if (mapping.reconciliation_scale !== undefined) {
+    if (!Array.isArray(mapping.reconciliation_scale) || mapping.reconciliation_scale.length === 0) {
+      problems.push('reconciliation_scale must be a non-empty array');
+    } else {
+      let prevPct = 0;
+      const seenNames = new Set();
+      for (let i = 0; i < mapping.reconciliation_scale.length; i++) {
+        const s = mapping.reconciliation_scale[i];
+        if (!isPlainObject(s) || typeof s.name !== 'string' || !s.name.trim()) {
+          problems.push(`reconciliation_scale[${i}].name must be a non-empty string`);
+          continue;
+        }
+        const key = s.name.trim().toLowerCase();
+        if (seenNames.has(key)) problems.push(`reconciliation_scale duplicate step '${s.name}'`);
+        seenNames.add(key);
+        const pct = Number(s.percentage);
+        if (!Number.isFinite(pct) || pct <= prevPct || pct > 100) {
+          problems.push(`reconciliation_scale[${i}].percentage must be strictly increasing in (0, 100]`);
+        }
+        prevPct = pct;
+      }
+      if (prevPct !== 100) {
+        problems.push('reconciliation_scale must end at percentage 100');
+      }
+    }
+  }
+  return problems;
+}
+
+/**
+ * Spawn the isolated Python venv (`-I`) to parse an untrusted XLSX workbook.
+ * Never auto-installs dependencies.
+ */
+export function parseWorkbookWithPython(workbookPath, mappingPath, { pythonBin } = {}) {
+  const bin = pythonBin || process.env.PMO_OWNER_MATERIAL_PYTHON || DEFAULT_PYTHON_BIN;
+  if (!fs.existsSync(bin)) {
+    throw new MaterialLoadError(
+      `Isolated Python interpreter not found at '${bin}'. Create the venv first:\n` +
+        `  python3 -I -m venv /tmp/owner-material-loader-venv && /tmp/owner-material-loader-venv/bin/pip install -r scripts/requirements-owner-material.txt`,
+      { exit: 2, code: 'python_venv_missing' },
+    );
+  }
+  return new Promise((resolve, reject) => {
+    execFile(
+      bin,
+      ['-I', PARSER_SCRIPT, workbookPath, mappingPath],
+      { maxBuffer: 64 * 1024 * 1024 },
+      (err, stdout, stderr) => {
+        if (err) {
+          reject(
+            new MaterialLoadError(
+              `Workbook parser failed: ${stderr?.trim() || err.message}`,
+              { exit: 2, code: 'workbook_parse_failed' },
+            ),
+          );
+          return;
+        }
+        try {
+          resolve(JSON.parse(stdout));
+        } catch (parseErr) {
+          reject(
+            new MaterialLoadError(`Workbook parser returned invalid JSON: ${parseErr.message}`, {
+              exit: 2,
+              code: 'workbook_parse_invalid_json',
+            }),
+          );
+        }
+      },
+    );
+  });
+}
+
+/** Deterministic collision-checked section code from location name. */
+export function deriveSectionCode(locationName, usedCodes) {
+  const base =
+    String(locationName || 'SECTION')
+      .trim()
+      .toUpperCase()
+      .replace(/[^A-Z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '')
+      .slice(0, 28) || 'SECTION';
+  let candidate = base;
+  let suffix = 2;
+  while (usedCodes.has(candidate)) {
+    candidate = `${base.slice(0, 24)}_${suffix}`;
+    suffix += 1;
+  }
+  usedCodes.add(candidate);
+  return candidate;
+}
+
+/** Read all work orders for the project using paged GET requests. */
+async function readProjectWorkOrders(api, projectId) {
+  const pageSize = 500;
+  const rows = [];
+  for (let offset = 0; ; offset += pageSize) {
+    const q = new URLSearchParams({
+      select: 'id,wo_number,client_po_number,title,status',
+      project_id: `eq.${projectId}`,
+      order: 'id.asc',
+      limit: String(pageSize),
+      offset: String(offset),
+    });
+    const batch = await api.get('work_orders', q.toString());
+    if (!Array.isArray(batch) || batch.length === 0) break;
+    rows.push(...batch);
+    if (batch.length < pageSize) break;
+  }
+  return rows;
+}
+
+/**
+ * Match an owner order number against existing project work orders (FR-001).
+ * Matches trimmed `wo_number` OR `client_po_number`; refuses disagreement or multiple matches.
+ */
+export function matchWorkOrder(ownerOrderNumber, workOrders) {
+  const needle = String(ownerOrderNumber || '').trim();
+  const byNumber = workOrders.filter((w) => String(w.wo_number ?? '').trim() === needle && needle !== '');
+  const byClientPo = workOrders.filter((w) => String(w.client_po_number ?? '').trim() === needle && needle !== '');
+  const combinedIds = new Set([...byNumber.map((w) => w.id), ...byClientPo.map((w) => w.id)]);
+  if (combinedIds.size === 0) return { status: 'missing' };
+  if (combinedIds.size > 1) {
+    const reason =
+      byNumber.length > 0 && byClientPo.length > 0
+        ? `Owner order '${needle}' matched different work orders on wo_number vs client_po_number.`
+        : `Owner order '${needle}' matched ${combinedIds.size} work orders in this project.`;
+    return { status: 'ambiguous', reason };
+  }
+  const match = byNumber[0] ?? byClientPo[0];
+  return { status: 'matched', workOrder: match };
+}
+
+/** Build a row for `import_work_orders` from explicit mapping commercial inputs (Contract v1.1). */
+export function buildWorkOrderImportRow(ownerOrderNumber, title, mapping, sheetCfg = {}) {
+  const defaults = mapping.work_order_defaults || {};
+  const taxTreatment = sheetCfg.tax_treatment ?? defaults.tax_treatment;
+  const currency = sheetCfg.currency ?? defaults.currency;
+  const orderValue = sheetCfg.order_value ?? defaults.order_value ?? '0';
+  const taxAmount = sheetCfg.tax_amount ?? defaults.tax_amount ?? '0';
+  const problems = [];
+
+  if (!taxTreatment || typeof taxTreatment !== 'string' || !taxTreatment.trim() || isPlaceholder(taxTreatment)) {
+    problems.push(`work_order_defaults.tax_treatment is required (set explicitly in mapping) to create missing work order '${ownerOrderNumber}'`);
+  }
+  if (!currency || typeof currency !== 'string' || !CURRENCY_RE.test(currency.trim()) || isPlaceholder(currency)) {
+    problems.push(`work_order_defaults.currency must be a 3-letter ISO code (set explicitly in mapping) to create missing work order '${ownerOrderNumber}'`);
+  }
+  if (!Number.isFinite(Number(orderValue)) || Number(orderValue) < 0) {
+    problems.push(`work_order_defaults.order_value must be a non-negative number for '${ownerOrderNumber}'`);
+  }
+  if (!Number.isFinite(Number(taxAmount)) || Number(taxAmount) < 0) {
+    problems.push(`work_order_defaults.tax_amount must be a non-negative number for '${ownerOrderNumber}'`);
+  }
+  if (problems.length > 0) return { problems };
+
+  const row = {
+    title: String(title || ownerOrderNumber).trim(),
+    client_po_number: String(ownerOrderNumber).trim(),
+    order_value: Number(orderValue),
+    tax_treatment: taxTreatment.trim(),
+    tax_amount: Number(taxAmount),
+    currency: currency.trim(),
+  };
+  const description = sheetCfg.description ?? defaults.description;
+  const startDate = sheetCfg.start_date ?? defaults.start_date;
+  const endDate = sheetCfg.end_date ?? defaults.end_date;
+  const areaId = sheetCfg.area_id ?? defaults.area_id;
+  if (description) row.description = String(description).trim();
+  if (startDate) row.start_date = String(startDate).trim();
+  if (endDate) row.end_date = String(endDate).trim();
+  if (areaId) row.area_id = String(areaId).trim();
+  return { row, problems: [] };
+}
+
+function chunkArray(items, size) {
+  const chunks = [];
+  for (let i = 0; i < items.length; i += size) chunks.push(items.slice(i, i + size));
+  return chunks;
+}
+
+/** Build deterministic catalogue entities from parsed workbook + accepted sections. */
+export function buildCatalogueEntities(parsed, mapping) {
+  const entities = [];
+  const seenCat = new Set();
+  const seenWh = new Set();
+  const seenItem = new Set();
+
+  for (const cat of parsed.catalogue?.categories ?? []) {
+    if (!cat.code || seenCat.has(cat.code)) continue;
+    seenCat.add(cat.code);
+    const body = { type: 'category', code: cat.code, name: cat.name || cat.code };
+    entities.push({ entity_key: `category:${cat.code}`, hash: canonicalHash(body), ...body });
+  }
+  for (const sec of parsed.accepted_sections ?? []) {
+    for (const line of sec.lines ?? []) {
+      if (line.category_code && !seenCat.has(line.category_code)) {
+        seenCat.add(line.category_code);
+        const body = { type: 'category', code: line.category_code, name: line.category_code };
+        entities.push({ entity_key: `category:${line.category_code}`, hash: canonicalHash(body), ...body });
+      }
+    }
+  }
+
+  for (const wh of parsed.catalogue?.owner_warehouses ?? []) {
+    if (!wh.code || seenWh.has(wh.code)) continue;
+    seenWh.add(wh.code);
+    const body = { type: 'owner_warehouse', code: wh.code, name: wh.name || wh.code };
+    entities.push({ entity_key: `owner_warehouse:${wh.code}`, hash: canonicalHash(body), ...body });
+  }
+
+  const tagId = mapping.zero_cost_tag_id ?? undefined;
+  for (const item of parsed.catalogue?.items ?? []) {
+    if (!item.code || seenItem.has(item.code)) continue;
+    seenItem.add(item.code);
+    const body = {
+      type: 'item',
+      code: item.code,
+      name: item.name || item.code,
+      unit: item.unit || '',
+      ...(tagId ? { zero_cost_tag_id: tagId } : {}),
+    };
+    entities.push({ entity_key: `item:${item.code}`, hash: canonicalHash(body), ...body });
+  }
+  for (const sec of parsed.accepted_sections ?? []) {
+    for (const line of sec.lines ?? []) {
+      if (line.item_code && !seenItem.has(line.item_code)) {
+        seenItem.add(line.item_code);
+        const body = {
+          type: 'item',
+          code: line.item_code,
+          name: line.item_name || line.item_code,
+          unit: line.unit || '',
+          ...(tagId ? { zero_cost_tag_id: tagId } : {}),
+        };
+        entities.push({ entity_key: `item:${line.item_code}`, hash: canonicalHash(body), ...body });
+      }
+    }
+  }
+
+  return entities;
+}
+
+/** Build Contract v2 section entity payload with deterministic entity keys and hashes. */
+export function buildSectionEntity(section, sourceKey, sectionCode) {
+  const orderKey = String(section.owner_order_number).trim();
+  const locKey = String(section.location_name).trim().toLowerCase();
+  const sectionEntityKey = `section:${sourceKey}:${orderKey}:${locKey}`;
+
+  const lines = (section.lines ?? []).map((line) => {
+    const lineEntityKey = `line:${sourceKey}:${orderKey}:${locKey}:${line.item_code}`;
+    const lineCore = {
+      item_code: line.item_code,
+      unit: line.unit,
+      category_code: line.category_code ?? null,
+      planned: line.planned,
+      opening: line.opening,
+      evidence: line.evidence ?? {},
+      expected: line.expected,
+    };
+    return {
+      entity_key: lineEntityKey,
+      hash: canonicalHash(lineCore),
+      row: line.row,
+      ...lineCore,
+    };
+  });
+
+  const sectionCore = {
+    owner_order_number: orderKey,
+    location_name: section.location_name,
+    section_code: sectionCode,
+    owner_cost_code: section.owner_cost_code ?? null,
+    title: section.title ?? section.location_name,
+    as_of: section.as_of,
+    closing_conflict: section.closing_conflict ?? 'refuse',
+    reconciliation_step: section.reconciliation_step ?? null,
+    lines: lines.map((l) => ({ entity_key: l.entity_key, hash: l.hash })),
+  };
+
+  return {
+    entity_key: sectionEntityKey,
+    hash: canonicalHash(sectionCore),
+    sheet: section.sheet,
+    row: section.header_row ?? 7,
+    owner_order_number: orderKey,
+    location_name: section.location_name,
+    section_code: sectionCode,
+    owner_cost_code: section.owner_cost_code ?? null,
+    title: section.title ?? section.location_name,
+    as_of: section.as_of,
+    ...(section.closing_conflict ? { closing_conflict: section.closing_conflict } : {}),
+    ...(section.reconciliation_step ? { reconciliation_step: section.reconciliation_step } : {}),
+    lines,
+  };
+}
+
+/**
+ * Optional Contract v2 report: aggregate positive closing stock by (site location, item, unit)
+ * so an operator can review what to load with `load_stock_opening`. Never mixes units; never writes.
+ */
+export function buildSuggestedStockOpenings(acceptedSections) {
+  const byKey = new Map();
+  for (const sec of acceptedSections ?? []) {
+    const loc = sec.receiving_location_code || sec.location_name || 'UNMAPPED_LOCATION';
+    for (const line of sec.lines ?? []) {
+      const closing = Number(line.expected?.closing ?? 0);
+      if (!(closing > 0)) continue;
+      const key = `${loc}|${line.item_code}|${line.unit}`;
+      const existing = byKey.get(key) ?? {
+        location_code: loc,
+        item_code: line.item_code,
+        unit: line.unit,
+        quantity_milli: 0,
+      };
+      existing.quantity_milli += Math.round(closing * 1000);
+      byKey.set(key, existing);
+    }
+  }
+  return [...byKey.values()]
+    .sort((a, b) => a.location_code.localeCompare(b.location_code) || a.item_code.localeCompare(b.item_code))
+    .map(({ location_code, item_code, unit, quantity_milli }) => ({
+      location_code,
+      item_code,
+      unit,
+      closing_quantity: String(quantity_milli / 1000),
+    }));
+}
+
+async function callImportRpc(api, { sourceKey, payload, confirm, entityKey, stage }) {
+  try {
+    return await api.rpc('om_material_import', {
+      p_source_key: sourceKey,
+      p_schema_version: MATERIAL_SCHEMA_VERSION,
+      p_payload: payload,
+      p_confirm: confirm,
+    });
+  } catch (err) {
+    if (err?.status === undefined && err?.code === undefined) {
+      throw new MaterialOutcomeUnknown({ sourceKey, entityKey, stage });
+    }
+    throw err;
+  }
+}
+
+function writeReportAtomically(reportPath, report) {
+  const dir = path.dirname(reportPath);
+  fs.mkdirSync(dir, { recursive: true });
+  const tmp = `${reportPath}.${process.pid}.${crypto.randomBytes(4).toString('hex')}.tmp`;
+  fs.writeFileSync(tmp, `${JSON.stringify(report, null, 2)}\n`, { mode: 0o600, flag: 'wx' });
+  fs.renameSync(tmp, reportPath);
+}
+
+/**
+ * Execute the full owner-supplied material load workflow (preview by default; write only with `confirm: true`).
+ *
+ * @param {{
+ *   workbookPath: string,
+ *   mappingPath: string,
+ *   mapping: Record<string, any>,
+ *   projectId: string,
+ *   confirm?: boolean,
+ *   reportPath?: string,
+ *   pythonBin?: string,
+ *   target?: { url?: string, user?: string | null },
+ *   parseWorkbook?: (wbPath: string, mapPath: string, opts?: any) => Promise<any>,
+ * }} opts
+ * @param {{ get(table: string, query: string): Promise<any>, rpc(name: string, body: any): Promise<any> }} api
+ */
+export async function runMaterialLoad(opts, api) {
+  const {
+    workbookPath,
+    mappingPath,
+    mapping,
+    projectId,
+    confirm = false,
+    reportPath,
+    pythonBin,
+    target = {},
+    parseWorkbook = parseWorkbookWithPython,
+  } = opts;
+
+  if (!UUID_RE.test(String(projectId ?? ''))) {
+    throw new MaterialLoadError('--project must be a valid project UUID', { exit: 2, code: 'invalid_project_id' });
+  }
+
+  const mapProblems = validateMapping(mapping);
+  if (mapProblems.length > 0) {
+    throw new MaterialLoadError(`Mapping file has ${mapProblems.length} problem(s); nothing was sent.`, {
+      exit: 2,
+      code: 'invalid_mapping',
+      details: mapProblems,
+    });
+  }
+
+  const parsed = await parseWorkbook(workbookPath, mappingPath, { pythonBin });
+  const sourceKey = mapping.source_key.trim();
+
+  // Read server config and existing project work orders
+  const config = await api.rpc('om_material_config', {});
+  const existingWorkOrders = await readProjectWorkOrders(api, projectId);
+
+  const refusedSections = [...(parsed.refused_sections ?? [])];
+  const eligibleSections = [];
+  const missingOrdersMap = new Map(); // owner_order_number -> { title, sheetCfg }
+
+  for (const sec of parsed.accepted_sections ?? []) {
+    if ((sec.lines ?? []).length > MAX_SECTION_LINES) {
+      refusedSections.push({
+        sheet: sec.sheet,
+        owner_order_number: sec.owner_order_number,
+        location_name: sec.location_name,
+        refusals: [
+          {
+            sheet: sec.sheet,
+            row: sec.header_row ?? 7,
+            column: 'A',
+            class: 'section_row_limit_exceeded',
+            reason: `Section has ${sec.lines.length} lines, exceeding the ${MAX_SECTION_LINES}-line contract limit.`,
+          },
+        ],
+      });
+      continue;
+    }
+
+    const match = matchWorkOrder(sec.owner_order_number, existingWorkOrders);
+    if (match.status === 'ambiguous') {
+      refusedSections.push({
+        sheet: sec.sheet,
+        owner_order_number: sec.owner_order_number,
+        location_name: sec.location_name,
+        refusals: [
+          {
+            sheet: sec.sheet,
+            row: sec.header_row ?? 7,
+            column: 'G',
+            class: 'ambiguous_work_order_match',
+            reason: match.reason,
+          },
+        ],
+      });
+      continue;
+    }
+    if (match.status === 'missing') {
+      const orderKey = String(sec.owner_order_number).trim();
+      if (!missingOrdersMap.has(orderKey)) {
+        const sheetCfg = mapping.sheets?.[sec.sheet] ?? mapping.sheets?.[sec.sheet.trim()] ?? {};
+        missingOrdersMap.set(orderKey, { title: sec.title || orderKey, sheetCfg });
+      }
+    }
+    eligibleSections.push(sec);
+  }
+
+  // Step 1 (Contract v1.1): prepare / create missing work orders via import_work_orders
+  const workOrderRows = [];
+  const workOrderProblems = [];
+  for (const [ownerOrderNumber, info] of missingOrdersMap.entries()) {
+    const built = buildWorkOrderImportRow(ownerOrderNumber, info.title, mapping, info.sheetCfg);
+    if (built.problems.length > 0) {
+      workOrderProblems.push(...built.problems);
+    } else {
+      workOrderRows.push(built.row);
+    }
+  }
+  if (workOrderProblems.length > 0) {
+    throw new MaterialLoadError(
+      `Cannot create ${missingOrdersMap.size} missing work order(s) without explicit commercial inputs in mapping; nothing was written.`,
+      { exit: 2, code: 'missing_work_order_commercial_inputs', details: workOrderProblems },
+    );
+  }
+
+  const workOrdersPlan = {
+    mode: confirm ? 'confirm' : 'preview',
+    existing_count: existingWorkOrders.length,
+    to_create_count: workOrderRows.length,
+    rows: workOrderRows,
+    created: 0,
+    ids: [],
+  };
+
+  if (confirm && workOrderRows.length > 0) {
+    for (const chunk of chunkArray(workOrderRows, MAX_WORK_ORDER_CHUNK)) {
+      const res = await api.rpc('import_work_orders', { p_project: projectId, p_rows: chunk });
+      workOrdersPlan.created += Number(res?.created ?? chunk.length);
+      if (Array.isArray(res?.ids)) workOrdersPlan.ids.push(...res.ids);
+    }
+  }
+
+  // Step 2: Catalogue chunks (<= 500 entries per call)
+  const catalogueEntities = buildCatalogueEntities({ ...parsed, accepted_sections: eligibleSections }, mapping);
+  const catalogueResults = [];
+  let catalogueComplete = true;
+  let lastBatchId = null;
+
+  for (const [idx, chunk] of chunkArray(catalogueEntities, MAX_CATALOGUE_CHUNK).entries()) {
+    const res = await callImportRpc(api, {
+      sourceKey,
+      confirm,
+      entityKey: `catalogue-chunk-${idx + 1}`,
+      stage: 'catalogue',
+      payload: {
+        kind: 'catalogue',
+        project_id: projectId,
+        source_digest: parsed.source_digest,
+        entities: chunk,
+      },
+    });
+    if (res?.batch_id) lastBatchId = res.batch_id;
+    if (Array.isArray(res?.results)) catalogueResults.push(...res.results);
+    if (res?.complete === false) catalogueComplete = false;
+  }
+
+  // Step 3: Sections (1 section per call)
+  const usedSectionCodesByOrder = new Map();
+  const sectionResults = [];
+  let sectionsComplete = true;
+
+  for (const sec of eligibleSections) {
+    const orderKey = String(sec.owner_order_number).trim();
+    let used = usedSectionCodesByOrder.get(orderKey);
+    if (!used) {
+      used = new Set();
+      usedSectionCodesByOrder.set(orderKey, used);
+    }
+    const sheetCfg = mapping.sheets?.[sec.sheet] ?? mapping.sheets?.[sec.sheet.trim()] ?? {};
+    const sectionCode = sheetCfg.section_code ? String(sheetCfg.section_code).trim() : deriveSectionCode(sec.location_name, used);
+    used.add(sectionCode);
+
+    const entity = buildSectionEntity(sec, sourceKey, sectionCode);
+    const res = await callImportRpc(api, {
+      sourceKey,
+      confirm,
+      entityKey: entity.entity_key,
+      stage: 'section',
+      payload: {
+        kind: 'section',
+        project_id: projectId,
+        source_digest: parsed.source_digest,
+        entities: [entity],
+      },
+    });
+    if (res?.batch_id) lastBatchId = res.batch_id;
+    if (Array.isArray(res?.results)) sectionResults.push(...res.results);
+    if (res?.complete === false) sectionsComplete = false;
+  }
+
+  const serverRefused = [
+    ...catalogueResults.filter((r) => r.status === 'refused'),
+    ...sectionResults.filter((r) => r.status === 'refused'),
+  ];
+
+  const policyFlaggedSections = eligibleSections
+    .filter(
+      (s) =>
+        (s.policy_flags?.closing_conflicts?.length ?? 0) > 0 ||
+        (s.policy_flags?.negative_closings?.length ?? 0) > 0,
+    )
+    .map((s) => ({
+      sheet: s.sheet,
+      owner_order_number: s.owner_order_number,
+      closing_conflicts: s.policy_flags.closing_conflicts,
+      negative_closings: s.policy_flags.negative_closings,
+    }));
+
+  const complete =
+    refusedSections.length === 0 &&
+    serverRefused.length === 0 &&
+    catalogueComplete &&
+    sectionsComplete;
+
+  const report = {
+    mode: confirm ? 'confirm' : 'preview',
+    target: {
+      url: target.url ?? null,
+      project_id: projectId,
+      user: target.user ?? null,
+    },
+    source_key: sourceKey,
+    source_digest: parsed.source_digest,
+    schema_version: MATERIAL_SCHEMA_VERSION,
+    batch_id: lastBatchId,
+    policy: parsed.policy ?? { closing_conflict: mapping.policy?.closing_conflict ?? 'refuse' },
+    config_summary: {
+      categories: config?.categories?.length ?? 0,
+      owner_warehouses: config?.owner_warehouses?.length ?? 0,
+      steps: config?.steps?.length ?? 0,
+    },
+    work_orders: workOrdersPlan,
+    counts: {
+      accepted_sections: eligibleSections.length,
+      refused_sections: refusedSections.length,
+      catalogue_entities: catalogueEntities.length,
+      server_refused: serverRefused.length,
+      policy_flagged_sections: policyFlaggedSections.length,
+    },
+    catalogue_results: catalogueResults,
+    section_results: sectionResults,
+    refused_sections: refusedSections,
+    policy_flagged_sections: policyFlaggedSections,
+    suggested_stock_openings: buildSuggestedStockOpenings(eligibleSections),
+    complete,
+    ...(confirm ? {} : { next: 'Re-run with --confirm to apply the accepted records.' }),
+  };
+
+  const finalReportPath = reportPath || mapping.report_path;
+  if (finalReportPath) {
+    writeReportAtomically(finalReportPath, report);
+    report.report_path = finalReportPath;
+  }
+
+  return { report, exit: complete ? 0 : 1 };
+}

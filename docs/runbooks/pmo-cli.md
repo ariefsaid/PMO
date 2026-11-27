@@ -735,6 +735,87 @@ node scripts/pmo.mjs rpc reverse_opening_balance '{"p_id":"<opening id>"}'
 
 **Only for billing PMO will not also read from the accounting system:** load a work order's claimed quantity only for invoices that are not brought in from the connected ERP under that work order. If the ERP's invoices for the work order are mirrored into PMO, leave the claimed quantity at 0 and let the mirror carry them; loading both counts the billing twice. A corrected opening may follow a reversal on the same work order or location.
 
+### 13. Owner-supplied material workbook load (`material load`)
+
+**Goal:** load owner-supplied material opening stage totals (planned, requested, set-aside, received, issued, returned, transferred, owner return) and verbatim evidence from a client workbook once, with preview by default and repeatable reruns (#3010, Contract v2).
+
+**Who:** an active Admin. The command uses the signed-in Admin's ordinary OAuth session; it never uses a service credential and never modifies existing unrelated work orders or stock ledger rows.
+
+**One-time isolated Python setup:** the loader spawns an isolated Python interpreter (`-I`) with `openpyxl` pinned in `scripts/requirements-owner-material.txt` so untrusted workbooks are read without executing formulas, macros, or external links. The CLI never auto-installs packages.
+
+```bash
+python3 -I -m venv /tmp/owner-material-loader-venv
+/tmp/owner-material-loader-venv/bin/pip install -r scripts/requirements-owner-material.txt
+```
+
+Set `PMO_OWNER_MATERIAL_PYTHON` (or pass `--python <path>`) if your venv lives elsewhere.
+
+**Private mapping file (keep outside the repository):**
+
+```json
+{
+  "source_key": "stable-source-id-v1",
+  "as_of": "2026-11-27",
+  "policy": { "closing_conflict": "refuse" },
+  "work_order_defaults": {
+    "tax_treatment": "exclusive",
+    "tax_amount": "0",
+    "order_value": "0",
+    "currency": "IDR"
+  },
+  "owner_warehouses": {
+    "WH NORTH": { "code": "WH_NORTH", "name": "North Owner Warehouse" }
+  },
+  "workbook": {
+    "item_list_sheet": { "name": "ITEMS", "header_contains": ["ITEM_CODE"], "columns": { "item_code": "ITEM_CODE", "description": "DESC", "unit": "UNIT" } },
+    "validation_only_sheets": [],
+    "excluded_sheets": [],
+    "template_sheets": [],
+    "location_sheet": {
+      "header_contains": ["PART_NO", "DESC"],
+      "warehouse_band": { "single_row_after_fields": ["reservation_date"], "end_field": "total_set_aside" },
+      "columns": { "item_code": ["PART_NO"], "description": ["DESC"], "unit": ["UNIT"], "planned": ["PLAN_QTY"], "order_number": ["ORDER_NO"], "total_set_aside": ["SET_ASIDE_TOTAL"] },
+      "evidence_columns": { "reservation_date": ["SET_ASIDE_DATE"] }
+    }
+  },
+  "sheets": {}
+}
+```
+
+- `source_key`: stable logical source identity (never a file digest). Keep the same `source_key` across retries and reruns so identical records skip safely.
+- `as_of`: required ISO date (`YYYY-MM-DD`) for the loaded opening position (overridable per sheet under `sheets.<name>.as_of`).
+- `policy.closing_conflict`: `"refuse"` (default) refuses any line where workbook closing stock disagrees with computed closing or where computed closing is negative; `"movements_win"` loads the stage totals and flags every affected row in the report.
+- `work_order_defaults`: explicit commercial inputs (`tax_treatment`, `currency`, optional `order_value` / `tax_amount`) required when the workbook contains owner order numbers not yet in the project. Missing work orders are created first via `import_work_orders` in `Draft` status (requires organisation setup workflows enabled). Never guessed or defaulted.
+- `workbook`: defines every workbook-specific sheet name, header marker, column heading/alias, excluded column, and warehouse band so the tracked parser stays generic.
+- `owner_warehouses`: maps every normalized owner-warehouse column header discovered inside the configured `workbook.location_sheet.warehouse_band`. Unknown headers are refused, never guessed.
+
+**Exact commands:**
+
+```bash
+# 1. Confirm signed-in identity, role and target URL
+node scripts/pmo.mjs whoami
+
+# 2. Preview (default — writes nothing; writes full JSON report outside the repo)
+node scripts/pmo.mjs material load /private/material.xlsx \
+  --project <project-uuid> \
+  --map /private/material-map.json \
+  --report /private/material-load-report.json
+
+# 3. Inspect refused_sections, work_orders, policy_flagged_sections, and suggested_stock_openings.
+#    Re-run with --confirm to apply accepted records:
+node scripts/pmo.mjs material load /private/material.xlsx \
+  --project <project-uuid> \
+  --map /private/material-map.json \
+  --report /private/material-load-report.json \
+  --confirm
+```
+
+**Prerequisites & reruns:**
+- Project, units, zero-cost tag, and receiving locations must already exist. If an earlier estimated demo load posted overlapping stock documents or requisitions, reverse/cancel them through supported workflows first.
+- A second confirmed run with the identical workbook and mapping creates zero new work orders and skips every unchanged catalogue and section row. Changed planned quantities or opening totals update with `before`/`after` reported.
+- If a network failure leaves a section's write outcome unknown (`outcome_unknown`), do not change `source_key`; re-run the identical command to resume safely.
+- Exit `0` means complete (zero refused sections); exit `1` means partial/incomplete (accepted sections loaded, refused sections unwritten and listed with exact sheet/row/column coordinates); exit `2` means usage, role, or mapping error before sending anything.
+
 ## Command scope and current constraints
 
 The full shipped command list and flags are printed by `node scripts/pmo.mjs --help`. Generic `get`, `create`, `update`, and `rpc` are constrained by closed table/RPC allow-lists; do not treat them as arbitrary access. Generic `create` and `update` do not offer `--dry-run`; use an app workflow for a write that must be previewed first. `pmo load`, `pmo correct`, `pmo bid`, `purchases link`, `purchases set-aside`, `purchases attach-journals`, `purchases record-only`, `purchases undo-record-only`, `purchases import-history`, `purchases undo-import`, `purchases receive`, `purchases pay-captured`, `documents link`, `documents create`, `documents upload`, `accounts map set`, `attribution set`, every `tm` write (a preview unless `--apply`), and `org add` do support previews. The only command that deletes records is `purchases undo-import`, for the rows of one import.
