@@ -2,8 +2,7 @@ import { useEffect, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { repositories } from '@/src/lib/repositories';
 import { useAuth } from '@/src/auth/useAuth';
-import { trackOrgGroupPlan, getAnalyticsConfig } from '@/src/lib/analytics';
-import { getConsentState } from '@/src/lib/analytics/client';
+import { trackOrgGroupPlan, isAnalyticsConsentActive } from '@/src/lib/analytics';
 import { SERVER_SESSION_QUERY_OPTIONS } from '@/src/lib/queryPolicies';
 import { orgPlanGroupQueryKey } from '@/src/hooks/useOrgFeatures';
 import type { OrgPlan } from '@/src/lib/db/orgPlan';
@@ -32,7 +31,7 @@ export function useOrgPlanGroup(): void {
   const orgId = currentUser?.org_id ?? null;
   // The plan read only feeds the consent-gated group call, so it is skipped when analytics is
   // disabled, Do Not Track is set, or this browser opted out.
-  const analyticsLive = useMemo(() => getConsentState(getAnalyticsConfig()) === 'active', []);
+  const analyticsLive = useMemo(() => isAnalyticsConsentActive(), []);
   const query = useQuery<OrgPlan | null>({
     // Own key: this reader returns an `OrgPlan` OBJECT, while the Operator console's
     // `useOrgPlan` returns the assigned plan id STRING. Sharing a key made each reader install a
