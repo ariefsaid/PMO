@@ -989,7 +989,9 @@
     "signatureDate": "Tanggal",
     "section": "Pesanan pembelian",
     "off": "Cetak pesanan pembelian belum aktif. Admin mengaktifkannya di Administrasi, Akuntansi, Cetak pesanan pembelian.",
-    "discipline": "Disiplin"
+    "discipline": "Disiplin",
+    "priceMissing": "Harga belum dicatat",
+    "totalUnavailable": "Total belum tersedia: sebagian nilai baris belum dicatat"
   },
   "poSettings": {
     "heading": "Pencetakan pesanan pembelian",
@@ -1139,5 +1141,8 @@
     "differs": "Bukan {{workOrder}} milik permintaan",
     "orderDateHelp": "Wajib untuk mengirim pesanan. Mengisi semua baris.",
     "noWorkOrders": "Proyek ini belum punya perintah kerja, jadi baris tanpa perintah kerja. Manajer proyek menambahkannya di tab perintah kerja proyek."
+  },
+  "linkedDocuments": {
+    "error": "Gagal memuat dokumen akuntansi terkait"
   }
 }

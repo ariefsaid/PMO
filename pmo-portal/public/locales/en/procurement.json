@@ -989,7 +989,9 @@
     "signatureDate": "Date",
     "section": "Purchase order",
     "off": "Printing the purchase order is off. An Admin turns it on in Administration, Accounting, Purchase order printing.",
-    "discipline": "Discipline"
+    "discipline": "Discipline",
+    "priceMissing": "Price not recorded",
+    "totalUnavailable": "Total unavailable: some line amounts are missing"
   },
   "poSettings": {
     "heading": "Purchase order printing",
@@ -1139,5 +1141,8 @@
     "differs": "Not the request’s {{workOrder}}",
     "orderDateHelp": "Required to send the order. Fills every line.",
     "noWorkOrders": "No work orders on this project yet, so lines take none. A project manager adds them on the project’s Work orders tab."
+  },
+  "linkedDocuments": {
+    "error": "Couldn't load linked accounting documents"
   }
 }
