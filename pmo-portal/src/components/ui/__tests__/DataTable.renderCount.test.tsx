@@ -159,3 +159,33 @@ it('speed: fitting tables without actions do not allocate resize observers', () 
   render(<><DataTable rows={rows} columns={columns} rowKey={r => r.id} /><DataTable rows={rows} columns={columns} rowKey={r => r.id} /></>);
   expect(TestResizeObserver.instances).toHaveLength(0);
 });
+
+it('speed: an overflow-store tick leaves table row callbacks untouched', () => {
+  const metrics = stubLayout({ scrollWidth: 300, clientWidth: 300, scrollLeft: 0 });
+  TestResizeObserver.instances = [];
+  vi.stubGlobal('ResizeObserver', TestResizeObserver);
+  const rowLabel = vi.fn((r: Row) => r.name);
+  const columns: Column<Row>[] = [{ key: 'name', header: 'Name', cell: r => r.name }];
+  render(<DataTable rows={rows} columns={columns} rowKey={r => r.id} rowLabel={rowLabel} rowMenu={() => [{ label: 'Edit', onClick: vi.fn() }]} />);
+  rowLabel.mockClear();
+  metrics.clientWidth = 200;
+  act(() => TestResizeObserver.instances[0].trigger());
+  expect(screen.getByRole('button', { name: 'Scroll table right' })).toBeInTheDocument();
+  expect(rowLabel).not.toHaveBeenCalled();
+});
+
+it('speed: a resize burst reads table geometry once in the next frame', () => {
+  stubLayout({ scrollWidth: 300, clientWidth: 300, scrollLeft: 0 });
+  const callbacks: FrameRequestCallback[] = [];
+  vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => { callbacks.push(cb); return callbacks.length; });
+  vi.stubGlobal('cancelAnimationFrame', vi.fn());
+  const columns: Column<Row>[] = [{ key: 'name', header: 'Name', cell: r => r.name }];
+  render(<DataTable rows={rows} columns={columns} rowKey={r => r.id} />);
+  const width = vi.spyOn(Element.prototype, 'scrollWidth', 'get');
+  width.mockClear();
+  fireEvent(window, new Event('resize'));
+  fireEvent(window, new Event('resize'));
+  fireEvent(window, new Event('resize'));
+  act(() => callbacks.forEach(cb => cb(0)));
+  expect(width).toHaveBeenCalledTimes(1);
+});

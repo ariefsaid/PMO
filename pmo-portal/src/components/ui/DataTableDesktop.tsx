@@ -116,10 +116,11 @@ function RowMenuSeam({ store }: { store: SeamStore }) {
 function TableOverflowControls({ store, scrollportRef }: { store: SeamStore; scrollportRef: React.RefObject<HTMLDivElement | null> }) {
   const { t } = useTranslation('common');
   const visible = React.useSyncExternalStore(store.subscribe, store.get, () => false);
-  return <>    {visible && <div className="flex justify-end gap-1 border-b border-border bg-card px-2 py-1 print:hidden">
+  if (!visible) return null;
+  return <div className="flex justify-end gap-1 border-b border-border bg-card px-2 py-1 print:hidden">
       <button type="button" aria-label={t('ui:table.scrollLeft', 'Scroll table left')} className="grid size-8 place-items-center rounded border border-border hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring" onClick={() => scrollportRef.current?.scrollBy({ left: -320, behavior: 'smooth' })}><Icon name="chev" className="size-4 rotate-180" /></button>
       <button type="button" aria-label={t('ui:table.scrollRight', 'Scroll table right')} className="grid size-8 place-items-center rounded border border-border hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring" onClick={() => scrollportRef.current?.scrollBy({ left: 320, behavior: 'smooth' })}><Icon name="chev" className="size-4" /></button>
-    </div>}</>;
+    </div>;
 }
 
 function useStickyRowMenuSeam(
@@ -154,13 +155,21 @@ function useStickyRowMenuSeam(
       }
     };
     observeIfNeeded(measure());
-    const resize = () => observeIfNeeded(measure());
+    let resizeFrame: number | undefined;
+    const resize = () => {
+      if (resizeFrame !== undefined) return;
+      resizeFrame = requestAnimationFrame(() => {
+        resizeFrame = undefined;
+        observeIfNeeded(measure());
+      });
+    };
     const scroll = () => { measure(); };
     scrollport.addEventListener('scroll', scroll, { passive: true });
     window.addEventListener('resize', resize);
     return () => {
       scrollport.removeEventListener('scroll', scroll);
       window.removeEventListener('resize', resize);
+      if (resizeFrame !== undefined) cancelAnimationFrame(resizeFrame);
       observer?.disconnect();
     };
   }, [enabled, onOverflowChange, scrollportRef, tableRef, store, content]);
@@ -644,7 +653,6 @@ export function DataTableDesktop<Row>({
     onOverflowChange,
     groupedRows,
   );
-
 
   React.useLayoutEffect(() => {
     updateResizeHandlePositions();

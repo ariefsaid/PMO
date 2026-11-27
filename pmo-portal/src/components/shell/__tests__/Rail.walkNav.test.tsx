@@ -3,7 +3,7 @@
  * People first for HR, and orders itself by what the person's function does daily (HR never sees Sales or Finance).
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, useNavigate } from 'react-router';
 import React from 'react';
 import { Rail } from '../Rail';
@@ -143,9 +143,11 @@ it('speed: navigation retains the intersection observer and reveals the active l
   const observe = vi.fn();
   const disconnect = vi.fn();
   const construct = vi.fn();
+  let intersection: IntersectionObserverCallback;
   vi.stubGlobal('IntersectionObserver', class {
-    constructor() { construct(); }
+    constructor(callback: IntersectionObserverCallback) { construct(); intersection = callback; }
     observe = observe;
+    unobserve = vi.fn();
     disconnect = disconnect;
   });
   const previous = HTMLElement.prototype.scrollIntoView;
@@ -157,8 +159,18 @@ it('speed: navigation retains the intersection observer and reveals the active l
     const auth = { currentUser: { id: 'me', org_id: 'org-1', built_in_role: 'project_manager' } } as unknown as AuthContextValue;
     const page = render(<AuthContext.Provider value={auth}><MemoryRouter initialEntries={['/my-tasks']}><Navigate /><RailDrawerContext.Provider value><Rail /></RailDrawerContext.Provider></MemoryRouter></AuthContext.Provider>);
     const initial = construct.mock.calls.length;
+    const link = screen.getByRole('link', { name: 'Work order' });
+    act(() => intersection([{ target: link, intersectionRatio: 0 } as unknown as IntersectionObserverEntry], {} as IntersectionObserver));
+    expect(link).toHaveAttribute('inert');
+    expect(link.style.opacity).toBe('0');
+    act(() => intersection([{ target: link, intersectionRatio: 1 } as unknown as IntersectionObserverEntry], {} as IntersectionObserver));
+    expect(link).not.toHaveAttribute('inert');
+    expect(link.style.pointerEvents).toBe('');
+    const region = link.closest<HTMLElement>('[data-rail-scroll-region]')!;
+    region.scrollTop = 120;
     reveal.mockClear();
-    await import('@testing-library/react').then(({ act }) => act(() => go('/work-orders')));
+    await act(() => go('/work-orders'));
+    expect(region.scrollTop).toBe(120);
     expect(construct).toHaveBeenCalledTimes(initial);
     expect(reveal).toHaveBeenCalledTimes(1);
     page.unmount();

@@ -140,6 +140,9 @@ export const WorkOrdersBoard: React.FC<{ projectId?: string }> = ({ projectId })
 
   // The dashboard's head: money for the work orders in scope (one currency only; a second would need a second line per
   // figure), then the two exceptions as counts that filter the table. Scope = the project (tab or filter), not the search.
+  const mobileColumns = useMemo(() => dropBlankColumns(columns, filtered, undefined, !all.isPending)
+    .filter((column) => !['number', 'project', 'status'].includes(column.key)), [columns, filtered, all.isPending]);
+
   const scoped = useMemo(() => (values.project ? rows.filter((r) => r.project_id === values.project) : rows), [rows, values.project]);
   const tiles = useMemo<StatTile[]>(() => {
     const billed = scoped.map((r) => r.billing).filter((b): b is NonNullable<DashboardRow['billing']> => Boolean(b?.complete));
@@ -220,7 +223,7 @@ export const WorkOrdersBoard: React.FC<{ projectId?: string }> = ({ projectId })
           <StatusPill record="workOrder" state={row.status} />
         </div>}
         mobileCardDetails={(row) => <dl className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-2 text-control">
-          {dropBlankColumns(columns, filtered, undefined, !all.isPending).filter((column) => !['number', 'project', 'status'].includes(column.key)).map((column) => <React.Fragment key={column.key}>
+          {mobileColumns.map((column) => <React.Fragment key={column.key}>
             <dt className="text-muted-foreground">{column.header}</dt>
             <dd className="min-w-0 text-right tabular-nums">{column.cell(row)}</dd>
           </React.Fragment>)}

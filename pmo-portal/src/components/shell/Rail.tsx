@@ -351,7 +351,14 @@ const RailContent: React.FC<RailProps & { hasEligibleTimesheets?: boolean }> = (
     }, { root: region, threshold: [0, 0.99, 1] });
     const observeLinks = (root: ParentNode) => root.querySelectorAll('a, button').forEach(element => observer.observe(element));
     observeLinks(region);
+    // Only maintain intersection targets when entitlement/view links arrive or leave.
+    // Badge text and aria-current changes must never schedule active-link geometry work.
     const mutations = new MutationObserver(entries => {
+      for (const entry of entries) for (const node of entry.removedNodes) {
+        if (!(node instanceof HTMLElement)) continue;
+        if (node.matches('a, button')) observer.unobserve(node);
+        node.querySelectorAll('a, button').forEach(element => observer.unobserve(element));
+      }
       for (const entry of entries) for (const node of entry.addedNodes) {
         if (!(node instanceof HTMLElement)) continue;
         if (node.matches('a, button')) observer.observe(node);

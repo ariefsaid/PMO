@@ -100,3 +100,13 @@ it('keeps the selected tab entirely inside the scrolling track after a resize', 
     globalThis.ResizeObserver = previousObserver;
   }
 });
+
+it('speed: fitting first tab mount skips active-tab geometry work', () => {
+  const width = vi.spyOn(Element.prototype, 'clientWidth', 'get').mockReturnValue(390);
+  const scrollWidth = vi.spyOn(Element.prototype, 'scrollWidth', 'get').mockReturnValue(390);
+  const rect = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect');
+  try {
+    render(<Tabs items={items} value="a" onChange={() => {}} ariaLabel="Fast views" idBase="fast" />);
+    expect(rect).not.toHaveBeenCalled();
+  } finally { width.mockRestore(); scrollWidth.mockRestore(); rect.mockRestore(); }
+});
