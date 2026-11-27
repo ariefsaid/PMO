@@ -49,7 +49,7 @@ export default function OrgAttendanceTimeRoles() {
           : query.isPending ? <ListState variant="loading" rows={1} />
           : (
             <>
-              {remoteDraft.remoteChanged && <div role="status"><p>{t('common:uxs11.downPaymentRemoteChanged', 'The saved item changed. Your edit is kept; reload the saved value to discard it.')}</p><Button onClick={remoteDraft.reload}>{t('common:uxs11.reloadSaved', 'Reload saved values')}</Button></div>}
+              {remoteDraft.remoteChanged && <div role="status"><p>{t('common:uxs11.downPaymentRemoteChanged', 'The saved item changed. Your edit is kept; reload the saved value to discard it.')}</p><Button variant="outline" size="sm" onClick={remoteDraft.reload}>{t('common:uxs11.reloadSaved', 'Reload saved values')}</Button></div>}
               <RoleGroup legend={t('admin.attendanceRoles.secondLabel', 'May enter a second record')} helper={t('admin.attendanceRoles.secondHelper', 'An Admin, Executive or Project Manager always may.')}
                 value={second} onChange={setSecond} disabled={!canManage || save.isPending} />
               <RoleGroup legend={t('admin.attendanceRoles.deciderLabel', 'Decides which hours stand')} helper={t('admin.attendanceRoles.deciderHelper', "Leave empty to use today's approvers (Admin, Executive, Project Manager). Nobody decides hours they recorded.")}

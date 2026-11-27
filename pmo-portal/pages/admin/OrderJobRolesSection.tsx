@@ -65,7 +65,7 @@ export default function OrderJobRolesSection() {
           <ListState variant="loading" rows={2} />
         ) : (
           <>
-            {remoteDraft.remoteChanged && <div role="status"><p>{t('common:uxs11.downPaymentRemoteChanged', 'The saved item changed. Your edit is kept; reload the saved value to discard it.')}</p><Button onClick={remoteDraft.reload}>{t('common:uxs11.reloadSaved', 'Reload saved values')}</Button></div>}
+            {remoteDraft.remoteChanged && <div role="status"><p>{t('common:uxs11.downPaymentRemoteChanged', 'The saved item changed. Your edit is kept; reload the saved value to discard it.')}</p><Button variant="outline" size="sm" onClick={remoteDraft.reload}>{t('common:uxs11.reloadSaved', 'Reload saved values')}</Button></div>}
             {current.length === 0 ? (
               <p className="text-control text-muted-foreground">{t('orderRoles.none', 'No built-in role is named, so only the access levels above can order.')}</p>
             ) : (

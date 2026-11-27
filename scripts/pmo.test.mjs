@@ -56,11 +56,11 @@ test('a creating Project Manager defaults to themselves in CLI project creates, 
   const configDir = tmpDir();
   try {
     seedCredentials(configDir, fake.url);
-    const rows = [{ name: 'Own deal', status: 'Leads' }, { name: 'Named manager', status: 'Leads', project_manager_id: 'other-manager' }];
+    const rows = [{ name: 'Own deal', status: 'Leads' }, { name: 'Named manager', status: 'Leads', project_manager_id: 'other-manager' }, { name: 'Invalid manager', status: 'Leads', project_manager_id: 0 }];
     const result = await runCli(['create', 'projects', JSON.stringify(rows), '--url', fake.url], { configDir });
     assert.equal(result.code, 0, result.err);
     const posted = fake.requests.find(q => q.method === 'POST' && q.path === '/rest/v1/projects');
-    assert.deepEqual(JSON.parse(posted.body), [{ ...rows[0], project_manager_id: 'user-1' }, rows[1]]);
+    assert.deepEqual(JSON.parse(posted.body), [{ ...rows[0], project_manager_id: 'user-1' }, rows[1], rows[2]]);
   } finally { await fake.close(); fs.rmSync(configDir, { recursive: true, force: true }); }
 });
 

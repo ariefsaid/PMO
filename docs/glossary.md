@@ -231,7 +231,8 @@ sense. (Decided 2026-07-04; disambiguated 2026-11-03.)
 
 **Project** — the organisation's tracked engagement: a name, a lifecycle status, a client, a
 manager, a contract value and dates, to which delivery and financial records attach. Its
-sales-pipeline statuses are the **Pipeline stage** values.
+sales-pipeline statuses are the **Pipeline stage** values. When a Project Manager creates it,
+the manager defaults to that person unless another is chosen (DD-R1127-1).
 
 **Pipeline stage** — a project status used in the sales pipeline, with an organisation-configured
 probability of winning.
