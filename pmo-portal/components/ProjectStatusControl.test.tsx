@@ -55,7 +55,7 @@ const wonProject = {
 };
 
 // useToast requires a ToastProvider ancestor (PR1-PR3 toast-on-resolve).
-const renderControl = (project: typeof negotiationProject | typeof wonProject) =>
+const renderControl = (project: React.ComponentProps<typeof ProjectStatusControl>['project']) =>
   render(
     <ToastProvider>
       <ProjectStatusControl project={project} />
