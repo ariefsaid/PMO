@@ -76,7 +76,7 @@ const CostLeftOutView: React.FC<{ data: WorkOrderCostLeftOut }> = ({ data }) => 
         className="inline-flex items-center gap-1.5 text-control text-muted-foreground hover:text-foreground"
         data-testid="wo-cost-left-out-toggle"
       >
-        <Icon name={open ? 'down' : 'chev'} size={14} aria-hidden />
+        <Icon name={open ? 'down' : 'chev'} className="size-3.5" />
         <span>{summaryLabel}</span>
       </button>
 
