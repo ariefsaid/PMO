@@ -1,3 +1,5 @@
+import { workOrderEarnedBilledQuery } from '@/src/lib/routeQueries/useEarnedBilled';
+export { workOrderEarnedBilledQuery } from '@/src/lib/routeQueries/useEarnedBilled';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/src/auth/useAuth';
 import { earnedBilledRepository } from '@/src/lib/repositories/earnedBilled';
@@ -5,11 +7,6 @@ import { workOrderFinanceRepository } from '@/src/lib/repositories/workOrderFina
 import { useOrgQuery } from '@/src/hooks/useOrgQuery';
 
 /** #2733: earned and billed per work order; only asked for while the organisation setting is on. */
-export const workOrderEarnedBilledQuery = (orgId: string | undefined, projectId: string, enabled = true) => ({
-  queryKey: ['earned-billed', orgId, projectId],
-  queryFn: () => earnedBilledRepository.workOrders(projectId),
-  enabled: enabled && Boolean(orgId) && Boolean(projectId),
-});
 
 export function useWorkOrderEarnedBilled(projectId: string, enabled: boolean) {
   return useQuery(workOrderEarnedBilledQuery(useAuth().currentUser?.org_id, projectId, enabled));

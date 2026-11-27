@@ -21,7 +21,10 @@ beforeEach(() => {
 it('starts independent authorized reads before the page mounts and seeds the leaf cache', async () => {
   const client = new QueryClient({ defaultOptions: { queries: { staleTime: 45_000, retry: false } } });
   preloadProjectOverview(client, 'org', 'p', { may: () => true, realRole: 'Finance' });
-  await vi.waitFor(() => expect(reads.overview).toHaveBeenCalledOnce());
+  // Navigation starts these calls in this same turn, before any chunk promise resolves.
+  expect(reads.project).toHaveBeenCalledOnce();
+  expect(reads.overview).toHaveBeenCalledOnce();
+  expect(reads.positions).toHaveBeenCalledOnce();
   expect(reads.project).toHaveBeenCalledWith('p');
   expect(reads.positions).toHaveBeenCalledWith(['p']);
   expect(reads.tasks).not.toHaveBeenCalled();
