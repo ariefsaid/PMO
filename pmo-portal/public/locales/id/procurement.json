@@ -337,6 +337,7 @@
       "title": "Belum ada pengadaan.",
       "scopeNote": "Pembelian yang hanya tercatat di sistem akuntansi tidak tercantum di sini."
     },
+    "showMore": "Tampilkan lebih banyak",
     "inStage": "Di tahap",
     "inStageDays_one": "{{count}} hari",
     "inStageDays_other": "{{count}} hari",

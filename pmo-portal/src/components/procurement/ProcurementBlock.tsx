@@ -129,6 +129,9 @@ export const ProcurementList: React.FC<ProcurementListProps> = ({ label, rows, c
   </section>
 );
 
+/** Rows drawn at a time on the company-wide list (a window over the whole set, not a server page). */
+const COMPANY_LIST_WINDOW = 50;
+
 type DecisionTarget = 'Approved' | 'Rejected' | 'Cancelled';
 type PendingDecision = { rows: ProcurementWithRefs[]; target: DecisionTarget };
 type CurrencyTotal = { currency: string; value: number };
@@ -426,12 +429,30 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
     });
   }, [rows, selectedStage, categoryFilter, ownerFilter, deferredSearch, sort, categoryLabel, derivationFor]);
 
+  // The company list draws 50 rows at a time; search, sort, select-all and the stage band still read the whole set.
+  // A change of filter, search or sort starts again at the first 50.
+  const [drawn, setDrawn] = useState(COMPANY_LIST_WINDOW);
+  React.useEffect(() => { setDrawn(COMPANY_LIST_WINDOW); }, [selectedStage, categoryFilter, ownerFilter, deferredSearch, sort, rowFilter, rowOrder]);
+  const windowed = !projectId && filteredRows.length > drawn;
+  const drawnRows = useMemo(() => (windowed ? filteredRows.slice(0, drawn) : filteredRows), [windowed, filteredRows, drawn]);
+
   const selectedRows = rows.filter((row) => selectedIds.has(row.id));
   const visibleIds = filteredRows.map((row) => row.id);
   const allVisibleSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedIds.has(id));
   const projectCurrency = project?.currency ?? rows[0]?.currency ?? null;
   const totalsByStage = useMemo(() => stageTotals(rows, canSeeMoney, derivationFor, projectCurrency), [rows, canSeeMoney, derivationFor, projectCurrency]);
 
+  // The header checkbox acts on the rows the table was handed; with a window that is 50 of the matching set, so a
+  // multi-row change (select all / clear all) is widened to every matching row, as it was before the window.
+  const onSelectionChange = (next: Set<string>) => {
+    if (!windowed) return setSelectedIds(next);
+    const drawnIds = drawnRows.map((row) => row.id);
+    const added = drawnIds.filter((id) => next.has(id) && !selectedIds.has(id));
+    const removed = drawnIds.filter((id) => !next.has(id) && selectedIds.has(id));
+    if (added.length > 1) return setSelectedIds(new Set([...next, ...visibleIds]));
+    if (removed.length > 1) return setSelectedIds(new Set([...next].filter((id) => !visibleIds.includes(id))));
+    setSelectedIds(next);
+  };
   const toggleVisibleSelection = () => setSelectedIds((current) => {
     const next = new Set(current);
     if (allVisibleSelected) visibleIds.forEach((id) => next.delete(id));
@@ -892,7 +913,11 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
 
       <ProcurementList
         label={heading}
-        rows={filteredRows}
+        rows={drawnRows}
+        total={windowed ? filteredRows.length : undefined}
+        hasMore={windowed}
+        onLoadMore={() => setDrawn((n) => n + COMPANY_LIST_WINDOW)}
+        loadMoreLabel={t('procurement.showMore', 'Show more')}
         columns={columns}
         embedded={false}
         bareEmpty={!hasUnfilteredRows}
@@ -930,7 +955,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = React.memo(func
           );
         }}
         selectedKey={selected?.id}
-        selection={{ selectedIds, onChange: setSelectedIds, rowLabel: (row) => t('projectDetail.procurement.selection.selectRow', 'Select {{name}}', { name: row.title }) }}
+        selection={{ selectedIds, onChange: onSelectionChange, rowLabel: (row) => t('projectDetail.procurement.selection.selectRow', 'Select {{name}}', { name: row.title }) }}
         sort={sort}
         onSort={onSort}
         tableId={projectId ? 'project-procurement' : 'company-procurement'}
