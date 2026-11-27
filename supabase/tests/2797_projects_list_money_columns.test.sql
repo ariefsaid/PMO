@@ -3,7 +3,7 @@
 -- ways for every seeded project and every fixture project, as every calling role and as a second organisation, and
 -- EXCEPT must be empty in both directions. A figure the set read does not return, or returns extra, fails here.
 begin;
-select plan(177);
+select plan(184);
 
 -- Old bodies, verbatim from before 2797 (held_many 2690 head, open_commitments 0723, get_projects_delivery 1971, get_projects_money_collection 2768).
 create or replace function pg_temp.old_ledger_held_many(p_ids uuid[])
@@ -325,38 +325,6 @@ begin
    order by proj.id;
 end $function$;
 
-CREATE OR REPLACE FUNCTION public.project_erp_journal_lines(p_project_id uuid)
- RETURNS TABLE(erp_doctype text, voucher_no text, project_id uuid, account text, category budget_category, posting_date date, amount numeric, currency text, remarks text, party text, is_cancelled boolean, erp_url text, link_id uuid, procurement_id uuid, procurement_title text, possibly_reversed boolean)
- LANGUAGE sql
- STABLE SECURITY DEFINER
- SET search_path = public, pg_catalog, pg_temp
-AS $function$
-  select q.* from (with ln as (select * from public.erp_journal_cost_lines(public.auth_org_id(), p_project_id))
-  select l.erp_doctype, l.voucher_no, l.project_id, l.account, l.category, l.posting_date, l.amount,
-         o.default_currency, l.remarks, l.party, l.is_cancelled,
-         case when b.site_url is null then null
-              when b.external_tier = 'erpnext' then rtrim(b.site_url, '/') || '/app/journal-entry/' || l.voucher_no
-              end,
-         k.id, k.procurement_id, pr.title,
-         k.id is not null and not l.is_cancelled and exists (
-           select 1 from ln r where r.account = l.account and r.voucher_no <> l.voucher_no
-              and r.amount < 0 and not r.is_cancelled and r.posting_date >= l.posting_date)
-    from ln l
-    join public.organizations o on o.id = public.auth_org_id()
-    left join public.external_org_bindings b
-      on b.org_id = o.id and b.external_tier = case when l.erp_doctype = 'account.move' then 'odoo' else 'erpnext' end
-     and b.activated_at is not null
-    left join public.erp_journal_line_links k
-      on k.org_id = o.id and k.erp_doctype = l.erp_doctype and k.voucher_no = l.voucher_no
-     and k.project_id = l.project_id and k.account = l.account
-    left join public.procurements pr on pr.id = k.procurement_id
-   where public.is_active_member()
-     and public.auth_role() in ('Admin','Executive','Project Manager','Finance')
-     and public.org_reads_erp_ledger()
-     and public.project_money_in_scope(p_project_id)
-   order by l.posting_date desc, l.voucher_no, l.account
-) q where public.assert_not_light()
-$function$;
 
 grant execute on function pg_temp.old_ledger_held_many(uuid[]), pg_temp.old_open_commitments(uuid[]),
   pg_temp.old_projects_delivery(uuid[]), pg_temp.old_money_collection(uuid[]) to authenticated;
@@ -565,16 +533,43 @@ select is((select count(*) from public.procurement_ledger_held_many((select proc
 select * from pg_temp.parity_seed();
 
 reset role;
+
+-- erp_journal_cost_lines_for(vouchers) returns exactly what the per-voucher read returns for each named voucher,
+-- as the owner (internal reads, no client grant), for every fixture project and for a voucher with no lines.
+create function pg_temp.old_lines_for(p_org uuid, p_project uuid, p_vouchers text[]) returns table (erp_doctype text, voucher_no text, project_id uuid, account text, category public.budget_category, posting_date date, amount numeric, remarks text, party text, is_cancelled boolean)
+  language sql as $$ select l.* from unnest(p_vouchers) v(no) cross join lateral public.erp_journal_cost_lines(p_org, p_project, v.no) l $$;
 select ok(not has_function_privilege('anon', 'public.get_projects_money_collection(uuid[])', 'execute')
       and has_function_privilege('authenticated', 'public.get_projects_money_collection(uuid[])', 'execute')
       and not has_function_privilege('anon', 'public.procurement_ledger_held_many(uuid[])', 'execute')
       and has_function_privilege('authenticated', 'public.procurement_ledger_held_many(uuid[])', 'execute')
       and not has_function_privilege('anon', 'public.project_mapped_actuals_for(uuid[], text)', 'execute')
-      and not has_function_privilege('authenticated', 'public.project_mapped_actuals_for(uuid[], text)', 'execute'),
+      and not has_function_privilege('authenticated', 'public.project_mapped_actuals_for(uuid[], text)', 'execute')
+      and not has_function_privilege('anon', 'public.erp_journal_cost_lines_for(uuid, uuid, text[])', 'execute')
+      and not has_function_privilege('authenticated', 'public.erp_journal_cost_lines_for(uuid, uuid, text[])', 'execute'),
   'grants: the two reads keep their signed-in-only grant; the new internal read has no client grant');
 select ok((select p.prosecdef and p.proconfig = array['search_path=public, pg_catalog, pg_temp'] from pg_proc p where p.oid = 'public.procurement_ledger_held_many(uuid[])'::regprocedure)
       and (select p.prosecdef and p.proconfig = array['search_path=public, pg_temp'] from pg_proc p where p.oid = 'public.get_projects_money_collection(uuid[])'::regprocedure),
   'definer status and search path unchanged on both reads');
+
+select is_empty($$ select * from pg_temp.old_lines_for('27970000-0000-0000-0000-0000000000e0','27970000-0000-0000-0000-0000000000d3', array['JV-1','JV-2','JV-4','JV-5','JV-none'])
+    except select * from public.erp_journal_cost_lines_for('27970000-0000-0000-0000-0000000000e0','27970000-0000-0000-0000-0000000000d3', array['JV-1','JV-2','JV-4','JV-5','JV-none']) $$,
+  'journal lines for a voucher set: old minus new is empty (project d3)');
+select is_empty($$ select * from public.erp_journal_cost_lines_for('27970000-0000-0000-0000-0000000000e0','27970000-0000-0000-0000-0000000000d3', array['JV-1','JV-2','JV-4','JV-5','JV-none'])
+    except select * from pg_temp.old_lines_for('27970000-0000-0000-0000-0000000000e0','27970000-0000-0000-0000-0000000000d3', array['JV-1','JV-2','JV-4','JV-5','JV-none']) $$,
+  'journal lines for a voucher set: new minus old is empty (project d3)');
+select is((select count(*) from public.erp_journal_cost_lines_for('27970000-0000-0000-0000-0000000000e0','27970000-0000-0000-0000-0000000000d3', array['JV-1','JV-2']))::int, 3,
+  'journal lines for a voucher set: only the named vouchers (JV-1 on two accounts, JV-2 on one)');
+select is((select count(*) from public.erp_journal_cost_lines_for('27970000-0000-0000-0000-0000000000e0','27970000-0000-0000-0000-0000000000d3', array[]::text[]))::int, 0,
+  'journal lines for a voucher set: an empty set reads nothing');
+select is_empty($$ select * from public.erp_journal_cost_lines('27970000-0000-0000-0000-0000000000e0','27970000-0000-0000-0000-0000000000d3', null)
+    except select * from public.erp_journal_cost_lines_for('27970000-0000-0000-0000-0000000000e0','27970000-0000-0000-0000-0000000000d3', null) $$,
+  'journal lines for no voucher filter: the same rows as the unfiltered per-voucher read');
+select is_empty($$ select * from pg_temp.old_lines_for('27970000-0000-0000-0000-0000000000e0','27970000-0000-0000-0000-0000000000d4', array['JV-3'])
+    except select * from public.erp_journal_cost_lines_for('27970000-0000-0000-0000-0000000000e0','27970000-0000-0000-0000-0000000000d4', array['JV-3']) $$,
+  'journal lines for a voucher set: old minus new is empty (project d4)');
+select is_empty($$ select * from pg_temp.old_lines_for('27970000-0000-0000-0000-0000000000a0','27970000-0000-0000-0000-0000000000d1', array['JV-1'])
+    except select * from public.erp_journal_cost_lines_for('27970000-0000-0000-0000-0000000000a0','27970000-0000-0000-0000-0000000000d1', array['JV-1']) $$,
+  'journal lines for a voucher set: a project with no ledger map reads nothing, as before');
 
 select * from finish();
 rollback;

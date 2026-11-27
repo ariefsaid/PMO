@@ -4,7 +4,8 @@
 --    the ids; get_projects_money_collection reads it for the requested projects instead of every project and then
 --    filtering. Internal: reachable only through the definer reads that call it (no client grant, as no new surface).
 --  * procurement_ledger_held_many: the four session helpers are evaluated once per statement, and the journal cost
---    lines are read once per organisation and project among the requested purchases' links instead of once per link.
+--    lines are read once per organisation and project (for the linked vouchers) instead of once per link, through
+--    erp_journal_cost_lines_for, an internal read with no client grant.
 -- Reverse: rollback/2797_projects_list_money_columns_down.sql.
 -- drops: get_projects_money_collection(uuid[]) | "cross join lateral public.project_mapped_actuals_all(gated.fiscal_year) a" | Read the actuals for the requested projects only.
 -- drops: procurement_ledger_held_many(uuid[]) | "select p.id," | The purchase set is selected once, with the session helpers evaluated once per statement.
@@ -14,6 +15,9 @@
 -- drops: procurement_ledger_held_many(uuid[]) | "and (auth.uid() is null" | Same filter, evaluated once per statement.
 -- drops: procurement_ledger_held_many(uuid[]) | "or public.auth_role() in ('Admin', 'Executive', 'Project Manager', 'Finance'))" | Same filter, evaluated once per statement.
 -- drops: procurement_ledger_held_many(uuid[]) | "and (auth.uid() is null or public.is_active_member())" | Same filter, evaluated once per statement.
+-- drops: procurement_ledger_held_many(uuid[]) | "+ coalesce((select sum(greatest(l.amount, 0))" | The journal sum is computed once per purchase in journal_held and added below.
+-- drops: procurement_ledger_held_many(uuid[]) | "where k.procurement_id = p.id" | Moved into journal_held.
+-- drops: procurement_ledger_held_many(uuid[]) | "and l.erp_doctype = k.erp_doctype and l.account = k.account), 0)" | Moved into journal_held, which joins on the same document type and account.
 begin;
 
 create or replace function public.project_mapped_actuals_for(p_project_ids uuid[], p_fiscal_year text DEFAULT NULL::text)
@@ -89,6 +93,56 @@ AS $function$
 $function$;
 
 revoke all on function public.project_mapped_actuals_for(uuid[], text) from public, anon, authenticated;
+
+-- erp_journal_cost_lines for a set of vouchers: the same rows the per-voucher read returns for each named voucher
+-- (the voucher filter is row-level, before the grouping), with the organisation-wide posted-journal lookup built once.
+create or replace function public.erp_journal_cost_lines_for(p_org_id uuid, p_project_id uuid, p_voucher_nos text[] DEFAULT NULL::text[])
+ RETURNS TABLE(erp_doctype text, voucher_no text, project_id uuid, account text, category budget_category, posting_date date, amount numeric, remarks text, party text, is_cancelled boolean)
+ LANGUAGE sql
+ STABLE
+ SET search_path = public, pg_catalog, pg_temp
+AS $function$
+  with map as (
+    select m.value as erp_name, min(m.key)::uuid as project_id
+      from public.external_org_bindings b, jsonb_each_text(coalesce(b.config->'project_map', '{}'::jsonb)) m
+     where b.org_id = p_org_id and b.external_tier = 'erpnext' and b.activated_at is not null
+       and m.key ~* '^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$' and m.value <> ''
+     group by m.value having count(*) = 1
+    union all
+    select pb.external_container_id, (array_agg(pb.project_id))[1]
+      from public.external_project_bindings pb
+     where pb.org_id = p_org_id and pb.external_tier = 'odoo' and pb.external_container_id <> ''
+       and exists (select 1 from public.external_org_bindings b
+                    where b.org_id = p_org_id and b.external_tier = 'odoo' and b.activated_at is not null)
+     group by pb.external_container_id having count(*) = 1
+  ), pmo_posted as (
+    select e.erp_name from public.expense_posting_erp_mirror e where e.org_id = p_org_id and e.erp_name is not null
+    union
+    select i.erp_name from public.imprest_posting_erp_mirror i where i.org_id = p_org_id and i.erp_name is not null
+    union
+    select d.erp_name from public.erp_purchase_documents d
+     where d.org_id = p_org_id and d.external_ref is not null
+       and (d.pmo_owned or d.external_ref ~ '^account\.move:' or public.erp_document_recorded_by_pmo(p_org_id, d.erp_doctype, d.erp_name))
+    union
+    select r.erp_name from public.revenue_erp_mirror r
+     where r.org_id = p_org_id and (r.pmo_owned or r.sales_invoice_id is not null or r.external_ref ~ '^account\.move:')
+  )
+  select g.voucher_type, g.voucher_no, map.project_id, g.account, cm.category,
+         min(g.posting_date),
+         coalesce(sum(coalesce(g.debit, 0) - coalesce(g.credit, 0)) filter (where not g.is_cancelled), 0),
+         string_agg(distinct nullif(btrim(g.remarks), ''), ' · '),
+         string_agg(distinct g.party, ', '),
+         bool_and(g.is_cancelled)
+    from public.erp_gl_entry_mirror g
+    join map on map.erp_name = g.project and map.project_id = p_project_id
+    join public.projects p on p.id = map.project_id and p.org_id = p_org_id
+    join public.budget_category_account_map cm on cm.org_id = g.org_id and cm.erp_account = g.account
+   where g.org_id = p_org_id and g.voucher_type in ('Journal Entry', 'account.move') and g.voucher_no <> '/'
+     and (p_voucher_nos is null or g.voucher_no = any (p_voucher_nos))
+     and not exists (select 1 from pmo_posted x where x.erp_name = g.voucher_no)
+   group by g.voucher_type, g.voucher_no, map.project_id, g.account, cm.category
+$function$;
+revoke all on function public.erp_journal_cost_lines_for(uuid, uuid, text[]) from public, anon, authenticated;
 
 CREATE OR REPLACE FUNCTION public.get_projects_money_collection(p_project_ids uuid[])
  RETURNS TABLE(project_id uuid, actuals jsonb, ledger_basis text, active_budget_amount text, active_budget_currency text, has_active_budget boolean)
@@ -241,44 +295,11 @@ begin
    order by proj.id;
 end $function$;
 
-CREATE OR REPLACE FUNCTION public.project_erp_journal_lines(p_project_id uuid)
- RETURNS TABLE(erp_doctype text, voucher_no text, project_id uuid, account text, category budget_category, posting_date date, amount numeric, currency text, remarks text, party text, is_cancelled boolean, erp_url text, link_id uuid, procurement_id uuid, procurement_title text, possibly_reversed boolean)
- LANGUAGE sql
- STABLE SECURITY DEFINER
- SET search_path = public, pg_catalog, pg_temp
-AS $function$
-  select q.* from (with ln as (select * from public.erp_journal_cost_lines(public.auth_org_id(), p_project_id))
-  select l.erp_doctype, l.voucher_no, l.project_id, l.account, l.category, l.posting_date, l.amount,
-         o.default_currency, l.remarks, l.party, l.is_cancelled,
-         case when b.site_url is null then null
-              when b.external_tier = 'erpnext' then rtrim(b.site_url, '/') || '/app/journal-entry/' || l.voucher_no
-              end,
-         k.id, k.procurement_id, pr.title,
-         k.id is not null and not l.is_cancelled and exists (
-           select 1 from ln r where r.account = l.account and r.voucher_no <> l.voucher_no
-              and r.amount < 0 and not r.is_cancelled and r.posting_date >= l.posting_date)
-    from ln l
-    join public.organizations o on o.id = public.auth_org_id()
-    left join public.external_org_bindings b
-      on b.org_id = o.id and b.external_tier = case when l.erp_doctype = 'account.move' then 'odoo' else 'erpnext' end
-     and b.activated_at is not null
-    left join public.erp_journal_line_links k
-      on k.org_id = o.id and k.erp_doctype = l.erp_doctype and k.voucher_no = l.voucher_no
-     and k.project_id = l.project_id and k.account = l.account
-    left join public.procurements pr on pr.id = k.procurement_id
-   where public.is_active_member()
-     and public.auth_role() in ('Admin','Executive','Project Manager','Finance')
-     and public.org_reads_erp_ledger()
-     and public.project_money_in_scope(p_project_id)
-   order by l.posting_date desc, l.voucher_no, l.account
-) q where public.assert_not_light()
-$function$;
-
 create or replace function public.procurement_ledger_held_many(p_ids uuid[])
  returns table(procurement_id uuid, held numeric)
  language sql
  stable security definer
- set search_path to 'public', 'pg_catalog', 'pg_temp'
+ set search_path = public, pg_catalog, pg_temp
 as $function$
   with eligible as materialized (
     select p.id, p.total_value
@@ -290,16 +311,25 @@ as $function$
   ), journal_captured as (
     select distinct r.procurement_id from public.erp_purchase_captures r
      where r.procurement_id in (select id from eligible) and r.kind = 'journal' and r.undone_at is null
-  ), -- 0687 FR-JEC-021: the journal lines a purchase is linked to, read once per organisation and project
+  ), -- 0687 FR-JEC-021: the journal lines a purchase is linked to, read once per organisation and project for its vouchers
   journal_projects as (
-    select distinct k.org_id, k.project_id
+    select k.org_id, k.project_id, array_agg(distinct k.voucher_no) as vouchers
       from public.erp_journal_line_links k
      where k.procurement_id in (select id from eligible)
        and not exists (select 1 from journal_captured c where c.procurement_id = k.procurement_id)
+     group by k.org_id, k.project_id
   ), journal_lines as materialized (
     select jp.org_id, jp.project_id, l.erp_doctype, l.voucher_no, l.account, l.amount
       from journal_projects jp
-     cross join lateral public.erp_journal_cost_lines(jp.org_id, jp.project_id, null) l
+     cross join lateral public.erp_journal_cost_lines_for(jp.org_id, jp.project_id, jp.vouchers) l
+  ), journal_held as (
+    select k.procurement_id, sum(greatest(l.amount, 0)) as amount
+      from public.erp_journal_line_links k
+      join journal_lines l
+        on l.org_id = k.org_id and l.project_id = k.project_id and l.voucher_no = k.voucher_no
+       and l.erp_doctype = k.erp_doctype and l.account = k.account
+     where k.procurement_id in (select id from eligible)
+     group by k.procurement_id
   )
   select q.* from (select p.id,
          case when exists (select 1 from journal_captured c where c.procurement_id = p.id) then p.total_value else coalesce((select sum(coalesce(d.net_total, d.grand_total))
@@ -309,14 +339,10 @@ as $function$
        + coalesce((select sum(case when i.tax_treatment = 'inclusive' then i.amount - coalesce(i.tax_amount, 0) else i.amount end)
                      from public.procurement_invoices i
                     where i.procurement_id = p.id and i.erp_docstatus = 1 and i.erp_cancelled_at is null and i.amount is not null), 0)
-       + coalesce((select sum(greatest(l.amount, 0))
-                     from public.erp_journal_line_links k
-                     join journal_lines l
-                       on l.org_id = k.org_id and l.project_id = k.project_id and l.voucher_no = k.voucher_no
-                    where k.procurement_id = p.id
-                      and l.erp_doctype = k.erp_doctype and l.account = k.account), 0)
+       + coalesce(jh.amount, 0)
        end
     from eligible p
+    left join journal_held jh on jh.procurement_id = p.id
 ) q where public.assert_not_light()
 $function$;
 
