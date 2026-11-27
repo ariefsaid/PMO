@@ -25,7 +25,7 @@ describe('dsrStockIssue DAL', () => {
     expect(await getDsrStockSettings()).toEqual({ enabled: false, items: 'all' });
     h.queue.push({ data: null, error: { message: 'nope' } });
     expect(await getDsrStockSettings()).toEqual({ enabled: false, items: 'all' });
-    h.queue.push({ data: { dsr_stock_issue: true, dsr_stock_issue_items: 'consumables' }, error: null });
+    h.queue.push({ data: [{ dsr_stock_issue: true, dsr_stock_issue_items: 'consumables' }], error: null });
     expect(await getDsrStockSettings()).toEqual({ enabled: true, items: 'consumables' });
   });
 

@@ -40,7 +40,7 @@ describe('stockWorkOrderTransfer DAL (AC-WOT-016)', () => {
   it('AC-WOT-019 the setting reads off unless the organisation turned it on, and the Admin RPC takes a boolean', async () => {
     h.queue.push({ data: null, error: null });
     expect(await getWoTransfersEnabled()).toBe(false);
-    h.queue.push({ data: { stock_wo_transfers: true }, error: null });
+    h.queue.push({ data: [{ stock_wo_transfers: true }], error: null });
     expect(await getWoTransfersEnabled()).toBe(true);
     await setWoTransfersEnabled(true);
     expect(h.rpc).toHaveBeenCalledWith('set_stock_wo_transfers', { p_on: true });

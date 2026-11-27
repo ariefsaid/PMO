@@ -3,6 +3,7 @@ import { AppError, assertWriteLanded } from '@/src/lib/appError';
 import { parseExactCents } from '@/src/lib/exactDecimal';
 import { wireValidator, type WireRecord } from '@/src/lib/wireDoc';
 import type { WipInputRow, WipWindowMonth } from '@/src/lib/workInHand';
+import { readOrgColumns } from './orgSettingsBatch';
 
 /**
  * Work in hand read (#2575, migration 1060, `get_work_in_hand`). One security-invoker call returns the whole page's rows as
@@ -140,9 +141,9 @@ export async function getWorkInHand(asOf?: string): Promise<WorkInHand> {
 
 /** Reads the organisation's monthly capacity setting (in org currency) under RLS; `org_id` is never sent. */
 export async function getWorkInHandMonthlyCapacity(): Promise<number | null> {
-  const { data, error } = await supabase.from('organizations').select('work_in_hand_monthly_capacity').limit(1);
+  const { data, error } = await readOrgColumns(['work_in_hand_monthly_capacity']);
   if (error) throw new AppError(error.message, error.code);
-  const value = data?.[0]?.work_in_hand_monthly_capacity;
+  const value = data?.work_in_hand_monthly_capacity;
   return value === null || value === undefined ? null : Number(value);
 }
 

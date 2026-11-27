@@ -6,6 +6,7 @@
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError } from '@/src/lib/appError';
 import { priceSource } from '@/src/lib/priceReadPath';
+import { readOrgColumnsStrict } from './orgSettingsBatch';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -15,7 +16,7 @@ function fail(error: { message: string; code?: string } | null): void {
 }
 
 export async function getPoNeededByRequired(): Promise<boolean> {
-  const { data, error } = await supabase.from('organizations').select('po_needed_by_required_from').limit(1).maybeSingle();
+  const { data, error } = await readOrgColumnsStrict(['po_needed_by_required_from']);
   fail(error);
   return Boolean((data as { po_needed_by_required_from?: string | null } | null)?.po_needed_by_required_from);
 }
