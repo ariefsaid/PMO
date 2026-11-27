@@ -27,12 +27,14 @@ vi.mock('@/src/lib/db/workOrders', () => ({
   ]),
 }));
 vi.mock('@/src/lib/db/revenue', () => ({
+  parseProjectFinances: (data: unknown) => data,
   getProjectFinances: vi.fn(async () => ({ invoices: [{ currency: 'IDR', work_revenue: '2000.00', missing_work: 0 }] })),
 }));
-vi.mock('@/src/lib/db/workOrderBilling', () => ({
+vi.mock('@/src/lib/db/workOrderBilling', async (importOriginal) => ({
+  ...await importOriginal<object>(),
   listWorkOrderBilling: vi.fn(async () => [
     { workOrderId: 'A', currency: 'IDR', invoiced: 1000, orderNet: 1500, figuresComplete: true },
-    { workOrderId: 'B', currency: 'IDR', invoiced: 500, figuresComplete: true },
+    { workOrderId: 'B', currency: 'IDR', invoiced: 500, orderNet: 0, figuresComplete: true },
   ]),
 }));
 
@@ -204,4 +206,53 @@ describe('workOrderFinanceRepository.projectPlanVsActual', () => {
     h.queue.push({ data: null, error: { message: 'boom', code: '500' } });
     await expect(workOrderFinanceRepository.projectPlanVsActual('p1')).rejects.toBeTruthy();
   });
+});
+
+const sources = () => ({
+  orders: { data: [
+    { id: 'B', wo_number: 'WO-2', title: 'Two', status: 'Issued', currency: 'IDR' },
+    { id: 'A', wo_number: 'WO-1', title: 'One', status: 'Issued', currency: 'IDR' },
+  ] },
+  billing: { data: [
+    { work_order_id: 'A', project_id: 'p1', status: 'Issued', currency: 'IDR', order_net: 1500, invoiced: 1000, pending: 0, paid: 0, remaining: 500, figures_complete: true, line_count: 1, unpaid_count: 1 },
+    { work_order_id: 'B', project_id: 'p1', status: 'Issued', currency: 'IDR', order_net: 0, invoiced: 500, pending: 0, paid: 0, remaining: 0, figures_complete: true, line_count: 1, unpaid_count: 1 },
+  ] },
+  money: { data: [row({ record_id: 'fixed', amount: '600.00', work_order_id: 'A' })] },
+  finances: { data: { invoices: [{ currency: 'IDR', work_revenue: '2000.00', missing_work: 0 }] } },
+  plans: { data: [] }, split: { data: [] },
+});
+it('AC-Q9-006: 200 projects use one RPC, retaining exact source amounts beyond 1000 rows', async () => {
+  const ids = Array.from({ length: 200 }, (_, i) => `p${i}`);
+  const payload = Object.fromEntries(ids.map((id) => [id, sources()]));
+  payload.p0.money.data = Array.from({ length: 1001 }, (_, i) => row({ record_id: `r${i}`, amount: '0.01', work_order_id: 'A' }));
+  h.queue.push({ data: payload, error: null });
+  const result = await workOrderFinanceRepository.projectsPlanVsActual(ids);
+  expect(h.calls.rpc).toEqual([['get_projects_plan_actual_sources', { p_project_ids: ids }]]);
+  expect(Object.keys(result)).toHaveLength(200);
+  expect(result.p0).toMatchObject({ costLines: expect.any(Array) });
+  expect((result.p0 as import('@/src/lib/repositories/workOrderFinance').ProjectPlanVsActual).costLines).toHaveLength(1001);
+  expect(result.p0).toMatchObject({ rollup: { workOrders: [expect.objectContaining({ direct: '10.01' }), expect.anything()] } });
+});
+it('AC-Q9-007: a refused source remains restricted without blanking another project', async () => {
+  const payload: Record<string, unknown> = { good: sources(), restricted: { ...sources(), money: { error: { code: '42501', message: 'not authorized' } } }, broken: { ...sources(), money: { error: { code: 'P0002', message: 'project not found' } } } };
+  h.queue.push({ data: payload, error: null });
+  const result = await workOrderFinanceRepository.projectsPlanVsActual(Object.keys(payload));
+  expect(result.good).toMatchObject({ rollup: { restricted: false } });
+  expect(result.restricted).toMatchObject({ rollup: { restricted: true }, plans: [], split: null });
+  expect(result.broken).toBeInstanceOf(Error);
+});
+
+it('AC-Q9-008: the batch figures equal the existing single-project fixture', async () => {
+  const payload = sources();
+  h.queue.push({ data: payload.money.data, error: null }, { data: [], error: null }, { data: [], error: null });
+  const single = await workOrderFinanceRepository.projectPlanVsActual('p1');
+  h.queue.push({ data: { p1: payload }, error: null });
+  const batch = await workOrderFinanceRepository.projectsPlanVsActual(['p1']);
+  expect(batch.p1).toEqual(single);
+});
+it('AC-Q9-009: one failed billing source stays unknown beside another successful project', async () => {
+  h.queue.push({ data: { good: sources(), unknown: { ...sources(), billing: { error: { code: 'XX000', message: 'unavailable' } }, finances: { error: { code: 'XX000', message: 'unavailable' } } } }, error: null });
+  const batch = await workOrderFinanceRepository.projectsPlanVsActual(['good', 'unknown']);
+  expect(batch.good).toMatchObject({ workOrders: [expect.objectContaining({ revenue: '1000.00' }), expect.anything()] });
+  expect(batch.unknown).toMatchObject({ workOrders: [expect.objectContaining({ revenue: null }), expect.objectContaining({ revenue: null })], rollup: { restricted: false } });
 });

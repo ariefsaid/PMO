@@ -117,7 +117,7 @@ export async function listAllWorkOrderBilling(): Promise<WorkOrderBillingRow[]> 
   return parseBillingRows(rows);
 }
 
-async function parseBillingRows(rows: ReadonlyArray<Record<string, unknown>>): Promise<WorkOrderBillingRow[]> {
+export async function parseBillingRows(rows: ReadonlyArray<Record<string, unknown>>, diagnostics = true): Promise<WorkOrderBillingRow[]> {
   const parsed: WorkOrderBillingRow[] = rows.map((r) => ({
     workOrderId: text(r.work_order_id, 'work_order_id'),
     projectId: text(r.project_id, 'project_id'),
@@ -133,7 +133,7 @@ async function parseBillingRows(rows: ReadonlyArray<Record<string, unknown>>): P
     unpaidCount: num(r.unpaid_count, 'unpaid_count'),
   }));
   const incomplete = parsed.filter((r) => !r.figuresComplete);
-  if (incomplete.length > 0) await attachBillingProblems(incomplete);
+  if (diagnostics && incomplete.length > 0) await attachBillingProblems(incomplete);
   return parsed;
 }
 

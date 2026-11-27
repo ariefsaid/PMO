@@ -1,4 +1,4 @@
-import { useQueries, useQuery } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/src/auth/useAuth';
 import { earnedBilledRepository } from '@/src/lib/repositories/earnedBilled';
 import { workOrderFinanceRepository } from '@/src/lib/repositories/workOrderFinance';
@@ -20,18 +20,18 @@ export function usePackEarned(enabled: boolean) {
   return useOrgQuery(['pack-earned'], () => earnedBilledRepository.packEarned(), { enabled });
 }
 
-/**
- * The pack's margin cost is the project's own plan-versus-actual roll-up (the same query, the same cache key as the project
- * tab), so the pack and the tab never disagree. One query per project that has earned revenue.
- */
+/** One source read; every project still uses the project tab's parsers and rollup. */
 export function usePackRollups(projectIds: readonly string[], enabled: boolean) {
   const { currentUser } = useAuth();
-  const orgId = currentUser?.org_id;
-  return useQueries({
-    queries: projectIds.map((projectId) => ({
-      queryKey: ['work-order-plan-vs-actual', orgId, projectId],
-      queryFn: () => workOrderFinanceRepository.projectPlanVsActual(projectId),
-      enabled: enabled && Boolean(orgId),
-    })),
+  const query = useQuery({
+    queryKey: ['work-order-plan-vs-actual', currentUser?.org_id, 'pack', projectIds],
+    queryFn: () => workOrderFinanceRepository.projectsPlanVsActual(projectIds),
+    enabled: enabled && Boolean(currentUser?.org_id) && projectIds.length > 0,
+  });
+  return projectIds.map((id) => {
+    const value = query.data?.[id];
+    const localError = value instanceof Error;
+    return { ...query, data: localError ? undefined : value, isError: query.isError || localError,
+      isSuccess: query.isSuccess && !localError, isBatchError: query.isError };
   });
 }
