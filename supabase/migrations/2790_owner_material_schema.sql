@@ -117,3 +117,6 @@ update public.record_history_config set captured=captured||'{"material_category_
 update public.record_history_config set captured=captured||'{"section_material_plan_id":"ref"}' where table_name='client_requisition_lines';
 update public.record_history_config set captured=captured||'{"owner_warehouse_id":"ref"}' where table_name='client_requisition_events';
 update public.record_history_config set captured=captured||'{"import_batch_id":"ref"}' where table_name='client_requisitions';
+
+alter table public.work_order_sections add column skipped_source_rows integer not null default 0 check(skipped_source_rows>=0), add column skipped_reason_codes text[] not null default '{}' check(cardinality(skipped_reason_codes)<=20);
+update public.record_history_config set captured=captured||'{"skipped_source_rows":"number","skipped_reason_codes":"text"}' where table_name='work_order_sections';

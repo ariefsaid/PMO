@@ -26871,6 +26871,8 @@ export type Database = {
       }
       work_order_sections: {
         Row: {
+          skipped_source_rows: number
+          skipped_reason_codes: string[]
           archived_at: string | null
           code: string
           created_at: string
@@ -40344,6 +40346,8 @@ export type Database = {
       om_material_section_rollup: {
         Args: { p_work_order_id: string }
         Returns: {
+          skipped_source_rows: number
+          skipped_reason_codes: string[]
           as_of: string
           closing_pct: string
           issued_pct: string

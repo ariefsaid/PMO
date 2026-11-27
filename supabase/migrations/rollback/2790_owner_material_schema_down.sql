@@ -24,3 +24,6 @@ update public.record_history_config set captured=captured-'material_category_id'
 update public.record_history_config set captured=captured-'section_material_plan_id' where table_name='client_requisition_lines';
 update public.record_history_config set captured=captured-'owner_warehouse_id' where table_name='client_requisition_events';
 update public.record_history_config set captured=captured-'import_batch_id' where table_name='client_requisitions';
+
+alter table public.work_order_sections drop column skipped_source_rows,drop column skipped_reason_codes;
+update public.record_history_config set captured=captured-'skipped_source_rows'-'skipped_reason_codes' where table_name='work_order_sections';

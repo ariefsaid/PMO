@@ -78,6 +78,9 @@ and not exists(select 1 from public.dsr_stock_postings s where s.issue_document_
 create view public.owner_material_unallocated_totals with (security_barrier=true) as
 select d.work_order_id,count(distinct g.line_id) n
 from public.stock_documents d join public.stock_ledger g on g.document_id=d.id and g.org_id=d.org_id
+join public.stock_document_lines l on l.id=g.line_id and l.document_id=d.id and l.org_id=d.org_id
+join public.stock_items i on i.id=l.item_id and i.org_id=d.org_id
+join public.stock_tags t on t.id=i.tag_id and t.org_id=d.org_id and t.zero_cost and t.archived_at is null
 where d.org_id=(select public.auth_org_id()) and (select public.is_active_member()) and d.status='Posted'
 and (select public.actor_is_light()) is not true
 and not exists(select 1 from public.owner_material_movement_links x where x.stock_line_id=g.line_id)
@@ -149,7 +152,7 @@ end $$;
 
 create function public.om_material_rollup(p_project_id uuid,p_page integer default 1,p_page_size integer default 50,p_work_order_id uuid default null)
 returns table(work_order_id uuid,number text,title text,section_count bigint,requested_pct text,set_aside_pct text,received_pct text,
- issued_pct text,closing_pct text,reconciliation_step text,reconciliation_pct text,unallocated_movement_count bigint,total_count bigint)
+ issued_pct text,closing_pct text,reconciliation_step text,reconciliation_pct text,unallocated_movement_count bigint,total_count bigint,partial_section_count bigint)
 language plpgsql stable security invoker set search_path=public,pg_temp as $$
 begin
  if not coalesce(public.is_active_member(),false) then raise exception 'Active membership required' using errcode='42501'; end if;
@@ -160,12 +163,12 @@ begin
  avg(t.issued_pct) issued,avg(t.closing_pct) closing from public.owner_material_stage_totals t
  where t.project_id=p_project_id group by t.work_order_id
  ), sections as (
- select s.work_order_id,count(*) n,min(coalesce(r.percentage,0)) pct
+ select s.work_order_id,count(*) n,min(coalesce(r.percentage,0)) pct,count(*) filter(where s.skipped_source_rows>0) partial_n
  from public.work_order_sections s left join public.owner_material_reconciliation c on c.section_id=s.id
  left join public.owner_material_reconciliation_steps r on r.id=c.step_id
  where s.archived_at is null group by s.work_order_id
  ) select w.id,coalesce(w.wo_number,w.client_po_number),w.title,coalesce(s.n,0),t.requested::text,t.reserved::text,t.received::text,
- t.issued::text,t.closing::text,r.name,s.pct::text,coalesce(u.n,0),count(*) over()
+ t.issued::text,t.closing::text,r.name,s.pct::text,coalesce(u.n,0),count(*) over(),coalesce(s.partial_n,0)
  from public.work_orders w join public.projects j on j.id=w.project_id
  left join totals t on t.work_order_id=w.id left join sections s on s.work_order_id=w.id left join public.owner_material_unallocated_totals u on u.work_order_id=w.id
  left join public.owner_material_reconciliation_steps r on r.org_id=w.org_id and r.percentage=s.pct and r.archived_at is null
@@ -190,7 +193,7 @@ grant execute on function public.om_material_lines(uuid,uuid,integer,integer),pu
 create function public.om_material_section_rollup(p_work_order_id uuid)
 returns table(section_id uuid,section_code text,section_name text,owner_cost_code text,line_count bigint,
  requested_pct text,set_aside_pct text,received_pct text,issued_pct text,closing_pct text,
- reconciliation_step_id uuid,reconciliation_step text,reconciliation_pct text,as_of date)
+ reconciliation_step_id uuid,reconciliation_step text,reconciliation_pct text,as_of date,skipped_source_rows integer,skipped_reason_codes text[])
 language plpgsql stable security invoker set search_path=public,pg_temp as $$
 begin
  if not coalesce(public.is_active_member(),false) then raise exception 'Active membership required' using errcode='42501';end if;
@@ -202,7 +205,7 @@ begin
  avg(t.issued_pct) issued,avg(t.closing_pct) closing,max(t.as_of) as_of from public.owner_material_stage_totals t
  where t.work_order_id=p_work_order_id group by t.section_id
  ) select s.id,s.code,s.name,s.owner_cost_code,coalesce(t.n,0),t.requested::text,t.reserved::text,t.received::text,t.issued::text,t.closing::text,
- r.id,r.name,r.percentage::text,t.as_of from public.work_order_sections s
+ r.id,r.name,r.percentage::text,t.as_of,s.skipped_source_rows,s.skipped_reason_codes from public.work_order_sections s
  join public.work_orders w on w.id=s.work_order_id join public.projects j on j.id=w.project_id
  left join stages t on t.section_id=s.id left join public.owner_material_reconciliation c on c.section_id=s.id
  left join public.owner_material_reconciliation_steps r on r.id=c.step_id
@@ -351,8 +354,23 @@ begin
  v_key:=v_entity->>'entity_key';v_hash:=v_entity->>'hash';v_field:='entity_key';v_value:=v_key;v_rule:='Entity key and hash must identify the imported row';
  if length(coalesce(v_key,'')) not between 1 and 500 or length(coalesce(v_hash,'')) not between 1 and 200 then
  raise exception 'Entity identity required' using errcode='P0001',detail='material-invalid';end if;
+
+ if p_payload->>'kind'='section' then
+ v_field:='skipped_source_rows';v_value:=v_entity->>'skipped_source_rows';v_rule:='Skipped source count must be a nonnegative integer';
+ if v_entity ? 'skipped_source_rows' and (coalesce(v_value,'') !~ '^\d{1,10}$' or v_value::numeric>2147483647) then raise exception using detail='material-invalid';end if;
+ v_field:='skipped_reason_codes';v_value:=(v_entity->'skipped_reason_codes')::text;v_rule:='Skipped reasons must be at most 20 distinct short codes';
+ if v_entity ? 'skipped_reason_codes' then
+ if jsonb_typeof(v_entity->'skipped_reason_codes') is distinct from 'array' then raise exception using detail='material-invalid';end if;
+ if jsonb_array_length(v_entity->'skipped_reason_codes')>20 or exists(select 1 from jsonb_array_elements(v_entity->'skipped_reason_codes') e where jsonb_typeof(e)<>'string' or (e#>>'{}') !~ '^[a-z][a-z0-9_-]{0,79}$')
+ or (select count(distinct e) from jsonb_array_elements_text(v_entity->'skipped_reason_codes') e)<>jsonb_array_length(v_entity->'skipped_reason_codes') then raise exception using detail='material-invalid';end if;end if;
+ end if;
  select r.payload_hash,r.result_ids into v_old_hash,v_old_ids from public.owner_material_import_rows r where r.batch_id=v_batch and r.entity_key=v_key;
- if v_old_hash=v_hash and p_payload->>'kind'='section' then
+ if v_old_hash=v_hash and p_payload->>'kind'='section' and exists(
+ select 1 from public.work_order_sections s join public.work_orders w on w.id=s.work_order_id
+ where w.org_id=v_org and w.project_id=v_project and (btrim(w.wo_number)=btrim(v_entity->>'owner_order_number') or btrim(w.client_po_number)=btrim(v_entity->>'owner_order_number'))
+ and lower(btrim(s.name))=lower(btrim(v_entity->>'location_name'))
+ and s.skipped_source_rows=coalesce((v_entity->>'skipped_source_rows')::integer,0)
+ and s.skipped_reason_codes=array(select jsonb_array_elements_text(coalesce(v_entity->'skipped_reason_codes','[]')))) then
  v_results:=v_results||jsonb_build_array(jsonb_build_object('entity_key',v_key,'status','skip','ids',v_old_ids));continue;
  end if;
  v_status:=case when v_old_hash is null then 'create' else 'update' end;
@@ -398,6 +416,7 @@ begin
  update public.work_order_sections set owner_cost_code=v_entity->>'owner_cost_code' where id=v_section.id;
  elsif nullif(btrim(v_entity->>'owner_cost_code'),'') is not null and v_section.owner_cost_code is distinct from v_entity->>'owner_cost_code' then
  v_section_note:='Existing owner_cost_code retained: owner_cost_code='||to_jsonb(left(v_section.owner_cost_code,120))::text;end if;end if;
+ update public.work_order_sections set skipped_source_rows=coalesce((v_entity->>'skipped_source_rows')::integer,0), skipped_reason_codes=array(select jsonb_array_elements_text(coalesce(v_entity->'skipped_reason_codes','[]'))) where id=v_section.id;
  v_rule:='Each material code and line identity must occur once';v_field:='lines';v_value:='duplicate identity';
  if (select count(distinct btrim(e->>'item_code')) from jsonb_array_elements(v_entity->'lines') e)<>jsonb_array_length(v_entity->'lines')
  or (select count(distinct e->>'entity_key') from jsonb_array_elements(v_entity->'lines') e)<>jsonb_array_length(v_entity->'lines') then
@@ -429,7 +448,7 @@ begin
  v_field:='item_code';v_value:=v_item.code;v_rule:='Material item must carry a live zero-cost tag';
  if not exists(select 1 from public.stock_tags t where t.id=v_item.tag_id and t.org_id=v_org and t.zero_cost and t.archived_at is null) then raise exception using detail='material-invalid';end if;
  select r.payload_hash,r.result_ids into v_old_hash,v_old_ids from public.owner_material_import_rows r where r.batch_id=v_batch and r.entity_key=v_line->>'entity_key';
- if v_old_hash=v_line->>'hash' then v_results:=v_results||jsonb_build_array(jsonb_build_object('entity_key',v_line->>'entity_key','status','skip','ids',v_old_ids,'note',v_section_note));continue;end if;
+ if v_old_hash=v_line->>'hash' then v_ids:=v_old_ids;v_results:=v_results||jsonb_build_array(jsonb_build_object('entity_key',v_line->>'entity_key','status','skip','ids',v_old_ids,'note',v_section_note));continue;end if;
  v_category:=null;
  v_field:='category_code';v_value:=v_line->>'category_code';v_rule:='Material category must be a live organisation category';
  if nullif(v_line->>'category_code','') is not null then

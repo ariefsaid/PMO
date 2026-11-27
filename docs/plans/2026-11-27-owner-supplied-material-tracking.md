@@ -11,13 +11,15 @@ Three bounded Orca workers build in parallel, one branch each: `feat/3010-materi
 
 Read `docs/orca-dispatch.md` batch integration, `docs/product-expectations.md`, ADR-0016/0017/0019 and e2e conventions before implementation. No service credentials, no direct ledger inserts, no money changes, no production writes. Work only through dev-ceiling feature branches. Mutate security rules deliberately once to prove tests fail, then restore. Do not rewrite a failing test to match implementation.
 
-## Frozen interface contract v1
+## Frozen interface contract v1 (historical reference)
+
+Superseded in phase 1 by opening stage totals; live stage/movement writers and reservations[] / movements[] replay are phase 2. The shipped phase-1 contract imports no stock documents or requisitions; it reuses existing work orders, creates sections and stores opening totals with display-only evidence. The section read also returns skipped_source_rows/skipped_reason_codes, and the work-order read returns partial_section_count. The original interface below is retained as phase-2 design context, not an instruction to build removed behavior.
 
 All proposed RPCs derive organisation/actor from the session; no caller org argument. UUIDs are strings; quantities are decimal strings at scale ≤3; dates are ISO calendar dates or null; percentages are decimal strings in 0..100 or null. Rows always carry IDs. Every writer locks its referenced work order/plan and validates same-org parentage. Definers pin search_path, enforce real role and expose only intended functions to authenticated callers. All public functions below return JSONB except the two set-returning reads. Errors use SQLSTATE 42501 for denied, P0001 with machine `details` codes `material-conflict`, `material-invalid`, `material-overlap`, `material-source-changed`, `material-section-required`.
 
 ### Database additions (A owns)
 
-Reserve migrations `2780_owner_material_schema.sql` and `2781_owner_material_rpcs.sql`; verify unoccupied at dispatch and renumber with `scripts/renumber-migration.sh` if needed before parallel briefs freeze. Reverse scripts use matching names under `supabase/migrations/rollback/`.
+Reserve migrations `2790_owner_material_schema.sql` and `2791_owner_material_rpcs.sql`; verify unoccupied at dispatch and renumber with `scripts/renumber-migration.sh` if needed before parallel briefs freeze. Reverse scripts use matching names under `supabase/migrations/rollback/`.
 
 - `stock_material_categories`: id, org_id, code, name, archived_at; unique live org/code.
 - `owner_material_warehouses`: id, org_id, code, name, archived_at; external reservation locations only.
@@ -51,7 +53,7 @@ The loader and screen workers commit mocked contract tests immediately, and can 
 
 ## Slice A: database, RPCs and pgTAP
 
-Exclusive files: the four migration/rollback files above; `supabase/tests/3010_owner_material.test.sql`; `supabase/tests/3010_owner_material_import.test.sql`; `scripts/perf/owner_material_explain.sql`; `pmo-portal/src/lib/supabase/database.types.ts`; `supabase/tests/inventory/anon-executable-definers/3010-owner-material.txt`; `scripts/isolation-probe-denominator.d/3010-owner-material.json`. Register tracked column classifications through the migration's `record_history_config` statements. Do not edit screen/CLI files.
+Exclusive files: the four migration/rollback files above; `supabase/tests/2790_owner_material.test.sql`; `supabase/tests/2791_owner_material_import.test.sql`; `scripts/perf/owner_material_explain.sql`; `pmo-portal/src/lib/supabase/database.types.ts`; `supabase/tests/inventory/anon-executable-definers/2791-owner-material.txt`; `scripts/isolation-probe-denominator.d/2791-owner-material.json`. Register tracked column classifications through the migration's `record_history_config` statements. Do not edit screen/CLI files.
 
 Each checkbox below is 2–5 minutes; repeat the test/implement/check trio per named contract until complete.
 
@@ -75,7 +77,7 @@ Each checkbox below is 2–5 minutes; repeat the test/implement/check trio per n
 
 Exact root verification (reset only under this lock; split holds if approaching 15 minutes):
 ```sh
-scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/3010_owner_material.test.sql supabase/tests/3010_owner_material_import.test.sql && scripts/check-schema-registrations.sh'
+scripts/with-db-lock.sh bash -c 'supabase db reset && supabase test db supabase/tests/2790_owner_material.test.sql supabase/tests/2791_owner_material_import.test.sql && scripts/check-schema-registrations.sh'
 ```
 App directory: `npm run migration-registers`, `npm run check:guards`, `npm run typecheck`. Full pgTAP is CI/shared-server proof, not another local run. Reversal is demonstrated on local disposable reset data before final forward reset.
 
@@ -144,10 +146,10 @@ Coordinator exclusively adds `scripts/owner-material-parity.mjs` and `scripts/ow
 |---|---|---|---|
 | FR-001..004,012 | AC-001 | `scripts/pmo-owner-material.test.mjs` | B |
 | FR-009,011,012 | AC-002 | `scripts/owner-material-workbook.test.py` (parsing); Node test references AC-002 as supplementary transport proof | B |
-| FR-005,006 | AC-003 | `supabase/tests/3010_owner_material.test.sql` | A |
-| FR-007,NFR-001 | AC-004 | `supabase/tests/3010_owner_material.test.sql` | A |
-| FR-008,015,NFR-003 | AC-005 | `supabase/tests/3010_owner_material.test.sql` | A |
-| FR-010 | AC-006 | `supabase/tests/3010_owner_material_import.test.sql` | A |
+| FR-005,006 | AC-003 | `supabase/tests/2790_owner_material.test.sql` | A |
+| FR-007,NFR-001 | AC-004 | `supabase/tests/2790_owner_material.test.sql` | A |
+| FR-008,015,NFR-003 | AC-005 | `supabase/tests/2790_owner_material.test.sql` | A |
+| FR-010 | AC-006 | `supabase/tests/2791_owner_material_import.test.sql` | A |
 | FR-005,008,013,014,015 | AC-007 | `pmo-portal/e2e/AC-007-owner-material-role-job.spec.ts` | C/shared run |
 | FR-013,014,016,NFR-004 | AC-008 | `pmo-portal/pages/work-order-detail/OwnerMaterialPipeline.test.tsx` (rollup file supplementary) | C |
 | NFR-002 | AC-009 | `scripts/perf/owner-material-benchmark.mjs` | integration |

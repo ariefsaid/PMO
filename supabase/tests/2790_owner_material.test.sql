@@ -239,7 +239,7 @@ select is((select transfer_out::numeric from om_material_lines('30100000-0000-00
 select is((select transfer_in::numeric from om_material_lines('30100000-0000-0000-0000-000000001402') where plan_id='30100000-0000-0000-0000-000000003003'),0.25::numeric,'AC-003 inbound work-order transfer uses its attributed issue half');
 select is((select received::numeric from om_material_lines('30100000-0000-0000-0000-000000001402') where plan_id='30100000-0000-0000-0000-000000003003'),10::numeric,'AC-003 transfer does not become another receipt');
 select is((select closing::numeric from om_material_lines('30100000-0000-0000-0000-000000001401','30100000-0000-0000-0000-000000002001')),4.25::numeric,'AC-003 closing combines opening and all live contributions');
-select is((select unallocated_movement_count from om_material_rollup('30100000-0000-0000-0000-0000000001d1',1,50,'30100000-0000-0000-0000-000000001401')),1::bigint,'AC-003 existing history without a plan link is reported, not allocated');
+select is((select unallocated_movement_count from om_material_rollup('30100000-0000-0000-0000-0000000001d1',1,50,'30100000-0000-0000-0000-000000001401')),0::bigint,'AC-003 bought-stock history is outside owner material unplaced figures');
 select pg_temp.act_as('30100000-0000-0000-0000-0000000001b1');
 select is((select count(*) from owner_material_posted_quantities),0::bigint,'AC-005 foreign tenant cannot read quantity projection');
 select is((select count(*) from owner_material_unallocated_totals),0::bigint,'AC-005 foreign tenant cannot read unallocated projection');
@@ -276,13 +276,37 @@ insert into material_docs values('owner-unallocated',create_stock_document(
 select set_cost_attribution('stock_document',array[(select id from material_docs where kind='owner-unallocated')],'30100000-0000-0000-0000-000000001401',null);
 select is((select unallocated_movement_count from om_material_rollup('30100000-0000-0000-0000-0000000001d1',1,50,'30100000-0000-0000-0000-000000001401')),1::bigint,'AC-003 owner-supplied unplaced line is counted');
 reset role;
+set local role authenticated;
+insert into material_docs values('fulfilled',create_stock_document(
+ jsonb_build_object('kind','receive','warehouse_id','30100000-0000-0000-0000-000000006001'),
+ '[{"item_id":"30100000-0000-0000-0000-000000001311","quantity":7,"unit_cost":0}]',true));
+reset role;
+insert into client_requisition_pickups(org_id,requisition_id,line_id,quantity,picked_up_on,warehouse_id,stock_document_id,recorded_by)
+values('30100000-0000-0000-0000-00000000010a','30100000-0000-0000-0000-000000007001','30100000-0000-0000-0000-000000007002',7,current_date,
+ '30100000-0000-0000-0000-000000006001',(select id from material_docs where kind='fulfilled'),'30100000-0000-0000-0000-0000000001a1');
+set local role authenticated;
+select is((select sum(quantity) from client_requisition_pickups where line_id='30100000-0000-0000-0000-000000007002'),7::numeric,'AC-003 open requisition fixture is fully collected');
+select is((select requested::numeric from om_material_lines('30100000-0000-0000-0000-000000001401','30100000-0000-0000-0000-000000002001')),7::numeric,'AC-003 fully collected open requisition remains Requested');
+reset role;
 update client_requisitions set status='draft' where id='30100000-0000-0000-0000-000000007001';
 set local role authenticated;
-select is((select requested::numeric from om_material_lines('30100000-0000-0000-0000-000000001401','30100000-0000-0000-0000-000000002001')),7::numeric,'AC-003 Requested retains every noncancelled requisition state');
+select is((select requested::numeric from om_material_lines('30100000-0000-0000-0000-000000001401','30100000-0000-0000-0000-000000002001')),0::numeric,'AC-003 draft requisitions are not yet Requested from the owner');
 reset role;
 update client_requisitions set status='cancelled' where id='30100000-0000-0000-0000-000000007001';
 set local role authenticated;
 select is((select requested::numeric from om_material_lines('30100000-0000-0000-0000-000000001401','30100000-0000-0000-0000-000000002001')),0::numeric,'AC-003 cancelled requisition contributes no Requested quantity');
+reset role;
+-- The native reversal writes its correcting movement and immutable reversal witness.
+insert into procurements(id,org_id,title,status,currency,requested_by_id,total_value,approved_total_value,approved_by_id) values
+ ('30100000-0000-0000-0000-000000009101','30100000-0000-0000-0000-00000000010a','Synthetic order receipt','Ordered','IDR','30100000-0000-0000-0000-0000000001a2',0,0,'30100000-0000-0000-0000-0000000001a1');
+insert into purchase_orders(id,org_id,procurement_id,po_number,status,currency) values
+ ('30100000-0000-0000-0000-000000009102','30100000-0000-0000-0000-00000000010a','30100000-0000-0000-0000-000000009101','OM-SYN-PO','Issued','IDR');
+insert into order_receiving_requests(id,org_id,po_id,receiver_id,warehouse_id,receipt_date,counted_lines,stock_document_id) values
+ ('30100000-0000-0000-0000-000000009103','30100000-0000-0000-0000-00000000010a','30100000-0000-0000-0000-000000009102','30100000-0000-0000-0000-0000000001a2',
+ '30100000-0000-0000-0000-000000006001',current_date,'[]',(select id from material_docs where kind='receive'));
+set local role authenticated;
+select lives_ok($$select reverse_order_receiving('30100000-0000-0000-0000-000000009103','Synthetic correction')$$,'AC-003 native receipt reversal posts a correction');
+select is((select received::numeric from om_material_lines('30100000-0000-0000-0000-000000001401','30100000-0000-0000-0000-000000002001')),10::numeric,'AC-003 reversed receipt no longer adds to opening received');
 reset role;
 select * from finish();
 rollback;
