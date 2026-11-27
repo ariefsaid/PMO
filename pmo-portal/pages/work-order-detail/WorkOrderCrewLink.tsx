@@ -1,5 +1,4 @@
 import React, { useContext } from 'react';
-import { QueryClientContext } from '@tanstack/react-query';
 import { AuthContext } from '@/src/auth/AuthContext';
 
 import { Link } from 'react-router';
@@ -42,7 +41,6 @@ const WorkOrderCrewLinkBody: React.FC<{ workOrderId: string }> = ({ workOrderId 
 /** Renders nothing outside the auth and query providers (bare renders of the page in unit tests). */
 export const WorkOrderCrewLink: React.FC<{ workOrderId: string }> = (props) => {
   const auth = useContext(AuthContext);
-  const queryClient = useContext(QueryClientContext);
-  if (!auth || !queryClient) return null;
+  if (!auth) return null;
   return <WorkOrderCrewLinkBody {...props} />;
 };

@@ -1,5 +1,4 @@
 import React, { useContext } from 'react';
-import { QueryClientContext } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { AuthContext } from '@/src/auth/AuthContext';
 import { useWorkOrderMaterialProgress } from '@/src/hooks/useWorkOrderMaterialProgress';
@@ -41,7 +40,6 @@ const Inner: React.FC<{ workOrderId: string }> = ({ workOrderId }) => {
 
 export const WorkOrderMaterialProgressBanner: React.FC<{ workOrderId: string }> = ({ workOrderId }) => {
   const auth = useContext(AuthContext);
-  const queries = useContext(QueryClientContext);
-  const hasProviders = Boolean(auth) && Boolean(queries);
+  const hasProviders = Boolean(auth);
   return hasProviders ? <Inner workOrderId={workOrderId} /> : null;
 };

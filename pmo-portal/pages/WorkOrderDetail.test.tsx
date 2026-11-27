@@ -11,6 +11,7 @@ import { useWorkOrderCostLines } from '@/src/hooks/useWorkOrderCosts';
 import { useWorkOrderSteps } from '@/src/hooks/useBillingSteps';
 import { preloadWorkOrder } from '@/src/lib/routeData';
 import { ToastProvider } from '@/src/components/ui';
+import { makeTestQueryClient } from '@/test/testQueryClient';
 
 const q = (data: unknown, over: Record<string, unknown> = {}) => ({ data, isPending: false, isError: false, refetch: vi.fn(), ...over });
 const issueWaiting = vi.hoisted(() => ({ data: undefined as unknown, isPending: false, isError: false, refetch: vi.fn(), calls: [] as unknown[][] }));
@@ -90,7 +91,7 @@ const CurrentLocation: React.FC = () => {
 const WO = { id: 'w1', project_id: 'p1', wo_number: 'WO-0007', title: 'Pump install', status: 'Issued', currency: 'IDR', order_value: 1500000, client_po_number: 'PO-9' };
 const ln = (source: string, id: string, disciplineId: string | null) => ({ source, recordId: id, projectId: 'p1', workOrderId: 'w1', disciplineId, occurredOn: '2026-02-01', reference: id, quantity: null, quantityUnit: null });
 /** Opens the page, or one of its areas by its address (`#wo-cost`), as a shared link or Back does. */
-const renderPage = (area?: string) => render(<ToastProvider><MemoryRouter initialEntries={[`/work-orders/w1${area ? `#wo-${area}` : ''}`]}><Routes><Route path="/work-orders/:id" element={<><WorkOrderDetail /><CurrentLocation /></>} /></Routes></MemoryRouter></ToastProvider>);
+const renderPage = (area?: string) => render(<QueryClientProvider client={makeTestQueryClient()}><ToastProvider><MemoryRouter initialEntries={[`/work-orders/w1${area ? `#wo-${area}` : ''}`]}><Routes><Route path="/work-orders/:id" element={<><WorkOrderDetail /><CurrentLocation /></>} /></Routes></MemoryRouter></ToastProvider></QueryClientProvider>);
 /** A person opens an area by its tab. */
 const openArea = (name: RegExp) => userEvent.click(screen.getByRole('tab', { name }));
 
@@ -485,10 +486,10 @@ describe('WorkOrderDetail', () => {
 
   it('FR-WORP-025 lets the user open a task from the work order', async () => {
     h.tasks = q([{ id: 't1', project_id: 'p1', name: 'Torque the bolts', assignee: null, end_date: null }]);
-    render(<ToastProvider><MemoryRouter initialEntries={['/work-orders/w1']}><Routes>
+    render(<QueryClientProvider client={makeTestQueryClient()}><ToastProvider><MemoryRouter initialEntries={['/work-orders/w1']}><Routes>
       <Route path="/work-orders/:id" element={<WorkOrderDetail />} />
       <Route path="/projects/:projectId/tasks" element={<><p>Project tasks route</p><CurrentLocation /></>} />
-    </Routes></MemoryRouter></ToastProvider>);
+    </Routes></MemoryRouter></ToastProvider></QueryClientProvider>);
 
     await openArea(/Issues and tasks/);
     await userEvent.setup().click(screen.getByRole('link', { name: 'Torque the bolts' }));

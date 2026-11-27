@@ -1,5 +1,4 @@
 import React, { useContext, useSyncExternalStore } from 'react';
-import { QueryClientContext } from '@tanstack/react-query';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { AuthContext } from '@/src/auth/AuthContext';
@@ -30,6 +29,5 @@ const Inner: React.FC<Props> = ({ workOrderId, onOpen, href }) => {
 
 export const WorkOrderAheadBadge: React.FC<Props> = ({ workOrderId, onOpen, href }) => {
   const auth = useContext(AuthContext);
-  const queries = useContext(QueryClientContext);
-  return Boolean(auth) && Boolean(queries) ? <Inner workOrderId={workOrderId} onOpen={onOpen} href={href} /> : null;
+  return auth ? <Inner workOrderId={workOrderId} onOpen={onOpen} href={href} /> : null;
 };

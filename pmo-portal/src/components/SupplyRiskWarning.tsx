@@ -4,7 +4,6 @@
  * not colour alone (NFR-VSR-002). One project-scoped read serves every row of a project (shared query key).
  */
 import React, { useContext } from 'react';
-import { QueryClientContext } from '@tanstack/react-query';
 import { AuthContext } from '@/src/auth/AuthContext';
 
 import { useTranslation } from 'react-i18next';
@@ -55,7 +54,6 @@ const SupplierRiskNoteBody: React.FC<{ supplierId: string }> = ({ supplierId }) 
 /** Renders nothing outside the auth and query providers (bare renders of the page in unit tests). */
 export const SupplierRiskNote: React.FC<{ supplierId: string }> = (props) => {
   const auth = useContext(AuthContext);
-  const queryClient = useContext(QueryClientContext);
-  if (!auth || !queryClient) return null;
+  if (!auth) return null;
   return <SupplierRiskNoteBody {...props} />;
 };
