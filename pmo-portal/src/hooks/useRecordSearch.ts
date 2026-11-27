@@ -80,6 +80,7 @@ export function useRecordSearch(
   const incidents = useIncidents(undefined, { enabled: enabled && incidentsEnabled });
 
   const records = useMemo<PaletteItem[]>(() => {
+    if (!enabled) return [];
     const out: PaletteItem[] = [];
 
     for (const p of projects.data ?? []) {
@@ -202,6 +203,7 @@ export function useRecordSearch(
 
     return out;
   }, [
+    enabled,
     projects.data,
     pipeline.data,
     procurements.data,
