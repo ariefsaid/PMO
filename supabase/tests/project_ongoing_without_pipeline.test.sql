@@ -15,7 +15,7 @@
 -- Isolated orgs; UUID prefix 30230000-… (issue #3023).
 begin;
 create extension if not exists pgtap;
-select plan(15);
+select plan(14);
 
 -- The org WITHOUT the pipeline (the issue's shape): the override row turns the feature off
 -- (resolve_feature_internal precedence: override > global > plan).
@@ -113,6 +113,13 @@ select throws_ok(
   '42501', null,
   'AC-3023: an Engineer is still refused (role gate intact)');
 
+-- The preflight stays witness-aware on the new branch (the screen shows the same diagnosis).
+-- Still the pipeline-off org's PM: the preflight is org-scoped.
+select is(
+  (select project_win_eligibility('30230000-0000-0000-0000-000000000011')),
+  'missing_witness'::text,
+  'AC-3023: the preflight reports the missing witness for the unwitnessed priced Lead');
+
 -- ── Feature ON: everything as before ────────────────────────────────────────
 set local request.jwt.claims = '{"sub":"30230000-0000-0000-0000-0000000000b1","role":"authenticated"}';
 
@@ -125,12 +132,6 @@ select is(
   (select project_win_eligibility('30230000-0000-0000-0000-000000000015')),
   'unavailable'::text,
   'AC-3023: with the feature on, the preflight keeps a Lead unwinnable');
-
--- The preflight stays witness-aware on the new branch (the screen shows the same diagnosis).
-select is(
-  (select project_win_eligibility('30230000-0000-0000-0000-000000000011')),
-  'missing_witness'::text,
-  'AC-3023: the preflight reports the missing witness for the unwitnessed priced Lead');
 
 reset role;
 
