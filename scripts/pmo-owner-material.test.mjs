@@ -459,6 +459,114 @@ test('AC-001: refuses missing work order creation when commercial tax_treatment 
   );
 });
 
+test('AC-001: confirm stops before any write when the server refuses the work-order import because setup workflows are disabled', async () => {
+  const transport = makeFakeTransport({
+    onRpc: async (name) => {
+      if (name === 'import_work_orders') {
+        const err = new Error('setup workflows are disabled for this organisation');
+        err.status = 403;
+        err.code = '42501';
+        throw err;
+      }
+      return undefined;
+    },
+  });
+  const parsed = sampleParsed();
+  const mapping = baseMapping();
+
+  await assert.rejects(
+    () =>
+      runMaterialLoad(
+        {
+          workbookPath: '/fake/wb.xlsx',
+          mappingPath: '/fake/map.json',
+          mapping,
+          projectId: PROJECT_ID,
+          confirm: true,
+          parseWorkbook: async () => parsed,
+        },
+        transport,
+      ),
+    (err) => {
+      assert.ok(err instanceof MaterialLoadError);
+      assert.equal(err.code, 'setup_workflows_disabled');
+      assert.equal(err.exit, 1);
+      // One clear operator message: what the setting is, who turns it on where, nothing written.
+      assert.match(err.message, /Enable setup workflows/);
+      assert.match(err.message, /Admin/);
+      assert.match(err.message, /nothing was written/i);
+      return true;
+    },
+  );
+  // The work-order import is the FIRST write on confirm: no material import or scale write may have been sent.
+  assert.equal(transport.calls.some((c) => c.name === 'om_material_import'), false);
+  assert.equal(transport.calls.some((c) => c.name === 'om_material_set_scale'), false);
+  assert.equal(transport.workOrders.length, 0, 'no work order may be created');
+  assert.equal(transport.savedHashes.size, 0, 'no material opening may be written');
+});
+
+test('AC-001: a different work-order import refusal passes through unchanged (not reported as the setup-workflow prerequisite)', async () => {
+  const transport = makeFakeTransport({
+    onRpc: async (name) => {
+      if (name === 'import_work_orders') {
+        const err = new Error('only the assigned Project Manager or an Admin may import work orders');
+        err.status = 403;
+        err.code = '42501';
+        throw err;
+      }
+      return undefined;
+    },
+  });
+  const parsed = sampleParsed();
+  await assert.rejects(
+    () =>
+      runMaterialLoad(
+        {
+          workbookPath: '/fake/wb.xlsx',
+          mappingPath: '/fake/map.json',
+          mapping: baseMapping(),
+          projectId: PROJECT_ID,
+          confirm: true,
+          parseWorkbook: async () => parsed,
+        },
+        transport,
+      ),
+    (err) => {
+      assert.equal(err.code, '42501');
+      assert.match(err.message, /assigned Project Manager/);
+      return true;
+    },
+  );
+});
+
+test('AC-001: preview carries the standing setup-workflow prerequisite only when the run would create work orders', async () => {
+  const transport = makeFakeTransport();
+  const parsed = sampleParsed();
+  const mapping = baseMapping();
+  const opts = {
+    workbookPath: '/fake/wb.xlsx',
+    mappingPath: '/fake/map.json',
+    projectId: PROJECT_ID,
+    parseWorkbook: async () => parsed,
+  };
+
+  // Preview with one missing work order: the prerequisite line names the setting and who turns it on.
+  const preview = await runMaterialLoad({ ...opts, mapping, confirm: false }, transport);
+  assert.equal(preview.exit, 0);
+  assert.match(preview.report.work_orders.prerequisite, /Enable setup workflows/);
+  assert.match(preview.report.work_orders.prerequisite, /Admin/);
+
+  // Confirming against a co-operative server succeeds and carries no prerequisite (it is not pending).
+  const confirmed = await runMaterialLoad({ ...opts, mapping, confirm: true }, transport);
+  assert.equal(confirmed.exit, 0);
+  assert.equal(confirmed.report.work_orders.prerequisite, undefined);
+
+  // A later preview with every work order present has nothing to create and no prerequisite line.
+  const settled = await runMaterialLoad({ ...opts, mapping, confirm: false }, transport);
+  assert.equal(settled.report.work_orders.to_create_count, 0);
+  assert.equal(settled.report.work_orders.prerequisite, undefined);
+});
+
 test('AC-002: refused sections stay unwritten, accepted sections load, exit is 1, and report file is written outside repo', async () => {
   const dir = tmpDir();
   try {

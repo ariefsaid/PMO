@@ -820,10 +820,11 @@ node scripts/pmo.mjs material load /private/material.xlsx \
 ```
 
 **Prerequisites & reruns:**
+- Setup-workflow opt-in: a run that would create missing work orders needs the organisation's setup-workflow opt-in turned on ("Enable setup workflows", which an organisation Admin turns on in the app, Finance hub). Every preview that lists work orders to create prints this as `work_orders.prerequisite`; if the opt-in is off, `--confirm` stops at the work-order import with error `setup_workflows_disabled` (exit 1) and nothing is written — turn the setting on, then re-run the identical command.
 - Project, units, zero-cost tag, and receiving locations must already exist. If an earlier estimated demo load posted overlapping stock documents or requisitions, reverse/cancel them through supported workflows first.
 - A second confirmed run with the identical workbook and mapping creates zero new work orders and skips every unchanged catalogue and section row. Changed planned quantities or opening totals update with `before`/`after` reported.
 - If a network failure leaves a section's write outcome unknown (`outcome_unknown`), do not change `source_key`; re-run the identical command to resume safely.
-- Exit `0` means complete (zero refused sections); exit `1` means partial/incomplete (accepted sections loaded, refused sections unwritten and listed with exact sheet/row/column coordinates); exit `2` means usage, role, or mapping error before sending anything.
+- Exit `0` means complete (zero refused sections); exit `1` means partial/incomplete (accepted sections loaded, refused sections unwritten and listed with exact sheet/row/column coordinates) or a confirmed run stopped before any write (`setup_workflows_disabled`); exit `2` means usage, role, or mapping error before sending anything.
 
 ## Command scope and current constraints
 

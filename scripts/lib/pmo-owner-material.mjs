@@ -52,6 +52,17 @@ export const MATERIAL_LOAD_RPCS = Object.freeze([
   'import_work_orders',
 ]);
 
+/**
+ * Standing prerequisite printed on every preview that would create missing work orders: the
+ * work-order import RPC requires the organisation setup-workflow opt-in, which an organisation
+ * Admin turns on in the app. With the opt-in off the server refuses the import before anything
+ * is written (SQLSTATE 42501).
+ */
+export const SETUP_WORKFLOWS_PREREQUISITE =
+  'Creating missing work orders requires the organisation setup-workflow opt-in (' +
+  '"Enable setup workflows", which an organisation Admin turns on in the app, Finance hub). ' +
+  'With the opt-in off the server refuses the work-order import and nothing is written.';
+
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const CURRENCY_RE = /^[A-Z]{3}$/;
@@ -149,6 +160,27 @@ export class MaterialOutcomeUnknown extends Error {
     this.entityKey = entityKey;
     this.stage = stage;
   }
+}
+
+/**
+ * Recognise the server's refusal of the work-order import because the organisation's
+ * setup-workflow opt-in is off (HTTP 403 / SQLSTATE 42501, migration 2160). Transport-level
+ * failures (no status and no code — an unknown outcome) never match.
+ */
+function isSetupWorkflowsDisabledError(err) {
+  if (!err || typeof err !== 'object') return false;
+  if (err.code === '42501') return /setup workflows are disabled/i.test(String(err.message ?? ''));
+  return err.status === 403 && /setup workflows are disabled/i.test(String(err.message ?? ''));
+}
+
+/** One clear operator message for the disabled setup-workflow opt-in: stop before any write. */
+function setupWorkflowsDisabledError() {
+  return new MaterialLoadError(
+    'Nothing was written: the server refused the work-order import because setup workflows are ' +
+      'disabled for this organisation (the "Enable setup workflows" setting). An organisation Admin ' +
+      'turns it on in the app (Finance hub); re-run the identical command once it is on.',
+    { exit: 1, code: 'setup_workflows_disabled' },
+  );
 }
 
 /** Deterministic key-sorted JSON serialization for canonical payload hashing. */
@@ -1157,11 +1189,19 @@ export async function runMaterialLoad(opts, api) {
     rows: workOrderRows,
     created: 0,
     ids: [],
+    // Standing prerequisite (preview only): the operator must know before confirming.
+    ...(workOrderRows.length > 0 && !confirm ? { prerequisite: SETUP_WORKFLOWS_PREREQUISITE } : {}),
   };
 
   if (confirm && workOrderRows.length > 0) {
     for (const chunk of chunkArray(workOrderRows, MAX_WORK_ORDER_CHUNK)) {
-      const res = await api.rpc('import_work_orders', { p_project: projectId, p_rows: chunk });
+      let res;
+      try {
+        res = await api.rpc('import_work_orders', { p_project: projectId, p_rows: chunk });
+      } catch (err) {
+        if (isSetupWorkflowsDisabledError(err)) throw setupWorkflowsDisabledError();
+        throw err;
+      }
       workOrdersPlan.created += Number(res?.created ?? chunk.length);
       if (Array.isArray(res?.ids)) workOrdersPlan.ids.push(...res.ids);
     }
