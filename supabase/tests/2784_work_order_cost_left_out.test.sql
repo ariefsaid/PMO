@@ -21,22 +21,20 @@ insert into auth.users (id, email) values
   ('27840000-0000-0000-0000-0000000000a7', 'wo2784-light@example.com'),
   ('27840000-0000-0000-0000-0000000000b1', 'wo2784-xorg@example.com');
 
-insert into profiles (id, org_id, full_name, email, role, status, account_tier) values
-  ('27840000-0000-0000-0000-0000000000a1', '27840000-0000-0000-0000-00000000000a', 'Admin',        'wo2784-admin@example.com',     'Admin',           'active', 'full'),
-  ('27840000-0000-0000-0000-0000000000a2', '27840000-0000-0000-0000-00000000000a', 'PCM',          'wo2784-pcm@example.com',       'Project Manager', 'active', 'full'),
-  ('27840000-0000-0000-0000-0000000000a3', '27840000-0000-0000-0000-00000000000a', 'PM Own',       'wo2784-pm-own@example.com',    'Project Manager', 'active', 'full'),
-  ('27840000-0000-0000-0000-0000000000a4', '27840000-0000-0000-0000-00000000000a', 'PM Other',     'wo2784-pm-other@example.com',  'Project Manager', 'active', 'full'),
-  ('27840000-0000-0000-0000-0000000000a5', '27840000-0000-0000-0000-00000000000a', 'PM Hidden',    'wo2784-pm-hidden@example.com', 'Project Manager', 'active', 'full'),
-  ('27840000-0000-0000-0000-0000000000a6', '27840000-0000-0000-0000-00000000000a', 'Engineer',     'wo2784-eng@example.com',       'Engineer',        'active', 'full'),
-  ('27840000-0000-0000-0000-0000000000a7', '27840000-0000-0000-0000-00000000000a', 'Field Light',  'wo2784-light@example.com',     'Project Manager', 'active', 'light'),
-  ('27840000-0000-0000-0000-0000000000b1', '27840000-0000-0000-0000-00000000000b', 'XOrg Admin',   'wo2784-xorg@example.com',      'Admin',           'active', 'full');
+-- profiles_built_in_role_sync sets role from the built-in role's base (PCM and Construction Manager -> Project Manager; Foreman -> Engineer).
+insert into profiles (id, org_id, full_name, email, role, status, built_in_role) values
+  ('27840000-0000-0000-0000-0000000000a1', '27840000-0000-0000-0000-00000000000a', 'Admin',        'wo2784-admin@example.com',     'Admin',           'active', null),
+  ('27840000-0000-0000-0000-0000000000a2', '27840000-0000-0000-0000-00000000000a', 'PCM',          'wo2784-pcm@example.com',       'Project Manager', 'active', 'project_control_manager'),
+  ('27840000-0000-0000-0000-0000000000a3', '27840000-0000-0000-0000-00000000000a', 'PM Own',       'wo2784-pm-own@example.com',    'Project Manager', 'active', null),
+  ('27840000-0000-0000-0000-0000000000a4', '27840000-0000-0000-0000-00000000000a', 'PM Other',     'wo2784-pm-other@example.com',  'Project Manager', 'active', null),
+  ('27840000-0000-0000-0000-0000000000a5', '27840000-0000-0000-0000-00000000000a', 'PM Hidden',    'wo2784-pm-hidden@example.com', 'Project Manager', 'active', 'construction_manager'),
+  ('27840000-0000-0000-0000-0000000000a6', '27840000-0000-0000-0000-00000000000a', 'Engineer',     'wo2784-eng@example.com',       'Engineer',        'active', null),
+  ('27840000-0000-0000-0000-0000000000a7', '27840000-0000-0000-0000-00000000000a', 'Field Light',  'wo2784-light@example.com',     'Engineer',        'active', 'foreman'),
+  ('27840000-0000-0000-0000-0000000000b1', '27840000-0000-0000-0000-00000000000b', 'XOrg Admin',   'wo2784-xorg@example.com',      'Admin',           'active', null);
 
--- Assign built-in job roles:
---   a2 -> project_control_manager (sees prices + all projects)
---   a5 -> site_supervisor (cannot see prices when hide_prices_from_requesters is true, even as Project Manager)
-insert into user_job_roles (org_id, user_id, role_key) values
-  ('27840000-0000-0000-0000-00000000000a', '27840000-0000-0000-0000-0000000000a2', 'project_control_manager'),
-  ('27840000-0000-0000-0000-00000000000a', '27840000-0000-0000-0000-0000000000a5', 'site_supervisor');
+-- Every built-in money role sees prices in the shipped catalogue, so the price-hidden money reader is made by withdrawing the
+-- capability from Construction Manager inside this rolled-back test (the org hides prices from requesters).
+delete from built_in_role_capabilities where role_key = 'construction_manager' and capability = 'sees_prices';
 
 -- Project 1 managed by a3 (with a5 as deputy so a5 is in project_money_in_scope); Project 2 managed by a4.
 insert into projects (id, org_id, name, status, project_manager_id, deputy_manager_id, currency) values
@@ -104,9 +102,9 @@ insert into timesheet_entries (id, org_id, timesheet_id, project_id, work_order_
 -- 4. Equipment: 1 Submitted (unapproved_equipment) + 1 Approved without hire rate (unrated_equipment).
 insert into equipment_assets (id, org_id, code, name, default_unit) values
   ('27840000-0000-0000-0000-000000000601', '27840000-0000-0000-0000-00000000000a', 'CRANE-1', 'Crane', 'hours');
-insert into equipment_usage_entries (id, org_id, asset_id, project_id, work_order_id, work_date, quantity, unit, kind, status, author_id) values
-  ('27840000-0000-0000-0000-000000000611', '27840000-0000-0000-0000-00000000000a', '27840000-0000-0000-0000-000000000601', '27840000-0000-0000-0000-000000000101', '27840000-0000-0000-0000-000000000201', '2026-11-10', 4, 'hours', 'work', 'Submitted', '27840000-0000-0000-0000-0000000000a6'),
-  ('27840000-0000-0000-0000-000000000612', '27840000-0000-0000-0000-00000000000a', '27840000-0000-0000-0000-000000000601', '27840000-0000-0000-0000-000000000101', '27840000-0000-0000-0000-000000000201', '2026-11-11', 5, 'hours', 'work', 'Approved',  '27840000-0000-0000-0000-0000000000a6');
+insert into equipment_usage_entries (id, org_id, asset_id, project_id, work_order_id, work_date, quantity, unit, kind, status, author_id, approved_at) values
+  ('27840000-0000-0000-0000-000000000611', '27840000-0000-0000-0000-00000000000a', '27840000-0000-0000-0000-000000000601', '27840000-0000-0000-0000-000000000101', '27840000-0000-0000-0000-000000000201', '2026-11-10', 4, 'hours', 'work', 'Submitted', '27840000-0000-0000-0000-0000000000a6', null),
+  ('27840000-0000-0000-0000-000000000612', '27840000-0000-0000-0000-00000000000a', '27840000-0000-0000-0000-000000000601', '27840000-0000-0000-0000-000000000101', '27840000-0000-0000-0000-000000000201', '2026-11-11', 5, 'hours', 'work', 'Approved',  '27840000-0000-0000-0000-0000000000a6', now());
 
 -- 5. Expense claim: 1 Submitted claim (300,000) -> unapproved_claim; 1 Approved claim (200,000) -> NOT left out.
 insert into expense_claims (id, org_id, project_id, work_order_id, claimant_id, kind, status, title, amount, currency) values
