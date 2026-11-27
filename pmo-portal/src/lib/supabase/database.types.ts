@@ -3522,6 +3522,42 @@ export type Database = {
           },
         ]
       }
+      company_tax_numbers: {
+        Row: {
+          company_id: string
+          org_id: string
+          tax_number: string
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          org_id?: string
+          tax_number: string
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          org_id?: string
+          tax_number?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_tax_numbers_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "company_tax_numbers_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       consumable_usage_standards: {
         Row: {
           archived_at: string | null

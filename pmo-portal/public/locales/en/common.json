@@ -1222,6 +1222,10 @@
         "label": "Vendor code",
         "hint": "The buyer's own code for this vendor, kept in PMO."
       },
+      "taxNumber": {
+        "label": "Tax number",
+        "hint": "The vendor's registered tax number (NPWP); readable only by vendor-edit roles."
+      },
       "paymentTermsDays": {
         "label": "Payment terms (days)",
         "hint": "Agreed payment terms in days, e.g. 30.",
@@ -1234,7 +1238,8 @@
       },
       "partialSave": {
         "headline": "Company saved, but one change did not persist",
-        "segmentDetail": "The client-number segment could not be saved. Review it and save again."
+        "segmentDetail": "The client-number segment could not be saved. Review it and save again.",
+        "taxDetail": "The tax number could not be saved. Review it and save again."
       }
     },
     "search": {
@@ -1332,7 +1337,8 @@
     "field": {
       "primaryContact": "Primary contact",
       "clientNumberSegment": "Client number segment",
-      "address": "Address"
+      "address": "Address",
+      "taxNumber": "Tax number"
     },
     "notFound": {
       "sub": "This company either doesn't exist or isn't visible to you. Return to the directory to find it.",

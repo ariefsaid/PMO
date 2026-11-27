@@ -621,7 +621,13 @@ insert into public.owner_material_reconciliation_events (id, org_id, section_id,
 insert into public.owner_material_movement_links (org_id, document_id, stock_line_id, section_material_plan_id, item_id, stage)
   select l.org_id, l.document_id, l.id, 'a6120000-0000-4000-8000-00000000021c', l.item_id, 'received'
     from public.stock_document_lines l where l.org_id = 'a6120000-0000-4000-8000-00000000000a' order by l.id limit 1;
-select 'ISO-COPY-SKIPPED' || tbl || ': ' || why from _iso_skipped order by tbl;
+-- 2788 (#3025): the seed org carries no vendor tax numbers. Give A one, on A's first company, so the
+-- by-id read and update probes run instead of skipping.
+insert into public.company_tax_numbers (company_id, org_id, tax_number)
+  select id, org_id, '00.000.000.0-000.000' from public.companies
+   where org_id = 'a6120000-0000-4000-8000-00000000000a' order by id limit 1
+  on conflict do nothing;
+select 'ISO-COPY-SKIPPED ' || tbl || ': ' || why from _iso_skipped order by tbl;
 \endif
 
 do $$ declare r record; begin
