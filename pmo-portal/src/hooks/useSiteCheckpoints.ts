@@ -15,14 +15,13 @@ export const checkpointKeys = {
   lostTime: (orgId: string | undefined, f: PunctualityFilter) => [...root(orgId), 'lost-time', f] as const,
 };
 
-const useOrg = useOrgId;
 
 export function useCheckpointList(enabled = true) {
   return useOrgQuery(['site-checkpoints', 'list'], () => repo.getList(), { enabled });
 }
 
 export function useSetCheckpointList() {
-  const orgId = useOrg();
+  const orgId = useOrgId();
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (items: CheckpointTemplateItem[]) => repo.setList(items),
@@ -39,7 +38,7 @@ export function useWorkOrderCheckpointFlag(workOrderId: string | undefined) {
 }
 
 export function useRecordCheckpoint() {
-  const orgId = useOrg();
+  const orgId = useOrgId();
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (v: { checkpointId: string; file: File | null; note: string | null }) => {
