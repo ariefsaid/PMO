@@ -93,7 +93,9 @@ do $$ declare t text; begin
  'owner_material_movement_links','owner_material_import_witness'] loop
  execute format('alter table public.%I enable row level security',t);
  execute format('alter table public.%I force row level security',t);
- execute format('revoke all on public.%I from public,anon,authenticated,service_role',t);
+ execute format('revoke all on public.%I from public,anon,authenticated',t);
+ -- service_role keeps the 0080 default grant every business table carries (AC-SVCROLE-008).
+ execute format('create policy light_account_deny_select on public.%I as restrictive for select to authenticated using ((select public.actor_is_light()) is not true)',t);
  if t<>'owner_material_import_witness' then
  execute format('grant select on public.%I to authenticated',t);
  if t in ('owner_material_openings','owner_material_movement_links') then
