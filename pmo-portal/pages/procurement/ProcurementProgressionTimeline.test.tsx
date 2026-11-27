@@ -5,6 +5,7 @@ import { formatDay } from '@/src/lib/format';
 import { MemoryRouter } from 'react-router';
 import type { ProgressionEvent } from '@/src/lib/db/procurementHistory';
 import { ProcurementProgressionTimeline } from './ProcurementProgressionTimeline';
+import { BahasaProvider } from '@/test/bahasa';
 
 // buildProgressionTimeline returns events ASCENDING by time; the bento timeline
 // presents them NEWEST-FIRST with a current-state ring on the latest event.
@@ -13,6 +14,14 @@ const ASC_EVENTS: ProgressionEvent[] = [
   { kind: 'transition', label: 'Ordered', actor: 'A. Reyes', actorName: 'Ana Reyes', at: '2026-05-06T10:00:00Z', docRef: 'PO-2026-0077', docHref: '/procurement/proc-1/documents' },
   { kind: 'transition', label: 'Paid', actor: 'L. Chen', actorName: 'Lena Chen', at: '2026-05-14T12:00:00Z', docRef: 'PAY-2026-0033', docHref: '/procurement/proc-1/documents' },
 ];
+
+it('names progression history in the selected language', () => {
+  const { unmount } = render(<MemoryRouter><ProcurementProgressionTimeline events={ASC_EVENTS} /></MemoryRouter>);
+  expect(screen.getByRole('list', { name: 'Progression history' })).toBeInTheDocument();
+  unmount();
+  render(<BahasaProvider><MemoryRouter><ProcurementProgressionTimeline events={ASC_EVENTS} /></MemoryRouter></BahasaProvider>);
+  expect(screen.getByRole('list', { name: 'Riwayat perkembangan' })).toBeInTheDocument();
+});
 
 // 9 events — more than the default cap of 6
 const LONG_EVENTS: ProgressionEvent[] = Array.from({ length: 9 }, (_, i) => ({

@@ -23,7 +23,7 @@ vi.mock('@/src/lib/repositories', () => ({ repositories: { procurement: { setNee
 vi.mock('@/src/hooks/useWorkOrders', () => ({ useProjectWorkOrders: () => h.orders() }));
 vi.mock('@/src/hooks/useWorkOrderCosts', () => ({ useCostDisciplines: () => ({ data: [{ id: 'd1', code: 'CIV', name: 'Civil' }] }) }));
 vi.mock('@/src/lib/repositories/workOrderCosts', () => ({ workOrderCostRepository: { setAttribution: h.setAttribution } }));
-vi.mock('@/src/lib/refusals', () => ({ useRefusalLine: () => (e: unknown) => String((e as { message?: string })?.message ?? 'refused') }));
+vi.mock('@/src/lib/refusals', async (original) => ({ ...await original<typeof import('@/src/lib/refusals')>(), useRefusalLine: () => (e: unknown) => String((e as { message?: string })?.message ?? 'refused') }));
 
 import { LinePlanPanel, type LinePlanPanelProps } from './LinePlanPanel';
 
@@ -57,6 +57,21 @@ beforeEach(() => {
 });
 
 describe('LinePlanPanel: when and for what each line is needed, in one table', () => {
+  it('names saved, unconfirmed and unattempted line changes when a later write fails', async () => {
+    h.planningOn = true;
+    h.setLine.mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error('Write failed'));
+    renderPanel({ projectId: null, items: [...ITEMS, { id: 'l3', name: 'Conduit' }].map((i) => ({ ...i, category_id: null })) });
+    await userEvent.selectOptions(within(rowOf('Cable')).getByRole('combobox'), 'c1');
+    await userEvent.selectOptions(within(rowOf('Pipe')).getByRole('combobox'), 'c1');
+    await userEvent.selectOptions(within(rowOf('Conduit')).getByRole('combobox'), 'c1');
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    const error = await screen.findByRole('alert');
+    expect(error).toHaveTextContent('Saved: Cable');
+    expect(error).toHaveTextContent('Save not confirmed: Pipe');
+    expect(error).toHaveTextContent('Not attempted: Conduit');
+    expect(h.setLine).toHaveBeenCalledTimes(2);
+    expect(error).toHaveTextContent(/failed/i);
+  });
   it('AC-PLP-010 nothing to plan (no setting on, no project) renders nothing', () => {
     const { container } = renderPanel({ projectId: null });
     expect(container).toBeEmptyDOMElement();
@@ -160,7 +175,7 @@ describe('LinePlanPanel: when and for what each line is needed, in one table', (
     renderPanel();
     await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Discipline for Cable' }), 'd1');
     await userEvent.click(screen.getByRole('button', { name: 'Save' }));
-    expect(await screen.findByText('That work order belongs to another project.')).toBeInTheDocument();
+    expect(await screen.findByRole('alert')).toHaveTextContent('That work order belongs to another project.');
     expect(screen.queryByText('Saved')).toBeNull();
   });
 

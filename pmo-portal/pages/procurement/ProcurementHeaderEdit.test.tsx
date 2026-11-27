@@ -8,10 +8,11 @@ import { I18nextProvider } from 'react-i18next';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-vi.mock('@/src/hooks/useFkOptions', () => ({
-  useProjectOptions: () => ({ data: [{ value: 'proj-1', label: 'North Terminal', sub: 'HQ Fit-Out' }] }),
-  useVendorOptions: () => ({ data: [] }),
+const options = vi.hoisted(() => ({
+  project: { data: [{ value: 'proj-1', label: 'North Terminal', sub: 'HQ Fit-Out' }], isError: false, isPending: false, refetch: vi.fn() },
+  vendor: { data: [] as { value: string; label: string }[], isError: false, isPending: false, refetch: vi.fn() },
 }));
+vi.mock('@/src/hooks/useFkOptions', () => ({ useProjectOptions: () => options.project, useVendorOptions: () => options.vendor }));
 
 import { ProcurementHeaderEdit } from './ProcurementHeaderEdit';
 
@@ -19,7 +20,7 @@ function renderEdit(props: Partial<React.ComponentProps<typeof ProcurementHeader
   const onSave = props.onSave ?? vi.fn().mockResolvedValue(undefined);
   const onError = props.onError ?? vi.fn();
   const onClose = props.onClose ?? vi.fn();
-  render(
+  const node = () => (
     <ToastProvider>
       <ProcurementHeaderEdit
         title={props.title ?? 'Welding consumables'}
@@ -31,18 +32,43 @@ function renderEdit(props: Partial<React.ComponentProps<typeof ProcurementHeader
         onError={onError}
         onClose={onClose}
       />
-    </ToastProvider>,
+    </ToastProvider>
   );
-  return { onSave, onError, onClose };
+  const view = render(node());
+  return { onSave, onError, onClose, refresh: () => view.rerender(node()) };
 }
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => { vi.clearAllMocks(); options.project.isError = false; options.vendor.isError = false; options.project.isPending = false; options.vendor.isPending = false; options.vendor.data = []; });
 
 // CW-3a: the Edit affordance moved to the canonical RecordHeader action zone (it is owned
 // by ProcurementDetails now); this panel is CONTROLLED — when mounted it renders the edit
 // form directly. The goal-oracle (Save delegates the right patch; Save disabled on empty
 // title; Save closes the panel) is unchanged.
 describe('AC-PROC-002 ProcurementHeaderEdit (Draft-header inline edit)', () => {
+  it.each(['project', 'vendor'] as const)('retries unavailable %s options in the picker', async (kind) => {
+    options[kind].isError = true;
+    const { refresh } = renderEdit();
+    await userEvent.click(screen.getByRole('combobox', { name: kind === 'project' ? 'Project' : 'Supplier' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Retry' }));
+    expect(options[kind].refetch).toHaveBeenCalled();
+    options[kind].isError = false;
+    if (kind === 'vendor') options.vendor.data = [{ value: 'supplier', label: 'Supplier One' }];
+    refresh();
+    expect(await screen.findByRole('option', { name: kind === 'project' ? /North Terminal/ : 'Supplier One' })).toBeInTheDocument();
+  });
+  it.each(['project', 'vendor'] as const)('shows pending %s options without claiming an empty list', async (kind) => {
+    options[kind].isPending = true;
+    renderEdit();
+    await userEvent.click(screen.getByRole('combobox', { name: kind === 'project' ? 'Project' : 'Supplier' }));
+    expect(await screen.findByTestId('combo-loading')).toBeInTheDocument();
+    expect(screen.queryByText(/Nothing is available to select yet/)).not.toBeInTheDocument();
+  });
+  it('shows the empty supplier list only after a successful read', async () => {
+    renderEdit();
+    await userEvent.click(screen.getByRole('combobox', { name: 'Supplier' }));
+    expect(await screen.findByText(/Nothing is available to select yet/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument();
+  });
   it('AC-PROC-002: renders the edit form directly when mounted (opened from the header Edit action)', () => {
     renderEdit();
     expect(screen.getByLabelText(/title/i)).toBeInTheDocument();

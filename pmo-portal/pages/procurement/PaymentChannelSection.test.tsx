@@ -30,6 +30,16 @@ describe('PaymentChannelSection (#2698)', () => {
     h.setOnRequest.mockResolvedValue(undefined);
   });
 
+  it.each(['list', 'onRequest'] as const)('shows a retryable %s failure instead of missing setup', async (read) => {
+    h[read].mockRejectedValueOnce(new Error('offline'));
+    renderIt(true);
+    const retry = await screen.findByRole('button', { name: 'Retry' });
+    expect(screen.queryByTestId('payment-channel-none')).not.toBeInTheDocument();
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
+    await userEvent.click(retry);
+    expect(await screen.findByRole('combobox', { name: 'Payment channel' })).toHaveValue('c1');
+  });
+
   it('AC-PCH-009 off: renders nothing and reads no channel', async () => {
     h.enabled.mockResolvedValue(false);
     const { container } = renderIt(true);

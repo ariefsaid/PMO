@@ -113,7 +113,7 @@ export const SubcontractLinesSection: React.FC<SubcontractLinesSectionProps> = (
               </Button>
             )}
             {!issued && canEditLines && (
-              <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
+              <Button variant="outline" size="sm" disabled={draft.isPending || draft.isError} onClick={() => setEditing(true)}>
                 {t('subcontract.lines.setLines', 'Set BoQ lines')}
               </Button>
             )}
@@ -123,7 +123,9 @@ export const SubcontractLinesSection: React.FC<SubcontractLinesSectionProps> = (
         {t('subcontract.lines.title', 'Subcontract BoQ lines')}
       </CardHead>
       <CardPad className="flex flex-col gap-3">
-        {!issued ? (
+        {!issued && draft.isError ? (
+          <ListState variant="error" quiet title={t('subcontract.lines.draftLoadError', 'Could not load draft BoQ lines.')} onRetry={() => void draft.refetch()} />
+        ) : !issued && draft.isPending ? <ListState variant="loading" rows={2} /> : !issued ? (
           <div className="flex flex-col gap-2">
             <p className="text-sm font-medium">{t('subcontract.lines.empty', 'No BoQ lines issued')}</p>
             {draftLines.length > 0 ? (
@@ -300,6 +302,7 @@ export const SubcontractLinesSection: React.FC<SubcontractLinesSectionProps> = (
       />
       {editing && (
         <SubcontractLinesEditor projectId={projectId} initial={draftLines} currency={currency}
+          draftRead={{ isPending: draft.isPending, isError: draft.isError, onRetry: () => void draft.refetch() }}
           onClose={() => setEditing(false)}
           onSave={(lines) => mutations.setPoLines.mutateAsync(lines)} />
       )}
