@@ -124,12 +124,13 @@ function DataTableMobileCardInner<Row>({
         selected && 'bg-surface-selected'
       )}
     >
+      <div className={cn('flex min-w-0 flex-col gap-2', selection && 'pl-6')}>
       {/* Title row: first column + rowMenu ⋯ pinned top-right */}
       <div className="flex items-start justify-between gap-3">
         {/* Card title — activation button if rowLabel+onActivate supplied. Text that
             outgrows the card wraps so its full meaning stays visible at phone widths. */}
         <div className="flex min-w-0 flex-1 items-start gap-2">
-          {selection && <span className="mt-0.5 shrink-0" onClick={(event) => event.stopPropagation()}>
+          {selection && <span className="absolute left-[var(--table-cell-inset)] top-[var(--table-cell-inset)] mt-0.5 shrink-0" onClick={(event) => event.stopPropagation()}>
             <Checkbox
               checked={isSelected}
               onChange={(checked) => modelRow.toggleSelected(checked)}
@@ -196,6 +197,7 @@ function DataTableMobileCardInner<Row>({
           })}
         </dl>
       )}
+      </div>
     </li>
   );
 }
