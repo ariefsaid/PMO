@@ -3,7 +3,6 @@ import { stepDaysOver } from './workOrderBillingSteps';
 import type { WorkOrderStatus } from './db/workOrders';
 import type { WorkOrderBillingRow } from './db/workOrderBilling';
 import type { WorkOrderStep } from './db/workOrderBillingSteps';
-import type { WorkOrderFigures } from './workOrderPlanVsActual';
 import type { ExactMoney } from './projectFinances';
 
 /**
@@ -44,7 +43,7 @@ export interface DashboardInput {
   items?: readonly DashboardItem[];
   acceptances?: readonly DashboardAcceptance[];
   billing?: readonly WorkOrderBillingRow[];
-  cost?: ReadonlyMap<string, WorkOrderFigures>;
+  cost?: ReadonlyMap<string, NonNullable<DashboardRow['cost']>>;
   steps?: readonly WorkOrderStep[];
   closeoutOverdue?: ReadonlyMap<string, number>;
   today: string;
@@ -80,7 +79,7 @@ export function buildDashboardRows(input: DashboardInput): DashboardRow[] {
       disciplineIds: [...new Set(lineItems.map((i) => i.discipline_id).filter((d): d is string => Boolean(d)))],
       progress,
       billing: b ? { currency: b.currency, invoiced: b.invoiced, orderNet: b.orderNet, complete: b.figuresComplete } : null,
-      cost: f ? { currency: f.currency, direct: f.direct, plan: f.plan.direct_budget } : null,
+      cost: f ?? null,
       openSteps: steps.filter((s) => !s.doneOn && !s.skippedOn).length,
       late: steps.filter((s) => stepDaysOver(s, input.today) !== null).length + (input.closeoutOverdue?.get(wo.id) ?? 0),
     };

@@ -6,6 +6,8 @@ import en from '../../../../public/locales/en/common.json';
 import id from '../../../../public/locales/id/common.json';
 import enAdmin from '../../../../public/locales/en/administration.json';
 import idAdmin from '../../../../public/locales/id/administration.json';
+import enRecordFolders from '../../../../public/locales/en/recordFolders.json';
+import idRecordFolders from '../../../../public/locales/id/recordFolders.json';
 import { parseMissingKeyHandler as appMissingKeyHandler } from '@/src/lib/i18n';
 import { M365_ERROR_CODES, knownM365ErrorReason, m365ErrorReason } from '../errorCopy';
 
@@ -32,12 +34,12 @@ async function makeT(lng: 'en' | 'id', withCatalogue: boolean) {
     lng,
     fallbackLng: false,
     // Bare keys read `common` (as `translation`); the four app/tenant setup errors live in the
-    // `administration` feature catalogue, so the fixture carries both — exactly what the app's
-    // bare `useTranslation()` plus `administration:` prefix resolves against.
+    // `administration` feature catalogue; folder refusals use `recordFolders`. Carry all three
+    // namespaces, matching the app's bare translation calls and explicit feature prefixes.
     resources: withCatalogue
       ? {
-          en: { translation: en, administration: enAdmin },
-          id: { translation: id, administration: idAdmin },
+          en: { translation: en, administration: enAdmin, recordFolders: enRecordFolders },
+          id: { translation: id, administration: idAdmin, recordFolders: idRecordFolders },
         }
       : {},
     interpolation: { escapeValue: false },
@@ -54,7 +56,7 @@ async function makeT(lng: 'en' | 'id', withCatalogue: boolean) {
 describe('AC-M365LOC-006: shared M365 error copy', () => {
   it('AC-M365LOC-006: the table covers exactly the wire codes the edge function emits', () => {
     const wire = wireCodes();
-    expect(wire.length).toBe(23);
+    expect(wire.length).toBe(24);
     expect([...M365_ERROR_CODES].sort()).toEqual([...wire].sort());
   });
 

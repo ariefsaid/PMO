@@ -313,6 +313,21 @@ describe('AC-M365-110/111/112/113/114 — handleGraphProxy', () => {
     expect(r2).toMatchObject({ status: 410, body: { error: 'CONNECTION_REVOKED' } });
   });
 
+  it('AC-2831-003: a folder children read maps a Graph refusal to a stable public code', async () => {
+    const conn = await connection();
+    const service = mockClient({ ms_graph_connections: [{ data: conn, error: null }] });
+    const graphFetch = vi.fn().mockResolvedValue(new Response(
+      JSON.stringify({ error: { code: 'accessDenied', message: 'Synthetic Graph detail' } }),
+      { status: 403 },
+    ));
+    const result = await handleGraphProxy(
+      graphReq('/drives/drive-1/items/folder-1/children'),
+      deps({ service, caller: callerClient(), userId: 'user-1', fetch: graphFetch }),
+    );
+    expect(result.status).toBe(403);
+    expect(result.body).toEqual({ error: 'FOLDER_ACCESS_DENIED', message: 'Folder access denied' });
+  });
+
   it('AC-M365-140 (opacity): a Graph failure returns GRAPH_ERROR with NO upstream status/code/message leaked to the client', async () => {
     const conn = await connection();
     const service = mockClient({ ms_graph_connections: [{ data: conn, error: null }] });

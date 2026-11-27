@@ -75,11 +75,10 @@ export async function setLabourClassArchived(id: string, archived: boolean): Pro
 
 /** Live (not archived) rates; Admin, Finance and Executive read them (RLS), anyone else gets none. */
 export async function listLabourRates(): Promise<LabourRate[]> {
-  const { data, error } = await supabase.from('labour_cost_rates')
+  const rows = await fetchAllPages((from, to) => supabase.from('labour_cost_rates')
     .select('id, subject_kind, person_id, role_key, class_id, basis, amount::text, overtime_multiplier::text, day_hours::text, month_hours::text, effective_from, effective_to, person:profiles!labour_cost_rates_person_id_fkey(full_name)')
-    .is('archived_at', null).order('effective_from', { ascending: false }).limit(500);
-  if (error) throw new AppError(error.message, error.code);
-  return (data ?? []).map((r) => ({
+    .is('archived_at', null).order('effective_from', { ascending: false }).order('id').range(from, to));
+  return rows.map((r) => ({
     // `subject_kind` and `basis` are text columns whose domain the database CHECK owns; the generated type
     // says `string`, so narrow here rather than leave the mapping unchecked.
     id: r.id, subjectKind: r.subject_kind as RateSubject, personId: r.person_id, personName: r.person?.full_name ?? null, roleKey: r.role_key,

@@ -93,6 +93,13 @@ describe('#2806 AC-DOCTREE-001 the linked folder as a tree', () => {
     expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument();
   });
 
+  it('AC-2831-002: a denied folder tells a Bahasa reader whom to ask', async () => {
+    listChildren.mockRejectedValue(new AppError('x', 'FOLDER_ACCESS_DENIED'));
+    mount((node) => <BahasaProvider>{node}</BahasaProvider>);
+    expect(await screen.findByText('Anda tidak memiliki akses ke folder ini di Microsoft 365. Hubungi pemilik folder.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Coba lagi' })).not.toBeInTheDocument();
+  });
+
   it('a failed read can be retried and then lists the folder', async () => {
     listChildren.mockRejectedValueOnce(new AppError('x', 'GRAPH_ERROR')).mockResolvedValue({ next: null, value: [item('f1', 'Plan.pdf', 'file')] });
     mount();

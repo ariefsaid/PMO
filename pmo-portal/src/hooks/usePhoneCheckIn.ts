@@ -12,6 +12,7 @@ export function usePhoneCheckIn() {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['attendance-day'] });
       void qc.invalidateQueries({ queryKey: [CHECK_IN_REQUESTS_KEY] });
+      void qc.invalidateQueries({ queryKey: ['waiting-decisions'] });
       void qc.invalidateQueries({ queryKey: ['my-home'] });
     },
   });
@@ -32,6 +33,7 @@ export function useDecideCheckIn() {
     mutationFn: (v: { id: string; approve: boolean; reason: string | null }) => phoneCheckInRepository.decide(v.id, v.approve, v.reason),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: [CHECK_IN_REQUESTS_KEY] });
+      void qc.invalidateQueries({ queryKey: ['waiting-decisions'] });
       void qc.invalidateQueries({ queryKey: ['attendance-day'] });
     },
   });

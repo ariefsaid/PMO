@@ -189,14 +189,14 @@ const FinanceHub: React.FC<{ noAccounting?: boolean }> = ({ noAccounting = false
       <CardPad>
         <div className="grid items-start gap-[var(--space-panel-gap)] min-[1280px]:grid-cols-2">
           <div>
-            {receivablesPending ? <ListState variant="loading" rows={2} /> : receivablesError ? (
-              <ListState variant="error" title={t('financeHub:hub.positionError', "Couldn't load balance ageings")} onRetry={finance.retry} />
-            ) : <AgeingStrip kind="receivables" heading={t('financeHub:hub.receivables', 'Receivables')} values={finance.position.receivablesAgeing} unknownCounts={receivablesUnknownAgeing.counts} noDueDateCounts={finance.position.receivablesNoDueDateCounts} unknownTotal={receivablesUnknownWithoutAge} />}
+            {receivablesError ? (
+              <ListState variant="error" quiet title={t('financeHub:hub.positionError', "Couldn't load balance ageings")} onRetry={finance.retry} />
+            ) : receivablesPending ? <ListState variant="loading" rows={2} /> : <AgeingStrip kind="receivables" heading={t('financeHub:hub.receivables', 'Receivables')} values={finance.position.receivablesAgeing} unknownCounts={receivablesUnknownAgeing.counts} noDueDateCounts={finance.position.receivablesNoDueDateCounts} unknownTotal={receivablesUnknownWithoutAge} />}
           </div>
           <div>
-            {payablesRegionPending ? <ListState variant="loading" rows={2} /> : payablesRegionError ? (
-              <ListState variant="error" title={t('financeHub:hub.positionError', "Couldn't load balance ageings")} onRetry={finance.retry} />
-            ) : <AgeingStrip kind="payables" heading={t('financeHub:hub.payables', 'Payables')} values={finance.position.payablesAgeing} unknownCounts={payablesUnknownAgeing} />}
+            {payablesRegionError ? (
+              <ListState variant="error" quiet title={t('financeHub:hub.positionError', "Couldn't load balance ageings")} onRetry={finance.retry} />
+            ) : payablesRegionPending ? <ListState variant="loading" rows={2} /> : <AgeingStrip kind="payables" heading={t('financeHub:hub.payables', 'Payables')} values={finance.position.payablesAgeing} unknownCounts={payablesUnknownAgeing} />}
           </div>
         </div>
       </CardPad>
@@ -223,10 +223,7 @@ const FinanceHub: React.FC<{ noAccounting?: boolean }> = ({ noAccounting = false
       <InvoicePairReview orgId={currentUser?.org_id} />
       <BudgetDraftReview />
       <div className="space-y-[var(--space-panel-gap)]">
-        {figuresFailed && <div role="alert" className="flex items-center justify-between gap-3 rounded-lg border border-border bg-card p-3 text-control">
-          <span>{t('financeHub:hub.positionError', "Couldn't load finance figures")}</span>
-          <Button type="button" variant="outline" size="sm" onClick={retryFigures}>{t('financeHub:hub.retry', 'Retry')}</Button>
-        </div>}
+        {figuresFailed && <ListState variant="error" quiet title={t('financeHub:hub.positionError', "Couldn't load finance figures")} retryLabel={t('financeHub:hub.retry', 'Retry')} onRetry={retryFigures} />}
         {/* Waiting stays left; company figures, monthly totals and ageing use the wider right column. */}
         <div data-testid="finance-hub-first-row" className="grid min-w-0 items-start gap-[var(--space-panel-gap)] min-[1100px]:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
           <div className="min-w-0 space-y-[var(--space-panel-gap)]">

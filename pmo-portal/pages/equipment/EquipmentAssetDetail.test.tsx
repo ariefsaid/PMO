@@ -35,6 +35,7 @@ vi.mock('@/src/hooks/useProjects', () => ({
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: h.role as Role, effectiveRole: (h.viewAs ?? h.role) as Role }) }));
 vi.mock('@/src/hooks/useCompanies', () => ({ useCompanies: () => ({ data: [] }) }));
 vi.mock('@/src/hooks/useEquipmentAvailability', () => ({
+  useEndRentalTerm: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useRentalTerms: () => ({ mutateAsync: vi.fn() }), useRentalTermHistory: () => ({ data: [] }),
   useEquipmentOwnership: () => ({ mutateAsync: vi.fn() }), useChangeRentalRate: () => ({ mutateAsync: vi.fn() }),
 }));

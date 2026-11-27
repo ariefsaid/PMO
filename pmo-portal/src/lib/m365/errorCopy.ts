@@ -43,6 +43,7 @@ export const M365_ERROR_ENGLISH = {
   GRAPH_ERROR: 'Microsoft Graph is unavailable right now. Please try again shortly.',
   INTERNAL_ERROR: 'Something went wrong on our end. Please try again.',
   // Document preview and record-file upload (#1474).
+  FOLDER_ACCESS_DENIED: "You do not have access to this folder in Microsoft 365. Ask the folder's owner.",
   SOURCE_ACCESS_DENIED: "You don't have access to this file in Microsoft 365. Ask its owner to share it with you.",
   SOURCE_NOT_FOUND: "This file couldn't be found in Microsoft 365. It may have been moved or deleted.",
   PREVIEW_UNSUPPORTED: "This file type can't be previewed here. Open it in Microsoft 365 instead.",
@@ -105,6 +106,8 @@ export function knownM365ErrorReason(t: TFunction, code: string | undefined): st
       return t('integrations.personalM365.errors.graphError', en.GRAPH_ERROR);
     case 'INTERNAL_ERROR':
       return t('integrations.personalM365.errors.internalError', en.INTERNAL_ERROR);
+    case 'FOLDER_ACCESS_DENIED':
+      return t('recordFolders:notice.folderAccessDenied', en.FOLDER_ACCESS_DENIED);
     case 'SOURCE_ACCESS_DENIED':
       return t('integrations.personalM365.errors.sourceAccessDenied', en.SOURCE_ACCESS_DENIED);
     case 'SOURCE_NOT_FOUND':

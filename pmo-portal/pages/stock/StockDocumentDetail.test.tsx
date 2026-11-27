@@ -203,7 +203,7 @@ describe('StockDocumentDetail (AC-STK-032)', () => {
     reports.onHand.mockResolvedValue([onHandRow({ valueOnHand: '6000.00', avgCost: '60.0000' })]);
     renderPage('Project Manager');
     const table = await screen.findByRole('table', { name: 'Lines' });
-    expect(reports.onHand).toHaveBeenCalledWith({ warehouseId: 'w1', includeZero: true });
+    expect(reports.onHand).toHaveBeenCalledWith({ warehouseId: 'w1', includeZero: true }, expect.any(Function));
     expect(within(table).getByText('System now')).toBeInTheDocument();
     expect(await within(table).findByText('100')).toBeInTheDocument();
     expect(within(table).getByText('-8')).toBeInTheDocument();

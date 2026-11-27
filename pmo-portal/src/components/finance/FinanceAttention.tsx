@@ -77,8 +77,8 @@ export const FinanceAttention: React.FC<FinanceAttentionProps> = ({
     }] : []),
   ];
 
+  if (isError) return <ListState variant="error" quiet title={t('finance:area.attentionLoadError', "Couldn't load finance activity")} onRetry={onRetry} />;
   if (isPending) return <ListState variant="loading" shape="cards" rows={4} testId="finance-attention-loading" />;
-  if (isError) return <ListState variant="error" title={t('finance:area.attentionLoadError', "Couldn't load finance activity")} onRetry={onRetry} />;
 
   const overdueCount = position.overdue.length;
   const overdueRows = position.overdue.slice(0, 5);
@@ -91,7 +91,7 @@ export const FinanceAttention: React.FC<FinanceAttentionProps> = ({
     <section aria-label={t('finance:area.attention', 'Finance attention')} className="@container grid min-w-0 grid-cols-1 gap-0">
       {overdueCount > 0 && (
         <div>
-          <h2 className="mb-2 text-group font-semibold text-foreground">
+          <h2 className="mb-0 text-group font-semibold text-foreground">
               <span className="text-destructive-text">{t('financeHub:hub.fix.overdue.headingCount', { defaultValue: overdueCount === 1 ? 'Overdue · {{count}} invoice' : 'Overdue · {{count}} invoices', count: overdueCount })}</span>
               {overdueCurrencyLines[0] && <span className="font-normal"> · {overdueCurrencyLines[0]}</span>}
               {showOverdueUnknownCount && position.overdueUnknownCount > 0 && <span className="font-normal text-muted-foreground">{t('financeHub:hub.fix.overdue.unknownCount', { defaultValue: position.overdueUnknownCount === 1 ? ' · {{count}} balance unknown' : ' · {{count}} balances unknown', count: position.overdueUnknownCount })}</span>}

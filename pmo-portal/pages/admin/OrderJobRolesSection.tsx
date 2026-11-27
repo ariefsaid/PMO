@@ -52,7 +52,7 @@ export default function OrderJobRolesSection() {
   return (
     <section aria-labelledby="order-roles-heading" data-testid="order-job-roles">
       <h2 id="order-roles-heading" className="text-group font-semibold">{t('orderRoles.heading', 'Who can order purchases')}</h2>
-      <p className="mt-1 text-control text-muted-foreground">
+      <p className="mt-1 max-w-prose text-control text-muted-foreground">
         {t('orderRoles.subline', 'Admin, Executive, Project Manager and Finance can always order. Name built-in roles whose holders may also raise and send purchase orders, for approved purchases only.')}
       </p>
       <div className="mt-4 max-w-xl space-y-3">

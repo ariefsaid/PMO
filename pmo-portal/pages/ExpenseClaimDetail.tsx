@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { FollowUpTaskButton } from '@/src/components/tasks/FollowUpTaskButton';
-import { ListState, RecordHeader, RecordStack, type PageStat, StatusPill, useToast } from '@/src/components/ui';
+import { AccessDenied, ListState, RecordHeader, RecordStack, type PageStat, StatusPill, useToast } from '@/src/components/ui';
 import { BackBar } from '@/src/components/shell';
 import { useAuth } from '@/src/auth/useAuth';
 import { useEffectiveRole } from '@/src/auth/impersonation';
@@ -65,11 +65,9 @@ const ExpenseClaimDetail: React.FC = () => {
   }
   if (!claim) {
     return (
-      <>
-        <BackBar label={backLabel} phoneOnly onBack={goBack} />
-        <ListState variant="empty" icon="doc" title={t('expenses.detail.notFoundTitle', 'Not found')}
-          sub={t('expenses.detail.notFoundSub', "It doesn't exist, or it isn't yours and you don't approve spend.")} />
-      </>
+      <AccessDenied variant="notFound" title={t('expenses.detail.notFoundTitle', 'Not found')}
+        sub={t('expenses.detail.notFoundSub', "It doesn't exist, or it isn't yours and you don't approve spend.")}
+        parent={backLabel} onBack={goBack} />
     );
   }
 

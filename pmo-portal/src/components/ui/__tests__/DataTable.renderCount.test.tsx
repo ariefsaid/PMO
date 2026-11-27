@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { DataTable, type Column } from '../DataTable';
@@ -149,4 +150,100 @@ describe('DataTable render count (desktop sticky seam)', () => {
     expect(screen.queryByText('Beta')).not.toBeInTheDocument();
     expect(cell).toHaveBeenCalledTimes(rows.length);
   });
+});
+
+it('speed: fitting tables without actions do not allocate resize observers', () => {
+  stubLayout({ scrollWidth: 300, clientWidth: 300, scrollLeft: 0 });
+  TestResizeObserver.instances = [];
+  vi.stubGlobal('ResizeObserver', TestResizeObserver);
+  const columns: Column<Row>[] = [{ key: 'name', header: 'Name', cell: r => r.name }];
+  render(<><DataTable rows={rows} columns={columns} rowKey={r => r.id} /><DataTable rows={rows} columns={columns} rowKey={r => r.id} /></>);
+  expect(TestResizeObserver.instances).toHaveLength(0);
+});
+
+it('speed: an overflow-store tick leaves table row callbacks untouched', () => {
+  const metrics = stubLayout({ scrollWidth: 300, clientWidth: 300, scrollLeft: 0 });
+  TestResizeObserver.instances = [];
+  vi.stubGlobal('ResizeObserver', TestResizeObserver);
+  const rowLabel = vi.fn((r: Row) => r.name);
+  const columns: Column<Row>[] = [{ key: 'name', header: 'Name', cell: r => r.name }];
+  render(<DataTable rows={rows} columns={columns} rowKey={r => r.id} rowLabel={rowLabel} rowMenu={() => [{ label: 'Edit', onClick: vi.fn() }]} />);
+  rowLabel.mockClear();
+  metrics.clientWidth = 200;
+  act(() => TestResizeObserver.instances[0].trigger());
+  expect(screen.getByRole('button', { name: 'Scroll table right' })).toBeInTheDocument();
+  expect(rowLabel).not.toHaveBeenCalled();
+});
+
+it('speed: a resize burst reads table geometry once in the next frame', () => {
+  stubLayout({ scrollWidth: 300, clientWidth: 300, scrollLeft: 0 });
+  const callbacks: FrameRequestCallback[] = [];
+  vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => { callbacks.push(cb); return callbacks.length; });
+  vi.stubGlobal('cancelAnimationFrame', vi.fn());
+  const columns: Column<Row>[] = [{ key: 'name', header: 'Name', cell: r => r.name }];
+  render(<DataTable rows={rows} columns={columns} rowKey={r => r.id} />);
+  const width = vi.spyOn(Element.prototype, 'scrollWidth', 'get');
+  width.mockClear();
+  fireEvent(window, new Event('resize'));
+  fireEvent(window, new Event('resize'));
+  fireEvent(window, new Event('resize'));
+  act(() => callbacks.forEach(cb => cb(0)));
+  expect(width).toHaveBeenCalledTimes(1);
+});
+
+it('resizing a column wider makes sideways controls appear on a table that initially fits', () => {
+  const metrics = stubLayout({ scrollWidth: 300, clientWidth: 300, scrollLeft: 0 });
+  const columns: Column<Row>[] = [{ key: 'name', header: 'Name', cell: r => r.name, size: 200, maxSize: 600 }];
+  render(<DataTable rows={rows} columns={columns} rowKey={r => r.id} />);
+  expect(screen.queryByRole('button', { name: 'Scroll table right' })).toBeNull();
+  metrics.scrollWidth = 600;
+  fireEvent.keyDown(screen.getByRole('separator', { name: 'Resize Name column' }), { key: 'End' });
+  expect(screen.getByRole('button', { name: 'Scroll table right' })).toBeInTheDocument();
+  expect(screen.getByTestId('dt-table-branch')).toHaveAttribute('data-dt-overflowing');
+});
+
+it('showing a column makes sideways controls appear without changing the rows', () => {
+  const metrics = stubLayout({ scrollWidth: 300, clientWidth: 300, scrollLeft: 0 });
+  const columns: Column<Row>[] = [{ key: 'name', header: 'Name', cell: r => r.name }];
+  const page = render(<DataTable rows={rows} columns={columns} rowKey={r => r.id} />);
+  metrics.scrollWidth = 600;
+  page.rerender(<DataTable rows={rows} columns={[...columns, { key: 'extra', header: 'Extra', cell: r => r.id }]} rowKey={r => r.id} />);
+  expect(screen.getByRole('button', { name: 'Scroll table right' })).toBeInTheDocument();
+});
+
+it('opening a side panel reveals sideways controls using one shared page observer', () => {
+  const metrics = stubLayout({ scrollWidth: 300, clientWidth: 300, scrollLeft: 0 });
+  const callbacks: FrameRequestCallback[] = [];
+  vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => { callbacks.push(cb); return callbacks.length; });
+  vi.stubGlobal('cancelAnimationFrame', vi.fn());
+  const observers: { callback: ResizeObserverCallback; targets: Element[] }[] = [];
+  vi.stubGlobal('ResizeObserver', class {
+    targets: Element[] = [];
+    constructor(callback: ResizeObserverCallback) { observers.push({ callback, targets: this.targets }); }
+    observe(target: Element) { this.targets.push(target); }
+    disconnect() {}
+  });
+  const columns: Column<Row>[] = [{ key: 'name', header: 'Name', cell: r => r.name }];
+  render(<main><DataTable rows={rows} columns={columns} rowKey={r => r.id} /><DataTable rows={rows} columns={columns} rowKey={r => r.id} /></main>);
+  expect(observers).toHaveLength(1);
+  expect(observers[0].targets).toEqual([screen.getByRole('main')]);
+  metrics.clientWidth = 200;
+  act(() => observers[0].callback([{ target: screen.getByRole('main'), contentRect: { width: 200 } } as unknown as ResizeObserverEntry], {} as ResizeObserver));
+  act(() => callbacks.forEach(cb => cb(0)));
+  expect(screen.getAllByRole('button', { name: 'Scroll table right' })).toHaveLength(2);
+});
+
+it('sorting an observed table keeps its resize observer', () => {
+  stubLayout({ scrollWidth: 500, clientWidth: 300, scrollLeft: 0 });
+  TestResizeObserver.instances = [];
+  vi.stubGlobal('ResizeObserver', TestResizeObserver);
+  const columns: Column<Row>[] = [{ key: 'name', header: 'Name', cell: r => r.name, sortKey: 'name' }];
+  function Sortable() {
+    const [sorted, setSorted] = useState(rows);
+    return <DataTable rows={sorted} columns={columns} rowKey={r => r.id} onSort={() => setSorted([...sorted].reverse())} rowMenu={() => [{ label: 'Edit', onClick: vi.fn() }]} />;
+  }
+  render(<Sortable />);
+  const count = TestResizeObserver.instances.length;
+  fireEvent.click(screen.getByRole('button', { name: 'Name' }));
+  expect(TestResizeObserver.instances).toHaveLength(count);
 });

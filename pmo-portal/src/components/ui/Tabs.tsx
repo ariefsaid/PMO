@@ -65,7 +65,8 @@ export function Tabs<V extends string = string>({
 }: TabsProps<V>) {
   const { t } = useTranslation('common');
   const listRef = useRef<HTMLDivElement>(null);
-  const [stripWidth, setStripWidth] = useState(0);
+  const stripWidth = useRef<number | null>(null);
+  const revealActive = useRef<() => void>(() => {});
   const [overflow, setOverflow] = useState({ left: false, right: false });
 
   const syncOverflow = useCallback(() => {
@@ -81,7 +82,10 @@ export function Tabs<V extends string = string>({
     if (!list) return undefined;
     const resize = () => {
       syncOverflow();
-      setStripWidth(list.clientWidth);
+      const width = list.clientWidth;
+      const previous = stripWidth.current;
+      stripWidth.current = width;
+      if (previous !== null && previous !== width) revealActive.current();
     };
     resize();
     list.addEventListener('scroll', syncOverflow, { passive: true });
@@ -96,14 +100,9 @@ export function Tabs<V extends string = string>({
   // Scroll only the tab strip: scrollIntoView also scrolls the page vertically,
   // which can move the record header out of view on arrival.
   const mounted = useRef(false);
-  // Counts arriving after mount widen the tabs, so the selected one is brought back into view then too.
-  const widths = items.map((item) => `${item.count ?? ''}${item.detail ?? ''}`).join('|');
-  useEffect(() => {
-    syncOverflow();
-    // First mount on the first tab: the strip is already at scroll 0, so skip the forced layout.
-    const first = !mounted.current;
-    mounted.current = true;
-    if (first && value === items[0]?.value) return;
+  // Translated labels and arriving counts/details can widen tabs without resizing the strip.
+  const widths = items.map((item) => `${item.label}\u0000${item.count ?? ''}\u0000${item.detail ?? ''}`).join('|');
+  revealActive.current = () => {
     const list = listRef.current;
     if (!list) return;
     const active = list.querySelector<HTMLElement>('[aria-selected="true"]');
@@ -121,7 +120,14 @@ export function Tabs<V extends string = string>({
     const offset = left < safeLeft ? left - safeLeft : right > safeRight ? right - safeRight : 0;
     if (!offset) return;
     list.scrollBy({ left: offset, behavior: scrollBehavior() });
-  }, [value, widths, stripWidth, syncOverflow]); // eslint-disable-line react-hooks/exhaustive-deps -- items only matter on first mount
+  };
+  useEffect(() => {
+    syncOverflow();
+    const first = !mounted.current;
+    mounted.current = true;
+    if (first && value === items[0]?.value) return;
+    revealActive.current();
+  }, [value, widths, syncOverflow]); // eslint-disable-line react-hooks/exhaustive-deps -- items only matter on first mount
 
   const nudge = (dir: -1 | 1) => {
     const list = listRef.current;
@@ -197,7 +203,7 @@ export function Tabs<V extends string = string>({
                 ? 'first:ps-[calc(var(--panel-inset)+1px)]'
                 : insetFirstTab
                   ? 'first:ps-[calc(var(--space-content-inset)+1px)]'
-                  : 'first:ps-0',
+                  : 'first:ps-0 first:pe-0',
               active
                 // AC-RAM-004 (#688): raw text-primary as small text is ~3.5:1 on the dark canvas
                 // (sub-AA, DESIGN.md accessibility posture). text-primary-text is the AA on-canvas

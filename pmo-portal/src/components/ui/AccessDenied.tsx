@@ -1,8 +1,10 @@
 import React from 'react';
+import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { cn } from './cn';
 import { Icon } from './icons';
 import { Button } from './Button';
+import { buttonClasses } from './buttonClasses';
 
 export interface AccessDeniedProps {
   /** Region heading. Defaults to a generic no-access title. */
@@ -10,9 +12,15 @@ export interface AccessDeniedProps {
   /** Supporting copy explaining who the surface is for. */
   sub?: string;
   /** Back action handler (e.g. navigate to the dashboard). */
-  onBack: () => void;
-  /** Override the back-button label (defaults to "Back to Dashboard"). */
+  onBack?: () => void;
+  /** Render the back action as a link to this path instead of a button. */
+  backTo?: string;
+  /** Override the whole back-button label (rare; prefer `parent`). */
   backLabel?: string;
+  /** Name of the parent page the back action returns to ("Back to {parent}"). Defaults to the dashboard. */
+  parent?: string;
+  /** `noAccess` (default) or `notFound`: same card, different glyph. */
+  variant?: 'noAccess' | 'notFound';
   className?: string;
 }
 
@@ -33,7 +41,9 @@ export const AccessDenied: React.FC<AccessDeniedProps> = (props) => {
     {...props}
     title={props.title ?? t('ui.accessDenied.title', "You don't have access to this page")}
     sub={props.sub ?? t('ui.accessDenied.sub', 'This area is limited to roles that need it. If you think this is a mistake, contact your administrator.')}
-    backLabel={props.backLabel ?? t('notFound.back', 'Back to Dashboard')}
+    backLabel={props.backLabel ?? (props.parent
+      ? t('shell.backBar.label', 'Back to {{label}}', { label: props.parent })
+      : t('notFound.back', 'Back to Dashboard'))}
   />;
 };
 
@@ -41,7 +51,9 @@ const AccessDeniedView: React.FC<AccessDeniedProps> = ({
   title,
   sub,
   onBack,
+  backTo,
   backLabel,
+  variant = 'noAccess',
   className,
 }) => (
   <section
@@ -52,12 +64,19 @@ const AccessDeniedView: React.FC<AccessDeniedProps> = ({
       className,
     )}
   >
-    <Icon name="lock" aria-hidden className="size-6 text-muted-foreground" strokeWidth={1.75} />
+    <Icon name={variant === 'notFound' ? 'alert' : 'lock'} aria-hidden className="size-6 text-muted-foreground" strokeWidth={1.75} />
     <h1 className="text-group font-semibold">{title}</h1>
     <div className="max-w-[44ch] text-control text-muted-foreground">{sub}</div>
-    <Button variant="primary" size="sm" onClick={onBack} className="mt-1">
-      <Icon name="back" />
-      {backLabel}
-    </Button>
+    {backTo ? (
+      <Link to={backTo} className={cn(buttonClasses('primary'), 'mt-1 pointer-coarse:min-h-11')}>
+        <Icon name="back" className="size-4" />
+        {backLabel}
+      </Link>
+    ) : (
+      <Button variant="primary" size="sm" onClick={onBack} className="mt-1">
+        <Icon name="back" />
+        {backLabel}
+      </Button>
+    )}
   </section>
 );
