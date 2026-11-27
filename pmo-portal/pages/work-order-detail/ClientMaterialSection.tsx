@@ -14,6 +14,7 @@ import { useStockTags } from '@/src/hooks/useStockSiteWork';
 import { rollupClientRequisitions, rollupEvents, type CsrLineFigures } from '@/src/lib/clientRequisitionRollup';
 import type { ClientRequisitionLineRow, ClientRequisitionRow, ClientRequisitionStatus } from '@/src/lib/repositories/clientRequisitions';
 import { formatDay, formatNumberExact } from '@/src/lib/format';
+import { OwnerMaterialPipeline } from './OwnerMaterialPipeline';
 import { PickupDialog, ReleaseDialog, RequisitionFormDialog, ReservationDialog, type RequisitionDraftLine } from './ClientMaterialDialogs';
 import { useSubmitError, type Option } from './clientMaterialText';
 
@@ -47,7 +48,14 @@ const Figure: React.FC<{ label: string; value: string; testId?: string }> = ({ l
  * pickup rows (never stored); an item in two units shows twice (AC-CSR-002); a work order with no requisition shows an
  * empty state, not zeros (AC-CSR-003). Every action is gated by can() and enforced by the csr_* RPCs.
  */
-export const ClientMaterialSection: React.FC<Props> = ({ workOrderId, projectId, workOrderStatus, allocationOptions }) => {
+export const ClientMaterialSection: React.FC<Props> = (props) => (
+  <>
+    <OwnerMaterialPipeline workOrderId={props.workOrderId} />
+    <ClientRequisitionsSection {...props} />
+  </>
+);
+
+const ClientRequisitionsSection: React.FC<Props> = ({ workOrderId, projectId, workOrderStatus, allocationOptions }) => {
   const { t } = useTranslation('workOrders');
   const { t: tAll } = useTranslation();
   const submitError = useSubmitError();

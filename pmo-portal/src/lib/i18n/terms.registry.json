@@ -362,6 +362,86 @@
     "plural": [ "closeout", "close-out", "penutupan" ]
    },
    "scope": [ "closeout", "project", "projectTabs", "workInHand" ]
+  },
+  {
+   "key": "stageRequested",
+   "en": { "singular": [ "requested" ],
+    "plural": [ "requested" ]
+   },
+   "id": { "singular": [ "diminta" ],
+    "plural": [ "diminta" ]
+   },
+   "scope": [ "ownerMaterial" ]
+  },
+  {
+   "key": "stageSetAside",
+   "en": { "singular": [ "owner set-aside" ],
+    "plural": [ "owner set-aside" ]
+   },
+   "id": { "singular": [ "dicadangkan pemilik" ],
+    "plural": [ "dicadangkan pemilik" ]
+   },
+   "scope": [ "ownerMaterial" ]
+  },
+  {
+   "key": "stageReceived",
+   "en": { "singular": [ "received" ],
+    "plural": [ "received" ]
+   },
+   "id": { "singular": [ "diterima" ],
+    "plural": [ "diterima" ]
+   },
+   "scope": [ "ownerMaterial" ]
+  },
+  {
+   "key": "stageIssued",
+   "en": { "singular": [ "issued" ],
+    "plural": [ "issued" ]
+   },
+   "id": { "singular": [ "dikeluarkan" ],
+    "plural": [ "dikeluarkan" ]
+   },
+   "scope": [ "ownerMaterial" ]
+  },
+  {
+   "key": "stageReturned",
+   "en": { "singular": [ "returned" ],
+    "plural": [ "returned" ]
+   },
+   "id": { "singular": [ "dikembalikan" ],
+    "plural": [ "dikembalikan" ]
+   },
+   "scope": [ "ownerMaterial" ]
+  },
+  {
+   "key": "stageTransferred",
+   "en": { "singular": [ "transferred" ],
+    "plural": [ "transferred" ]
+   },
+   "id": { "singular": [ "dipindahkan" ],
+    "plural": [ "dipindahkan" ]
+   },
+   "scope": [ "ownerMaterial" ]
+  },
+  {
+   "key": "stageClosing",
+   "en": { "singular": [ "closing stock" ],
+    "plural": [ "closing stock" ]
+   },
+   "id": { "singular": [ "stok akhir" ],
+    "plural": [ "stok akhir" ]
+   },
+   "scope": [ "ownerMaterial" ]
+  },
+  {
+   "key": "materialReconciliation",
+   "en": { "singular": [ "material reconciliation" ],
+    "plural": [ "material reconciliation" ]
+   },
+   "id": { "singular": [ "rekonsiliasi material" ],
+    "plural": [ "rekonsiliasi material" ]
+   },
+   "scope": [ "ownerMaterial" ]
   }
  ]
 }
