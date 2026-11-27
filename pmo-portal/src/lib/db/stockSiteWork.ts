@@ -71,11 +71,11 @@ export async function addStockDocumentFile(a: { documentId: string; filePath: st
   return data;
 }
 export async function deleteStockDocumentFile(id: string, filePath: string): Promise<void> {
-  const { error: storageError } = await supabase.storage.from('stock-documents').remove([filePath]);
-  if (storageError) throw toAppError(storageError);
   const { data, error } = await supabase.from('stock_document_files').delete().eq('id', id).select('id');
   if (error) throw toAppError(error);
   assertWriteLanded(data, 'You cannot remove this attachment.');
+  const { error: storageError } = await supabase.storage.from('stock-documents').remove([filePath]);
+  if (storageError) throw toAppError(storageError);
 }
 export async function archiveStockDocumentFile(id: string, reason: string): Promise<void> {
   const { error } = await supabase.rpc('archive_stock_document_file', { p_file_id: id, p_reason: reason });
