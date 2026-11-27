@@ -113,15 +113,19 @@ export interface LockReadiness {
   uncheckedWorkers: string[];
 }
 
-/** What stands between a draft and a safe lock: one place, so the screen says it before the database has to refuse. */
+/**
+ * What stands between a draft and a safe lock: one place, so the screen says it before the database has to refuse.
+ * `present` is the workers the fitness check is required for — the population the database's own missing-rule
+ * counts (safety_day_missing, migration 1412: attendance `present` on the day) — not the whole roster.
+ */
 export function lockReadiness(
   checklist: { label: string; answer: 'yes' | 'no' | 'not_applicable' | null; note: string | null }[],
   fitness: { worker_id: string | null; result: 'fit' | 'not_fit' | 'not_checked' }[],
-  roster: { worker_id: string; display_name: string }[],
+  present: { worker_id: string; display_name: string }[],
 ): LockReadiness {
   return {
     noWithoutNote: checklist.filter((c) => c.answer === 'no' && !(c.note ?? '').trim()).map((c) => c.label),
-    uncheckedWorkers: roster
+    uncheckedWorkers: present
       .filter((w) => !fitness.some((f) => f.worker_id === w.worker_id && f.result !== 'not_checked'))
       .map((w) => w.display_name),
   };

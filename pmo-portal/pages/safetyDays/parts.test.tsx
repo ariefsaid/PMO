@@ -48,6 +48,12 @@ const talk = (over: Partial<SafetyTalk> = {}): SafetyTalk => ({
   photos: [], ...over,
 });
 const view = (el: React.ReactElement) => render(<ToastProvider>{el}</ToastProvider>);
+/** Run `body` with the DEVICE timezone forced to `tz` (the org zone is pinned separately). */
+const withDeviceZone = async (tz: string, body: () => void | Promise<void>) => {
+  const host = process.env.TZ;
+  process.env.TZ = tz;
+  try { await body(); } finally { if (host === undefined) delete process.env.TZ; else process.env.TZ = host; }
+};
 
 beforeEach(() => {
   // Existing fixtures enter local wall times with the organisation clock aligned to that device.
@@ -170,6 +176,64 @@ describe('ToolboxPart', () => {
       attendees: [{ workerId: 'w1' }],
       heldAt: new Date('2026-03-10T07:00:00').toISOString(),
     })));
+  });
+
+  it("#2998 taps the visible name to toggle: the name is the checkbox's own hit target", async () => {
+    const user = userEvent.setup();
+    view(<ToolboxPart detail={base} roster={h.roster} editable seePeople />);
+    const name = screen.getByText('Budi');
+    const box = screen.getByRole('checkbox', { name: 'Budi' });
+    expect(box).toContainElement(name); // the visible name lives on the control, not on a sibling span
+    await user.click(name);
+    expect(box).toBeChecked();
+    await user.type(screen.getByLabelText(/^Topic/), 'PPE');
+    await user.type(screen.getByLabelText(/^Presenter/), 'Budi');
+    await user.click(screen.getByTestId('safety-talk-save'));
+    await waitFor(() => expect(h.m.saveTalk.mutateAsync).toHaveBeenCalledWith(expect.objectContaining({
+      attendees: [{ workerId: 'w1' }],
+    })));
+  });
+
+  it('#2998 stores the same held-at instant whichever device timezone renders the form', async () => {
+    const fillAndSave = async () => {
+      const user = userEvent.setup();
+      const { unmount } = view(<ToolboxPart detail={base} roster={h.roster} editable seePeople />);
+      await user.type(screen.getByLabelText(/^Topic/), 'PPE');
+      await user.type(screen.getByLabelText(/^Presenter/), 'Budi');
+      await user.click(screen.getByRole('checkbox', { name: 'Budi' }));
+      await user.click(screen.getByTestId('safety-talk-save'));
+      await waitFor(() => expect(h.m.saveTalk.mutateAsync).toHaveBeenCalled());
+      unmount();
+      act(() => { sonnerToast.dismiss(); });
+    };
+    // The record zone (the organisation's) is pinned to Jakarta; the DEVICE zone varies per run.
+    setActiveOrgTimezone('Asia/Jakarta');
+    try {
+      await withDeviceZone('UTC', fillAndSave);
+      await withDeviceZone('America/Los_Angeles', fillAndSave);
+      const instants = h.m.saveTalk.mutateAsync.mock.calls.map((c) => c[0].heldAt);
+      expect(instants).toHaveLength(2);
+      expect(instants[1]).toBe(instants[0]); // two devices, one instant
+      expect(instants[0]).toBe('2026-03-10T00:00:00.000Z'); // 07:00 in the organisation zone
+    } finally { setActiveOrgTimezone(Intl.DateTimeFormat().resolvedOptions().timeZone); }
+  });
+
+  it('#2998 refuses a wall time the organisation zone skips at a clock change', async () => {
+    setActiveOrgTimezone('America/New_York');
+    try {
+      const user = userEvent.setup();
+      // 2026-03-08 is the US spring-forward day: 02:30 wall time does not exist in New York.
+      view(<ToolboxPart detail={{ ...base, day: { ...day, work_date: '2026-03-08' } }} roster={h.roster} editable seePeople />);
+      await user.type(screen.getByLabelText(/^Topic/), 'PPE');
+      await user.type(screen.getByLabelText(/^Presenter/), 'Budi');
+      await user.click(screen.getByRole('checkbox', { name: 'Budi' }));
+      fireEvent.change(screen.getByLabelText(/^Held at/), { target: { value: '02:30' } });
+      expect(screen.getByTestId('safety-talk-save')).toBeDisabled();
+      await user.click(screen.getByTestId('safety-talk-save'));
+      expect(h.m.saveTalk.mutateAsync).not.toHaveBeenCalled();
+      fireEvent.change(screen.getByLabelText(/^Held at/), { target: { value: '03:30' } });
+      expect(screen.getByTestId('safety-talk-save')).toBeEnabled();
+    } finally { setActiveOrgTimezone(Intl.DateTimeFormat().resolvedOptions().timeZone); }
   });
 
   it('adds a named visitor alongside the picked workers', async () => {

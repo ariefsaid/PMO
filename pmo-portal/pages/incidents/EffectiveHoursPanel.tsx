@@ -38,11 +38,11 @@ export const EffectiveHoursPanel: React.FC<{ from?: string; to?: string }> = ({ 
   const rangeOk = Boolean(from && to && to >= from && rangeDays(from, to) <= MAX_RANGE_DAYS);
   const query = useWorkOrderEffectiveHours(workOrderId ?? undefined, rangeOk ? from : undefined, rangeOk ? to : undefined);
   const rows = useMemo(() => query.data ?? [], [query.data]);
-  const totals = useMemo(() => rows.reduce((a, r) => r.has_times ? ({
+  const totals = useMemo(() => rows.reduce((a, r) => ({
     worked: a.worked + (r.worked_minutes ?? 0),
-    stopped: a.stopped + r.stopped_minutes,
+    stopped: a.stopped + r.stopped_minutes, // every row: a day without times still shows its stopped time (#2998)
     effective: a.effective + (r.effective_minutes ?? 0),
-  }) : a, { worked: 0, stopped: 0, effective: 0 }), [rows]);
+  }), { worked: 0, stopped: 0, effective: 0 }), [rows]);
 
   return (
     <Card>
