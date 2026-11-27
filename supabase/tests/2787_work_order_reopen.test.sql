@@ -48,7 +48,7 @@ insert into boq_items (id, org_id, project_id, item_code, description, unit, qua
 insert into work_order_lines (id, org_id, work_order_id, boq_item_id, quantity) values
   ('27870000-0000-0000-0000-0000000000e1', '27870000-0000-0000-0000-0000000000a1', '27870000-0000-0000-0000-000000000034', '27870000-0000-0000-0000-0000000000d1', 1);
 insert into project_documents (id, org_id, project_id, title, status, file_path) values
-  ('27870000-0000-0000-0000-0000000000f1', '27870000-0000-0000-0000-0000000000a1', '27870000-0000-0000-0000-0000000000c1', 'Final BAST', 'Approved', 'docs/wr-bast.pdf');
+  ('27870000-0000-0000-0000-0000000000f1', '27870000-0000-0000-0000-0000000000a1', '27870000-0000-0000-0000-0000000000c1', 'Final BAST', 'Approved', '27870000-0000-0000-0000-0000000000a1/27870000-0000-0000-0000-0000000000c1/27870000-0000-0000-0000-0000000000f1/wr-bast.pdf');
 insert into work_order_acceptances (id, org_id, project_id, work_order_id, acceptance_date, is_final, status, prepared_by, document_id) values
   ('27870000-0000-0000-0000-0000000000f2', '27870000-0000-0000-0000-0000000000a1', '27870000-0000-0000-0000-0000000000c1', '27870000-0000-0000-0000-000000000034', current_date, true, 'Draft', '27870000-0000-0000-0000-0000000000b2', '27870000-0000-0000-0000-0000000000f1');
 insert into work_order_acceptance_lines (acceptance_id, boq_item_id, quantity) values
