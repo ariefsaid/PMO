@@ -161,6 +161,8 @@ interface DataTablePropsBase<Row> {
   className?: string;
   /** Omit the table's outer frame when it is embedded in an existing surface. */
   embedded?: boolean;
+  /** Use no extra card inset when the containing settings surface already supplies it. */
+  cardInset?: 'default' | 'none';
   /**
    * Opt-in (AC-TBL-CARDS-001): render the stacked record cards whenever the table's OWN width is below this many px,
    * not only below the `md` viewport. For a table in a column narrower than the viewport implies (the record layout,
@@ -267,6 +269,7 @@ export function DataTable<Row>({
   rowMenu,
   className,
   embedded = false,
+  cardInset = 'default',
   cardBelow,
   compactRows = false,
   accessibleName,
@@ -465,6 +468,7 @@ export function DataTable<Row>({
     <div ref={rootRef} className={cn(
       !embedded && 'rounded-b-lg border border-border bg-card',
       !embedded && 'overflow-hidden',
+      cardInset === 'none' && '[&_[data-dt-cards]>li]:px-0',
       className,
     )}>
       {isDesktop ? (

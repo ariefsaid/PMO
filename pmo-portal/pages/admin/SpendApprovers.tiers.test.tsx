@@ -137,3 +137,10 @@ describe('AC-TIER-012 amount tiers on the spend approvers card', () => {
     expect(Object.keys(id.admin.spendApprovers.tiers).sort()).toEqual(Object.keys(en.admin.spendApprovers.tiers).sort());
   });
 });
+
+it('explains an unavailable tier setting with retry alongside loaded approvers', async () => {
+  m.getSpendApprovalTiersEnabled.mockRejectedValue(new Error('offline'));
+  renderPanel('Admin');
+  expect(await screen.findByRole('button', { name: /Retry/i })).toBeInTheDocument();
+  expect(screen.getByText('Fiona Finance')).toBeInTheDocument();
+});

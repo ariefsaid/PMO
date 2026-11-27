@@ -9,6 +9,7 @@ import { useEffectiveRole } from '@/src/auth/impersonation';
 import {
   useAdminDocumentTypes, useDocumentTypeMutations, useDocumentWarningDays, useSetDocumentWarningDays,
 } from '@/src/hooks/useDocumentExpiry';
+import { useRoleLabels } from '../admin-users/roleLabels';
 import { classifyMutationError, joinSentences } from '@/src/lib/classifyMutationError';
 import { DEFAULT_NOTIFY_ROLES, NOTIFY_ROLES, parseWarningDays, type AdminDocumentTypeRow, type NotifyRole, type SubjectKind } from '@/src/lib/db/documentExpiry';
 
@@ -17,6 +18,7 @@ interface TypeFormValues { name: string; applies_to: SubjectKind; is_medical: bo
 const TypeForm: React.FC<{ type?: AdminDocumentTypeRow; onClose: () => void }> = ({ type, onClose }) => {
   const { t } = useTranslation('administration');
   const { toast } = useToast();
+  const roles = useRoleLabels();
   const may = usePermission();
   const { realRole, effectiveRole } = useEffectiveRole();
   const viewOnly = realRole !== effectiveRole;
@@ -93,7 +95,7 @@ const TypeForm: React.FC<{ type?: AdminDocumentTypeRow; onClose: () => void }> =
               label={t('documentTypes.notifyPerson', 'Also tell the person')}>{t('documentTypes.notifyPerson', 'Also tell the person')}</Checkbox>
           )}
           {NOTIFY_ROLES.map((role) => (
-            <Checkbox key={role} checked={v.notify_roles.includes(role)} onChange={(on) => toggleRole(role, on)} label={role}>{role}</Checkbox>
+            <Checkbox key={role} checked={v.notify_roles.includes(role)} onChange={(on) => toggleRole(role, on)} label={roles.label(role)}>{roles.label(role)}</Checkbox>
           ))}
         </fieldset>
       </FormGrid>
