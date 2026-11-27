@@ -54,7 +54,7 @@ export default function StageDateDialog({ title, subtitle, initialDate, min, max
     <EntityFormModal open title={title} submitLabel={t('projectDetail.stageHistory.save', 'Save date')}
       onSubmit={(e) => void submit(e)} onClose={onClose} loading={saving} submitDisabled={outOfRange}
       disabledReason={outOfRange ? rangeMessage : undefined}
-      dirty={value !== (initialDate ?? today)}
+      dirty={value !== (initialDate ?? today) || stage !== (stageOptions?.[0] ?? "")}
       submitError={saveError}>
       {stageOptions && (
         <SelectField label={t('projectDetail.stageHistory.stage', 'Stage')} value={stage} onChange={setStage}
