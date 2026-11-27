@@ -34,7 +34,7 @@ vi.mock('@/src/hooks/useEquipment', () => ({
 vi.mock('@/src/hooks/useOrgToday', () => ({ useOrgToday: () => h.orgToday || new Date().toISOString().slice(0, 10) }));
 vi.mock('@/src/hooks/useResolvedLocale', () => ({ useOrgBusinessTimezone: () => 'UTC' }));
 vi.mock('./RentalInvoiceCheck', () => ({ default: () => <div>Rental invoice check</div> }));
-vi.mock('@/src/hooks/useCompanies', () => ({ useCompanies: () => ({ data: [{ id: 'v1', name: 'Vendor' }] }) }));
+vi.mock('@/src/hooks/useCompanies', () => ({ useCompanyOptions: () => ({ data: [{ id: 'v1', name: 'Vendor' }] }) }));
 vi.mock('@/src/hooks/useEquipmentAvailability', () => ({
   useStatusDays: (from: string, to: string) => { h.statusRange = [from, to]; return { data: h.statusRows, isError: h.statusError }; },
   useLatestStatusDays: () => ({ data: h.latestRows }),

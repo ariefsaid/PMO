@@ -6,7 +6,7 @@ import { ToastProvider } from '@/src/components/ui';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 
 const h = vi.hoisted(() => ({ saveTerm: vi.fn(), changeRate: vi.fn() }));
-vi.mock('@/src/hooks/useCompanies', () => ({ useCompanies: () => ({ data: [{ id: 'v1', name: 'Vendor' }] }) }));
+vi.mock('@/src/hooks/useCompanies', () => ({ useCompanyOptions: () => ({ data: [{ id: 'v1', name: 'Vendor' }] }) }));
 vi.mock('@/src/hooks/useEquipmentAvailability', () => ({
   useRentalTerms: () => ({ mutateAsync: h.saveTerm, isPending: false }),
   useEquipmentOwnership: () => ({ mutateAsync: vi.fn(), isPending: false }),

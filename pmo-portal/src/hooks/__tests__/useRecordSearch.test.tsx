@@ -58,7 +58,7 @@ const { stateCC } = vi.hoisted(() => ({
 vi.mock('@/src/hooks/useProjects', () => ({ useProjects: () => state.projects }));
 vi.mock('@/src/hooks/useProcurements', () => ({ useProcurements: () => state.procurements }));
 vi.mock('@/src/hooks/useDashboard', () => ({ useSalesPipeline: () => state.pipeline }));
-vi.mock('@/src/hooks/useCompanies', () => ({ useCompanies: () => stateCC.companies }));
+vi.mock('@/src/hooks/useCompanies', () => ({ useCompanyOptions: () => stateCC.companies }));
 vi.mock('@/src/hooks/useContacts', () => ({ useContacts: () => stateCC.contacts }));
 vi.mock('@/src/hooks/useIncidents', () => ({ useIncidents: () => stateCC.incidents }));
 

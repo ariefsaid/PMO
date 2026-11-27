@@ -83,8 +83,9 @@ const SpendApprovers: React.FC = () => {
   // Who the standard role rules reach: same predicate that offers the Approve button (ADR-0070).
   // Shares the Add modal's query key, so opening the modal does not refetch.
   const { data: people, isError: peopleError, refetch: peopleRefetch } = useQuery({
-    queryKey: ['spend-approver-people', orgId],
+    queryKey: ['org-profiles', orgId],
     queryFn: () => repositories.profile.listOrgProfiles(),
+    staleTime: 5 * 60_000,
     enabled: Boolean(orgId),
   });
   const eligible = useMemo(

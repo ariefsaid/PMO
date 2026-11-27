@@ -26,8 +26,8 @@ vi.mock('@/src/lib/repositories', () => ({
   repositories: {
     recordHistory: { list: listRecordHistory },
     milestone: { milestoneDatesForProjects },
-    company: { listClients: listClientCompanies },
-    profile: { listProjectManagers },
+    company: { listOptions: listClientCompanies },
+    profile: { listOrgProfiles: listProjectManagers },
     project: {
       list: repoList,
       listPickerOptions: repoListPicker,

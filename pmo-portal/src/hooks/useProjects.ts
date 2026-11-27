@@ -1,3 +1,5 @@
+import { useAssignableProfiles } from './useTasks';
+import { useCompanyOptions } from './useCompanies';
 import { projectKeys, invalidateProjectProjections } from './projectQueryKeys';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -6,8 +8,6 @@ import {
   type ProjectHeaderInput,
   type SetProjectContractValueInput,
 } from '@/src/lib/db/projects';
-import type { CompanyRow } from '@/src/lib/db/companies';
-import type { ProfileRow } from '@/src/lib/db/profiles';
 import { repositories } from '@/src/lib/repositories';
 import { useAuth } from '@/src/auth/useAuth';
 import { useStartRecordFolder } from '@/src/hooks/useStartRecordFolder';
@@ -83,23 +83,11 @@ export function useProjectsMilestoneDates(ids: string[], active = true) {
 }
 
 export function useClientCompanies() {
-  const { currentUser } = useAuth();
-  const orgId = currentUser?.org_id;
-  return useQuery<CompanyRow[]>({
-    queryKey: ['companies', 'client', orgId],
-    queryFn: () => repositories.company.listClients(),
-    enabled: Boolean(orgId),
-  });
+  return useCompanyOptions(undefined, 'Client');
 }
 
 export function useProjectManagers() {
-  const { currentUser } = useAuth();
-  const orgId = currentUser?.org_id;
-  return useQuery<ProfileRow[]>({
-    queryKey: ['profiles', 'pm', orgId],
-    queryFn: () => repositories.profile.listProjectManagers(),
-    enabled: Boolean(orgId),
-  });
+  return useAssignableProfiles({ role: 'Project Manager' });
 }
 
 export interface UpdateProjectHeaderArgs {

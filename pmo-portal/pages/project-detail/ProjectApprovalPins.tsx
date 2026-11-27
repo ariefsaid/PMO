@@ -14,7 +14,7 @@ import { useApprovalChain, useMaterialRequestMutations, useStepPins } from '@/sr
 import { useLabels, useRefusalText } from '../materialRequests/useMaterialRequestText';
 import { holdsJobRole } from '@/src/auth/builtInRoles';
 import { useBuiltInRoleName } from '@/src/hooks/useOrgRoleNames';
-import type { UserRow } from '@/src/lib/db/adminUsers';
+import type { ProfileRow as UserRow } from '@/src/lib/db/profiles';
 import type { Role } from '@/src/auth/AuthContext';
 
 /** Who can decide a step: its built-in role through the same rule as the database (holds_job_role), else its access level. */

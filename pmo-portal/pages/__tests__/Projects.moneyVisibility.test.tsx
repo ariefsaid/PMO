@@ -61,7 +61,7 @@ const { roleBox, projectMutations, projectMoneyState, deliveryState, tasksState 
 
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 // #758: the end-customer filter + form list ALL the org's companies via useCompanies().
-vi.mock('@/src/hooks/useCompanies', () => ({ useCompanies: () => ({ data: [], isError: false }) }));
+vi.mock('@/src/hooks/useCompanies', () => ({ useCompanyOptions: () => ({ data: [], isError: false }) }));
 vi.mock('@/src/hooks/useProjectNumberProposal', () => ({
   useProjectNumberProposal: () => ({ status: 'success', number: 'PMO-TEST-0001', error: null }),
 }));

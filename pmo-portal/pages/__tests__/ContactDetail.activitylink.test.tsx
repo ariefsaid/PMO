@@ -62,7 +62,7 @@ vi.mock('@/src/hooks/useContacts', () => ({
 }));
 
 vi.mock('@/src/hooks/useCompanies', () => ({
-  useCompanies: () => companiesState,
+  useCompanyOptions: () => companiesState,
 }));
 
 import ContactDetail from '../ContactDetail';

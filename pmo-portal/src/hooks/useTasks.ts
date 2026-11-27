@@ -31,12 +31,13 @@ export function useTasks(projectId: string) {
  * The assignee-picker source: all profiles in the org. Org-scoped query key; lightly cached
  * (people change rarely). Consumed by the Tasks assignee `<Combobox>`.
  */
-export function useAssignableProfiles(opts?: { enabled?: boolean }) {
+export function useAssignableProfiles(opts?: { enabled?: boolean; role?: ProfileRow['role'] }) {
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
   return useQuery<ProfileRow[]>({
     queryKey: ['org-profiles', orgId],
     queryFn: () => repositories.profile.listOrgProfiles(),
+    select: opts?.role ? (rows) => rows.filter((row) => row.role === opts.role) : undefined,
     enabled: Boolean(orgId) && opts?.enabled !== false,
     staleTime: 5 * 60_000,
   });
