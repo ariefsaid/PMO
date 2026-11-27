@@ -57,6 +57,7 @@ function colFilters(calls: Call[]): string[] {
 describe('supabaseImportSkipLookup.findExistingCase — AC-IDEM-006 (real lookup)', () => {
   afterEach(() => setHidePricesActive(false));
   beforeEach(() => {
+    setHidePricesActive(false);
     fromCalls.length = 0;
   });
 
