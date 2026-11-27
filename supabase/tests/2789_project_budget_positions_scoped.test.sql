@@ -546,7 +546,15 @@ select is((select diff from _p where kind = 'none' and internal), 0::bigint, 'pa
 select is((select diff from _p where kind = 'empty' and internal), 0::bigint, 'parity: an empty list, inside definer code');
 select is((select diff from _p where kind = 'all' and internal), 0::bigint, 'parity: every project plus another organisation''s, inside definer code');
 select is((select diff from _p where kind = 'short' and internal), 0::bigint, 'parity: a short list, inside definer code');
-select ok((select callers >= 50 and lists >= 600 from _p where kind = 'single' and not internal),
+-- exact coverage, whatever the seed holds: every active profile once, and for each one every project of its organisation
+-- plus one other organisation's project; the fixture's ten profiles and fifteen projects are among them
+select ok((select x.callers = (select count(*) from public.profiles where status = 'active')
+              and x.lists = (select sum(1 + (select count(*) from public.projects p where p.org_id = pr.org_id))
+                               from public.profiles pr where pr.status = 'active')
+              and x.callers >= 10 + (select count(*) from public.profiles where status = 'active' and org_id not in
+                                      ('27890000-0000-0000-0000-00000000000a', '27890000-0000-0000-0000-00000000000b'))
+              and x.lists >= 7 * 13 + 3 * 4   -- the fixture alone: 7 ledger profiles x (12 + 1), 3 document profiles x (3 + 1)
+             from _p x where x.kind = 'single' and not x.internal),
   'parity covered every active profile (seeded and fixture) and every project of its organisation');
 select ok((select erp_spent >= 40 from _p where kind = 'single' and not internal),
   'parity compared ledger-basis rows that carry a spent figure');
