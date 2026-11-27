@@ -1204,8 +1204,7 @@
       "newSubmit": "Create company",
       "newTitle": "New company",
       "sections": {
-        "identity": "Identity",
-        "vendorDetails": "Vendor details"
+        "identity": "Identity"
       },
       "type": {
         "label": "Type"
@@ -1217,20 +1216,6 @@
       "clientNumberSegment": {
         "label": "Client number segment",
         "placeholder": "e.g. RIS"
-      },
-      "vendorCode": {
-        "label": "Vendor code",
-        "hint": "The buyer's own code for this vendor, kept in PMO."
-      },
-      "paymentTermsDays": {
-        "label": "Payment terms (days)",
-        "hint": "Agreed payment terms in days, e.g. 30.",
-        "errors": {
-          "daysRequired": "Payment terms are a whole number of days, or empty."
-        }
-      },
-      "address": {
-        "label": "Address"
       },
       "partialSave": {
         "headline": "Company saved, but one change did not persist",
@@ -1331,8 +1316,7 @@
     },
     "field": {
       "primaryContact": "Primary contact",
-      "clientNumberSegment": "Client number segment",
-      "address": "Address"
+      "clientNumberSegment": "Client number segment"
     },
     "notFound": {
       "sub": "This company either doesn't exist or isn't visible to you. Return to the directory to find it.",

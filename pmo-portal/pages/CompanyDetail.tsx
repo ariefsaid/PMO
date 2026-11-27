@@ -221,10 +221,6 @@ const CompanyDetail: React.FC = () => {
         stats={[
           ...(company.short_name ? [{ label: t('companies.form.shortName.label', 'Short name'), value: company.short_name }] : []),
           ...(company.client_number_segment ? [{ label: t('companyDetail.field.clientNumberSegment', 'Client number segment'), value: <span className="record-id text-foreground">{company.client_number_segment}</span> }] : []),
-          // #3025: the PMO-native vendor master data, shown when the record carries it.
-          ...(company.vendor_code ? [{ label: t('companies.form.vendorCode.label', 'Vendor code'), value: <span className="record-id text-foreground">{company.vendor_code}</span> }] : []),
-          ...(company.payment_terms_days != null ? [{ label: t('companies.form.paymentTermsDays.label', 'Payment terms (days)'), value: String(company.payment_terms_days) }] : []),
-          ...(company.address ? [{ label: t('companyDetail.field.address', 'Address'), value: company.address }] : []),
         ]}
         name={companyDisplayName(company)}
         icon={(companyDisplayName(company).trim().charAt(0) || '•').toUpperCase()}
