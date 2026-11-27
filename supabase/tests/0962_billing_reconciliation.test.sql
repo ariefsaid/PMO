@@ -3,7 +3,7 @@
 -- AC-BST-020, AC-TRACE-001 (docs/specs/billing-stages.spec.md). Ids: 09620000-… (synthetic).
 begin;
 create extension if not exists pgtap;
-select plan(34);
+select plan(36);
 
 insert into organizations (id, name, default_currency, default_timezone) values
   ('09620000-0000-0000-0000-0000000000a1', 'REC Org A', 'IDR', 'UTC'),
@@ -177,5 +177,22 @@ select lives_ok($q$select withdraw_progress_claim(pg_temp.st('c5')::uuid)$q$, 'u
 select is(pg_temp.rec('A'), row(10::numeric, 6::numeric, 7::numeric, 6::numeric, 0::numeric, 0::numeric, 600000::numeric, 'partly_billed')::text,
   'withdrawn claim quantity is excluded from measured work');
 
+reset role;
+insert into public.boq_items (id, org_id, project_id, item_code, description, unit, quantity, rate, line_no)
+select ('96290000-0000-0000-0000-' || lpad(n::text, 12, '0'))::uuid,
+ '09620000-0000-0000-0000-0000000000a1', '09620000-0000-0000-0000-0000000000c1',
+ case when n <= 1001 then 'duplicate-a' else 'duplicate-b' end, 'Paging fixture', 'unit', 1, 1, null
+from generate_series(2002, 1, -1) n;
+select pg_temp.as_user('b1');
+select results_eq(
+ $$select boq_item_id from billing_reconciliation('09620000-0000-0000-0000-0000000000c1') where description = 'Paging fixture'$$,
+ $$select id from boq_items where description = 'Paging fixture' order by line_no nulls last, item_code, id$$,
+ 'AC-READ-002 reconciliation has a total order over null and duplicate keys');
+select is((select count(distinct boq_item_id)::integer from (
+ (select boq_item_id from billing_reconciliation('09620000-0000-0000-0000-0000000000c1') limit 1000)
+ union all (select boq_item_id from billing_reconciliation('09620000-0000-0000-0000-0000000000c1') limit 1000 offset 1000)
+ union all (select boq_item_id from billing_reconciliation('09620000-0000-0000-0000-0000000000c1') offset 2000)
+) pages), (select count(*)::integer from boq_items where project_id = '09620000-0000-0000-0000-0000000000c1'),
+ 'AC-READ-002 every reconciliation line occurs exactly once across page boundaries');
 select * from finish();
 rollback;

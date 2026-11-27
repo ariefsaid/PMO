@@ -168,8 +168,9 @@ export async function createCrew(input: CrewInput, roles: StandardRoleInput[]): 
 }
 
 export async function updateCrew(id: string, patch: Partial<CrewInput> & { archived_at?: string | null }): Promise<void> {
-  const { error } = await supabase.from('crews').update(patch).eq('id', id);
+  const { data, error } = await supabase.from('crews').update(patch).eq('id', id).select('id');
   fail(error);
+  if (!data?.length) throw new AppError('You cannot change this crew.', '42501');
 }
 
 export async function listStandardRoles(crewId: string): Promise<CrewStandardRoleRow[]> {
