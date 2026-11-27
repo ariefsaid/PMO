@@ -26,8 +26,8 @@ export const GateNotice: React.FC<GateNoticeProps> = ({
       'flex items-start gap-2.5 text-control [&_svg]:mt-px [&_svg]:size-[17px] [&_svg]:shrink-0',
       !inline && 'rounded-lg border px-3.5 py-3',
       variant === 'blocked'
-        ? 'border-warning/40 bg-warning/12 text-warning-foreground [&_svg]:text-[hsl(var(--warning-icon))]'
-        : 'border-success/35 bg-success/10 text-[hsl(var(--success-text))] [&_svg]:text-success',
+        ? cn('text-warning-foreground [&_svg]:text-[hsl(var(--warning-icon))]', !inline && 'border-warning/40 bg-warning/12')
+        : cn('text-[hsl(var(--success-text))] [&_svg]:text-success', !inline && 'border-success/35 bg-success/10'),
 
       className
     )}
