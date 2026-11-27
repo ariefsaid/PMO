@@ -126,6 +126,9 @@ export const CompanyFormModal: React.FC<CompanyFormModalProps> = ({
   const shortNameField = form.fieldProps('short_name');
   const typeField = form.fieldProps('type');
   const clientNumberSegmentField = form.fieldProps('clientNumberSegment');
+  const vendorCodeField = form.fieldProps('vendorCode');
+  const addressField = form.fieldProps('address');
+  const paymentTermsDaysField = form.fieldProps('paymentTermsDays');
 
   // AC-ERR-001: a rejected save gets PERSISTENT in-dialog evidence, not only the corner
   // toast (which auto-dismisses, leaving the modal indistinguishable from a pristine form
