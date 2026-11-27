@@ -15,6 +15,10 @@ vi.mock('@/src/lib/supabase/client', () => ({
       q.limit = (n: unknown) => Promise.resolve({ data: (tableRows[table] ?? []).slice(0, Number(n)), error: null });
       return q;
     },
+    rpc: (fn: string) => {
+      calls.push({ table: `rpc:${fn}`, ops: [] });
+      return Promise.resolve({ data: tableRows[`rpc:${fn}`] ?? [], error: null });
+    },
   },
 }));
 
@@ -76,13 +80,9 @@ describe('AC-RET-005 retention held on an overdue invoice (#2625)', () => {
 });
 
 describe('listPaidPaymentFacts', () => {
-  it('is one incoming_payments read: Paid only, four columns, no customer join and no receipt-command read', async () => {
-    tableRows.incoming_payments = [];
+  it('#3046 is one server read of monthly sums, not a read of every Paid receipt', async () => {
     await listPaidPaymentFacts();
-    expect(calls).toHaveLength(1);
-    expect(calls[0].table).toBe('incoming_payments');
-    expect(calls[0].select).toBe('status,date,amount,currency');
-    expect(calls[0].ops).toContain('eq:status,Paid');
+    expect(calls.map((call) => call.table)).toEqual(['rpc:get_paid_receipt_months']);
   });
 
   it('feeds the collected figure the same totals as the full list', async () => {
@@ -92,7 +92,12 @@ describe('listPaidPaymentFacts', () => {
       { status: 'Paid', date: '2026-04-01', amount: null, currency: 'IDR' },
       { status: 'Paid', date: '2025-12-31', amount: 5, currency: 'USD' },
     ];
-    tableRows.incoming_payments = paid;
+    // What get_paid_receipt_months returns for those receipts (proven against the rows by 2815_paid_receipt_months.test.sql).
+    tableRows['rpc:get_paid_receipt_months'] = [
+      { currency: 'USD', month: '2025-12', total: '5.00', receipt_count: 1, unknown_count: 0 },
+      { currency: 'USD', month: '2026-03', total: '300.30', receipt_count: 2, unknown_count: 0 },
+      { currency: 'IDR', month: '2026-04', total: null, receipt_count: 1, unknown_count: 1 },
+    ];
     const facts = await listPaidPaymentFacts();
     const full = [...paid, { status: 'Scheduled', date: '2026-03-10', amount: 999, currency: 'USD' }] as never;
     expect(selectCollectedTotals(facts, '2026-03', '2026-04')).toEqual(selectCollectedTotals(full, '2026-03', '2026-04'));

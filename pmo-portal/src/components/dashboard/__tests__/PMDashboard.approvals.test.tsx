@@ -37,7 +37,7 @@ vi.mock('@/src/auth/impersonation', () => ({
   useEffectiveRole: () => ({ effectiveRole: 'Project Manager', realRole: 'Project Manager' }),
 }));
 vi.mock('@/src/hooks/useMaterialRequests', () => ({ useWaitingForMe: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }) }));
-vi.mock('@/src/hooks/useProcurements', () => ({
+vi.mock('@/src/hooks/useProcurements', async () => (await import('@/src/test/supplierTotalsFromRows')).withSupplierTotals({
   useProcurements: () => ({ data: h.procurements, isPending: false, isError: false, refetch: () => Promise.resolve() }),
 }));
 vi.mock('@/src/hooks/useTimesheetApproval', () => ({

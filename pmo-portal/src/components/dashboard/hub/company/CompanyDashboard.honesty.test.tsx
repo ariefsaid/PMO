@@ -83,7 +83,7 @@ vi.mock('@/src/hooks/useDashboard', () => ({
 vi.mock('@/src/hooks/useProjectsDelivery', () => ({ useProjectManagementOverview: () => ({ data: [], isPending: false, isError: false }), useProjectsDeliverySummary: () => ({ data: {}, isPending: false, isError: false }),
   useProjectsDelivery: () => ({ data: h.delivery, isPending: false, isError: false, refetch: vi.fn() }),
 }));
-vi.mock('@/src/hooks/useProcurements', () => ({ useProcurements: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }) }));
+vi.mock('@/src/hooks/useProcurements', async () => (await import('@/src/test/supplierTotalsFromRows')).withSupplierTotals({ useProcurements: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }) }));
 vi.mock('@/src/hooks/useErpSnapshots', () => ({
   useActualsSnapshot: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
   useApAgingSnapshot: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),

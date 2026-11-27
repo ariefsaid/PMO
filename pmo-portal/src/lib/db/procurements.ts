@@ -142,6 +142,40 @@ export interface ProjectReservedSpend {
   otherCurrencies: Array<{ currency: string | null; amount: number }>;
 }
 
+/** One currency's supplier balances waiting for payment, summed by the server (2814) with the browser's own rule. */
+export interface SupplierPayablesTotal {
+  currency: string;
+  invoiceCount: number;
+  unknownCount: number;
+  knownCount: number;
+  knownTotal: number;
+  notDueCount: number;
+  notDueTotal: number;
+  overdueKnownCount: number;
+  overdueTotal: number;
+  overdueCount: number;
+  oldestDays: number | null;
+}
+
+/** Home's supplier figures: a few rows per currency instead of every purchase with its bills and payments. RLS scopes the rows. */
+export async function getSupplierPayablesTotals(today: string): Promise<SupplierPayablesTotal[]> {
+  const { data, error } = await supabase.rpc('get_supplier_payables_totals', { p_today: today });
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((row) => ({
+    currency: row.currency,
+    invoiceCount: row.invoice_count,
+    unknownCount: row.unknown_count,
+    knownCount: row.known_count,
+    knownTotal: Number(row.known_total),
+    notDueCount: row.not_due_count,
+    notDueTotal: Number(row.not_due_total),
+    overdueKnownCount: row.overdue_known_count,
+    overdueTotal: Number(row.overdue_total),
+    overdueCount: row.overdue_count,
+    oldestDays: row.oldest_days ?? null,
+  }));
+}
+
 export async function getProjectReservedSpend(projectId: string): Promise<ProjectReservedSpend> {
   const { data, error } = await supabase.rpc('project_reserved_position', { p_project_id: projectId });
   if (error) throw new Error(error.message);

@@ -33295,6 +33295,16 @@ export type Database = {
         Args: { p_from?: string; p_to?: string }
         Returns: Json
       }
+      get_paid_receipt_months: {
+        Args: never
+        Returns: {
+          currency: string
+          month: string | null
+          receipt_count: number
+          total: string | null
+          unknown_count: number
+        }[]
+      }
       get_projects_plan_actual_sources: {
         Args: { p_project_ids: string[] }
         Returns: Json
@@ -33514,6 +33524,22 @@ export type Database = {
           p_warehouse_id?: string
         }
         Returns: Json
+      }
+      get_supplier_payables_totals: {
+        Args: { p_today: string }
+        Returns: {
+          currency: string
+          invoice_count: number
+          known_count: number
+          known_total: number
+          not_due_count: number
+          not_due_total: number
+          oldest_days: number | null
+          overdue_count: number
+          overdue_known_count: number
+          overdue_total: number
+          unknown_count: number
+        }[]
       }
       get_timesheet_approval_route: {
         Args: { p_timesheet_id: string }

@@ -7,7 +7,7 @@ import { useAuth } from '@/src/auth/useAuth';
 import { isLightAccount } from '@/src/auth/lightAccount';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { can } from '@/src/auth/policy';
-import { useProcurements } from '@/src/hooks/useProcurements';
+import { useSupplierPayablesTotals } from '@/src/hooks/useProcurements';
 import { useOverdueInvoiceFacts } from '@/src/hooks/useRevenue';
 import { useUnbilledWorkOrders } from '@/src/hooks/useWorkOrderBilling';
 import { useWaitingForYou } from '@/src/hooks/useWaitingForYou';
@@ -27,8 +27,8 @@ import { ON_HAND_STATUSES, INTERNAL_STATUSES } from '@/src/lib/db/projectTransit
 import { repositories } from '@/src/lib/repositories';
 import type { OverdueInvoiceFact } from '@/src/lib/db/revenue';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
-import { supplierUnpaid, withLinkedDocuments } from '@/src/lib/procurement/procurementMoney';
-import { useErpPurchases } from '@/src/hooks/useErpPurchases';
+import { supplierUnpaid } from '@/src/lib/procurement/procurementMoney';
+import type { SupplierPayablesTotal } from '@/src/lib/db/procurements';
 import { selectOverdueTaskCount } from './overdueTasks';
 import { useWaitingSteps, useWaitingWorkOrderSteps } from '@/src/hooks/useBillingSteps';
 import { useWaitingCloseoutItems } from '@/src/hooks/useCloseoutChecklist';
@@ -331,6 +331,16 @@ export function selectSupplierInvoices(rows: ProcurementWithRefs[] | undefined):
   return { count: invoiced.length, knownTotals: [...totals].map(([currency, amount]) => ({ currency, amount })), unknownBalances };
 }
 
+/** `selectSupplierInvoices` from the server totals (2814): the same figures, summed by the database from the same rows. */
+export function supplierInvoicesFromTotals(rows: SupplierPayablesTotal[] | undefined): SupplierInvoiceNeeds | undefined {
+  if (!rows) return undefined;
+  return {
+    count: rows.reduce((sum, row) => sum + row.invoiceCount, 0),
+    knownTotals: rows.filter((row) => row.knownCount > 0).map((row) => ({ currency: row.currency, amount: row.knownTotal })),
+    unknownBalances: rows.reduce((sum, row) => sum + row.unknownCount, 0),
+  };
+}
+
 const isCompanyRole = (role: Role | null): boolean => role === 'Executive' || role === 'Admin' || role === 'Finance';
 
 export interface NeedsYouResult {
@@ -377,7 +387,7 @@ export function useNeedsYou(role: Role | null): NeedsYouResult {
     enabled: Boolean(orgId && companyRole),
   });
   const salesInvoiceQuery = useOverdueInvoiceFacts(Boolean(orgId && companyRole));
-  const procurementsQuery = useProcurements({ lean: true, enabled: Boolean(orgId && companyRole) });
+  const supplierTotalsQuery = useSupplierPayablesTotals(organizationDay.day, Boolean(orgId && companyRole));
   const workOrdersQuery = useUnbilledWorkOrders(Boolean(orgId && companyRole));
   const budgetReviewQuery = useQuery({
     queryKey: ['finance-budget-review', orgId],
@@ -435,9 +445,8 @@ export function useNeedsYou(role: Role | null): NeedsYouResult {
     () => selectOverdueInvoices(salesInvoiceQuery.data, organizationDay.day),
     [organizationDay.day, salesInvoiceQuery.data],
   );
-  // L12: the same supplier unpaid amount as Payables and the record (linked accounting documents read).
-  const linkedDocuments = useErpPurchases(undefined, { enabled: Boolean(orgId && companyRole) });
-  const supplierNeeds = useMemo(() => selectSupplierInvoices(withLinkedDocuments(procurementsQuery.data, linkedDocuments.data)), [procurementsQuery.data, linkedDocuments.data]);
+  // L12: the same supplier unpaid amount as Payables and the record; the server sums it with the linked accounting documents (#3045).
+  const supplierNeeds = useMemo(() => supplierInvoicesFromTotals(supplierTotalsQuery.data), [supplierTotalsQuery.data]);
 
   const pmDeliveryProjects = useMemo(() => (pmProjectsQuery.data ?? []).filter((project) =>
     ON_HAND_STATUSES.includes(project.status) || INTERNAL_STATUSES.includes(project.status as never),
@@ -488,14 +497,14 @@ export function useNeedsYou(role: Role | null): NeedsYouResult {
   };
 
   const needsPending = companyRole
-    ? dashboardQuery.isPending || salesInvoiceQuery.isPending || (procurementApprovalRole && procurementsQuery.isPending) || workOrdersQuery.isPending || organizationDay.isPending || budgetReviewQuery.isPending || approvalSourcesPending || !invoiceNeeds && !salesInvoiceQuery.isError && !organizationDay.isError
+    ? dashboardQuery.isPending || salesInvoiceQuery.isPending || (procurementApprovalRole && supplierTotalsQuery.isPending && supplierTotalsQuery.fetchStatus !== 'idle') || workOrdersQuery.isPending || organizationDay.isPending || budgetReviewQuery.isPending || approvalSourcesPending || !invoiceNeeds && !salesInvoiceQuery.isError && !organizationDay.isError
     : role === 'Project Manager'
       ? pmProjectsQuery.isPending || pmBudgetPositionsPending || projectTasksPending || organizationDay.isPending || approvalSourcesPending
       : role === 'Engineer'
         ? timesheetsQuery.isPending || myTasksQuery.isPending || expenseClaimsQuery.isPending || organizationDay.isPending || approvalSourcesPending
         : false;
   const needsError = companyRole
-    ? dashboardQuery.isError || salesInvoiceQuery.isError || (procurementApprovalRole && procurementsQuery.isError) || workOrdersQuery.isError || organizationDay.isError || budgetReviewQuery.isError || approvalSourcesError
+    ? dashboardQuery.isError || salesInvoiceQuery.isError || (procurementApprovalRole && supplierTotalsQuery.isError) || workOrdersQuery.isError || organizationDay.isError || budgetReviewQuery.isError || approvalSourcesError
     : role === 'Project Manager'
       ? pmProjectsQuery.isError || pmBudgetPositionsQuery.isError || projectTasks.isError || organizationDay.isError || approvalSourcesError
       : role === 'Engineer'
@@ -517,7 +526,7 @@ export function useNeedsYou(role: Role | null): NeedsYouResult {
   const refetch = () => {
     void dashboardQuery.refetch();
     void salesInvoiceQuery.refetch();
-    void procurementsQuery.refetch();
+    void supplierTotalsQuery.refetch();
     void workOrdersQuery.refetch();
     void budgetReviewQuery.refetch();
     void pmProjectsQuery.refetch();

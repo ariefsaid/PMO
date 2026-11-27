@@ -98,3 +98,13 @@ export function useProjectReservedSpend(projectId: string | null | undefined) {
   return { ...query, data: query.data?.amount, projectCurrency: query.data?.projectCurrency,
     budgetCurrency: query.data?.budgetCurrency, otherCurrencies: query.data?.otherCurrencies ?? [] };
 }
+
+/** Home's supplier figures, summed by the server (2814). Under the `['procurements', orgId]` prefix, so every procurement invalidation refetches it. */
+export function useSupplierPayablesTotals(today: string | null, enabled = true) {
+  const orgId = useAuth().currentUser?.org_id;
+  return useQuery({
+    queryKey: ['procurements', orgId, 'supplier-totals', today],
+    queryFn: () => repositories.procurement.getSupplierPayablesTotals(today as string),
+    enabled: enabled && Boolean(orgId && today),
+  });
+}
