@@ -30,6 +30,11 @@ select p.org_id,p.id,'2026-11-01',1,'30120000-0000-0000-0000-000000000006','3012
 from public.work_order_section_material_plan p where p.org_id='30120000-0000-0000-0000-000000000001';
 analyze public.work_order_section_material_plan;
 analyze public.owner_material_openings;
+analyze public.work_orders;
+analyze public.work_order_sections;
+analyze public.stock_items;
+analyze public.stock_units;
+analyze public.projects;
 select set_config('request.jwt.claims','{"sub":"30120000-0000-0000-0000-000000000002","role":"authenticated"}',true);
 set local role authenticated;
 explain(analyze,buffers) select * from public.om_material_rollup('30120000-0000-0000-0000-000000000003');

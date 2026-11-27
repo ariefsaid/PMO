@@ -17,23 +17,12 @@ insert into profiles (id, org_id, full_name, email, role, status) values
 insert into projects (id, org_id, name, status, project_manager_id) values
   ('30110000-0000-0000-0000-0000000001d1', '30110000-0000-0000-0000-00000000010a', 'OMI Site', 'Ongoing Project', '30110000-0000-0000-0000-0000000001a3');
 insert into work_orders (id, org_id, project_id, title, status, order_value, tax_treatment, tax_amount) values
-  ('30110000-0000-0000-0000-000000001401', '30110000-0000-0000-0000-00000000010a', '30110000-0000-0000-0000-0000000001d1', 'OMI W',  'Issued', 10000, 'exclusive', 0),
-  ('30110000-0000-0000-0000-000000001402', '30110000-0000-0000-0000-00000000010a', '30110000-0000-0000-0000-0000000001d1', 'OMI W2', 'Issued', 10000, 'exclusive', 0);
-insert into boq_items (id, org_id, project_id, item_code, description, unit, quantity, rate) values
-  ('30110000-0000-0000-0000-000000001201', '30110000-0000-0000-0000-00000000010a', '30110000-0000-0000-0000-0000000001d1', 'B1', 'Slab', 'm3', 10, 1000);
-insert into work_order_lines (org_id, work_order_id, boq_item_id, quantity) values
-  ('30110000-0000-0000-0000-00000000010a', '30110000-0000-0000-0000-000000001401', '30110000-0000-0000-0000-000000001201', 10);
-insert into boq_items (id, org_id, project_id, item_code, description, unit, quantity, rate) values
-  ('30110000-0000-0000-0000-000000001202', '30110000-0000-0000-0000-00000000010a', '30110000-0000-0000-0000-0000000001d1', 'B2', 'Wall', 'm3', 10, 1000);
-insert into work_order_lines (org_id, work_order_id, boq_item_id, quantity) values
-  ('30110000-0000-0000-0000-00000000010a', '30110000-0000-0000-0000-000000001402', '30110000-0000-0000-0000-000000001202', 10);
+  ('30110000-0000-0000-0000-000000001401', '30110000-0000-0000-0000-00000000010a', '30110000-0000-0000-0000-0000000001d1', 'OMI W',  'Draft', 0, 'exclusive', 0),
+  ('30110000-0000-0000-0000-000000001402', '30110000-0000-0000-0000-00000000010a', '30110000-0000-0000-0000-0000000001d1', 'OMI W2', 'Draft', 0, 'exclusive', 0);
 insert into stock_units (id, org_id, code, name) values
   ('30110000-0000-0000-0000-000000001301', '30110000-0000-0000-0000-00000000010a', 'M', 'Metre');
 insert into stock_items (id, org_id, code, name, unit_id) values
   ('30110000-0000-0000-0000-000000001311', '30110000-0000-0000-0000-00000000010a', 'CBL', 'Cable', '30110000-0000-0000-0000-000000001301');
-insert into boq_material_allowances (id, org_id, boq_item_id, item_id, planned_quantity) values
-  ('30110000-0000-0000-0000-000000001321', '30110000-0000-0000-0000-00000000010a', '30110000-0000-0000-0000-000000001201', '30110000-0000-0000-0000-000000001311', 100),
-  ('30110000-0000-0000-0000-000000001322', '30110000-0000-0000-0000-00000000010a', '30110000-0000-0000-0000-000000001202', '30110000-0000-0000-0000-000000001311', 50);
 update work_orders set client_po_number='OMI-ORDER' where id='30110000-0000-0000-0000-000000001401';
 insert into stock_tags(id,org_id,name,zero_cost) values('30110000-0000-0000-0000-000000005001','30110000-0000-0000-0000-00000000010a','Owner material',true);
 update stock_items set tag_id='30110000-0000-0000-0000-000000005001' where id='30110000-0000-0000-0000-000000001311';
@@ -64,7 +53,7 @@ insert into results values('create',om_material_import('synthetic-opening',2,pg_
 select is((select v->>'complete' from results where k='create'),'true','AC-006 confirmed section imports');
 select is((select v->'results'->0->>'status' from results where k='create'),'create','AC-006 initial import creates');
 select is((select count(*) from owner_material_openings),1::bigint,'AC-006 one opening per plan');
-select is((select quantity from work_order_section_material_plan),250::numeric,'AC-006 private witness allows opening plan above live cap');
+select is((select quantity from work_order_section_material_plan),250::numeric,'AC-006 private witness imports a Draft plan with no commercial lines and zero live cap');
 select ok((select import_batch_id is not null from work_order_section_material_plan),'AC-006 exception records import batch');
 select is((select closing::numeric from om_material_lines('30110000-0000-0000-0000-000000001401')),4::numeric,'AC-003 imported opening arithmetic');
 select is((select evidence->>'reference' from om_material_lines('30110000-0000-0000-0000-000000001401')),'SYN-01 / SYN-02','AC-003 source text retained verbatim');
@@ -96,6 +85,23 @@ select is((select quantity from work_order_section_material_plan),400::numeric,'
 select is((select received from owner_material_openings),1::numeric,'AC-006 failure after first line restores earlier opening update');
 select is(om_material_import('synthetic-opening',2,jsonb_set(pg_temp.payload('v5','450','5','1','4'),'{entities,0,reconciliation_step}','"Prepared"'),true)->>'complete','true','AC-006 opening imports optional reconciliation step');
 select is((select reconciliation_step from om_material_section_rollup('30110000-0000-0000-0000-000000001401')),'Prepared','AC-006 imported reconciliation is readable by location');
+insert into results values('catalogue',om_material_import('synthetic-catalogue',2,
+ jsonb_build_object('kind','catalogue','project_id','30110000-0000-0000-0000-0000000001d1','entities',jsonb_build_array(
+ jsonb_build_object('entity_key','catalogue-category','hash','cat-v1','type','category','code','SYN-CAT','name','Synthetic category'),
+ jsonb_build_object('entity_key','catalogue-warehouse','hash','wh-v1','type','owner_warehouse','code','SYN-WH','name','Synthetic owner warehouse'),
+ jsonb_build_object('entity_key','catalogue-item','hash','item-v1','type','item','code','000-SYN','name','Synthetic new item','unit','M','zero_cost_tag_id','30110000-0000-0000-0000-000000005001'))),true));
+select is((select v->>'complete' from results where k='catalogue'),'true','AC-006 catalogue chunk imports existing unit and zero-cost tag');
+select is((select code from stock_items where code='000-SYN'),'000-SYN','AC-006 item code preserves leading zeros');
+select is(jsonb_array_length(om_material_config()->'categories'),1,'AC-005 categories appear in configuration');
+select is(jsonb_array_length(om_material_config()->'owner_warehouses'),1,'AC-005 owner warehouses appear in configuration');
+select is(om_material_import('synthetic-catalogue',2,
+ jsonb_build_object('kind','catalogue','project_id','30110000-0000-0000-0000-0000000001d1','entities',jsonb_build_array(
+ jsonb_build_object('entity_key','catalogue-category','hash','cat-v2','type','category','code','SYN-CAT','name','Conflicting name'))),true)->>'complete','false','AC-006 catalogue conflict does not overwrite existing names');
+select is((select name from stock_material_categories where code='SYN-CAT'),'Synthetic category','AC-006 catalogue name remains intact after refusal');
+select is(om_material_import('synthetic-opening',2,
+ jsonb_set(jsonb_set(jsonb_set(jsonb_set(pg_temp.payload(),'{entities,0,entity_key}','"section-south"'),'{entities,0,location_name}','"South"'),'{entities,0,section_code}','"S"'),'{entities,0,lines,0,entity_key}','"line-south-cable"'),true)->>'complete','true','AC-006 a second location creates a distinct section on the same work order');
+select is((select count(*) from work_order_sections where work_order_id='30110000-0000-0000-0000-000000001401'),2::bigint,'AC-006 locations sharing an order remain separate');
+select is((select count(*) from work_orders where client_po_number='OMI-ORDER'),1::bigint,'AC-006 material import reuses the one existing order');
 select pg_temp.act_as('30110000-0000-0000-0000-0000000001a2');
 select throws_ok($$select om_material_import('denied',2,pg_temp.payload(),true)$$,'42501','Admin required','AC-005 member cannot import');
 select pg_temp.act_as('30110000-0000-0000-0000-0000000001b1');
