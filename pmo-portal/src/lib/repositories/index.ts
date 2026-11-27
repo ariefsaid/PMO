@@ -69,7 +69,7 @@ export const repositories: Repositories = {
   notification: lazyRepository(() => import('./notifications').then((module) => module.notificationRepository),
     { listPage: true, unreadCount: true, markRead: true }),
   company: lazyRepository(() => import('./companies').then((module) => module.companyRepository),
-    { listClients: true, list: true, listAll: true, listPage: true, count: true, listOptions: true, get: true, getMany: true, create: true, update: true, setProjectNumberSegment: true, setTaxDefaults: true, archive: true, delete: true }),
+    { listClients: true, list: true, listAll: true, listPage: true, count: true, listOptions: true, get: true, getMany: true, create: true, update: true, setProjectNumberSegment: true, setTaxDefaults: true, getTaxNumber: true, setTaxNumber: true, archive: true, delete: true }),
   document: lazyRepository(() => import('./documents').then((module) => module.documentRepository),
     { list: true, get: true, create: true, linkMicrosoftDocument: true, attachMicrosoftUpload: true, unlinkMicrosoftDocument: true, update: true, transition: true, delete: true, prepareUpload: true, confirmUpload: true, cleanupObject: true, getSignedUrl: true, createRevision: true, getChild: true }),
   agentAttachment: lazyRepository(() => import('./documents').then((module) => module.agentAttachmentRepository),

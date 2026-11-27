@@ -105,4 +105,14 @@ describe('AC-3025 vendor details on the company form', () => {
     expect(onUpdate).not.toHaveBeenCalled();
     expect(await screen.findByText(/whole number of days/i)).toBeInTheDocument();
   });
+
+  it('a payment-terms value beyond the 365-day bound (2800) blocks the save with the error', async () => {
+    const onUpdate = vi.fn().mockResolvedValue(undefined);
+    renderEdit(vendor, onUpdate);
+    await userEvent.clear(screen.getByLabelText(/Payment terms \(days\)/i));
+    await userEvent.type(screen.getByLabelText(/Payment terms \(days\)/i), '366');
+    await userEvent.click(screen.getByRole('button', { name: /^Save company$/i }));
+    expect(onUpdate).not.toHaveBeenCalled();
+    expect(await screen.findByText(/whole number of days/i)).toBeInTheDocument();
+  });
 });

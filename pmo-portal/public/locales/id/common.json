@@ -1222,6 +1222,10 @@
         "label": "Kode vendor",
         "hint": "Kode vendor dari pembeli, disimpan di PMO."
       },
+      "taxNumber": {
+        "label": "Nomor pajak",
+        "hint": "Nomor pajak terdaftar vendor (NPWP); hanya terbaca oleh peran pengedit vendor."
+      },
       "paymentTermsDays": {
         "label": "Termin pembayaran (hari)",
         "hint": "Termin pembayaran yang disepakati dalam hari, cth. 30.",
@@ -1234,7 +1238,8 @@
       },
       "partialSave": {
         "headline": "Perusahaan tersimpan, tetapi satu perubahan tidak bertahan",
-        "segmentDetail": "Segmen nomor klien tidak dapat disimpan. Periksa kembali dan simpan lagi."
+        "segmentDetail": "Segmen nomor klien tidak dapat disimpan. Periksa kembali dan simpan lagi.",
+        "taxDetail": "Nomor pajak tidak dapat disimpan. Tinjau dan simpan lagi."
       }
     },
     "search": {
@@ -1332,7 +1337,8 @@
     "field": {
       "primaryContact": "Kontak utama",
       "clientNumberSegment": "Segmen nomor klien",
-      "address": "Alamat"
+      "address": "Alamat",
+      "taxNumber": "Nomor pajak"
     },
     "notFound": {
       "sub": "Perusahaan ini tidak ada atau tidak terlihat oleh Anda. Kembali ke direktori untuk mencarinya.",

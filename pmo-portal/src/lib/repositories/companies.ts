@@ -11,6 +11,8 @@ import {
   createCompany,
   updateCompany,
   updateCompanyShortName,
+  getCompanyTaxNumber,
+  setCompanyTaxNumber,
   setCompanyProjectNumberSegment,
   setCompanyTaxDefaults,
   archiveCompany,
@@ -92,6 +94,8 @@ export const companyRepository: CompanyRepository = {
   },
   setProjectNumberSegment: (id, segment) => wrap(() => setCompanyProjectNumberSegment(id, segment)),
   setTaxDefaults: (id, input) => wrap(() => setCompanyTaxDefaults(id, input)),
+  getTaxNumber: (id) => wrap(() => getCompanyTaxNumber(id)),
+  setTaxNumber: (id, taxNumber) => wrap(() => setCompanyTaxNumber(id, taxNumber)),
   archive: (id) => wrap(() => archiveCompany(id)),
   delete: (id) => wrap(() => deleteCompany(id)),
 };

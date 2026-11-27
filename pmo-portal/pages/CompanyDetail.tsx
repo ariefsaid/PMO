@@ -28,7 +28,9 @@ import { RelatedProjects, RelatedProcurement } from './company/CompanyRelatedRec
 import { CompanyCollections } from '@/src/components/companies/CompanyCollections';
 import { usePermission } from '@/src/auth/usePermission';
 import { useListReturn } from '@/src/hooks/useListReturn';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCompany, useCompanyMutations } from '@/src/hooks/useCompanies';
+import { repositories } from '@/src/lib/repositories';
 import { useContactMutations } from '@/src/hooks/useContacts';
 import { ContactFormModal } from './contact/ContactFormModal';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
@@ -68,6 +70,21 @@ const CompanyDetail: React.FC = () => {
   const externalCompanies = ownership.mode === 'external';
   const mappings = useCompanyPartyMappings(companyId ? [companyId] : [], externalCompanies);
   const { update, setProjectNumberSegment, archive } = useCompanyMutations();
+  const queryClient = useQueryClient();
+  // #3025 slice 2: the vendor's tax number lives on its own side table whose read rule is the
+  // four vendor-edit roles — the same set that can even open this record — so the page may show
+  // it plainly once loaded.
+  const isVendor = query.data?.type === 'Vendor';
+  const taxNumberQuery = useQuery({
+    queryKey: ['company-tax-number', companyId],
+    queryFn: () => repositories.company.getTaxNumber(companyId!),
+    enabled: isVendor && !!companyId,
+  });
+  const taxNumber = taxNumberQuery.data ?? null;
+  const saveTaxNumber = async (id: string, value: string | null) => {
+    await repositories.company.setTaxNumber(id, value);
+    await queryClient.invalidateQueries({ queryKey: ['company-tax-number', companyId] });
+  };
   // The in-context "Add contact" modal (shared contact form) creates through the same seam.
   const { create: createContact } = useContactMutations();
 
@@ -225,6 +242,7 @@ const CompanyDetail: React.FC = () => {
           ...(company.vendor_code ? [{ label: t('companies.form.vendorCode.label', 'Vendor code'), value: <span className="record-id text-foreground">{company.vendor_code}</span> }] : []),
           ...(company.payment_terms_days != null ? [{ label: t('companies.form.paymentTermsDays.label', 'Payment terms (days)'), value: String(company.payment_terms_days) }] : []),
           ...(company.address ? [{ label: t('companyDetail.field.address', 'Address'), value: company.address }] : []),
+          ...(isVendor && taxNumber ? [{ label: t('companyDetail.field.taxNumber', 'Tax number'), value: <span className="record-id text-foreground">{taxNumber}</span> }] : []),
         ]}
         name={companyDisplayName(company)}
         icon={(companyDisplayName(company).trim().charAt(0) || '•').toUpperCase()}
@@ -319,6 +337,8 @@ const CompanyDetail: React.FC = () => {
           company={company}
           ownership={ownership.mode}
           onClose={() => setEditOpen(false)}
+          taxNumber={taxNumber}
+          onTaxNumberUpdate={saveTaxNumber}
           onUpdate={async (id, input, segment) => {
             await update.mutateAsync({ id, input });
             try {

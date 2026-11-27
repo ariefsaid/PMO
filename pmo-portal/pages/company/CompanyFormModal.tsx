@@ -34,6 +34,8 @@ interface FormValues {
   vendorCode: string;
   address: string;
   paymentTermsDays: string;
+  /** #3025 slice 2: the vendor's tax number (its own side table; edit paths only). */
+  taxNumber: string;
 }
 
 /**
@@ -56,8 +58,8 @@ const makeValidate =
 
 function ownershipReadyForForm(mode: CompanyFormModalProps['ownership']) { return mode === 'pmo' || mode === 'external'; }
 
-/** A non-negative whole number of days, or empty to clear. #3025. */
-const paymentTermsValid = (v: string) => v.trim() === '' || (/^\d+$/.test(v.trim()) && Number(v.trim()) <= 3650);
+/** A whole number of days in 0..365 (the 2800 bound), or empty to clear. #3025. */
+const paymentTermsValid = (v: string) => v.trim() === '' || (/^\d+$/.test(v.trim()) && Number(v.trim()) <= 365);
 
 /**
  * Outcome of the caller's edit save. PGA02-001: the record save and the client-number segment
@@ -79,6 +81,11 @@ export interface CompanyFormModalProps {
   onClose: () => void;
   onCreate?: (input: CompanyInput) => Promise<void>;
   onUpdate: (id: string, input: CompanyInput, segment: string | null) => Promise<CompanySaveOutcome | void>;
+  /** #3025 slice 2: present only where the caller can save the vendor's tax number (edit paths
+   *  with repository access); the sensitive value rides its own side table, so it is a follow-up
+   *  write after the company row, reported as a partial save when it fails. */
+  taxNumber?: string | null;
+  onTaxNumberUpdate?: (companyId: string, taxNumber: string | null) => Promise<void>;
   onError: (err: unknown) => void;
 }
 
@@ -89,6 +96,8 @@ export const CompanyFormModal: React.FC<CompanyFormModalProps> = ({
   onClose,
   onCreate,
   onUpdate,
+  taxNumber,
+  onTaxNumberUpdate,
   onError,
 }) => {
   const { t } = useTranslation();
@@ -114,6 +123,7 @@ export const CompanyFormModal: React.FC<CompanyFormModalProps> = ({
       vendorCode: company?.vendor_code ?? '',
       address: company?.address ?? '',
       paymentTermsDays: company?.payment_terms_days == null ? '' : String(company.payment_terms_days),
+      taxNumber: taxNumber ?? '',
     },
     validate,
     idPrefix: 'company-form',
@@ -129,6 +139,7 @@ export const CompanyFormModal: React.FC<CompanyFormModalProps> = ({
   const vendorCodeField = form.fieldProps('vendorCode');
   const addressField = form.fieldProps('address');
   const paymentTermsDaysField = form.fieldProps('paymentTermsDays');
+  const taxNumberField = form.fieldProps('taxNumber');
 
   // AC-ERR-001: a rejected save gets PERSISTENT in-dialog evidence, not only the corner
   // toast (which auto-dismisses, leaving the modal indistinguishable from a pristine form
@@ -191,6 +202,27 @@ export const CompanyFormModal: React.FC<CompanyFormModalProps> = ({
           await onCreate(input);
         } else {
           return;
+        }
+        // #3025 slice 2: the tax number rides its own side table — a follow-up write where the
+        // caller gave the form the means (edit paths with repository access). A failure is a
+        // partial save, exactly like the segment: the company row committed, the tax number did
+        // not, and the dialog must say so instead of claiming nothing was saved.
+        if (isEdit && company && onTaxNumberUpdate && values.type === 'Vendor') {
+          try {
+            await onTaxNumberUpdate(company.id, values.taxNumber.trim() || null);
+          } catch (taxErr) {
+            const { detail } = classifyMutationError(taxErr, undefined, {
+              module: 'companies',
+              operation: 'update',
+              suppressCapture: true,
+            });
+            setPartialSave({
+              headline: t('companies.form.partialSave.headline', 'Company saved, but one change did not persist'),
+              detail: `${t('companies.form.partialSave.taxDetail', 'The tax number could not be saved. Review it and save again.')} ${detail}`,
+            });
+            onError(taxErr);
+            return;
+          }
         }
         setPartialSave(null);
         setSaveError(null);
@@ -315,6 +347,16 @@ export const CompanyFormModal: React.FC<CompanyFormModalProps> = ({
               error={paymentTermsDaysField.error}
               inputMode="numeric"
             />
+            {onTaxNumberUpdate && (
+              <TextField
+                id={taxNumberField.id}
+                label={t('companies.form.taxNumber.label', 'Tax number')}
+                helper={t('companies.form.taxNumber.hint', "The vendor's registered tax number (NPWP); readable only by vendor-edit roles.")}
+                value={taxNumberField.value}
+                onChange={taxNumberField.onChange}
+                onBlur={taxNumberField.onBlur}
+              />
+            )}
             <TextField
               id={addressField.id}
               label={t('companies.form.address.label', 'Address')}

@@ -43,6 +43,9 @@ export interface CompanyRepository {
   setProjectNumberSegment(id: string, segment: string | null): Promise<void>;
   /** #876 slice 2: set the vendor's default tax treatment (Admin/Finance; `set_vendor_tax_defaults`). */
   setTaxDefaults(id: string, input: VendorTaxDefaultsInput): Promise<void>;
+  /** #3025 slice 2: the vendor's tax number (side table; reads/writes are the four vendor-edit roles only). */
+  getTaxNumber(id: string): Promise<string | null>;
+  setTaxNumber(id: string, taxNumber: string | null): Promise<void>;
   /** Soft-archive a company (stamps archived_at). */
   archive(id: string): Promise<void>;
   /** Hard-delete a company; rejects with AppError code 23503 if referenced. */

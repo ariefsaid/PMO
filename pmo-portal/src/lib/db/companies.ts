@@ -330,3 +330,36 @@ export async function setCompanyTaxDefaults(id: string, input: VendorTaxDefaults
   });
   if (error) throwWrite(error);
 }
+
+/**
+ * The vendor's tax number (#3025 slice 2): a side table (`company_tax_numbers`) whose RLS is
+ * exactly the four vendor-edit roles — TIGHTER than the companies row it belongs to. The value
+ * is PMO-native and never the ERP mirror (`erp_tax_id` is not read, copied or exposed here).
+ * NULL or blank clears the row.
+ */
+export async function getCompanyTaxNumber(companyId: string): Promise<string | null> {
+  const { data, error } = await supabase
+    .from('company_tax_numbers')
+    .select('tax_number')
+    .eq('company_id', companyId)
+    .maybeSingle();
+  if (error) throwWrite(error);
+  return ((data as { tax_number?: string } | null)?.tax_number) ?? null;
+}
+
+export async function setCompanyTaxNumber(companyId: string, taxNumber: string | null): Promise<void> {
+  const trimmed = taxNumber?.trim() ?? '';
+  if (trimmed === '') {
+    // Clearing is a no-op when there is nothing to clear. The read-first check is the guard:
+    // read and write carry the SAME policy (the four vendor-edit roles), so a row that is not
+    // visible is also not writable, and a visible row deletes cleanly.
+    if ((await getCompanyTaxNumber(companyId)) === null) return;
+    const { error } = await supabase.from('company_tax_numbers').delete().eq('company_id', companyId);
+    if (error) throwWrite(error);
+    return;
+  }
+  const { error } = await supabase
+    .from('company_tax_numbers')
+    .upsert({ company_id: companyId, tax_number: trimmed }, { onConflict: 'company_id' });
+  if (error) throwWrite(error);
+}
