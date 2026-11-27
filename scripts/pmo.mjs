@@ -113,7 +113,7 @@ export const READ_ONLY_TABLES = Object.freeze({
  */
 export const ALLOWED_RPCS = Object.freeze(['get_project_milestones']);
 /** The operator read tier (migration 0367): active Admin/Executive/PM/Finance tokens, GET only. Mirrors the guard's `operator_read_tables`. */
-export const OPERATOR_READ_TABLES = Object.freeze(['budget_versions', 'budget_line_items', 'budget_category_account_map', 'erp_gl_entry_mirror', 'project_documents', 'org_m365_document_settings', 'm365_record_folder_sweeps', 'contract_rate_lines', 'contract_rate_assignees']);
+export const OPERATOR_READ_TABLES = Object.freeze(['budget_versions', 'budget_line_items', 'budget_category_account_map', 'erp_gl_entry_mirror', 'project_documents', 'org_m365_document_settings', 'm365_record_folder_sweeps', 'contract_rate_lines', 'contract_rate_assignees', 'work_orders']);
 export const OPERATOR_READ_RPCS = Object.freeze(['project_mapped_actuals', 'link_m365_documents_batch']);
 
 /**
@@ -135,7 +135,7 @@ export const STAGE_ADMIN_RPCS = Object.freeze(['redate_stage_entry']);
  * load_work_order_opening, load_stock_opening, reverse_opening_balance, opening_balance_report: go-live opening
  * balances (#2588, migrations 1046/1047; docs/specs/opening-balances.spec.md).
  */
-export const ADMIN_RPCS = Object.freeze(['recategorise_budget_lines', 'list_account_reconciliation', 'dispose_account_reconciliation', 'load_work_order_opening', 'load_stock_opening', 'reverse_opening_balance', 'opening_balance_report', 'preview_stock_opening_history', 'load_stock_opening_history']);
+export const ADMIN_RPCS = Object.freeze(['recategorise_budget_lines', 'list_account_reconciliation', 'dispose_account_reconciliation', 'load_work_order_opening', 'load_stock_opening', 'reverse_opening_balance', 'opening_balance_report', 'preview_stock_opening_history', 'load_stock_opening_history', 'import_work_orders', 'om_material_config', 'om_material_import', 'om_material_set_scale']);
 
 /** The cost attribution tiers (#1271, migration 0376), used only by `pmo attribution`: preview/save/end for active Admin/Finance, list also for Executive/PM. */
 export { ATTRIBUTION_READ_RPCS, ATTRIBUTION_WRITE_RPCS };

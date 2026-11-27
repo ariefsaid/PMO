@@ -27,10 +27,17 @@ import { run, writeCredentials } from './pmo.mjs';
 const PROJECT_ID = '11111111-1111-4111-8111-111111111111';
 const tmpDir = () => fs.mkdtempSync(path.join(os.tmpdir(), 'pmo-om-test-'));
 
+const ZERO_COST_TAG_ID = '33333333-3333-4333-8333-333333333333';
+
 function baseMapping(overrides = {}) {
   return {
     source_key: 'syn-source-v2',
     as_of: '2026-01-31',
+    zero_cost_tag_name: 'Owner Supplied Material',
+    reconciliation_scale: [
+      { name: 'Prepared', position: 1, percentage: 20 },
+      { name: 'Closed', position: 2, percentage: 100 },
+    ],
     policy: { closing_conflict: 'refuse' },
     work_order_defaults: {
       tax_treatment: 'exclusive',
@@ -210,7 +217,18 @@ function makeFakeTransport(initial = {}) {
         if (override !== undefined) return override;
       }
       if (name === 'om_material_config') {
-        return { categories: [], owner_warehouses: [], steps: [] };
+        return {
+          categories: [],
+          owner_warehouses: [],
+          steps: initial.steps ?? [
+            { id: 'step-1', name: 'Prepared', position: 1, percentage: '20' },
+            { id: 'step-2', name: 'Closed', position: 2, percentage: '100' },
+          ],
+          zero_cost_tags: initial.zeroCostTags ?? [{ id: ZERO_COST_TAG_ID, name: 'Owner Supplied Material' }],
+        };
+      }
+      if (name === 'om_material_set_scale') {
+        return { count: body.p_steps.length };
       }
       if (name === 'import_work_orders') {
         const ids = [];
@@ -247,7 +265,7 @@ function makeFakeTransport(initial = {}) {
             const wo = workOrders.find(
               (w) => w.wo_number === sec.owner_order_number || w.client_po_number === sec.owner_order_number,
             );
-            if (!wo && confirm) {
+            if (!wo) {
               results.push({
                 entity_key: sec.entity_key,
                 status: 'refused',
@@ -577,6 +595,114 @@ test('AC-002: partial section loads accepted lines, reports skipped_lines and po
   assert.equal(res.report.policy_flagged_sections[0].consolidated_items.length, 1);
 });
 
+test('AC-001 (v2.2 3a): reconciliation scale skips when matching, previews diff, updates on confirm, and stops before sections on server refusal', async () => {
+  const customScale = [
+    { name: 'Stage One', position: 1, percentage: 25 },
+    { name: 'Stage Final', position: 2, percentage: 100 },
+  ];
+  const mapping = baseMapping({ reconciliation_scale: customScale });
+  const parsed = sampleParsed();
+  const existingWo = [{ id: 'wo-1', wo_number: 'WO-SYN-100', client_po_number: null, title: 'Existing', status: 'Issued' }];
+
+  // 1. Preview shows before/after and does not call om_material_set_scale
+  const t1 = makeFakeTransport({ workOrders: existingWo });
+  const prev = await runMaterialLoad(
+    { workbookPath: '/fake/wb.xlsx', mappingPath: '/fake/map.json', mapping, projectId: PROJECT_ID, confirm: false, parseWorkbook: async () => parsed },
+    t1,
+  );
+  assert.equal(prev.exit, 0);
+  assert.equal(prev.report.reconciliation_scale.status, 'update');
+  assert.equal(prev.report.reconciliation_scale.before.length, 2);
+  assert.equal(prev.report.reconciliation_scale.after[0].name, 'Stage One');
+  assert.equal(t1.calls.some((c) => c.name === 'om_material_set_scale'), false);
+
+  // 2. Confirm calls om_material_set_scale BEFORE sections
+  const t2 = makeFakeTransport({ workOrders: existingWo });
+  const conf = await runMaterialLoad(
+    { workbookPath: '/fake/wb.xlsx', mappingPath: '/fake/map.json', mapping, projectId: PROJECT_ID, confirm: true, parseWorkbook: async () => parsed },
+    t2,
+  );
+  assert.equal(conf.exit, 0);
+  assert.equal(conf.report.reconciliation_scale.status, 'updated');
+  const setIdx = t2.calls.findIndex((c) => c.name === 'om_material_set_scale');
+  const secIdx = t2.calls.findIndex((c) => c.name === 'om_material_import' && c.body.p_payload.kind === 'section');
+  assert.ok(setIdx >= 0 && setIdx < secIdx, 'om_material_set_scale must run before sections');
+
+  // 3. Server refusal on om_material_set_scale stops before sending any section
+  const t3 = makeFakeTransport({
+    workOrders: existingWo,
+    onRpc: async (name) => {
+      if (name === 'om_material_set_scale') {
+        const err = new Error('Steps in use');
+        err.status = 400;
+        err.code = 'P0001';
+        throw err;
+      }
+      return undefined;
+    },
+  });
+  const refused = await runMaterialLoad(
+    { workbookPath: '/fake/wb.xlsx', mappingPath: '/fake/map.json', mapping, projectId: PROJECT_ID, confirm: true, parseWorkbook: async () => parsed },
+    t3,
+  );
+  assert.equal(refused.exit, 1);
+  assert.equal(refused.report.complete, false);
+  assert.equal(refused.report.reconciliation_scale.status, 'refused');
+  assert.equal(
+    t3.calls.some((c) => c.name === 'om_material_import' && c.body.p_payload.kind === 'section'),
+    false,
+    'must not load sections when scale change is refused',
+  );
+});
+
+test('AC-001 (v2.2 3b): zero_cost_tag_name is required, resolved from config, attached to item entities, and stops before any write if missing', async () => {
+  const missingProblems = validateMapping({ source_key: 'k' });
+  assert.ok(missingProblems.some((p) => p.includes('zero_cost_tag_name')));
+
+  // Unmatched tag stops before any write
+  const tMiss = makeFakeTransport({ zeroCostTags: [{ id: ZERO_COST_TAG_ID, name: 'Different Tag' }] });
+  await assert.rejects(
+    () =>
+      runMaterialLoad(
+        { workbookPath: '/fake/wb.xlsx', mappingPath: '/fake/map.json', mapping: baseMapping(), projectId: PROJECT_ID, confirm: true, parseWorkbook: async () => sampleParsed() },
+        tMiss,
+      ),
+    (err) => err instanceof MaterialLoadError && err.code === 'zero_cost_tag_not_found' && err.exit === 2,
+  );
+  assert.equal(tMiss.calls.some((c) => c.name === 'import_work_orders' || c.name === 'om_material_import'), false);
+
+  // Matched tag attaches resolved zero_cost_tag_id to every item catalogue entity
+  const tOk = makeFakeTransport({
+    workOrders: [{ id: 'wo-1', wo_number: 'WO-SYN-100', client_po_number: null, title: 'Existing', status: 'Issued' }],
+  });
+  const res = await runMaterialLoad(
+    { workbookPath: '/fake/wb.xlsx', mappingPath: '/fake/map.json', mapping: baseMapping(), projectId: PROJECT_ID, confirm: false, parseWorkbook: async () => sampleParsed() },
+    tOk,
+  );
+  assert.equal(res.exit, 0);
+  const catCall = tOk.calls.find((c) => c.name === 'om_material_import' && c.body.p_payload.kind === 'catalogue');
+  const items = catCall.body.p_payload.entities.filter((e) => e.type === 'item');
+  assert.ok(items.length > 0);
+  assert.ok(items.every((i) => i.zero_cost_tag_id === ZERO_COST_TAG_ID));
+});
+
+test('AC-001 (v2.2 3c/3d): empty_line is counted without marking partial, and preview shows queued missing WOs as pending_work_order', async () => {
+  const transport = makeFakeTransport(); // WO-SYN-100 is missing -> queued for create on confirm
+  const parsed = sampleParsed();
+  parsed.accepted_sections[0].empty_lines = [{ sheet: 'LOC_ONE', row: 12, item_code: '009990', class: 'empty_line' }];
+
+  const preview = await runMaterialLoad(
+    { workbookPath: '/fake/wb.xlsx', mappingPath: '/fake/map.json', mapping: baseMapping(), projectId: PROJECT_ID, confirm: false, parseWorkbook: async () => parsed },
+    transport,
+  );
+  assert.equal(preview.exit, 0);
+  assert.equal(preview.report.complete, true);
+  assert.equal(preview.report.counts.server_refused, 0);
+  assert.equal(preview.report.counts.partial_sections, 0);
+  assert.equal(preview.report.counts.empty_lines, 1);
+  assert.ok(preview.report.section_results.every((r) => r.status === 'pending_work_order' && /will be created on confirm/i.test(r.note)));
+});
+
 test('AC-001: CLI `pmo material load` wires ordinary session, Admin check, preview default, and never prints tokens', async () => {
   const dir = tmpDir();
   const requests = [];
@@ -595,7 +721,15 @@ test('AC-001: CLI `pmo material load` wires ordinary session, Admin check, previ
       return send(200, [{ id: 'wo-1', wo_number: 'WO-SYN-1', client_po_number: null, title: 'WO 1', status: 'Issued' }]);
     }
     if (url.pathname === '/rest/v1/rpc/om_material_config') {
-      return send(200, { categories: [], owner_warehouses: [], steps: [] });
+      return send(200, {
+        categories: [],
+        owner_warehouses: [],
+        steps: [
+          { id: 'step-1', name: 'Prepared', position: 1, percentage: '20' },
+          { id: 'step-2', name: 'Closed', position: 2, percentage: '100' },
+        ],
+        zero_cost_tags: [{ id: ZERO_COST_TAG_ID, name: 'Owner Supplied Material' }],
+      });
     }
     if (url.pathname === '/rest/v1/rpc/om_material_import') {
       const parsedBody = JSON.parse(body);

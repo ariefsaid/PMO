@@ -580,6 +580,7 @@ def parse_workbook(workbook_path: str, mapping: dict[str, Any]) -> dict[str, Any
         ev_cols = layout["evidence_cols"]
         section_refusals: list[dict[str, Any]] = []
         skipped_lines: list[dict[str, Any]] = []
+        empty_lines: list[dict[str, Any]] = []
         policy_flags: dict[str, list[dict[str, Any]]] = {
             "closing_conflicts": [],
             "negative_closings": [],
@@ -978,21 +979,29 @@ def parse_workbook(workbook_path: str, mapping: dict[str, Any]) -> dict[str, Any
                 - summed_opening["owner_return"]
             )
 
-            # Check zero planned with activity on the resulting line (FR-004)
+            # Check zero planned quantity (FR-004 & Contract v2.2 3c)
             has_any_activity = any(
                 summed_opening[k] > ZERO
                 for k in ("set_aside", "received", "issued", "returned", "transfer_in", "transfer_out", "owner_return")
             )
-            if total_planned == ZERO and has_any_activity:
-                skipped_lines.append(
-                    make_refusal(
-                        first["row"],
-                        cols.get("planned", item_col),
-                        "zero_planned_with_movements",
-                        f"Item '{ic}' has planned quantity 0 with positive stage quantities.",
-                        item_code=ic,
+            if total_planned == ZERO:
+                if has_any_activity:
+                    skipped_lines.append(
+                        make_refusal(
+                            first["row"],
+                            cols.get("planned", item_col),
+                            "zero_planned_with_movements",
+                            f"Item '{ic}' has planned quantity 0 with positive stage quantities.",
+                            item_code=ic,
+                        )
                     )
-                )
+                else:
+                    empty_lines.append({
+                        "sheet": sname,
+                        "row": first["row"],
+                        "item_code": ic,
+                        "class": "empty_line",
+                    })
                 continue
 
             # Check negative closing stock on the resulting line (Contract v2)
@@ -1137,6 +1146,7 @@ def parse_workbook(workbook_path: str, mapping: dict[str, Any]) -> dict[str, Any
                 "reconciliation_step": reconciliation_step,
                 "partial": len(skipped_lines) > 0,
                 "skipped_lines": skipped_lines,
+                "empty_lines": empty_lines,
                 "lines": lines,
                 "policy_flags": policy_flags,
             })

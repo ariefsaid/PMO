@@ -756,7 +756,12 @@ Set `PMO_OWNER_MATERIAL_PYTHON` (or pass `--python <path>`) if your venv lives e
 {
   "source_key": "stable-source-id-v1",
   "as_of": "2026-11-27",
-  "policy": { "closing_conflict": "refuse" },
+  "zero_cost_tag_name": "Owner Supplied Material",
+  "reconciliation_scale": [
+    { "name": "Prepared", "position": 1, "percentage": 20 },
+    { "name": "Closed", "position": 2, "percentage": 100 }
+  ],
+  "policy": { "closing_conflict": "refuse", "duplicate_items": "refuse" },
   "work_order_defaults": {
     "tax_treatment": "exclusive",
     "tax_amount": "0",
@@ -784,6 +789,8 @@ Set `PMO_OWNER_MATERIAL_PYTHON` (or pass `--python <path>`) if your venv lives e
 
 - `source_key`: stable logical source identity (never a file digest). Keep the same `source_key` across retries and reruns so identical records skip safely.
 - `as_of`: required ISO date (`YYYY-MM-DD`) for the loaded opening position (overridable per sheet under `sheets.<name>.as_of`).
+- `zero_cost_tag_name`: required name of an existing zero-cost stock tag in the organisation (resolved via `om_material_config().zero_cost_tags`; never created by the loader).
+- `reconciliation_scale`: optional ordered scale (`[{ name, position, percentage }]`, ending at 100). Compared against `om_material_config().steps` before loading sections; skipped if identical, previewed as before/after, and applied via `om_material_set_scale` on `--confirm`. If refused by the server, sections are not sent.
 - `policy.closing_conflict`: `"refuse"` (default) refuses any line where workbook closing/stage totals disagree with component columns or where computed closing is negative; `"movements_win"` lets component column sums win over stale totals, accepts negative closing, and flags every affected row in the report.
 - `policy.duplicate_items`: `"refuse"` (default) skips repeated item rows within a location at line level (marking the section partial); `"sum"` consolidates repeated rows for the same item into one planned line with summed quantities, agreed category (or none), and all source rows preserved verbatim in `evidence.rows`, flagged in the report.
 - `work_order_defaults`: explicit commercial inputs (`tax_treatment`, `currency`, optional `order_value` / `tax_amount`) required when the workbook contains owner order numbers not yet in the project. Missing work orders are created first via `import_work_orders` in `Draft` status (requires organisation setup workflows enabled). Never guessed or defaulted.

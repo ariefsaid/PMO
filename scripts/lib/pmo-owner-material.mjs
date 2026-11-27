@@ -24,7 +24,12 @@ export const MAX_CATALOGUE_CHUNK = 500;
 export const MAX_SECTION_LINES = 200;
 export const MAX_WORK_ORDER_CHUNK = 500;
 export const DEFAULT_PYTHON_BIN = '/tmp/owner-material-loader-venv/bin/python';
-export const MATERIAL_LOAD_RPCS = Object.freeze(['om_material_config', 'om_material_import', 'import_work_orders']);
+export const MATERIAL_LOAD_RPCS = Object.freeze([
+  'om_material_config',
+  'om_material_import',
+  'om_material_set_scale',
+  'import_work_orders',
+]);
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -41,6 +46,7 @@ const ALLOWED_MAP_KEYS = new Set([
   'sheets',
   'consolidations',
   'reconciliation_scale',
+  'zero_cost_tag_name',
   'zero_cost_tag_id',
   'report_path',
 ]);
@@ -159,6 +165,13 @@ export function validateMapping(mapping) {
   }
   if (typeof mapping.source_key !== 'string' || !mapping.source_key.trim()) {
     problems.push('source_key must be a non-empty string');
+  }
+  if (
+    typeof mapping.zero_cost_tag_name !== 'string' ||
+    !mapping.zero_cost_tag_name.trim() ||
+    isPlaceholder(mapping.zero_cost_tag_name)
+  ) {
+    problems.push('zero_cost_tag_name must be a non-empty string naming an existing zero-cost stock tag');
   }
   if (mapping.as_of !== undefined && (typeof mapping.as_of !== 'string' || !ISO_DATE_RE.test(mapping.as_of))) {
     problems.push('as_of must be an ISO calendar date (YYYY-MM-DD)');
@@ -435,7 +448,7 @@ function chunkArray(items, size) {
 }
 
 /** Build deterministic catalogue entities from parsed workbook + accepted sections. */
-export function buildCatalogueEntities(parsed, mapping) {
+export function buildCatalogueEntities(parsed, mapping, resolvedZeroCostTagId = undefined) {
   const entities = [];
   const seenCat = new Set();
   const seenWh = new Set();
@@ -464,7 +477,7 @@ export function buildCatalogueEntities(parsed, mapping) {
     entities.push({ entity_key: `owner_warehouse:${wh.code}`, hash: canonicalHash(body), ...body });
   }
 
-  const tagId = mapping.zero_cost_tag_id ?? undefined;
+  const tagId = resolvedZeroCostTagId ?? mapping.zero_cost_tag_id ?? undefined;
   for (const item of parsed.catalogue?.items ?? []) {
     if (!item.code || seenItem.has(item.code)) continue;
     seenItem.add(item.code);
@@ -606,6 +619,42 @@ function writeReportAtomically(reportPath, report) {
   fs.renameSync(tmp, reportPath);
 }
 
+/** Resolve mapping.zero_cost_tag_name against config.zero_cost_tags (Contract v2.2 3b). Never creates a tag. */
+function resolveZeroCostTag(tagName, zeroCostTags) {
+  const needle = String(tagName || '').trim();
+  const tags = Array.isArray(zeroCostTags) ? zeroCostTags : [];
+  const exact = tags.filter((t) => String(t?.name ?? '').trim() === needle);
+  if (exact.length === 1) return exact[0];
+  const ci = tags.filter((t) => String(t?.name ?? '').trim().toLowerCase() === needle.toLowerCase());
+  if (ci.length === 1) return ci[0];
+  const available = tags.map((t) => `'${t?.name}'`).join(', ') || '(none)';
+  const reason =
+    ci.length > 1
+      ? `Zero-cost tag '${needle}' matched multiple tags in this organisation (${available}).`
+      : `Zero-cost tag '${needle}' was not found in this organisation's zero-cost stock tags (${available}). Create it in the app first; the loader never creates tags.`;
+  throw new MaterialLoadError(reason, { exit: 2, code: 'zero_cost_tag_not_found' });
+}
+
+function normalizeScaleSteps(steps) {
+  return [...(steps ?? [])]
+    .sort((a, b) => Number(a.position ?? 0) - Number(b.position ?? 0))
+    .map((s, idx) => ({
+      name: String(s.name ?? '').trim(),
+      position: Number.isFinite(Number(s.position)) && Number(s.position) > 0 ? Number(s.position) : idx + 1,
+      percentage: String(Number(s.percentage)),
+    }));
+}
+
+function scalesEqual(a, b) {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i += 1) {
+    if (a[i].name !== b[i].name) return false;
+    if (a[i].position !== b[i].position) return false;
+    if (Number(a[i].percentage) !== Number(b[i].percentage)) return false;
+  }
+  return true;
+}
+
 /**
  * Execute the full owner-supplied material load workflow (preview by default; write only with `confirm: true`).
  *
@@ -653,6 +702,7 @@ export async function runMaterialLoad(opts, api) {
 
   // Read server config and existing project work orders
   const config = await api.rpc('om_material_config', {});
+  const resolvedTag = resolveZeroCostTag(mapping.zero_cost_tag_name, config?.zero_cost_tags);
   const existingWorkOrders = await readProjectWorkOrders(api, projectId);
 
   const refusedSections = [...(parsed.refused_sections ?? [])];
@@ -742,7 +792,11 @@ export async function runMaterialLoad(opts, api) {
   }
 
   // Step 2: Catalogue chunks (<= 500 entries per call)
-  const catalogueEntities = buildCatalogueEntities({ ...parsed, accepted_sections: eligibleSections }, mapping);
+  const catalogueEntities = buildCatalogueEntities(
+    { ...parsed, accepted_sections: eligibleSections },
+    mapping,
+    resolvedTag.id,
+  );
   const catalogueResults = [];
   let catalogueComplete = true;
   let lastBatchId = null;
@@ -765,38 +819,81 @@ export async function runMaterialLoad(opts, api) {
     if (res?.complete === false) catalogueComplete = false;
   }
 
-  // Step 3: Sections (1 section per call)
+  // Step 2.5 (Contract v2.2 3a): Reconciliation scale comparison / update before sections
+  const currentScale = normalizeScaleSteps(config?.steps ?? []);
+  const desiredScale = Array.isArray(mapping.reconciliation_scale) ? normalizeScaleSteps(mapping.reconciliation_scale) : null;
+  let scaleReport = { status: 'unchanged', before: currentScale, after: currentScale };
+  let scaleBlocked = false;
+
+  if (desiredScale) {
+    if (scalesEqual(currentScale, desiredScale)) {
+      scaleReport = { status: 'skip', before: currentScale, after: desiredScale };
+    } else if (!confirm) {
+      scaleReport = { status: 'update', before: currentScale, after: desiredScale };
+    } else {
+      try {
+        await api.rpc('om_material_set_scale', { p_steps: desiredScale });
+        scaleReport = { status: 'updated', before: currentScale, after: desiredScale };
+      } catch (err) {
+        if (err?.status === undefined && err?.code === undefined) {
+          throw new MaterialOutcomeUnknown({ sourceKey, entityKey: 'reconciliation_scale', stage: 'reconciliation_scale' });
+        }
+        scaleReport = { status: 'refused', before: currentScale, after: desiredScale, error: err?.message ?? String(err) };
+        scaleBlocked = true;
+      }
+    }
+  }
+
+  // Step 3: Sections (1 section per call; skipped if reconciliation scale update was refused)
   const usedSectionCodesByOrder = new Map();
   const sectionResults = [];
-  let sectionsComplete = true;
+  let sectionsComplete = !scaleBlocked;
 
-  for (const sec of eligibleSections) {
-    const orderKey = String(sec.owner_order_number).trim();
-    let used = usedSectionCodesByOrder.get(orderKey);
-    if (!used) {
-      used = new Set();
-      usedSectionCodesByOrder.set(orderKey, used);
+  if (!scaleBlocked) {
+    for (const sec of eligibleSections) {
+      const orderKey = String(sec.owner_order_number).trim();
+      let used = usedSectionCodesByOrder.get(orderKey);
+      if (!used) {
+        used = new Set();
+        usedSectionCodesByOrder.set(orderKey, used);
+      }
+      const sheetCfg = mapping.sheets?.[sec.sheet] ?? mapping.sheets?.[sec.sheet.trim()] ?? {};
+      const sectionCode = sheetCfg.section_code ? String(sheetCfg.section_code).trim() : deriveSectionCode(sec.location_name, used);
+      used.add(sectionCode);
+
+      const entity = buildSectionEntity(sec, sourceKey, sectionCode);
+      const res = await callImportRpc(api, {
+        sourceKey,
+        confirm,
+        entityKey: entity.entity_key,
+        stage: 'section',
+        payload: {
+          kind: 'section',
+          project_id: projectId,
+          source_digest: parsed.source_digest,
+          entities: [entity],
+        },
+      });
+      if (res?.batch_id) lastBatchId = res.batch_id;
+      let hadNonQueuedRefusal = false;
+      if (Array.isArray(res?.results)) {
+        for (const r of res.results) {
+          if (!confirm && r.status === 'refused' && r.reason === 'material-work-order-missing' && missingOrdersMap.has(orderKey)) {
+            sectionResults.push({
+              ...r,
+              status: 'pending_work_order',
+              note: 'work order will be created on confirm',
+            });
+          } else {
+            sectionResults.push(r);
+            if (r.status === 'refused') hadNonQueuedRefusal = true;
+          }
+        }
+      }
+      if (res?.complete === false && (hadNonQueuedRefusal || confirm || !missingOrdersMap.has(orderKey))) {
+        sectionsComplete = false;
+      }
     }
-    const sheetCfg = mapping.sheets?.[sec.sheet] ?? mapping.sheets?.[sec.sheet.trim()] ?? {};
-    const sectionCode = sheetCfg.section_code ? String(sheetCfg.section_code).trim() : deriveSectionCode(sec.location_name, used);
-    used.add(sectionCode);
-
-    const entity = buildSectionEntity(sec, sourceKey, sectionCode);
-    const res = await callImportRpc(api, {
-      sourceKey,
-      confirm,
-      entityKey: entity.entity_key,
-      stage: 'section',
-      payload: {
-        kind: 'section',
-        project_id: projectId,
-        source_digest: parsed.source_digest,
-        entities: [entity],
-      },
-    });
-    if (res?.batch_id) lastBatchId = res.batch_id;
-    if (Array.isArray(res?.results)) sectionResults.push(...res.results);
-    if (res?.complete === false) sectionsComplete = false;
   }
 
   const serverRefused = [
@@ -814,6 +911,7 @@ export async function runMaterialLoad(opts, api) {
       skipped_lines: s.skipped_lines ?? [],
     }));
   const skippedLinesCount = partialSections.reduce((sum, s) => sum + s.skipped_lines.length, 0);
+  const emptyLinesCount = eligibleSections.reduce((sum, s) => sum + (s.empty_lines?.length ?? 0), 0);
 
   const policyFlaggedSections = eligibleSections
     .filter(
@@ -835,6 +933,7 @@ export async function runMaterialLoad(opts, api) {
     }));
 
   const complete =
+    !scaleBlocked &&
     refusedSections.length === 0 &&
     partialSections.length === 0 &&
     serverRefused.length === 0 &&
@@ -856,16 +955,20 @@ export async function runMaterialLoad(opts, api) {
       closing_conflict: mapping.policy?.closing_conflict ?? 'refuse',
       duplicate_items: mapping.policy?.duplicate_items ?? 'refuse',
     },
+    zero_cost_tag: { id: resolvedTag.id, name: resolvedTag.name },
+    reconciliation_scale: scaleReport,
     config_summary: {
       categories: config?.categories?.length ?? 0,
       owner_warehouses: config?.owner_warehouses?.length ?? 0,
       steps: config?.steps?.length ?? 0,
+      zero_cost_tags: config?.zero_cost_tags?.length ?? 0,
     },
     work_orders: workOrdersPlan,
     counts: {
       accepted_sections: eligibleSections.length,
       partial_sections: partialSections.length,
       skipped_lines: skippedLinesCount,
+      empty_lines: emptyLinesCount,
       refused_sections: refusedSections.length,
       catalogue_entities: catalogueEntities.length,
       server_refused: serverRefused.length,

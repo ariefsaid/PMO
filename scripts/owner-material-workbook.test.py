@@ -707,6 +707,39 @@ class TestOwnerMaterialWorkbook(unittest.TestCase):
         self.assertEqual(flag["workbook_total"], "121")
         self.assertEqual(flag["computed_total"], "66")
 
+    def test_ac002_zero_planned_with_zero_activity_is_empty_line_not_refusal_or_partial(self):
+        wb = openpyxl.Workbook()
+        wb.remove(wb.active)
+        add_standard_location_sheet(
+            wb,
+            "LOC_EMPTY",
+            [
+                {
+                    "LINE_NO": 1, "PART_NO": "400001", "PART_DESC": "Active Item", "UNIT": "PCS",
+                    "PLAN_QTY": 10, "ORDER_NO": "WO-EMP", "COST_CODE": "CC-E",
+                    "WH NORTH": 10, "WH SOUTH": 0, "HOLD_TOTAL": 10,
+                    "RECV_DIRECT": 10, "RECV_XFER": 0, "RECV_TOTAL": 10, "END_BAL": 10,
+                },
+                {
+                    "LINE_NO": 2, "PART_NO": "400002", "PART_DESC": "Empty Item", "UNIT": "PCS",
+                    "PLAN_QTY": 0, "ORDER_NO": "WO-EMP", "COST_CODE": "CC-E",
+                    "WH NORTH": 0, "WH SOUTH": 0, "HOLD_TOTAL": 0,
+                    "RECV_DIRECT": 0, "RECV_XFER": 0, "RECV_TOTAL": 0, "END_BAL": 0,
+                },
+            ],
+        )
+        path = self._save(wb)
+        res = self.mod.parse_workbook(path, build_base_mapping())
+        self.assertEqual(res["refused_sections"], [])
+        self.assertEqual(len(res["accepted_sections"]), 1)
+        sec = res["accepted_sections"][0]
+        self.assertFalse(sec["partial"])
+        self.assertEqual(sec["skipped_lines"], [])
+        self.assertEqual([l["item_code"] for l in sec["lines"]], ["400001"])
+        self.assertEqual(len(sec["empty_lines"]), 1)
+        self.assertEqual(sec["empty_lines"][0]["item_code"], "400002")
+        self.assertEqual(sec["empty_lines"][0]["class"], "empty_line")
+
 
 if __name__ == "__main__":
     unittest.main()
