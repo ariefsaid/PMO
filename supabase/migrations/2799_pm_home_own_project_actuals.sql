@@ -4,6 +4,7 @@
 -- the pgTAP file proves it row by row), so the ledger-basis read now costs the caller's projects, not the organisation's.
 -- Only the pma CTE of the 0770 body changes. No begin/commit: the rollback round trip wraps this file in its own transaction.
 -- Rollback: supabase/migrations/rollback/2799_pm_home_own_project_actuals_down.sql
+-- drops: get_pm_dashboard_projects() | "pma as materialized (select * from public.project_mapped_actuals_all(null))," | The home reads the actuals of the caller's own projects only; the figures returned are unchanged.
 
 create or replace function public.get_pm_dashboard_projects()
   returns json language plpgsql stable security invoker set search_path = public
