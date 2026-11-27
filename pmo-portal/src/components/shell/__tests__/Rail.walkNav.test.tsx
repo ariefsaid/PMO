@@ -4,7 +4,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, useNavigate } from 'react-router';
 import React from 'react';
 import { Rail } from '../Rail';
 import { RailDrawerContext } from '../railDrawerContext';
@@ -137,4 +137,33 @@ describe('walk fix — menu entries and daily order', () => {
     renderRail();
     expect(headings()).toEqual(['Delivery', 'My work', 'Sales']);
   });
+});
+
+it('speed: navigation retains the intersection observer and reveals the active link once', async () => {
+  const observe = vi.fn();
+  const disconnect = vi.fn();
+  const construct = vi.fn();
+  vi.stubGlobal('IntersectionObserver', class {
+    constructor() { construct(); }
+    observe = observe;
+    disconnect = disconnect;
+  });
+  const previous = HTMLElement.prototype.scrollIntoView;
+  const reveal = vi.fn();
+  HTMLElement.prototype.scrollIntoView = reveal;
+  let go: ReturnType<typeof useNavigate>;
+  function Navigate() { go = useNavigate(); return null; }
+  try {
+    const auth = { currentUser: { id: 'me', org_id: 'org-1', built_in_role: 'project_manager' } } as unknown as AuthContextValue;
+    const page = render(<AuthContext.Provider value={auth}><MemoryRouter initialEntries={['/my-tasks']}><Navigate /><RailDrawerContext.Provider value><Rail /></RailDrawerContext.Provider></MemoryRouter></AuthContext.Provider>);
+    const initial = construct.mock.calls.length;
+    reveal.mockClear();
+    await import('@testing-library/react').then(({ act }) => act(() => go('/work-orders')));
+    expect(construct).toHaveBeenCalledTimes(initial);
+    expect(reveal).toHaveBeenCalledTimes(1);
+    page.unmount();
+  } finally {
+    HTMLElement.prototype.scrollIntoView = previous;
+    vi.unstubAllGlobals();
+  }
 });

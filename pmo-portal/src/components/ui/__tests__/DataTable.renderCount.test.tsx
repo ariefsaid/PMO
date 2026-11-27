@@ -150,3 +150,12 @@ describe('DataTable render count (desktop sticky seam)', () => {
     expect(cell).toHaveBeenCalledTimes(rows.length);
   });
 });
+
+it('speed: fitting tables without actions do not allocate resize observers', () => {
+  stubLayout({ scrollWidth: 300, clientWidth: 300, scrollLeft: 0 });
+  TestResizeObserver.instances = [];
+  vi.stubGlobal('ResizeObserver', TestResizeObserver);
+  const columns: Column<Row>[] = [{ key: 'name', header: 'Name', cell: r => r.name }];
+  render(<><DataTable rows={rows} columns={columns} rowKey={r => r.id} /><DataTable rows={rows} columns={columns} rowKey={r => r.id} /></>);
+  expect(TestResizeObserver.instances).toHaveLength(0);
+});

@@ -113,49 +113,57 @@ function RowMenuSeam({ store }: { store: SeamStore }) {
   return visible ? <span aria-hidden data-dt-seam className={ROW_MENU_SEAM_CLASS} /> : null;
 }
 
+function TableOverflowControls({ store, scrollportRef }: { store: SeamStore; scrollportRef: React.RefObject<HTMLDivElement | null> }) {
+  const { t } = useTranslation('common');
+  const visible = React.useSyncExternalStore(store.subscribe, store.get, () => false);
+  return <>    {visible && <div className="flex justify-end gap-1 border-b border-border bg-card px-2 py-1 print:hidden">
+      <button type="button" aria-label={t('ui:table.scrollLeft', 'Scroll table left')} className="grid size-8 place-items-center rounded border border-border hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring" onClick={() => scrollportRef.current?.scrollBy({ left: -320, behavior: 'smooth' })}><Icon name="chev" className="size-4 rotate-180" /></button>
+      <button type="button" aria-label={t('ui:table.scrollRight', 'Scroll table right')} className="grid size-8 place-items-center rounded border border-border hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring" onClick={() => scrollportRef.current?.scrollBy({ left: 320, behavior: 'smooth' })}><Icon name="chev" className="size-4" /></button>
+    </div>}</>;
+}
+
 function useStickyRowMenuSeam(
   scrollportRef: React.RefObject<HTMLDivElement | null>,
   tableRef: React.RefObject<HTMLTableElement | null>,
   enabled: boolean,
   onOverflowChange?: (overflowing: boolean) => void,
+  content?: unknown,
 ): SeamStore {
   const [store] = React.useState(createSeamStore);
 
   React.useLayoutEffect(() => {
     const scrollport = scrollportRef.current;
     const table = tableRef.current;
-    const report = (overflowing: boolean) => {
-      store.set(Boolean(scrollport && scrollport.scrollWidth > scrollport.clientWidth + 1));
-      scrollport?.toggleAttribute('data-dt-overflowing', overflowing);
-      onOverflowChange?.(overflowing);
-    };
-    if (!enabled || !scrollport || !table) {
-      report(false);
-      return;
-    }
-
+    if (!scrollport || !table) return;
     const measure = () => {
-      report(scrollport.scrollWidth - scrollport.clientWidth - scrollport.scrollLeft > 1);
+      const width = scrollport.scrollWidth;
+      const viewport = scrollport.clientWidth;
+      const left = scrollport.scrollLeft;
+      const overflowing = width - viewport - left > 1;
+      store.set(width > viewport + 1);
+      scrollport.toggleAttribute('data-dt-overflowing', overflowing);
+      onOverflowChange?.(overflowing);
+      return width > viewport + 1;
     };
-
-    measure();
-    scrollport.addEventListener('scroll', measure, { passive: true });
-
     let observer: ResizeObserver | undefined;
-    if (typeof ResizeObserver !== 'undefined') {
-      observer = new ResizeObserver(measure);
-      observer.observe(scrollport);
-      observer.observe(table);
-    } else {
-      window.addEventListener('resize', measure);
-    }
-
-    return () => {
-      scrollport.removeEventListener('scroll', measure);
-      if (observer) observer.disconnect();
-      else window.removeEventListener('resize', measure);
+    const observeIfNeeded = (overflowing: boolean) => {
+      if (!observer && (enabled || overflowing) && typeof ResizeObserver !== 'undefined') {
+        observer = new ResizeObserver(() => { measure(); });
+        observer.observe(scrollport);
+        observer.observe(table);
+      }
     };
-  }, [enabled, onOverflowChange, scrollportRef, tableRef, store]);
+    observeIfNeeded(measure());
+    const resize = () => observeIfNeeded(measure());
+    const scroll = () => { measure(); };
+    scrollport.addEventListener('scroll', scroll, { passive: true });
+    window.addEventListener('resize', resize);
+    return () => {
+      scrollport.removeEventListener('scroll', scroll);
+      window.removeEventListener('resize', resize);
+      observer?.disconnect();
+    };
+  }, [enabled, onOverflowChange, scrollportRef, tableRef, store, content]);
 
   return store;
 }
@@ -632,10 +640,11 @@ export function DataTableDesktop<Row>({
   const seamStore = useStickyRowMenuSeam(
     tableBranchRef,
     tableRef,
-    true,
+    Boolean(rowMenu) || Boolean(onOverflowChange),
     onOverflowChange,
+    groupedRows,
   );
-  const tableOverflows = React.useSyncExternalStore(seamStore.subscribe, seamStore.get, () => false);
+
 
   React.useLayoutEffect(() => {
     updateResizeHandlePositions();
@@ -664,10 +673,7 @@ export function DataTableDesktop<Row>({
     // `sr-only` "Actions" header (not sticky, so it is otherwise unpositioned) — without it the
     // header escapes the clip and the whole page scrolls sideways (AC-TBL-OVERFLOW-001).
     <>
-    {tableOverflows && <div className="flex justify-end gap-1 border-b border-border bg-card px-2 py-1 print:hidden">
-      <button type="button" aria-label={t('ui:table.scrollLeft', 'Scroll table left')} className="grid size-8 place-items-center rounded border border-border hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring" onClick={() => tableBranchRef.current?.scrollBy({ left: -320, behavior: 'smooth' })}><Icon name="chev" className="size-4 rotate-180" /></button>
-      <button type="button" aria-label={t('ui:table.scrollRight', 'Scroll table right')} className="grid size-8 place-items-center rounded border border-border hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring" onClick={() => tableBranchRef.current?.scrollBy({ left: 320, behavior: 'smooth' })}><Icon name="chev" className="size-4" /></button>
-    </div>}
+    <TableOverflowControls store={seamStore} scrollportRef={tableBranchRef} />
     <div
       ref={tableBranchRef}
       tabIndex={0}
