@@ -258,6 +258,7 @@
     "src/lib/agent/types.ts",
     "src/lib/analytics/eventCallSites.ts",
     "src/lib/auth/verifyCallerJwt.ts",
+    "src/lib/build/routeRepositoryPreload.ts",
     "src/lib/build/vendorChunk.ts",
     "src/lib/db/openingBalances.concurrent.integration.mjs",
     "src/lib/db/stockPosting.concurrent.integration.mjs",

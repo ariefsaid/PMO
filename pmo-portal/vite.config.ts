@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
+import { routeRepositoryPreload } from './src/lib/build/routeRepositoryPreload';
 import { vendorChunkFor } from './src/lib/build/vendorChunk';
 import { isDeployBuild } from '../scripts/sourcemapPolicy.mjs';
 
@@ -158,7 +159,7 @@ export default defineConfig({
     port: 3000,
     host: '0.0.0.0',
   },
-  plugins: [react(), tailwindcss()],
+  plugins: [routeRepositoryPreload(path.resolve(__dirname)), react(), tailwindcss()],
   resolve: {
     alias: {
       '@': path.resolve(__dirname, '.'),

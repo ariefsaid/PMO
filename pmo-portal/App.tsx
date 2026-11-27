@@ -99,12 +99,7 @@ const PrivacyPage = lazyWithPreload(() => import('./pages/Privacy'));
 const ResetPasswordPage = lazyWithPreload(() => import('@/src/auth/ResetPasswordPage'));
 const UpdatePasswordPage = lazyWithPreload(() => import('@/src/auth/UpdatePasswordPage'));
 const OAuthConsentPage = lazyWithPreload(() => import('@/src/auth/OAuthConsentPage'));
-const ExecutiveDashboard = lazyWithPreload(() => {
-  // Start the actionable billing read's module with the dashboard, rather than after its first paint.
-  // The query owns failures; this optional warmup never holds the home screen behind an import error.
-  void import('@/src/lib/repositories/billingStages').catch(() => undefined);
-  return import('./pages/ExecutiveDashboard');
-});
+const ExecutiveDashboard = lazyWithPreload(() => import('./pages/ExecutiveDashboard'));
 const Projects = lazyWithPreload(() => import('./pages/Projects'));
 const ProjectNew = lazyWithPreload(() => import('./pages/ProjectNew'));
 const ProjectDetail = lazyWithPreload(() => import('./pages/project-detail/ProjectDetail'));

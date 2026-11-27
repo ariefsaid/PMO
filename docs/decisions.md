@@ -4243,3 +4243,4 @@ the owner may revisit it after the client's tests.
 ## Director decisions of 27 November 2026
 
 - **DD-R1127-1 A Project Manager who creates a project or deal is its manager unless another is chosen, so they keep its money view.**
+- **DD-R1127-2 A route loads its own sections and repository implementations with the route; other routes remain lazy.** See ADR-0126.
