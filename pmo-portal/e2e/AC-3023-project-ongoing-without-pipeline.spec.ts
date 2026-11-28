@@ -92,9 +92,11 @@ test('AC-3023: a Project Manager in a pipeline-off organisation creates a projec
     await expect(visibleToast(page, /Moved to Ongoing/i)).toBeVisible({ timeout: 20_000 });
 
     // GOAL ORACLE: after a reload the record is genuinely Ongoing with the win artifacts.
+    // The status shows in the header; the customer contract reference sits in its Project details popover.
     await page.reload();
-    await expect(page.getByText('CPO-3023').first()).toBeVisible({ timeout: 20_000 });
     await expect(page.locator('body').getByText(/^Ongoing$/)).toBeVisible({ timeout: 20_000 });
+    await page.getByRole('button', { name: 'Project details', exact: true }).click();
+    await expect(page.getByRole('dialog').getByText('CPO-3023').first()).toBeVisible({ timeout: 20_000 });
   } finally {
     // Delete exactly what this run created (the project, then the person, the client, the
     // feature override, the organisation).
