@@ -54,3 +54,4 @@ Sandbox restarted once mid-run (chunk 1 was killed at 49/63 and re-run in full a
     Re-run after `supabase db reset` (fresh seed): the whole file passes, 15 passed (1.3m), including this test. So it is shared-DB state left by earlier chunks, not the branch (Approvals page is not in the diff).
     The DB was reset here, so serial chunks 1-3 ran on a fresh seed.
 - serial chunk 1 (40 files, 69 tests): killed by my 10-minute foreground limit at test 67/69, no failures logged before that; the last 3 files (TERM-006, TIER-014, TSP-011) re-run below as s1tail:
+- serial s1tail (3 files): 1 skipped,12 passed (1.4m),
