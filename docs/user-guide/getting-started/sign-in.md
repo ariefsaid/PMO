@@ -25,8 +25,8 @@ Microsoft sign-in. You do not need a PMO password for this.
 ### Sign in without a password
 
 1. Type your **Email**.
-2. Choose **No password? Email me a magic link**.
-3. Open the email and choose the link in it. You are signed in without typing a password.
+2. Choose **Email me a magic link** (under the **Sign in** button, after "No password?").
+3. You will see "Check your email for a sign-in link." Open the email and choose the link in it. You are signed in without typing a password.
 
 ### Choose your language on the sign-in page
 
@@ -41,7 +41,7 @@ signed in (see [Profile and preferences](profile-and-preferences.md)).
    way."
 4. Open the email and choose the link. It opens the **Set a new password** page.
 5. Fill in **New password** and **Confirm password**, then choose **Set new password**.
-6. Sign in with the new password.
+6. You go straight into PMO, signed in with the new password.
 
 The link works for a limited time. If it has expired you will see "This link is invalid or
 expired." — choose **Request a new link** and start again at step 1.
@@ -54,24 +54,24 @@ in as usual.
 
 ## What the result looks like
 
-You land on your dashboard. The menu on the left shows the places your role can open. Your name
-and role are in the menu at the top right. Next time you open PMO on the same device you usually
+You land on the home page. The menu on the left shows the places your role can open. Your name
+and role are at the top right. Next time you open PMO on the same device you usually
 stay signed in.
 
 ## Common errors and what to do
 
-- **"Email or password did not match. Check both and try again."** — check for typing mistakes,
+- **"The email or password is not right. Check both and try again."** — check for typing mistakes,
   and that you are using the email your Admin invited.
-- **"Confirm your email to finish signing in."** — open the confirmation email and choose its
-  link, or choose **Resend confirmation** on the sign-in page.
-- **"Too many requests. Try again in a minute."** — wait a minute and try again.
-- **"Signing in with Microsoft is not yet enabled for this workspace."** — your organisation has
-  not turned Microsoft sign-in on. Use your email and password, or ask your Admin.
+- **"Confirm your email to finish signing in. We can resend the confirmation link."** — open the
+  confirmation email and choose its link, or choose **Resend confirmation**.
+- **"Too many attempts. Wait a minute, then try again."** — wait a minute and try again.
+- **"Microsoft sign-in is not set up for this workspace. Use your email and password, or ask an
+  Admin to turn it on."** — your organisation has not turned Microsoft sign-in on.
 - **The reset email does not arrive** — check your spam folder, and make sure you typed the email
-  your account uses. The message on the page appears whether or not the address has an account,
-  so a wrong address never tells anyone else's account exists.
+  your account uses. The message on the page looks the same whether or not the address has an
+  account.
 - **You forgot which email you use** — ask your Admin; they can see your account under
-  Administration.
+  **Administration**.
 
 ## Signing out
 
@@ -108,8 +108,8 @@ masuk Microsoft. Anda tidak perlu kata sandi PMO untuk ini.
 ### Masuk tanpa kata sandi
 
 1. Isi **Email**.
-2. Pilih **Tidak punya kata sandi? Kirim tautan masuk ke email saya**.
-3. Buka emailnya dan pilih tautan di dalamnya. Anda masuk tanpa mengetik kata sandi.
+2. Pilih **Kirim tautan masuk ke email saya** (di bawah tombol **Masuk**, setelah "Tidak punya kata sandi?").
+3. Anda akan melihat "Periksa email Anda untuk tautan masuk." Buka emailnya dan pilih tautan di dalamnya. Anda masuk tanpa mengetik kata sandi.
 
 ### Memilih bahasa di halaman masuk
 
@@ -123,8 +123,8 @@ masuk (lihat [Profil dan preferensi](profile-and-preferences.md)).
 3. Anda akan melihat: "Periksa email Anda. Jika akun dengan alamat itu ada, tautan atur ulang
    sedang dikirim."
 4. Buka emailnya dan pilih tautannya. Tautan membuka halaman **Atur kata sandi baru**.
-5. Isi **Kata sandi baru** dan **Konfirmasi kata sandi**, lalu pilih **Atur kata sandi baru**.
-6. Masuk dengan kata sandi yang baru.
+5. Isi **Kata sandi baru** dan **Ulangi kata sandi**, lalu pilih **Simpan kata sandi baru**.
+6. Anda langsung masuk ke PMO dengan kata sandi yang baru.
 
 Tautannya hanya berlaku terbatas waktu. Bila sudah kedaluwarsa Anda akan melihat "Tautan ini
 tidak valid atau sudah kedaluwarsa." — pilih **Minta tautan baru** dan ulangi dari langkah 1.
@@ -132,28 +132,27 @@ tidak valid atau sudah kedaluwarsa." — pilih **Minta tautan baru** dan ulangi 
 ## Masuk pertama kali setelah diundang
 
 Bila Admin mengundang Anda, email undangan membuka halaman **Atur kata sandi Anda**. Isi **Kata
-sandi baru** dan **Konfirmasi kata sandi**, lalu pilih **Atur kata sandi baru**. Setelah itu Anda
+sandi baru** dan **Ulangi kata sandi**, lalu pilih **Simpan kata sandi baru**. Setelah itu Anda
 masuk seperti biasa.
 
 ## Hasilnya seperti apa
 
-Anda tiba di dashboard Anda. Menu di kiri menampilkan tempat-tempat yang bisa dibuka peran Anda.
-Nama dan peran Anda ada di menu kanan atas. Lain kali Anda membuka PMO di perangkat yang sama,
+Anda tiba di halaman beranda. Menu di kiri menampilkan tempat-tempat yang bisa dibuka peran Anda.
+Nama dan peran Anda ada di kanan atas. Lain kali Anda membuka PMO di perangkat yang sama,
 Anda biasanya tetap masuk.
 
 ## Kesalahan umum dan cara mengatasinya
 
 - **"Email atau kata sandi tidak cocok. Periksa keduanya lalu coba lagi."** — periksa salah tik,
   dan pastikan Anda memakai email yang dipakai Admin mengundang Anda.
-- **"Konfirmasi email Anda untuk menyelesaikan proses masuk."** — buka email konfirmasi dan pilih
-  tautannya, atau pilih **Kirim ulang konfirmasi** di halaman masuk.
-- **"Terlalu banyak permintaan. Coba lagi dalam satu menit."** — tunggu satu menit lalu coba lagi.
-- **"Masuk dengan Microsoft belum diaktifkan untuk ruang kerja ini."** — organisasi Anda belum
-  menyalakan masuk Microsoft. Pakai email dan kata sandi Anda, atau minta Admin.
+- **"Konfirmasi email Anda untuk menyelesaikan proses masuk. Kami bisa mengirim ulang tautan konfirmasi."** —
+  buka email konfirmasi dan pilih tautannya, atau pilih **Kirim ulang konfirmasi**.
+- **"Terlalu banyak percobaan. Tunggu satu menit, lalu coba lagi."** — tunggu satu menit lalu coba lagi.
+- **"Masuk dengan Microsoft belum diaktifkan untuk ruang kerja ini. Gunakan email dan kata sandi Anda, atau
+  minta Admin mengaktifkannya."** — organisasi Anda belum menyalakan masuk Microsoft.
 - **Email atur ulang tidak datang** — periksa folder spam, dan pastikan Anda mengetik email yang
-  dipakai akun Anda. Pesan di halaman muncul baik atau tidak alamat itu punya akun, jadi alamat
-  yang salah tidak pernah membocorkan keberadaan akun orang lain.
-- **Anda lupa email yang dipakai** — tanya Admin; Admin bisa melihat akun Anda di Administration.
+  dipakai akun Anda. Pesan di halaman terlihat sama baik alamat itu punya akun maupun tidak.
+- **Anda lupa email yang dipakai** — tanya Admin; Admin bisa melihat akun Anda di **Administrasi**.
 
 ## Keluar
 
