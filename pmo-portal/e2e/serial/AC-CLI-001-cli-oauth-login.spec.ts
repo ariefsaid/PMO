@@ -160,7 +160,9 @@ test('AC-CLI-001: the CLI signs in as the user, and what it creates lands under 
   });
   expect(del.status).toBe(403);
   expect(((await del.json()) as { code: string }).code).toBe('42501');
-  const outside = await fetch(`${SUPABASE_URL}/rest/v1/work_orders?select=id&limit=1`, { headers: api });
+  // work_orders joined the operator read tier for the material loader (#3010), so the probe uses a
+  // table no tier reads.
+  const outside = await fetch(`${SUPABASE_URL}/rest/v1/timesheets?select=id&limit=1`, { headers: api });
   expect(outside.status).toBe(403);
   const { data: still } = await admin.from('project_milestones').select('name').eq('project_id', projectRow.id);
   expect(still).toEqual([{ name: 'Mobilisation' }]);

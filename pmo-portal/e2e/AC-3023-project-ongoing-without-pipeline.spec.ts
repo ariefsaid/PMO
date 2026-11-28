@@ -2,7 +2,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
 import { jobRoleUser } from './support/jobRole';
-import { need, ok, serviceClient } from './support/jobFixtures';
+import { need, ok, serviceClient, sqlAsOwner } from './support/jobFixtures';
 import { stubErpProjectSync, visibleToast } from './helpers';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
@@ -32,7 +32,8 @@ test('AC-3023: a Project Manager in a pipeline-off organisation creates a projec
 
   // The run's own organisation, with the sales-pipeline module switched off.
   ok('organisation', await admin.from('organizations').insert({ id: orgId, name: `Pipeline-Off Org ${run}` }));
-  ok('feature off', await admin.from('org_features').insert({ org_id: orgId, feature_key: 'sales_pipeline', enabled: false }));
+  // The service role only reads org_features (plan resolution owns its writes), so the override is set as the database owner.
+  sqlAsOwner(`insert into public.org_features (org_id, feature_key, enabled) values ('${orgId}', 'sales_pipeline', false);`);
   const client = need('client', await admin.from('companies')
     .insert({ org_id: orgId, name: clientName, type: 'Client' })
     .select('id')
@@ -98,7 +99,7 @@ test('AC-3023: a Project Manager in a pipeline-off organisation creates a projec
     if (projectId) ok('project cleanup', await admin.from('projects').delete().eq('id', projectId));
     try { await pm.cleanup(); } catch (e) { console.warn('AC-3023 profile cleanup:', e); }
     ok('client cleanup', await admin.from('companies').delete().eq('id', client.id as string));
-    ok('feature cleanup', await admin.from('org_features').delete().eq('org_id', orgId));
+    sqlAsOwner(`delete from public.org_features where org_id = '${orgId}';`);
     ok('organisation cleanup', await admin.from('organizations').delete().eq('id', orgId));
   }
 });
