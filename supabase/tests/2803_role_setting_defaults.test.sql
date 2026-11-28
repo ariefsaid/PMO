@@ -6,8 +6,8 @@
 -- AC-RSD-007 crew field-controller fallback · AC-RSD-008 PCM scheduled reports default on.
 -- MUTATION NOTES (break the rule; the named assertion must go red; restore):
 --   mut:rsd_seed_checks_guard ..... 'AC-RSD-001 an organisation that keeps its own checks is not overwritten'
+--   mut:rsd_seed_chain_guard ...... 'AC-RSD-001 an organisation that keeps its own settings is not overwritten' (the chain arm of the same guard)
 --   mut:rsd_chain_over_plan ....... 'AC-RSD-002 a request within plan snapshots two steps'
---   mut:rsd_chain_admin_wins ...... 'AC-RSD-002 an Admin-set chain replaces the default'
 --   mut:rsd_dsr_default_keys ...... 'AC-RSD-003 the route names the default validator roles while nothing is set'
 --   mut:rsd_dsr_default_includes .. 'AC-RSD-003 an unkeyed Engineer validates by default (level inclusion)'
 --   mut:rsd_dsr_admin_wins ........ 'AC-RSD-003 an unkeyed Engineer is refused once the Admin set their own list'
@@ -340,7 +340,7 @@ select is(pg_temp.err('28030000-0000-0000-0000-0000000000c1',
   'AC-RSD-002 an Admin sets their own chain (built-in roles on)');
 insert into t_rsd values ('b_admin', pg_temp.raise_b('28030000-0000-0000-0000-0000000000ca', 5, 'over again'));
 select is((select count(*)::int from material_request_steps where request_id = (select v from t_rsd where k = 'b_admin')), 1,
-  'AC-RSD-002 the Admin''s chain is the one snapshotted afterwards');  -- mut:rsd_chain_admin_wins
+  'AC-RSD-002 the Admin''s chain is the one snapshotted afterwards (shipped mrq_set_chain rule over the seeded default)');
 
 -- ── §4 the daily-report validators (AC-RSD-003) ──────────────────────────────────────────────────────────────
 select is(pg_temp.err('28030000-0000-0000-0000-0000000000b3',
