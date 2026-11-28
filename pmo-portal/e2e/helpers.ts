@@ -2,7 +2,7 @@ import { expect, request as pwRequest, test as playwrightTest, type Locator, typ
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { overrideProfile, localePatch } from './support/profile-override';
+import { overrideProfile, localePatch } from './support/profile-override.ts';
 
 export const SEED_PASSWORD = 'Passw0rd!dev';
 
