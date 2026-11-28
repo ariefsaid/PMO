@@ -109,6 +109,7 @@ export const ROLE_CAPABILITIES: readonly (readonly [string, RoleCapability])[] =
   ['billing_officer', 'billing_steps_run'],
   ['quantity_surveyor', 'billing_steps_run'],
   ['project_administrator', 'billing_steps_run'],
+  ['engineer', 'billing_steps_view'],
 ];
 
 export const BUILT_IN_ROLE_TIERS: readonly BuiltInRoleTier[] = ['manager', 'officer', 'field'];

@@ -19,7 +19,9 @@ const seedCaps = [...sql.matchAll(/^\('([a-z_]+)','([a-z_]+)'\)[,;]$/gm)].map((m
 // Migration 1771 adds the two billing-step rights after the seed.
 const billing = readFileSync(resolve(__dirname, '../../../supabase/migrations/1771_billing_steps_capabilities.sql'), 'utf8');
 const billingCaps = [...billing.matchAll(/^\('([a-z_]+)','(billing_steps_[a-z]+)'\)[,;]$/gm)].map((m) => [m[1], m[2]]);
-const sqlCaps = [...seedCaps, ...billingCaps];
+const jobRights = readFileSync(resolve(__dirname, '../../../supabase/migrations/2803_job_role_step_rights.sql'), 'utf8');
+const jobCaps = [...jobRights.matchAll(/^\('([a-z_]+)','(billing_steps_[a-z]+)'\)[,;]$/gm)].map((m) => [m[1], m[2]]);
+const sqlCaps = [...seedCaps, ...billingCaps, ...jobCaps];
 
 describe('AC-003 built-in roles: frontend table equals the database seed (migration 1200)', () => {
   it('has the same 28 roles, base levels, tiers, functions and names', () => {
@@ -65,6 +67,8 @@ describe('AC-007/008 capabilities and prices', () => {
     for (const key of ['project_manager', 'planner', 'executive']) expect(roleHasCapability(key, 'people_documents_view')).toBe(false);
   });
   it('billing steps: the survey role sees and runs them, field roles hold neither (migration 1771)', () => {
+    expect(roleHasCapability('engineer', 'billing_steps_view')).toBe(true);
+    expect(roleHasCapability('engineer', 'billing_steps_run')).toBe(false);
     expect(roleHasCapability('quantity_surveyor', 'billing_steps_view')).toBe(true);
     expect(roleHasCapability('quantity_surveyor', 'billing_steps_run')).toBe(true);
     expect(roleHasCapability('quality_inspector', 'billing_steps_view')).toBe(false);

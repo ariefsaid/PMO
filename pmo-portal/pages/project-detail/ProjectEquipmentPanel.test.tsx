@@ -5,12 +5,16 @@ import { setActiveLocale, setActiveOrgTimezone, resetActiveLocale } from '@/src/
 import type { Role } from '@/src/auth/AuthContext';
 
 const ok = (data: unknown) => ({ data, isPending: false, isError: false, refetch: vi.fn() });
-const h = vi.hoisted(() => ({ role: 'Project Manager' as string, totals: null as unknown, allocations: null as unknown, allocArgs: [] as unknown[] }));
+const h = vi.hoisted(() => ({ role: 'Project Manager' as string, roleKey: null as string | null, totals: null as unknown, allocations: null as unknown, allocArgs: [] as unknown[] }));
 vi.mock('@/src/hooks/useEquipment', () => ({
   useEquipmentUsageTotals: () => h.totals,
   useEquipmentAllocations: (q: unknown) => { h.allocArgs.push(q); return h.allocations; },
 }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: h.role as Role, effectiveRole: h.role as Role }) }));
+vi.mock('@/src/auth/usePermission', async () => {
+  const { can } = await import('@/src/auth/policy');
+  return { usePermission: () => (action: Parameters<typeof can>[0], entity: Parameters<typeof can>[1]) => can(action, entity, { realRole: h.role as Role, builtInRoleKey: h.roleKey }) };
+});
 
 import { ProjectEquipmentPanel } from './ProjectEquipmentPanel';
 
@@ -27,6 +31,7 @@ const renderPanel = (charge?: string | null) => render(<MemoryRouter><ProjectEqu
 describe('ProjectEquipmentPanel (FR-EQU-071, FR-EQU-051)', () => {
   beforeEach(() => {
     h.role = 'Project Manager';
+    h.roleKey = null;
     h.allocArgs = [];
     h.totals = ok({ rows: [total(), total({ month: '2026-09-01', work_units: 4, standby_units: 0, submitted_count: 0 })], truncated: false });
     h.allocations = ok({ rows: [alloc(), alloc({ month: '2026-09-01', amount: 100 })], truncated: false });
@@ -66,6 +71,16 @@ describe('ProjectEquipmentPanel (FR-EQU-071, FR-EQU-051)', () => {
   it('AC-EQU-017 an Engineer sees hours but no amounts, and never asks for allocations', () => {
     h.role = 'Engineer';
     h.allocations = ok({ rows: [], truncated: false });
+    renderPanel();
+    const panel = screen.getByTestId('project-equipment-panel');
+    expect(within(panel).getByText(/10 hours/)).toBeInTheDocument();
+    expect(within(panel).queryByRole('columnheader', { name: 'Allocated' })).toBeNull();
+    expect(h.allocArgs.every((a) => (a as { from: string }).from === '')).toBe(true);
+  });
+
+  it('AC-RR-008 project administrator sees hours without requesting cost allocations', () => {
+    h.role = 'Engineer';
+    h.roleKey = 'project_administrator';
     renderPanel();
     const panel = screen.getByTestId('project-equipment-panel');
     expect(within(panel).getByText(/10 hours/)).toBeInTheDocument();

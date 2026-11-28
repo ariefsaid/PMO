@@ -38,6 +38,14 @@ describe('AC-SCH-016 scheduledReport policy', () => {
     }
   });
 
+  it('AC-RR-009 lets a project administrator manage their own scheduled reports', () => {
+    const ctx = { realRole: 'Engineer' as const, builtInRoleKey: 'project_administrator' };
+    expect(can('manage', 'scheduledReport', ctx)).toBe(true);
+    expect(can('edit', 'scheduledReport', { ...ctx, record: { managedBy: 'project_administrator' } })).toBe(true);
+    expect(can('edit', 'scheduledReport', { ...ctx, record: { managedBy: 'admin' } })).toBe(false);
+    expect(can('manage', 'scheduledReport', { ...ctx, record: { viewOnly: true } })).toBe(false);
+  });
+
   it('keeps orgEmailNotifications Admin-only', () => {
     expect(can('manage', 'orgEmailNotifications', {
       realRole: 'Project Manager',

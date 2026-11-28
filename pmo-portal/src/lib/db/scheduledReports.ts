@@ -12,7 +12,7 @@ export const REPORT_KINDS = ['daily_progress', 'overdue_tasks'] as const;
 export type ReportKind = (typeof REPORT_KINDS)[number];
 export type ReportFrequency = 'daily' | 'weekly';
 /** The role that created a schedule and may change it besides an Admin (`scheduled_reports.managed_by`, written once at creation). */
-export type ScheduleManager = 'admin' | 'project_control_manager';
+export type ScheduleManager = 'admin' | 'project_control_manager' | 'project_administrator';
 
 export interface ScheduledReport {
   id: string;
@@ -47,7 +47,7 @@ export async function listScheduledReports(): Promise<ScheduledReport[]> {
   return data.map((r) => ({
     id: r.id, name: r.name, kind: r.kind as ReportKind, frequency: r.frequency as ReportFrequency, weekday: r.weekday,
     sendTime: r.send_time.slice(0, 5), recipientUserIds: r.recipient_user_ids ?? [], recipientRoles: r.recipient_roles ?? [], enabled: r.enabled,
-    managedBy: r.managed_by === 'project_control_manager' ? 'project_control_manager' : 'admin',
+    managedBy: r.managed_by === 'project_control_manager' || r.managed_by === 'project_administrator' ? r.managed_by : 'admin',
   }));
 }
 

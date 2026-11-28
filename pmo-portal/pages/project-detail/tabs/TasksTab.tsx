@@ -771,6 +771,7 @@ const TasksWorkspace: React.FC<TasksTabProps> = ({ projectId, projectName = '', 
           taskGroups={activeTaskGroups}
           workOrders={workOrders ?? []}
           canStructure={canStructure && !externallyOwned}
+          canLinkWorkOrder={may('linkWorkOrder', 'task') && !externallyOwned}
           pendingPushState={
             formTarget.task && externallyOwned
               ? (pendingPushByTask[formTarget.task.id] ?? IDLE_PENDING_PUSH)

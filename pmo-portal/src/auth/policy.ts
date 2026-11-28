@@ -25,6 +25,7 @@ import { roleHasCapability } from './builtInRoles';
 
 export type Action =
   | 'view'
+  | 'linkWorkOrder'
   | 'act'
   | 'create'
   | 'edit'
@@ -504,8 +505,8 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
    */
   workOrder: {
     view: allow(ALL),
-    create: allow(MASTER_DATA),
-    edit: (role, ctx) => has(MASTER_DATA, role) && ctx.record?.status === 'Draft',
+    create: (role, ctx) => has(MASTER_DATA, role) || holds(ctx, 'engineer'),
+    edit: (role, ctx) => (has(MASTER_DATA, role) || holds(ctx, 'engineer')) && ctx.record?.status === 'Draft',
     setValue: (role, ctx) => has(MASTER_DATA, role) && ctx.record?.status === 'Draft',
     transition: allow(MASTER_DATA),
     reopen: (role, ctx) => role === 'Admin' && ctx.record?.status === 'Closed' && !ctx.record?.closing_acceptance_id,
@@ -552,7 +553,7 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     },
   },
   /** Bill of quantities (#766) — mirrors 0250's boq_items policies: the work-order writer set. */
-  rateCatalogue: { view: (role, ctx) => has(MASTER_DATA, role) || holds(ctx, 'project_control_manager'), create: allowUnlessViewOnly(REVENUE_WRITE) },
+  rateCatalogue: { view: (role, ctx) => has(MASTER_DATA, role) || holds(ctx, 'project_control_manager') || holds(ctx, 'engineer'), create: allowUnlessViewOnly(REVENUE_WRITE) },
   /**
    * Daily site report (#1522, 1005). UX ONLY — dsr_save_draft/dsr_submit/dsr_validate/dsr_return/dsr_correct and
    * dsr_report_revenue are the authority (ADR-0016). Until #902 adds the field-controller and QS roles, the field role
@@ -789,7 +790,7 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
    * Assessing progress is #765's `projectProgress.edit`, unchanged. The server is the authority.
    */
   progressClaim: {
-    view: (role, ctx) => has(MASTER_DATA, role) || holds(ctx, 'quantity_surveyor'), // 2044: the QS reads claims
+    view: (role, ctx) => has(MASTER_DATA, role) || holds(ctx, 'quantity_surveyor') || holds(ctx, 'engineer'),
     create: allow(REVENUE_WRITE),
     transition: allow(REVENUE_WRITE),
   },
@@ -799,7 +800,7 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
    * and its releases (Finance/Admin). The database is the authority.
    */
   billingStage: {
-    view: (role, ctx) => has(MASTER_DATA, role) || holds(ctx, 'quantity_surveyor'), // 2044
+    view: (role, ctx) => has(MASTER_DATA, role) || holds(ctx, 'quantity_surveyor') || holds(ctx, 'engineer'),
     // 2044: a step names its owner access level (`record.owner_role`); its holders with the run-steps right record it, and the
     // claim's creator (`record.claim_created_by`) never records a step another owner holds.
     transition: (role, ctx) => {
@@ -951,6 +952,7 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     delete: allow(MASTER_DATA),
   },
   task: {
+    linkWorkOrder: (role, ctx) => has(DELIVERY, role) || holds(ctx, 'planner'),
     // DD-TASK-8 (#551, migration 0204): an Engineer may create tasks. The old exclusion had no
     // ruling behind it — it traced to the 0002 bootstrap role list and was copied forward by four
     // migrations, while OD-MTG-1 ruled every role may minute a meeting whose /action creates a task.
@@ -1296,13 +1298,14 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
   scheduledReport: {
     view: (role, ctx) =>
       ctx.record?.viewOnly !== true &&
-      (role === 'Admin' || (holds(ctx, 'project_control_manager') && ctx.record?.pcm_scheduled_reports_enabled === true)),
+      (role === 'Admin' || holds(ctx, 'project_administrator') || (holds(ctx, 'project_control_manager') && ctx.record?.pcm_scheduled_reports_enabled === true)),
     manage: (role, ctx) =>
       ctx.record?.viewOnly !== true &&
-      (role === 'Admin' || (holds(ctx, 'project_control_manager') && ctx.record?.pcm_scheduled_reports_enabled === true)),
+      (role === 'Admin' || holds(ctx, 'project_administrator') || (holds(ctx, 'project_control_manager') && ctx.record?.pcm_scheduled_reports_enabled === true)),
     edit: (role, ctx) =>
       ctx.record?.viewOnly !== true &&
       (role === 'Admin' ||
+        (holds(ctx, 'project_administrator') && ctx.record?.managedBy === 'project_administrator') ||
         (holds(ctx, 'project_control_manager') &&
           ctx.record?.pcm_scheduled_reports_enabled === true &&
           ctx.record?.managedBy === 'project_control_manager')),
@@ -1312,7 +1315,7 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
   costAttribution: { manage: allow(COST_ATTRIBUTION_WRITE) },
   // #2519 plan vs actual per work order. UX ONLY — work_order_plan_lines RLS (0997), set/clear_shared_cost_split (0998)
   // and work_order_cost_amounts (0999) are the authority (ADR-0016).
-  workOrderPlan: { view: allow(WORK_ORDER_MONEY), manage: allow(WORK_ORDER_MONEY) },
+  workOrderPlan: { view: (role, ctx) => has(WORK_ORDER_MONEY, role) || holds(ctx, 'engineer'), manage: (role, ctx) => has(WORK_ORDER_MONEY, role) || holds(ctx, 'engineer') },
   // #2597: cost and schedule indices. UX ONLY: get_work_order_performance refuses anyone who cannot read revenue and cost,
   // and the organisation setting is written by an Admin only (RLS on organizations).
   workOrderPerformance: { view: allow(WORK_ORDER_MONEY) },
@@ -1363,7 +1366,7 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
       !!ctx.currentUserId &&
       ctx.record?.author_id !== ctx.currentUserId &&
       (role !== 'Project Manager' || ctx.record?.project_manager_id === ctx.currentUserId),
-    view: (role, ctx) => has(EQUIPMENT_APPROVE, role) || (
+    view: (role, ctx) => has(EQUIPMENT_APPROVE, role) || holds(ctx, 'project_administrator') || (
       role === 'Engineer' && !!ctx.currentUserId && ctx.record?.author_id === ctx.currentUserId
     ), // Engineers may read their own entries; the audience above may read amounts and others' entries.
   },

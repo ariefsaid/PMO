@@ -87,6 +87,7 @@ interface TaskFormModalProps {
   workOrders?: { id: string; title: string; wo_number: string | null; status: string }[];
   /** #2531: may the viewer set the work-order link and the proof flag (Admin/Executive/Project Manager). */
   canStructure?: boolean;
+  canLinkWorkOrder?: boolean;
   /** FR-CUA-070 breadth (review fix #4): the edit-modal save is an external write origin — its
    *  pending-push state surfaces in the modal (pushing while saving / push-failed when the save is
    *  rejected and the modal stays open). Idle for create + PMO-owned. */
@@ -109,6 +110,7 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
   taskGroups = [],
   workOrders = [],
   canStructure = false,
+  canLinkWorkOrder = false,
   pendingPushState = IDLE_PENDING_PUSH,
   onClose,
   onCreate,
@@ -248,7 +250,7 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
               ...base,
               milestone_id: milestoneId,
               ...(canStructure && taskGroupId !== initialTaskGroupId ? { task_group_id: taskGroupId } : {}),
-              ...(canStructure && workOrderId !== initialWorkOrderId ? { work_order_id: workOrderId } : {}),
+              ...((canStructure || canLinkWorkOrder) && workOrderId !== initialWorkOrderId ? { work_order_id: workOrderId } : {}),
               ...(canStructure && proofRequired !== initialProofRequired ? { proof_required: proofRequired } : {}),
             },
             delta,
@@ -260,7 +262,7 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
             ...base,
             milestone_id: milestoneId,
             parent_task_id: null,
-            ...(canStructure && workOrderId ? { work_order_id: workOrderId } : {}),
+            ...((canStructure || canLinkWorkOrder) && workOrderId ? { work_order_id: workOrderId } : {}),
             ...(canStructure && proofRequired ? { proof_required: true } : {}),
             ...(canStructure && taskGroupId ? { task_group_id: taskGroupId } : {}),
           }, namedDrafts(drafts));
@@ -400,7 +402,7 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
               noun={t('projectDetail.tasks.form.taskGroupNoun', 'group')}
             />
           )}
-          {canStructure && (
+          {(canStructure || canLinkWorkOrder) && (
             <Combobox
               label={tTasks('proof.workOrder')}
               value={workOrderId}
