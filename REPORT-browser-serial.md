@@ -73,3 +73,34 @@ Runs: 1=dev @ 9f16436de; 2=dev+startup-single-read @ e9270800e; 3=dev+home-figur
 | JOB-PU4-quoted-buy.spec.ts | FAIL | pass | FAIL | FAIL |
 | hide-prices-screens.spec.ts | pass | FAIL | pass | pass |
 | totals | 5 failed  25 passed (5.6m) | 6 failed  24 passed (4.2m) | 4 failed  26 passed (3.3m) | 5 failed  25 passed (5.7m) |
+
+
+## Trace analysis: passed on run 1 (dev), failed on a branch run
+Runs 1-4 used Playwright's default worker count, not CI's `--workers=1`; the list output shows spec files interleaving, so shared org-level state (the Equipment account mapping, the hide-prices setting) may race. See the `--workers=1` section below, if present, for the CI-style runs.
+
+Branch runs where nothing passing on dev failed: **run 3 (home-figures-totals)**. The two dashboard specs (AC-1117, AC-701) fail on dev and on all three branches with identical values (run 1 and run 3: "$7.06M" received where "$3.46M" is expected; "9 with a signed contract" where 7 is expected), so they are not caused by any branch. JOB-E2, JOB-PU4 fail on dev too; AC-TIER-014 failed on dev and run 2 only.
+
+### Run 2 (startup-single-read): hide-prices-screens (pass on dev, FAIL here)
+- Failing step: line 130, `getByLabel('Deskripsi item baru')` (Bahasa pass) not found after 5s, signed in as the Site Supervisor requester.
+- Page showed: the requester's app shell (sidebar, navigation) with the request page; the new-item description field was absent.
+- Calls in the trace (18 `rpc/shell_bootstrap` POSTs over the run, 200 each). Every answer for the requester (profile role Engineer, built-in role site_supervisor), including the last one at the failing moment (08:56:59.862Z): `hide_prices_enabled = true`, `may_see_prices = false`. The page also fetched `/catalogues/<hash>/en/priceVisibility.json` (answer `{"withheld":"Prices are hidden from requesters."}`) after each bootstrap. No separate `get_may_see_prices` / `get_hide_prices_enabled` call appears; the bootstrap answer replaces them. Other reads at the failing moment, all 200: `actor_may_order_purchases` = false, `actor_may_read_purchase_cases` = false, `get_procurement_gates` = all four gates false, `equipment_plan_purchase_submit_context` = {may_submit:false,is_submitter:false}, `get_purchase_line_planning` = true, `get_order_receiving_enabled` = false.
+- Note: the bootstrap is called repeatedly (about every 1-2 s in the trace, 18 times in the run) while the page waits.
+
+### Run 2: JOB-HPG-requester-reads-no-price-any-way, test "adds, edits and removes a line on their own draft" (pass on dev, FAIL here)
+- Failing step: `getByTestId('line-items-section').getByLabel(/new item unit price/i)` expected count 0, found 1 (a unit-price field showed while prices are meant to be hidden).
+- Page showed: the requester's own draft request with the add-line row including a unit-price input.
+- `shell_bootstrap` calls for this signed-in user (Engineer / site_supervisor), 2 in the trace, both 200:
+  - 08:57:06.522Z: keys include `hide_prices_enabled = true` and `may_see_prices = false`.
+  - 08:57:07.477Z (about 1 s later, same session): `hide_prices_enabled = false` and **no `may_see_prices` key at all**.
+  The function (2810_shell_bootstrap.sql) adds `may_see_prices` only when hiding is on; the client (`shellBootstrap.ts`) writes `hide_prices_enabled` into the query cache on every call but writes `may_see_prices` only when the key is present. So the second answer flips the cached hide flag to false while the earlier cached may-see answer stays; the add-line row then shows the price field.
+- Other calls in the last 3 s: `my_decision_standing` = false; `actor_may_order_purchases` = false; `actor_may_read_purchase_cases` = false; `get_procurement_gates` all false; `org_reads_erp_ledger` = false; `get_purchase_line_planning` = true; `get_order_receiving_enabled` = false. No `get_hide_prices_enabled` call is visible after the second bootstrap.
+- Why the second bootstrap answered `hide_prices_enabled = false` is not established from the trace: nothing in the trace shows the Admin setting being switched at that moment. Compare: the JOB-HPG-plan-resave test (same hide-prices theme) passed on all four runs.
+
+### Run 2: AC-NATIVE-EQU-role-job (pass on dev, FAIL here)
+- Failing step: test timeout (180 s) at line 55: after signing in as the project manager and opening the Approvals tab on `/equipment?week=2026-11-21`, `getByRole('button', { name: 'Approve week' })` never appeared (the tab panel and the "Hours log" heading rendered). No approve call was made. Only the periodic notification count and timesheets reads continued every 60 s.
+- Equipment/shell reads: not a hide-prices or totals read; the earlier steps (add row, submit week) succeeded.
+
+### Run 4 (work-order-page-deferred-reads): AC-CSP-016-project-performance-indices (pass on dev, FAIL here)
+- Failing step: the test's own steps passed or its first error was swallowed; what the run reports is the cleanup error `AC-CSP-016 cleanup failed: restore bindings: map an account to the Equipment category first` (spec line 142). The first underlying failure, if any, is not in the log (the test's `failure` variable would have produced an AggregateError; it did not, so the body itself finished and only the cleanup step failed).
+- Page showed: the signed-in shell (sidebar with "11 pending" approvals), no error banner.
+- Totals/performance reads: none relevant to the error; the failure is in the cleanup write to the Equipment-category account mapping, which AC-NATIVE-EQU also edits (run 4 interleaved the two specs in time).
