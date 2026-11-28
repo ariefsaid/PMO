@@ -10,6 +10,8 @@ insert into projects (id, org_id, name, status) values ('28030000-0000-0000-0000
 insert into work_orders (id, org_id, project_id, title, status, order_value, tax_treatment, tax_amount) values ('28030000-0000-0000-0000-000000000031', '28030000-0000-0000-0000-000000000001', '28030000-0000-0000-0000-000000000021', 'Order', 'Issued', 0, 'exclusive', 0);
 insert into crews (id, org_id, code, name) values ('28030000-0000-0000-0000-000000000041', '28030000-0000-0000-0000-000000000001', 'A', 'Crew');
 insert into people (id, org_id, kind, name) values ('28030000-0000-0000-0000-000000000051', '28030000-0000-0000-0000-000000000001', 'own', 'Worker');
+insert into crew_members (org_id, crew_id, worker_id, valid_from) values ('28030000-0000-0000-0000-000000000001', '28030000-0000-0000-0000-000000000041', '28030000-0000-0000-0000-000000000051', current_date - 1);
+insert into work_order_crews (org_id, work_order_id, crew_id, valid_from) values ('28030000-0000-0000-0000-000000000001', '28030000-0000-0000-0000-000000000031', '28030000-0000-0000-0000-000000000041', current_date - 1);
 insert into attendance_days (org_id, worker_id, work_order_id, project_id, crew_id, work_date, status, hours, source) values ('28030000-0000-0000-0000-000000000001', '28030000-0000-0000-0000-000000000051', '28030000-0000-0000-0000-000000000031', '28030000-0000-0000-0000-000000000021', '28030000-0000-0000-0000-000000000041', current_date, 'present', 8, 'roster_tick');
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"28030000-0000-0000-0000-000000000011","role":"authenticated"}', true);

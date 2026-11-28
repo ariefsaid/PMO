@@ -18,7 +18,7 @@ insert into work_order_areas (id, org_id, code, name) values ('28030000-0000-000
 insert into rate_catalogue_items (id, org_id, project_id, item_code, description, unit) values ('28030000-0000-0000-0000-0000000000b1', '28030000-0000-0000-0000-000000000003', '28030000-0000-0000-0000-000000000081', 'A', 'Pipe', 'm');
 insert into rate_catalogue_variants (id, org_id, project_id, name) values ('28030000-0000-0000-0000-0000000000b2', '28030000-0000-0000-0000-000000000003', '28030000-0000-0000-0000-000000000081', 'Default');
 insert into rate_catalogue_rates (org_id, item_id, variant_id, rate, effective_from) values ('28030000-0000-0000-0000-000000000003', '28030000-0000-0000-0000-0000000000b1', '28030000-0000-0000-0000-0000000000b2', 25, current_date);
-insert into progress_claims (id, org_id, project_id, kind, currency, gross_amount) values ('28030000-0000-0000-0000-0000000000c1', '28030000-0000-0000-0000-000000000003', '28030000-0000-0000-0000-000000000081', 'progress', 'IDR', 50);
+insert into progress_claims (id, org_id, project_id, kind, currency, gross_amount, created_by) values ('28030000-0000-0000-0000-0000000000c1', '28030000-0000-0000-0000-000000000003', '28030000-0000-0000-0000-000000000081', 'progress', 'IDR', 50, '28030000-0000-0000-0000-000000000073');
 create function pg_temp.act(p text) returns void language sql as $$ select set_config('request.jwt.claims', json_build_object('sub', '28030000-0000-0000-0000-0000000000' || p, 'role', 'authenticated')::text, true) $$;
 set local role authenticated;
 select pg_temp.act('71');
