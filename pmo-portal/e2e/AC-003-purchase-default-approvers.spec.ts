@@ -34,7 +34,7 @@ for (const scenario of [
       await expect(page.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Approved', { timeout: 15_000 });
     } finally {
       removeJobOrganization(orgId);
-      for (const id of [approver?.id, requester?.id].filter(Boolean)) ok('login cleanup', await db.auth.admin.deleteUser(id));
+      for (const id of [approver?.id, requester?.id].filter((id): id is string => !!id)) ok('login cleanup', await db.auth.admin.deleteUser(id));
     }
   });
 }
