@@ -19,7 +19,7 @@
 --   mut:rsd_tool_named ............ 'AC-RSD-007 a crew with a named controller refuses another site supervisor'
 begin;
 create extension if not exists pgtap;
-select plan(76);
+select plan(80);
 
 -- ── Fixtures (written as the table owner; RLS is bypassed here, functions run as the actor) ──────────────────
 -- Org A: built-in roles OFF (level holders only — the shape of an organisation that never turned keys on).
@@ -506,11 +506,11 @@ select is(pg_temp.err('28030000-0000-0000-0000-0000000000b3',
   'AC-RSD-007 an unkeyed Engineer reports a tool for a crew with no field controller');  -- mut:rsd_tool_default
 select is(pg_temp.err('28030000-0000-0000-0000-0000000000b4',
   $$ select public.report_crew_tool(gen_random_uuid(), '28030000-0000-0000-0000-000000000310', 'lost', 1, 'second loss', null) $$),
-  '42501 CTR_NOT_ALLOWED: only the crew''s field controller, a crew manager or the keeper of its site store reports a tool',
+  '42501 CTR_NOT_ALLOWED: only the crew''s field controller or site supervisor, a crew manager or the keeper of its site store reports a tool',
   'AC-RSD-007 a Project Manager level person is still refused (not a site supervisor)');
 select is(pg_temp.err('28030000-0000-0000-0000-0000000000b3',
   $$ select public.report_crew_tool(gen_random_uuid(), '28030000-0000-0000-0000-000000000311', 'lost', 1, 'loss on controlled crew', null) $$),
-  '42501 CTR_NOT_ALLOWED: only the crew''s field controller, a crew manager or the keeper of its site store reports a tool',
+  '42501 CTR_NOT_ALLOWED: only the crew''s field controller or site supervisor, a crew manager or the keeper of its site store reports a tool',
   'AC-RSD-007 a crew with a named controller refuses another site supervisor');  -- mut:rsd_tool_named
 select is(pg_temp.err('28030000-0000-0000-0000-0000000000b4',
   $$ select public.report_crew_tool(gen_random_uuid(), '28030000-0000-0000-0000-000000000311', 'lost', 1, 'controller reports', null) $$), 'ok',
@@ -520,15 +520,30 @@ select is(pg_temp.err('28030000-0000-0000-0000-0000000000c8',
   'AC-RSD-007 the keyed site supervisor reports for the controllerless crew');
 select is(pg_temp.err('28030000-0000-0000-0000-0000000000c2',
   $$ select public.report_crew_tool(gen_random_uuid(), '28030000-0000-0000-0000-000000000312', 'lost', 1, 'keyed coordinator', null) $$),
-  '42501 CTR_NOT_ALLOWED: only the crew''s field controller, a crew manager or the keeper of its site store reports a tool',
+  '42501 CTR_NOT_ALLOWED: only the crew''s field controller or site supervisor, a crew manager or the keeper of its site store reports a tool',
   'AC-RSD-007 a keyed member of another role is refused (a keyed person is judged by their key alone)');
+-- The photo gates read the same identity: a damaged report needs its photo, so the fallback reaches the upload
+-- (crew_tool_is_reporter, 1158) and the report's file rows (crew_tool_can_report, 2041) too.
+select is(pg_temp.val('28030000-0000-0000-0000-0000000000c8',
+  $$ select public.crew_tool_is_reporter() $$), 'true',
+  'AC-RSD-007 the site supervisor of an organisation with a controllerless crew may upload a report photo');
+select is(pg_temp.val('28030000-0000-0000-0000-0000000000c9',
+  $$ select public.crew_tool_is_reporter() $$), 'false',
+  'AC-RSD-007 a keyed storekeeper is not a photo reporter (judged by their key alone)');
+select is(pg_temp.val('28030000-0000-0000-0000-0000000000c8',
+  $$ select public.crew_tool_can_report('28030000-0000-0000-0000-000000000312') $$), 'true',
+  'AC-RSD-007 the site supervisor may add a file to the controllerless crew''s open report');
+select is(pg_temp.val('28030000-0000-0000-0000-0000000000c2',
+  $$ select public.crew_tool_can_report('28030000-0000-0000-0000-000000000312') $$), 'false',
+  'AC-RSD-007 a keyed coordinator may not add files to that report');
 
 -- ── §9 hygiene ───────────────────────────────────────────────────────────────────────────────────────────────
 select is((select string_agg(proname || ':' || coalesce((proconfig[array_upper(proconfig, 1)] ~ '^search_path=.*pg_temp$')::text, 'false'), ',' order by proname)
              from pg_proc where pronamespace = 'public'::regnamespace
               and proname in ('seed_org_defaults', 'stock_assert_keeper', 'report_crew_tool', 'actor_has_role_capability',
-                              'dsr_validation_queue', 'get_dsr_validation_route', 'dsr_validate_role_keys', 'dsr_fills_validate_role')),
-  'actor_has_role_capability:true,dsr_fills_validate_role:true,dsr_validate_role_keys:true,dsr_validation_queue:true,get_dsr_validation_route:true,report_crew_tool:true,seed_org_defaults:true,stock_assert_keeper:true',
+                              'dsr_validation_queue', 'get_dsr_validation_route', 'dsr_validate_role_keys', 'dsr_fills_validate_role',
+                              'crew_tool_is_reporter', 'crew_tool_can_report')),
+  'actor_has_role_capability:true,crew_tool_can_report:true,crew_tool_is_reporter:true,dsr_fills_validate_role:true,dsr_validate_role_keys:true,dsr_validation_queue:true,get_dsr_validation_route:true,report_crew_tool:true,seed_org_defaults:true,stock_assert_keeper:true',
   'every function this round touches sets its search path with pg_temp last');
 
 select * from finish();
