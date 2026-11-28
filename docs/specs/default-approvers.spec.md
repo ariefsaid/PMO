@@ -17,3 +17,8 @@
 - AC-005: Given the requester is the only eligible default or no eligible default exists, when a purchase is submitted, then the Admin route is used.
 - AC-006: Given an over-budget purchase with configured senior approvers, when it is submitted, then it routes to the senior set before any project default.
 - AC-007: Given a quantity change created or edited by another user, when an eligible Project Control Manager reviews it, then the review is allowed; the author, editor and submitter cannot review their own request.
+
+## Notes
+
+- A purchase type counts as a service when `purchase_types.is_service` is set (seeded for the starter Service type, backfilled for existing ones); rentals use `is_rental`. Anything else is goods. An Admin control for `is_service` is a follow-up.
+- The default applies only inside the within-budget project route. Over-budget and unknown-figure purchases keep senior-first routing; claims, imprest and projectless purchases keep today's routing.
