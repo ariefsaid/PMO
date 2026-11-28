@@ -33,3 +33,5 @@ Sandbox restarted once mid-run (chunk 1 was killed at 49/63 and re-run in full a
 - chromium chunk 0: 60 passed (7.2m)
 - chromium chunk 1: 59 passed, 4 skipped (7.0m)
 - chromium chunk 2: 6 skipped,63 passed (7.4m),
+- chromium chunk 3: 1 failed,2 did not run,76 passed (8.3m),
+  - FAILED: 1) [chromium] › e2e/AC-S21-005-task-list-review.spec.ts:124:3 › S21 complete ordered task-link journey › Supporting proof: Admin reviews the ClickUp list, saves the source, and reads back the binding 
