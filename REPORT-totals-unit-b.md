@@ -4,4 +4,5 @@ Run flags: `npx vitest run --coverage --shard=N/8 --reporter=default --reporter=
 |---|---|---|
 | 5/8 | 355 passed (355) | 3524 passed (3524) |
 | 6/8 | 355 passed (355) | 3893 passed (3893) |
-(7, 8, typecheck, check:guards pending)
+| 7/8 | 356 passed (356) | 4101 passed (4101) |
+(8, typecheck, check:guards pending)
