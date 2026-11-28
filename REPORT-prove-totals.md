@@ -68,3 +68,16 @@ Totals: 2,833 of 2,834 files pass (1 failed + 1 skipped counted in shard 4); 1 t
 - Error: `AssertionError: expected '✗ supabase/functions/erpnext-sweep/in…' to match /could not read this file/`
 - Root cause: the test does chmodSync(file, 0o000) and expects the CLI to fail reading it. This sandbox runs as uid 0 (root), which can read a mode-000 file, so the CLI reads it normally and reports a different (wrapping) error. CI runs as a non-root user. The branch does not touch this file or src/lib/agent.
 - Verdict: sandbox artifact; expected green on CI.
+
+## Step 6: browser (affected-e2e vs origin/dev: 480 of 545 specs; 329 chromium lane, 151 serial lane), npm-equivalent project lanes via scripts/e2e-local.sh, retries 0, chunks of 40 files, chromium 3 workers, serial 1 worker
+
+Note: a 40-file chunk runs longer than a foreground call can, so the runner ran in the background and was polled within the same turn.
+
+Earlier probe (8 chromium specs at 4 workers): 4 failed (AC-002, AC-009, AC-1834, AC-1982); all four passed when re-run alone at 1 worker (15 passed, 1.9m). Load-sensitive, so the full run uses 3 workers.
+
+| Chunk | Files | Result line | Failures | Re-run alone |
+|---|---|---|---|---|
+| chunk-chromium-00 | 40 | 1 failed 59 passed (7.0m) | 1 | AC-ADMIA-001-administration-navigation.spec.ts rc=0 17 passed (1.4m) |
+
+Real browser failures so far: none (every failure passed when re-run alone).
+
