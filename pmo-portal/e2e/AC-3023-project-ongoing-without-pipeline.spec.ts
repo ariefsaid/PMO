@@ -83,7 +83,9 @@ test('AC-3023: a Project Manager in a pipeline-off organisation creates a projec
     await page.getByRole('button', { name: /Confirm won/i }).click();
     await expect(visibleToast(page, /Moved to Won, pending kickoff/i)).toBeVisible({ timeout: 20_000 });
 
-    // 3 — Start it: the ordinary Won, Pending KoM → Ongoing Project move through the status menu.
+    // 3 — Start it: the ordinary Won, Pending KoM → Ongoing Project move through the status control, which the
+    // header keeps in its Project details popover.
+    await page.getByRole('button', { name: 'Project details', exact: true }).click();
     await page.getByRole('button', { name: /change status/i }).first().click();
     await page.getByRole('button', { name: 'Ongoing', exact: true }).click();
     await page.getByRole('button', { name: /Move to Ongoing/i }).click();
