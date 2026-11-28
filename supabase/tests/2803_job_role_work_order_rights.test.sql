@@ -42,7 +42,7 @@ select is((select count(*)::int from rate_catalogue_rates), 0, 'unrelated role c
 select throws_ok($$select set_work_order_check_in_area('28030000-0000-0000-0000-000000000091', -6, 106, 100)$$, '42501', null, 'unrelated role cannot set check-in');
 select throws_ok($$select set_work_order_area_group('28030000-0000-0000-0000-000000000091', '28030000-0000-0000-0000-0000000000a1', null, true, false)$$, '42501', null, 'unrelated role cannot set the area');
 select is((select count(*)::int from work_order_plan_lines), 0, 'unrelated role cannot read plan figures');
-select throws_ok($$select set_work_order_plan('28030000-0000-0000-0000-000000000081', '28030000-0000-0000-0000-000000000091', '[{"kind":"direct_budget","value":"100"}]')$$, '42501', null, 'unrelated role cannot plan');
+select throws_ok($$select set_work_order_plan('28030000-0000-0000-0000-000000000081', '28030000-0000-0000-0000-000000000091', '[{"kind":"direct_budget","value":"100"}]')$$, '42501', 'not authorized', 'unrelated role cannot plan');
 select is((select count(*)::int from progress_claims), 0, 'unrelated role cannot read claims');
 select * from finish();
 rollback;
