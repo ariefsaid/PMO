@@ -42,3 +42,4 @@ Sandbox restarted once mid-run (chunk 1 was killed at 49/63 and re-run in full a
 - chromium chunk 4: 57 passed (6.3m),
 - chromium chunk 5: 58 passed (7.0m),
 - chromium chunk 6: 57 passed (7.6m),
+- chromium chunk 7: NO RESULT LINE (timed out/killed)
