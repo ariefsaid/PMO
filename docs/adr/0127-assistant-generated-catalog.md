@@ -1,6 +1,6 @@
 # ADR-0127 — The assistant's record types and actions come from one catalog generated at build time
 
-- **Status:** Proposed (Design+Plan for #3084, 2026-11-28)
+- **Status:** Proposed (Design+Plan for #3084, 2026-11-28; the Director's rulings of the same day on the spec's open points leave this decision unchanged)
 - **Deciders:** Director, under the owner's rulings on #3084 (2026-11-28)
 - **Related:** DD-API-1/2/3 (`docs/decisions.md`), ADR-0016 (RLS is the authority), ADR-0019 (server-enforced SoD), ADR-0036 (deputy), ADR-0050 (layered prompt), ADR-0051 (approval materiality), ADR-0052 (eval harness). **Spec:** [`docs/specs/assistant-catalog.spec.md`](../specs/assistant-catalog.spec.md). **Plan:** [`docs/plans/2026-11-28-assistant-catalog.md`](../plans/2026-11-28-assistant-catalog.md).
 

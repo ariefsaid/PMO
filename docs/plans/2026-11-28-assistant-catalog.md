@@ -34,7 +34,7 @@ Legacy tools stay registered in `legacy`/`both` modes until the gate (FR-ACG-080
 | **S0** Baseline and gates | token measure script, legacy parity golden, eval baseline (N=10) | no | PR-A | none | B (bounded) |
 | **S1** Generator and fragments | generator, `--check`, `--check-db`, 27 core fragments, `skip` classification, README | **yes: defines column and role rules** (reviewed by security-auditor; no runtime effect until S3) | PR-A | S0-T2 | A (strong) for T1.1–T1.6; B for T1.7 |
 | **S2** `find`, guide index, language | search, visibility filter, guide generator, terms, `RunContext.language` | no (hint filter only; `find` returns no data rows) | PR-A | S1-T1.4 (types) | B |
-| **S6** Panel (P1–P4) | click-to-send, Approval Card, Context Cards, Records Table, OpenUI renderer, a11y/perf | no (data path review for OpenUI) | PR-A (P1, P2), PR-D (P3, P4) | none (P3 needs S3 result shapes) | UI lane, screen-owner runbook |
+| **S6** Panel re-match (the whole panel, T6.0–T6.11) | no (the OpenUI data path gets a security review) | PR-A (T6.1 only), **PR-E** (the rest, UI lane, own PR) | none (T6.9 needs S3 result shapes, T6.5 needs T5.6) | UI lane, screen-owner runbook, one owner |
 | **S3** `read` over the catalog | `entityCatalog.ts` from catalog, `runRead`, recipes, suggestions, parity and pgTAP matrix | **YES — role/column rules, price hiding** | **PR-B alone** | S1 | A |
 | **S4** `act` | framework, migrate 5 actions, 20 new entries by role group, pgTAP per area | **YES — writes, SoD, re-auth** | **PR-C alone** (framework + all entries; entries are data) | S1, S3 types | A for T4.1–T4.4; B for entries |
 | **S5** Prompt, tool registry, modes | catalog prompt, 3 tools, `legacy/both/new` switch | touches the tool contract | PR-D | S2, S3, S4 | A |
@@ -42,10 +42,10 @@ Legacy tools stay registered in `legacy`/`both` modes until the gate (FR-ACG-080
 | **S8** Evals and cutover | eval cases, scorer, N=10 runs, gate, delete old tools, `helpCorpus.ts` | the deletion is the cutover | PR-D | S5 | A + Director |
 | **S9** MCP (phase 2) | MCP transport over the same modules | auth (DD-API-2) | own PR after 15 Dec | all | A |
 
-PR-A (S0, S1, S2, S6-P1/P2) is dormant on dev: the new tools are unregistered in `legacy` mode, so it carries no
+PR-A (S0, S1, S2, S6 T6.1) is dormant on dev: the new tools are unregistered in `legacy` mode, so it carries no
 behaviour change except the panel's click-to-send and the removed line. PR-B also moves today's `query_entity`
 onto catalog-resolved entities (parity-proven by AC-ACG-014, which is why it ships alone); PR-C adds code the
-registry does not yet offer. PR-D registers `both`, then flips the default to `new` after the gate. Money, SoD and auth change
+registry does not yet offer. PR-E carries the rest of S6, the whole-panel re-match (it needs only today's events plus the `sources` field of T5.6, which is additive); its unit tests run in the PR and its new journeys run in the batch browser run on Thu 10 Dec. PR-D registers `both`, then flips the default to `new` after the gate. Money, SoD and auth change
 ships alone, as the batch rule says.
 
 ## 2. Day-by-day schedule (Sun 29 Nov → Tue 15 Dec 2026)
@@ -54,25 +54,25 @@ Weekend days count: workers run through them. CI minutes follow `docs/ci-push-ru
 
 | Date | Work | Gate / merge |
 |---|---|---|
-| Sun 29 Nov | Director + owner sign off spec and plan. **S0** all. **S1** T1.1–T1.3. **S6-P1** starts. | spec signed |
-| Mon 30 Nov | **S1** T1.4–T1.6 (generator emits; 27 core fragments; parity green). **S2** T2.1–T2.3 (guide generator, visibility, search). **S6-P1** done. | parity test green on dev head |
-| Tue 1 Dec | **S1** T1.7 skip classification (two workers, A–M and N–Z). **S2** T2.4–T2.6. **S6-P2** starts. **S4** T4.1 starts on the types from S1 (separate files from S3). | S1 integrated into `batch/1215-assistant` |
+| Sun 29 Nov | Director + owner sign off spec and plan. **S0** all. **S1** T1.1–T1.3. **S6** T6.0 rendered inventory (demo vs. panel, every state) and T6.1 start. | spec signed |
+| Mon 30 Nov | **S1** T1.4–T1.6 (generator emits; 27 core fragments; parity green). **S2** T2.1–T2.3 (guide generator, visibility, search). **S6** T6.1 done; T6.2–T6.3 (chat shell, Prompt Bar) start. | parity test green on dev head |
+| Tue 1 Dec | **S1** T1.7 skip classification (two workers, A–M and N–Z). **S2** T2.4–T2.6. **S6** T6.4 (working states). **S4** T4.1 starts on the types from S1 (separate files from S3). | S1 integrated into `batch/1215-assistant` |
 | Wed 2 Dec | **S3** T3.1–T3.3. **S2** integrated. **S4** T4.1–T4.2. | `--check` in `check:guards` |
-| Thu 3 Dec | **S3** T3.4–T3.5 (pgTAP matrix, price-hidden handler test). **S6-P2** done. PR-A opened (S0, S1, S2, S6-P1/P2). | PR-A CI (`verify` + affected `unit`) |
+| Thu 3 Dec | **S3** T3.4–T3.5 (pgTAP matrix, price-hidden handler test). **S6** T6.5 (answer row; sources field needs T5.6). PR-A opened (S0, S1, S2, S6 T6.1). | PR-A CI (`verify` + affected `unit`) |
 | Fri 4 Dec | PR-A merged to `dev`. **S3** T3.6 auditor review + mutation checks. **S4** T4.3 (migrate 5 actions). | PR-A on dev; push-run green |
 | Sat 5 Dec | **S3** fixes; PR-B opened (S3 alone). | PR-B CI incl. `pgtap` |
 | Sun 6 Dec | PR-B merged. **S4** T4.4 handler wiring; entry fragments start (T4.5–T4.7 in parallel, three workers). | PR-B on dev |
-| Mon 7 Dec | **S4** T4.5–T4.7; **S5** T5.1–T5.3 starts; **S6-P3** (OpenUI) starts; **S7** list drafted. | |
-| Tue 8 Dec | **S4** entries + pgTAP per area; **S5** T5.4–T5.5; **S8** T8.1–T8.2 (cases and scorer written). | |
-| Wed 9 Dec | **S4** T4.8 auditor review + mutation checks; PR-C opened (S4 alone). **S6-P3/P4** continue. | PR-C CI incl. `pgtap` |
-| Thu 10 Dec | PR-C merged. **Integration proof on `batch/1215-assistant`**: whole database job on a clean database + whole unit suite before the push (owner rule 2026-11-28); one manual browser run (`scripts/ci-e2e.sh batch/1215-assistant`); **S8** T8.3 eval baseline-vs-both, N=10. | batch proof |
-| Fri 11 Dec | **S8** T8.4 gate decision (RG-1..RG-4); PR-D opened (S5, S6-P3/P4, S8 cutover in `both`, default flip prepared). | gate |
-| Sat 12 Dec | PR-D merged (default `both`; `new` when the gate passed); push-run on `dev`; fix-forward on `dev` first. | `dev` green |
-| Sun 13 Dec | Role-job walks (`friction-walk`), every role, English and Bahasa, phone and desktop; Director rendered review of the panel at actual size (`restructure`). | walk results |
-| Mon 14 Dec | Fixes from the walks; `S8` T8.6 deletion of legacy tools if gate passed and walks are clean; roadmap (#1571) and #3084 updated; handoff note. | |
+| Mon 7 Dec | **S4** T4.5–T4.7; **S5** T5.1–T5.3 and T5.6 start; **S6** T6.6–T6.8 (Approval Card, error card, Context Cards and Records Table); **S7** list drafted. | |
+| Tue 8 Dec | **S4** entries + pgTAP per area; **S5** T5.4–T5.5; **S6** T6.9–T6.10 (OpenUI with its security review, a11y/perf/i18n); **S8** T8.1–T8.2 (cases and scorer written). | |
+| Wed 9 Dec | **S4** T4.8 auditor review + mutation checks; PR-C opened (S4 alone). **S6** T6.11: side-by-side captures, Director compares demo vs. panel at actual size (RA-1), `scripts/ux-proof.sh`. | PR-C CI incl. `pgtap`; RA-1 notes |
+| Thu 10 Dec | PR-C merged. **S6** one fix round from RA-1; PR-E opened. **Integration proof on `batch/1215-assistant`**: whole database job on a clean database + whole unit suite before the push (owner rule 2026-11-28); one manual browser run (`scripts/ci-e2e.sh batch/1215-assistant`) incl. the AC-039..049 journeys; **S8** T8.3 eval baseline-vs-both, N=10. | batch proof |
+| Fri 11 Dec | **S8** T8.4 gate decision (RG-1..RG-4); PR-D opened (S5, S8 cutover wiring in `both`, default flip prepared); PR-E merged after its CI. | gate |
+| Sat 12 Dec | PR-D merged (default stays `both`); push-run on `dev`; fix-forward on `dev` first. **S8** T8.4a: Director walks each job role's assistant jobs on a served local bed (edge function served), English and Bahasa, and records it. | `dev` green |
+| Sun 13 Dec | T8.4a continues if a role is left; role-job walks (`friction-walk`) in the app, every role, English and Bahasa, phone and desktop; Director rendered review of the panel on the merged `dev`. | walk results |
+| Mon 14 Dec | Fixes from the walks; **T8.5** flip the default to `new` and delete the legacy tools, only if the gate passed and both walks are clean; roadmap (#1571) and #3084 updated; handoff note. | |
 | Tue 15 Dec | Go-live. Production promote is a separate, per-instance owner yes. Phase 2 (MCP) starts only after. | |
 
-**Critical path:** S0-T2 (parity golden) → S1 T1.1–T1.6 → S3 (PR-B) → S4 T4.1–T4.4 → S4 entries → PR-C → batch proof (Thu 10) → eval gate (Fri 11) → PR-D (Sat 12). Slack: 2 days (13–14 Dec). If the gate or the proof slips by more than one day, ship in `both` mode on 12 Dec (the old tools stay, the new ones are offered alongside) and do the deletion after 15 Dec; the user-visible panel work and the catalog are unaffected. If S4 slips, ship with the five migrated actions plus the site group (T4.5) and move the rest to the first week after go-live; if all of it slips, MCP is already after 15 Dec.
+**Critical path:** S0-T2 (parity golden) → S1 T1.1–T1.6 → S3 (PR-B) → S4 T4.1–T4.4 → S4 entries → PR-C → batch proof (Thu 10) → eval gate (Fri 11) → PR-D (Sat 12) → served-bed walk (Sat 12–Sun 13) → flip and deletion (Mon 14). **Panel path (parallel):** T6.0 → T6.2–T6.10 (Sun 29–Tue 8) → RA-1 review (Wed 9) → one fix round (Thu 10) → PR-E (Fri 11). Slack: 1 day (14 Dec is now the flip day; 15 Dec is go-live). If the gate or the proof slips by more than one day, ship in `both` mode on 12 Dec (the old tools stay, the new ones are offered alongside) and do the deletion after 15 Dec; the user-visible panel work and the catalog are unaffected. If S4 slips, ship with the five migrated actions plus the site group (T4.5) and move the rest to the first week after go-live; if all of it slips, MCP is already after 15 Dec.
 
 **Allocation (parallel on one integration branch):** W1 generator (S1 T1.1–T1.6) · W2 skip classification ×2 (T1.7) · W3 find/guide/language (S2) · W4 panel (S6) · W5 read (S3) · W6 act framework (S4 T4.1–T4.4) · W7–W9 act entries by group (T4.5–T4.7) · W10 prompt/registry (S5) · W11 evals (S8) · Director: review, integration writer, owner contact. At most two heavy local runs on the Mac; DB work under `scripts/with-db-lock.sh`; reset only when a migration or seed changed (none here, so no reset except the one clean-database proof on 10 Dec).
 
@@ -80,10 +80,11 @@ Weekend days count: workers run through them. CI minutes follow `docs/ci-push-ru
 
 | batch/ref | sole writer | ready slices | check + runner + executor | evidence/result | next action |
 |---|---|---|---|---|---|
-| `batch/1215-assistant` | integration worker | S0, S1, S2, S6-P1/P2 (PR-A) | `check:guards`, `typecheck`, touched eslint, touched unit — each builder; `verify`+`unit` — CI | candidate SHA, CI run | merge PR-A |
+| `batch/1215-assistant` | integration worker | S0, S1, S2, S6 T6.1 (PR-A) | `check:guards`, `typecheck`, touched eslint, touched unit — each builder; `verify`+`unit` — CI | candidate SHA, CI run | merge PR-A |
 | same | same | S3 (PR-B) | touched unit + `supabase test db supabase/tests/assistant_catalog_read_matrix.test.sql` under `with-db-lock.sh` — W5; full `pgtap` — CI | | merge PR-B |
 | same | same | S4 (PR-C) | touched unit + the per-area pgTAP files — W6–W9; full `pgtap` — CI | | merge PR-C |
-| same | same | S5, S6-P3/P4, S8 (PR-D) | batch proof (clean DB + whole unit + one browser run) — integration worker; eval N=10 — W11 | eval summary in `docs/evidence/assistant-catalog-gate.md` | gate, PR-D |
+| same | same | S6 T6.2–T6.11 (PR-E) | touched unit — W4; `scripts/ux-proof.sh` on touched routes — W4; browser journeys AC-039..049 in the one batch browser run — integration worker; RA-1 — Director | RA-1 notes in the PR body | merge PR-E |
+| same | same | S5, S8 (PR-D) | batch proof (clean DB + whole unit + one browser run) — integration worker; eval N=10 — W11 | eval summary in `docs/evidence/assistant-catalog-gate.md` | gate, PR-D |
 
 ## 3. Conventions for every task
 
@@ -174,7 +175,7 @@ export interface CatalogAction {
   can?: { action: string; entity: string };   // deputy re-auth mapping (replaces getPermissionCheck cases)
   job: string;                       // jtbd id(s), documentation only
   link?: string;
-  autoApprove?: boolean;             // true only for update_task_status (OP-5)
+  autoApprove?: boolean;             // true only for update_task_status (decided D-5)
   group: 'everyone' | 'site' | 'office' | 'finance';
 }
 
@@ -193,7 +194,7 @@ Verify: `cd supabase/functions/agent-chat && deno check --no-lock catalog/types.
 
 **T1.6 Core fragments carry the 27 entities** (AC-ACG-014). Create `catalog.d/entities-core.json` with one entry per current entity: `key`, `table` (the table or masked view from `entityCatalog.ts`/`readEntities.ts`), `columns` = the exact current lists as `include` (so the parity test compares like with like), `sum`, `group`, `requiredFilter`, `internalFilters`, `planKey` (from `ENTITY_FEATURE_KEYS`), `money` (from `AGENT_MONEY_READ_ENTITIES`), descriptions en/id, aliases. Mechanical draft: `node scripts/gen-assistant-catalog.mjs --draft-core > catalog.d/entities-core.json` reads `legacy-parity.golden.json`; a human writes the 54 descriptions. Failing test first: `pmo-portal/src/lib/agent/catalogParity.test.ts` (Vitest, imports `../../../../supabase/functions/agent-chat/catalog/catalog.generated` and the golden JSON) asserts equality cell by cell for all 27 entities. Mutation: delete one column from a fragment and the test goes red. Verify: `cd pmo-portal && npx vitest run src/lib/agent/catalogParity.test.ts`.
 
-**T1.7 Classify the remaining tables** (AC-ACG-002; two workers, split by first letter, A–M / N–Z). `node scripts/gen-assistant-catalog.mjs --draft-skip` prints every unclassified DAL-read table with its `authenticated` SELECT grant and a guessed reason code from its name (`*_erp_mirror` → `erp`, `external_*` → `sync`, `org_*_settings`/`*_settings` → `settings`, `*_files`/`*_photos` → `files`, `email_*`/`agent_*` → `internal`, `people*`/`person_*` → `pii`). The worker confirms each by reading its migration and policy (`pg_policies` at head decides), and writes `catalog.d/skip.json`; any table the §7 list names becomes an entity fragment instead (`catalog.d/entities-<area>.json`, one file per area, Wave 1 first). Role cells are confirmed here against `role_table_grants` and `pg_policies` (OP-3); a cell that differs from the spec is changed in the fragment and listed in the PR body. Verify: `npm run check:guards` passes; `rg -c '"reason"' supabase/functions/agent-chat/catalog.d/skip.json` ≈ the unclassified count printed before (about 215 of 242).
+**T1.7 Classify the remaining tables** (AC-ACG-002; two workers, split by first letter, A–M / N–Z). `node scripts/gen-assistant-catalog.mjs --draft-skip` prints every unclassified DAL-read table with its `authenticated` SELECT grant and a guessed reason code from its name (`*_erp_mirror` → `erp`, `external_*` → `sync`, `org_*_settings`/`*_settings` → `settings`, `*_files`/`*_photos` → `files`, `email_*`/`agent_*` → `internal`, `people*`/`person_*` → `pii`). The worker confirms each by reading its migration and policy (`pg_policies` at head decides), and writes `catalog.d/skip.json`; any table the §7 list names becomes an entity fragment instead (`catalog.d/entities-<area>.json`, one file per area, Wave 1 first). Role cells are confirmed here against `role_table_grants` and `pg_policies` (decided D-3); a cell that differs from the spec is changed in the fragment and listed in the PR body. Verify: `npm run check:guards` passes; `rg -c '"reason"' supabase/functions/agent-chat/catalog.d/skip.json` ≈ the unclassified count printed before (about 215 of 242).
 
 **T1.8 Fragment README** (FR-ACG-010). `catalog.d/README.md`: the five-line entity fragment, the action fragment, deny list, the `skip` reason codes, and "how a new feature joins": add the fragment, run `node scripts/gen-assistant-catalog.mjs`, commit the three generated files.
 
@@ -329,29 +330,64 @@ Each entry's tests: argument-builder golden (AC-ACG-030) — fixture args → th
 
 **T5.2 Tool registry with modes** (AC-ACG-036/038). In `actionCatalog.ts` `buildTools(composeEnabled, switches, mode)`: `legacy` = today's list (equal to `legacy-tools.golden.json`), `both` = legacy + `find`, `read`, `act`, `new` = `find`, `read`, `act`, `ask_user`, `compose_view` (+ `notify` while automations are on). The mode is read from a server-side setting at request time (name chosen in the build and recorded in `docs/environments.md`; the default stays `legacy` until PR-D). `handler.ts` picks `buildPlanAwarePrompt` or `buildCatalogSystemPrompt` by mode. In `both` mode the prompt tells the model to prefer the new tools. Failing tests: the three tool sets by mode; `legacy` output equals the golden. Verify: `deno test --no-lock -A actionCatalog.modes.test.ts`.
 
-**T5.3 Step labels** (FR-ACG-075). `stepLabel` in `toolLoop.ts` gains `find` ("Searching the catalog" / the user-language equivalent from `panelStrings`), `read` ("Reading <entity description>"), `act` ("Preparing: <action description>"). Failing test beside the existing step-label tests. Verify: `deno test --no-lock -A toolLoop.stepLabel.test.ts`.
+**T5.3 Step labels** (FR-ACG-083). `stepLabel` in `toolLoop.ts` gains `find` ("Searching the catalog" / the user-language equivalent from `panelStrings`), `read` ("Reading <entity description>"), `act` ("Preparing: <action description>"). Failing test beside the existing step-label tests. Verify: `deno test --no-lock -A toolLoop.stepLabel.test.ts`.
 
 **T5.4 Missing-tool signal** (`missingTool.ts`). `MODULE_GUESSES` stays; add a case that a `find` call returning no result records the same coarse event (module guess only, never text). Verify: `deno test --no-lock -A missingTool.test.ts`.
 
 **T5.5 Telemetry** (FR-ACG-009). Record the `catalog.version` and the mode on the turn's usage row (`aiTelemetry.ts` properties, no question text). Verify: `deno test --no-lock -A aiTelemetry.test.ts`.
 
+**T5.6 `sources` on the answer** (AC-ACG-046; FR-ACG-085). In `toolLoop.ts` collect, per turn, the entity keys passed to `read` (and recipes) and the guide results returned by `find` (title, path); attach them as `sources: [{ kind: 'record' | 'guide', key, title, path? }]` to the final answer event (`turnPresentation.ts`) and add the field to the event type in `pmo-portal/src/lib/agent/runtime/transport.ts`. No row data, no record titles. Failing test first: `toolLoop.sources.test.ts` (a turn with `find` guide + `read` work_orders yields two sources and no row values); client type test in `transport.test.ts`. Verify: `deno test --no-lock -A toolLoop.sources.test.ts`; `cd pmo-portal && npx vitest run src/lib/agent/runtime/transport.test.ts`.
+
 ---
 
-## S6 — Panel (UI lane; one worker owns the panel per `docs/ux/screen-owner-runbook.md`)
+## S6 — Panel re-match (UI lane; one worker owns the panel per `docs/ux/screen-owner-runbook.md`)
 
-Read first: `DESIGN.md`, `docs/ux/screen-rules.md`, `src/components/panel/THIRD_PARTY_NOTICE.md`, #2047 comments (audit items are acceptance checks). The Chat, Prompt Bar, Thinking, Streaming Text, Tool Chips and loading state already follow beautifului.dev (PR #2430).
+**Why this slice is larger than first planned (Director ruling D-1).** The Chat, Prompt Bar, Streaming Text,
+Thinking, Tool Chips and loading-state files exist on dev, but the rendered panel does not look or behave like the
+demo: suggested questions are bordered boxes that only fill the input, the composer has a text "Send" button, no
+thinking steps or tool chips show while working, answers are plain text with no source chips or copy / retry /
+feedback row, the confirm is not an approval card, and the error is a full-width red box. S6 re-matches the whole
+panel, state by state, to https://www.beautifului.dev in PMO tokens. **The per-component requirements are spec §5.7.1**
+(written from the rendered demo); each task below names the rows it closes.
 
-**T6.1 (P1) Suggested question sends on click** (AC-ACG-039). Failing test in `EmptyState.suggestion.test.tsx`: clicking a chip calls `onSend(question)`; today's test asserts it only fills the composer — change that assertion deliberately (a deliberate UX change; the goal oracle "the question is sent" is the new one). In `AssistantPanel.tsx` replace `handleChipPick` (line ~437) with a function that calls the same send path as the composer. Remove the `readOnly` line from `EmptyState.tsx` (line ~73) and its i18n key; replace the descriptor with the one-line capability sentence (en/id in `panelStrings`). Verify: `npx vitest run src/components/panel/EmptyState.suggestion.test.tsx src/components/panel/panelStrings.i18n.test.ts`; e2e `AC-ACG-039` file `pmo-portal/e2e/AC-ACG-039-suggestion-sends.spec.ts` (`scripts/e2e-local.sh AC-ACG-039`, scripted frames like `JOB-A10-assistant-answers.spec.ts`; carries its `@e2e-isolation` header per `docs/e2e-parallel-conventions.md`, and gates on the dependency, never on `process.env.CI`).
+Read first: `DESIGN.md`, `docs/ux/screen-rules.md`, `docs/ux/screen-owner-runbook.md`, `src/components/panel/THIRD_PARTY_NOTICE.md`
+(MIT notice stays), the #2047 comments (audit items are acceptance checks), and the **rendered** demo, light and dark.
+Per the runbook the owner of the panel designs, builds and looks at its own render; review rounds are the failure
+mode, so the plan has one comparison and one fix round (T6.11).
 
-**T6.2 (P2) Approval Card** (AC-ACG-040/044). Rework `ApprovalChip.tsx` into the beautifului Approval Card in PMO tokens: title from the server summary, key facts as label/value rows (from the proposal's `structuredArgs`), Approve/Deny, states pending → approving → approved / denied / refused; refused shows the database's plain message; focus returns to the composer after a decision; `focus-visible` rings; the success link opens the record. Failing tests: `ApprovalChip.test.tsx` states incl. `refused`; e2e `pmo-portal/e2e/AC-ACG-040-approval-card.spec.ts` as an Engineer-role user via `roleJobUser` (scripted propose frame for `submit_material_request`, then approve), and `AC-ACG-044-approval-refused.spec.ts`. Verify: `npx vitest run src/components/panel/ApprovalChip.test.tsx`; `scripts/e2e-local.sh AC-ACG-040 AC-ACG-044`.
+**T6.0 Rendered inventory** (Sun 29 Nov). Open the demo and the panel on a served local bed in every state (empty,
+typing, sending, working, tools running, streaming, answered with sources, error, approval, ask_user, refused, long
+thread, phone width), capture both side by side into the worker's scratch folder (**not committed**; the demo is a
+third party's site), and write the gap list against the §5.7.1 rows into the PR body. Verify: the PR body lists every
+§5.7.1 row with "matches" or "gap: …".
 
-**T6.3 (P2) Context Cards and Records Table.** `ContextCard.tsx` (record summary: title, status, 3 facts, link) and `RecordsTable.tsx` (sortable, row link, sticky header, density per `screen-rules.md`) rendered from the widget registry (`widgets/registry.tsx`) as new kinds in `src/lib/agent/widgets/schema.ts`; zod schema extended; the existing `data_table` renders through `RecordsTable`. Failing tests beside `registry.test.tsx`. Verify: `npx vitest run src/components/panel/widgets`.
+**T6.1 Quick fixes** (AC-ACG-039, AC-ACG-047; PR-A). Failing tests first: `EmptyState.suggestion.test.tsx` — clicking a
+chip calls the same send path as the composer (today's assertion that it only fills the box changes deliberately;
+the goal "the question is sent" is the new oracle); `PromptBar.test.tsx` — the send control is an icon button with
+accessible name "Send", disabled while empty, no visible "Send" text. In `AssistantPanel.tsx` replace `handleChipPick`
+(line ~437) with a send call; in `EmptyState.tsx` remove the `readOnly` line (line ~73) and its i18n key, replace the
+descriptor with the capability sentence (en/id in `panelStrings`), and render suggestions as hairline-divided return
+rows (FR-071); in `PromptBar.tsx` swap the text button for the circular up-arrow icon button. Verify: `cd pmo-portal && npx vitest run src/components/panel/EmptyState.suggestion.test.tsx src/components/panel/PromptBar.test.tsx src/components/panel/panelStrings.i18n.test.ts`; e2e `pmo-portal/e2e/AC-ACG-039-suggestion-sends.spec.ts` (`scripts/e2e-local.sh AC-ACG-039`; scripted frames like `JOB-A10-assistant-answers.spec.ts`; carries its `@e2e-isolation` header per `docs/e2e-parallel-conventions.md` and gates on the dependency, never on `process.env.CI`).
 
-**T6.4 (P3) OpenUI answer renderer** (AC-ACG-041; needs the answer shapes of S3). Use `@openuidev/react-lang` already in `package.json` (`1.1.0`): a library definition whose components are exactly `RecordsTable`, `ContextCard`, `KPITile`, `Chart` (a closed registry); the model's answer text may contain an OpenUI block; anything not in the registry, or any raw HTML, renders as plain text (`Markdown.security.test.tsx` pattern); links go through the existing link allow-list (`Markdown.links.test.tsx`). **Security review of the data path before merge** (as #2047 requires): model output never reaches `dangerouslySetInnerHTML`, no network calls from the renderer. Prompt line in S5 teaches the block syntax (≤ 600 characters). Failing tests: `OpenUiAnswer.test.tsx` (registry components render; unknown component and `<script>` render as text). Verify: `npx vitest run src/components/panel/OpenUiAnswer.test.tsx`.
+**T6.2 Chat shell and transcript** (FR-081; closes the Chat row). `Chat.tsx`, `ThreadList.tsx`, `TranscriptItem.tsx`: header with thread tabs, new, history and options; user message as a right-aligned rounded pill; each assistant turn opens with the tool-label / source / duration line, then the answer as plain flow; spacing and type scale from the demo's measured values mapped to the `DESIGN.md` scale. Failing tests: `Chat.test.tsx`, `TranscriptItem.test.tsx` (structure and roles, not look). Verify: `npx vitest run src/components/panel/Chat.test.tsx src/components/panel/TranscriptItem.test.tsx`.
 
-**T6.5 (P4) a11y and performance acceptance** (AC-ACG-042/043; FR-ACG-076/077). `React.memo(TranscriptItem)`, module-level empty defaults for `chipStateMap` / `answeredMap`, memoised widget `safeParse`; `role=status` announcement once per run (no per-second counter in a live region); composer keeps focus after send (do not `disable` the textarea while a run is in flight; block submit instead); Bahasa strings for every new state, extending the all-states test (#2430). Failing tests: Profiler test with five table widgets (`AssistantPanel.stream.profile.test.tsx`), `AssistantPanel.bahasa.test.tsx` extended. Verify: `npx vitest run src/components/panel`.
+**T6.3 Prompt Bar** (FR-073; AC-ACG-047; closes the Prompt Bar row). `PromptBar.tsx`: the composer card, attach button where enabled, Stop in place of Send while running, focus stays in the field after send (the textarea is not `disabled` during a run; submit is blocked instead). `@` sources, `/` commands, model picker and dictation are not built. Verify: `npx vitest run src/components/panel/PromptBar.test.tsx src/components/panel/PromptBar.attach.test.tsx`.
 
-**T6.6 Rendered review** (Director). `scripts/ux-proof.sh` on `/` with the panel open (empty, streaming, approval, refused, table answer), phone and desktop, en and id; Director looks at actual size; one fix round, no more (`restructure` skill, screen-owner runbook).
+**T6.4 Working states** (FR-074; AC-ACG-045; closes Loading State, Thinking, Tool Chips and Task Rows). `LoadingState.tsx` (one loader style, shimmer label, elapsed seconds, one status announcement), `Thinking.tsx` (collapsible "Thought for N seconds" with the steps and the search step), `ToolChips.tsx` (header "N tool calls", one row per call: icon, verb, object pill, "+N more" past four), `ActivityTrail.tsx` as Task Rows for multi-step runs; labels come from `stepLabel` (T5.3) in the user's language. Failing tests: component tests per state; e2e `pmo-portal/e2e/AC-ACG-045-working-states.spec.ts` (scripted status and tool frames, assertions on roles and text, one live-region announcement). Verify: `npx vitest run src/components/panel/Thinking.test.tsx src/components/panel/ToolChips.test.tsx src/components/panel/ActivityTrail.test.tsx`; `scripts/e2e-local.sh AC-ACG-045`.
+
+**T6.5 Answer row** (FR-075; AC-ACG-046; closes Streaming Text; needs T5.6). `StreamingText.tsx` plus a new `AnswerActions.tsx`: inline source chips, copy / retry / thumbs up / thumbs down (the existing `FeedbackControl.tsx` path), stacked source avatars with an "N sources" expander, and a Follow-ups row from the answer's OpenUI block (T6.9; row absent when none). Failing tests: `AnswerActions.test.tsx` (copy writes the answer text, retry resends the previous user message, feedback calls the existing path, sources expand). Verify: `npx vitest run src/components/panel/AnswerActions.test.tsx src/components/panel/FeedbackControl.followUp.test.tsx`.
+
+**T6.6 Approval Card for `act` and `ask_user`** (FR-076/077; AC-ACG-040, 044, 048; closes Approval Card). Rework `ApprovalChip.tsx` into the Approval Card (server summary as title, label-value rows from `structuredArgs`, Deny and Approve, dismiss, states pending → approving → approved / denied / refused, refused shows the database's plain message, focus back to the composer) and `QuestionChips.tsx` into the question form (radio option rows, free-text row, stepper, Skip, Continue disabled until chosen). Failing tests: `ApprovalChip.test.tsx` (incl. `refused`), `QuestionChips.test.tsx`; e2e `pmo-portal/e2e/AC-ACG-040-approval-card.spec.ts` as an Engineer-role user via `roleJobUser` (scripted propose frame for `submit_material_request`; approve, then deny) and `AC-ACG-044-approval-refused.spec.ts`. Verify: `npx vitest run src/components/panel/ApprovalChip.test.tsx src/components/panel/QuestionChips.test.tsx`; `scripts/e2e-local.sh AC-ACG-040 AC-ACG-044`.
+
+**T6.7 Inline error card** (FR-078; AC-ACG-049). Replace the full-width red block in `AssistantPanel.tsx` (and the `StuckRunBanner.tsx` treatment) with a compact error card inside the failed turn: plain reason, retry; same tokens as the demo's neutral card with the destructive accent only on the icon. Failing test: `AssistantPanel.errorCard.test.tsx`. Verify: `npx vitest run src/components/panel/AssistantPanel.errorCard.test.tsx src/components/panel/StuckRunBanner.test.tsx`.
+
+**T6.8 Context Cards and Records Table** (FR-079; closes both rows). New `ContextCard.tsx` and `RecordsTable.tsx` rendered from the widget registry (`widgets/registry.tsx`) as new kinds in `src/lib/agent/widgets/schema.ts` (zod extended); the existing `data_table` renders through `RecordsTable` (sortable columns, status tag pills, row number and link). Failing tests beside `registry.test.tsx`. Verify: `npx vitest run src/components/panel/widgets`.
+
+**T6.9 OpenUI answer renderer** (FR-080; AC-ACG-041; needs S3's result shapes). `@openuidev/react-lang` (`1.1.0`, installed, unused): a library definition whose components are exactly `RecordsTable`, `ContextCard`, `KPITile`, `Chart` and a `Followups` list; the answer text may contain an OpenUI block; anything not in the registry, or any raw HTML, renders as plain text (the `Markdown.security.test.tsx` pattern); links go through the existing allow-list (`Markdown.links.test.tsx`). **Security review of the data path before merge** (as #2047 requires): model output never reaches `dangerouslySetInnerHTML`, no network call from the renderer. The prompt line that teaches the block syntax is part of S5 (at most 600 characters). Failing tests: `OpenUiAnswer.test.tsx`. Verify: `npx vitest run src/components/panel/OpenUiAnswer.test.tsx`.
+
+**T6.10 a11y, performance and language** (FR-082/083/084; AC-ACG-042/043). `React.memo(TranscriptItem)`, module-level empty defaults for `chipStateMap` / `answeredMap`, memoised widget `safeParse`; one `role=status` announcement per run; `focus-visible` rings only (the #2047 list); Bahasa strings for every §5.7.1 state, extending the all-states test (#2430). Failing tests: `AssistantPanel.stream.profile.test.tsx` (Profiler, five table widgets), `AssistantPanel.bahasa.test.tsx` extended. Verify: `npx vitest run src/components/panel`.
+
+**T6.11 Side-by-side comparison and fix round** (RA-1; Director). The panel owner captures the demo and the panel in the same states (T6.0's list) at actual size and runs `scripts/ux-proof.sh` on `/` with the panel open (empty, working, answered with sources, approval, ask_user, refused, error, table answer; phone and desktop; English and Bahasa). The Director compares each §5.7.1 row, demo against panel, at actual size (`restructure` skill) and writes the verdict per row in the PR body. **One review and one fix round; no more.** Acceptance: every row "matches" or carries a Director-accepted deviation, and `scripts/ux-proof.sh` is clean (it fails small text and a screen that gained words). Captures stay out of the repo.
 
 ---
 
@@ -370,9 +406,11 @@ Read first: `DESIGN.md`, `docs/ux/screen-rules.md`, `src/components/panel/THIRD_
 
 **T8.3 Runs** (RG-1..RG-4). In `both` mode and in `new` mode: `N=10 scripts/agent-eval-local.sh` each, one window each under the DB lock, no other heavy loads. Record in `docs/evidence/assistant-catalog-gate.md`: per case pass counts vs baseline, correct-tool rate on completed turns, median tokens, cost per run, p50 first word, and every miss with the run trace (a truncated local stream is diagnosed from the serve log before it is called noise, as in #1596).
 
-**T8.4 Gate decision** (Director). RG-1..RG-4 met → default `new`. A recipe case below baseline → that tool stays registered one release and is named in the PR; nothing else waits. Any other miss → stay in `both`, fix from the trace, re-run only the failed cases plus RG-1.
+**T8.4 Gate decision** (Director). RG-1..RG-4 met → the default may flip to `new` after T8.4a. A recipe case below baseline → that tool stays registered one release and is named in the PR; nothing else waits. Any other miss → stay in `both`, fix from the trace, re-run only the failed cases plus RG-1.
 
-**T8.5 Cutover deletion** (FR-ACG-056/081; only after T8.4). Delete `helpCorpus.ts`, `pmo-portal/src/lib/agent/helpCorpus.test.ts`, the per-feature tools from `BASE_ACTIONS` except those kept by T8.4, `prompt.ts`'s entity and help sections (replaced by `promptCatalog.ts`), `QUERY_ENTITY_SCHEMA` alias, `queryStockAction`/`makeWhatsOverdueAction` registrations (their code stays as recipe sources), and the `legacy` mode. Update the tests that named them (`agentPrompt*.test.ts`, `actions.queryEntity.test.ts` to `read`). Verify: `cd pmo-portal && npm run check:guards && npm run typecheck && npx vitest run src/lib/agent`, `deno test --no-lock -A` in `supabase/functions/agent-chat`.
+**T8.4a Served-bed role walk** (Director; decided D-6; before the cutover). With the edge function served (the bed `scripts/agent-eval-local.sh` builds: local database, fixtures, `functions serve`), the Director signs in as each job role — site engineer or supervisor (Engineer), project manager, finance, administrator, executive — and does that role's assistant jobs from spec §8 and §1 through the real panel and real model: ask a record question, ask a how-do-I, raise and confirm one draft and one submit the role may do, ask for one thing the role may not do, in English and in Bahasa. Record per role and job *done / blocked / friction* in `docs/evidence/assistant-catalog-role-walk.md`; a blocked job becomes a ticket and holds the flip unless the Director rules otherwise in that file. Verify: the file lists every role × job with a result and the head SHA walked.
+
+**T8.5 Flip and deletion** (FR-ACG-056/081; only after T8.4 and T8.4a). Set the default mode to `new`. Delete `helpCorpus.ts`, `pmo-portal/src/lib/agent/helpCorpus.test.ts`, the per-feature tools from `BASE_ACTIONS` except those kept by T8.4, `prompt.ts`'s entity and help sections (replaced by `promptCatalog.ts`), the `QUERY_ENTITY_SCHEMA` alias, the `queryStockAction` / `makeWhatsOverdueAction` registrations (their code stays as recipe sources), and the `legacy` mode. Update the tests that named them (`agentPrompt*.test.ts`, `actions.queryEntity.test.ts` to `read`). Verify: `cd pmo-portal && npm run check:guards && npm run typecheck && npx vitest run src/lib/agent`, `deno test --no-lock -A` in `supabase/functions/agent-chat`.
 
 **T8.6 Records.** Update `docs/specs/deputy-help.spec.md` (already carries the supersede line from the spec), `docs/glossary.md` (**Catalog**, **Action**, **Fragment**), `docs/decisions.md` (a DD entry pointing at ADR-0127 and the three-tool ruling), `docs/environments.md` (the mode setting), #3084 and the roadmap (#1571) in the same session.
 
@@ -412,12 +450,14 @@ Tasks: T9.1 transport module `supabase/functions/mcp-catalog/` reusing `catalog/
 | 021 | U | T4.3 | | 043 | U | T6.5 |
 | 022 | U | T4.1 | | 044 | E | T6.2 |
 
-Every FR maps to at least one AC above or to a rollout gate: FR-001..010 → AC-001..009; FR-011..015 → AC-010..013; FR-020..025 → AC-014..020; FR-030..038 → AC-021..030; FR-050..056 → AC-031..035; FR-060..063 → AC-008, AC-014..017; FR-070..077 → AC-039..044; FR-080/081 → AC-038 and RG-1..RG-4.
+AC-045 (E) T6.4 · AC-046 (U) T6.5, T5.6 · AC-047 (U) T6.1, T6.3 · AC-048 (U) T6.6 · AC-049 (U) T6.7. RA-1 (rendered acceptance, Director) T6.11. Panel rows of AC-039..044 are owned by T6.1 (039), T6.6 (040, 044), T6.9 (041), T6.10 (042, 043) as in the table.
+
+Every FR maps to at least one AC above or to a rollout gate: FR-001..010 → AC-001..009; FR-011..015 → AC-010..013; FR-020..025 → AC-014..020; FR-030..038 → AC-021..030; FR-050..056 → AC-031..035; FR-060..063 → AC-008, AC-014..017; FR-070..085 → AC-039..049 and RA-1; FR-080/081 → AC-038 and RG-1..RG-4.
 
 ## 5. Definition of done for the whole feature
 
-1. PR-A..PR-D merged to `dev`, `dev` push-run green (a red push-run is fixed on `dev` first).
+1. PR-A..PR-E merged to `dev`, `dev` push-run green (a red push-run is fixed on `dev` first).
 2. RG-1..RG-4 recorded in `docs/evidence/assistant-catalog-gate.md` with the model id, N, date and head SHA.
 3. Role-job walks (`friction-walk`) done for Engineer (site), Project Manager, Finance, Admin and Executive in English and Bahasa on phone and desktop; each blocked job is a ticket.
 4. `helpCorpus.ts` and the per-feature tools are gone (or each kept tool is named with its reason); no unclassified table in `check:guards`.
-5. Spec open points OP-1..OP-10 each answered or ticketed; #3084, #1571 and #3085 updated.
+5. RA-1 (panel against the demo) judged by the Director; T8.4a role walk recorded; spec OP-6 answered by the owner (or the held actions stay held); #3084, #1571 and #3085 updated.

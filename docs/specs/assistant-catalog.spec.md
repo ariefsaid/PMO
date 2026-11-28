@@ -2,7 +2,7 @@
 
 > **Supersedes** the help-corpus parts of [`deputy-help.spec.md`](deputy-help.spec.md) (FR-DH-001..003/011: the hand-written `HELP_CORPUS` in the prompt retires; "how do I" answers come from the user guide through `find`) and the per-tool entity list of [`agent-assistant-panel.spec.md`](agent-assistant-panel.spec.md) / [`assistant-accuracy.spec.md`](assistant-accuracy.spec.md) once the cutover gate (§9, RG-1) passes.
 >
-> **Issue:** #3084 (map #720). **Decided by the owner (2026-11-28, two grill rounds on the issue) and not reopened here:** three model tools; drafts and submits only; every role and area; guide search replaces the help text; the answer follows the user's app language; panel on beautifului.dev components in PMO tokens; MCP moves after 15 Dec if time is short, nothing else drops.
+> **Issue:** #3084 (map #720). **Decided by the owner (2026-11-28, two grill rounds on the issue) and not reopened here:** three model tools; drafts and submits only; every role and area; guide search replaces the help text; the answer follows the user's app language; the whole panel re-matched to the beautifului.dev demo in PMO tokens; MCP moves after 15 Dec if time is short, nothing else drops. Director rulings of 2026-11-28 on the first draft's open points are in §11 (Decided).
 > **Related:** DD-API-1/2/3 (`docs/decisions.md`), ADR-0016 (RLS is the authority), ADR-0017, ADR-0019 (server-enforced SoD), ADR-0036 (deputy), ADR-0039 (untrusted output), ADR-0045, ADR-0050 (layered prompt), ADR-0051 (approval materiality), ADR-0052 (eval harness), ADR-0127 (this feature's generation choice). **Plan:** [`docs/plans/2026-11-28-assistant-catalog.md`](../plans/2026-11-28-assistant-catalog.md).
 > **Spec ID prefix:** `ACG` (`FR-ACG-###`, `NFR-ACG-###`, `AC-ACG-###`).
 
@@ -42,13 +42,13 @@ Job stories (the role-job walks in `docs/jtbd.md` §6 are the oracle):
 | RPCs the app calls | 614 distinct (`.rpc('<name>')` in `pmo-portal/src`, non-test) | `grep -rhoE` count, deduplicated |
 | Write actions | 5 (`create_activity`, `update_task_status`, `draft_invoice`, `remind_overdue`, `create_automation`) | `actionCatalog.ts` |
 | User-guide pages on dev | 22 + README (165 KB, ≈ 41k tokens: too big to inject) | `docs/user-guide/` |
+| Panel as rendered on dev | suggested questions are bordered boxes that only fill the input; the composer has a text "Send" button; no visible thinking steps or tool chips while working; answers are plain text with no source chips and no copy / retry / feedback row; a write proposal is not an approval card; an error is a full-width red box | Director's rendered review, 2026-11-28 (the component files named in `THIRD_PARTY_NOTICE.md` exist, the rendered panel does not match the demo) |
 | Eval baseline | 86/90 case-runs (9 cases × 10 suite runs), every completed turn chose the correct tool, the 4 misses were truncated local streams; deployed model `deepseek/deepseek-v4.1-flash-1017` | #1596 result comment |
 
 ## 3. Scope
 
 **In (15 Dec):** the generator and its checks; `find` (records, actions, guide pages, terms); `read` over the
-catalog; `act` with the actions in §8; plan-switch and role handling; answer language; the panel rebuild (§9
-FR-ACG-070..077); eval cases and the cutover gate; retirement of `helpCorpus.ts` and the per-feature tools.
+catalog; `act` with the actions in §8; plan-switch and role handling; answer language; the whole-panel re-match to the beautifului.dev demo (FR-ACG-070..084); eval cases and the cutover gate; retirement of `helpCorpus.ts` and the per-feature tools.
 
 **Stay as they are:** `ask_user` (a UI interaction that touches no data) and `compose_view` (it builds a
 preview artifact on a different output path and has its own plan key `user_views`). `notify` stays registered
@@ -106,7 +106,7 @@ themselves are #3085 and are not built here.
 
 ### 5.4 `act`
 
-- **FR-ACG-030** `act(name, args)` shall be the only model-callable way to change data, and every call shall stop at the confirm card (a proposal event) before anything is written. The one carry-over is `update_task_status`, which keeps its current ADR-0051 materiality rule (§11 OP-5).
+- **FR-ACG-030** `act(name, args)` shall be the only model-callable way to change data, and every call shall stop at the confirm card (a proposal event) before anything is written. The one carry-over is `update_task_status`, which keeps its current ADR-0051 materiality rule (decided, §11 D-5).
 - **FR-ACG-031** The action name shall be a visible catalog action and the arguments shall validate against its schema (types, required, allowed values, lengths, no extra keys); otherwise `act` returns the list of problems and proposes nothing.
 - **FR-ACG-032** The confirm card text shall be composed by the server from the action's template and resolved labels (project, work order, item names), in the user's language; model text shall never be the card.
 - **FR-ACG-033** On approval the server shall re-derive the caller's role and organisation, re-check the plan switch (an unresolved plan refuses with `PLAN_UNVERIFIED`), and then run the action under the caller's own session.
@@ -133,16 +133,49 @@ themselves are #3085 and are not built here.
 - **FR-ACG-062** A role shall read through `read` exactly the columns it reads in the app today: for every entity and role in the parity matrix (§9, AC-ACG-014/015) the column set and the value of every price column equal what the legacy `query_entity` returned for the same role.
 - **FR-ACG-063** A price-hidden requester shall receive the same withheld values through `read` as through the app (the masked views stay the read path).
 
-### 5.7 Panel (rebuild in the same push)
+### 5.7 Panel (the whole panel re-matched to the beautifului.dev demo, in the same push)
 
-- **FR-ACG-070** The panel shall use beautifului.dev's Chat, Prompt Bar, Thinking, Streaming Text, Tool Chips, Approval Card, Context Cards and Records Table markup and motion, in PMO's colours, fonts and tokens (`DESIGN.md`). Chat, Prompt Bar, Thinking, Streaming Text, Tool Chips and the loading state are already adapted (PR #2430, `THIRD_PARTY_NOTICE.md`); this feature adds Approval Card, Context Cards and Records Table.
-- **FR-ACG-071** When the user clicks a suggested question, the panel shall send it at once; it shall no longer only fill the box.
+The component files exist on dev, but the rendered panel does not look or behave like the demo (§2). This
+section therefore re-matches the **whole panel** — layout, spacing, type scale, motion and every state — to the
+demo at https://www.beautifului.dev (components, layout and motion from the library; colours, fonts and radii from
+PMO's `DESIGN.md` tokens, in each theme the app ships). §5.7.1 lists, per demo component, what the panel must match
+(read from the rendered demo on 2026-11-28).
+
+- **FR-ACG-070** The panel shall match the demo's layout, spacing, type scale, motion and every state listed in §5.7.1, in PMO tokens and fonts; acceptance is the side-by-side rendered comparison RA-1 (§9) plus a clean `scripts/ux-proof.sh` on the touched routes.
+- **FR-ACG-071** When the user clicks a suggested question, the panel shall send it at once; it shall no longer only fill the box. Suggested questions and follow-ups shall render as the demo's hairline-divided rows with a return glyph, not as bordered boxes.
 - **FR-ACG-072** The panel shall not show "Answers are read-only for now."; the empty state shall say what the assistant can do (find, read, draft and submit with confirmation).
-- **FR-ACG-073** A proposal from `act` shall render as an Approval Card: the server summary, the key fields as rows, Approve and Deny, with the states pending, approving, approved, denied and refused, and focus returned to the composer after a decision (#2047 audit items).
-- **FR-ACG-074** The panel shall render the model's table or card answers through OpenUI (`@openuidev/react-lang`) from a closed component registry (Records Table, Context Card, KPI tile, chart); anything outside the registry shall fall back to text and no raw markup from the model shall be inserted (ADR-0039).
-- **FR-ACG-075** Tool activity shall show as Tool Chips with the plain label of each step (for example "Searching the catalog", "Reading work orders", "Preparing a material request"), in the user's language.
-- **FR-ACG-076** The panel shall meet the #2047 acceptance checks: one "working" announcement per run, focus back in the composer after send, `focus-visible` rings only, no re-render of earlier transcript items per streamed frame.
-- **FR-ACG-077** Every panel string shall exist in English and Bahasa.
+- **FR-ACG-073** The composer shall be the demo's Prompt Bar card: placeholder text, an attach button where attachments are enabled, and an icon-only circular send button (accessible name "Send", disabled until there is text, replaced by a stop control while a run is in flight); the text "Send" shall not be shown.
+- **FR-ACG-074** While a run is working the panel shall show the demo's Loading State (shimmer label and elapsed seconds, announced once), an expandable Thinking trace ("Thought for N seconds" with the steps taken), and Tool Chips live (a "N tool calls" header and one row per call: icon, verb, object pill); a multi-step run shall show Task Rows (status circle, title, meta, status badge, expandable sub-rows).
+- **FR-ACG-075** A finished answer shall render as Streaming Text: inline source chips, an action row (copy, retry, thumbs up, thumbs down), stacked source avatars with an "N sources" expander that lists each source, and a Follow-ups row (up to two, each sends on click) when the answer offers them. Sources shall come from the server (FR-ACG-085): the record types read and the guide pages found in the turn, never row data.
+- **FR-ACG-076** A proposal from `act` shall render as an Approval Card: the server summary as the title, the key fields as label-value rows, Deny and Approve (the card's Skip and Continue positions), with the states pending, approving, approved, denied and refused, a dismiss control, and focus returned to the composer after a decision.
+- **FR-ACG-077** An `ask_user` question shall render as the demo's Approval Card question form: option rows with radio marks, a free-text row, a question stepper when there is more than one, Skip, and Continue disabled until an answer is chosen.
+- **FR-ACG-078** An error shall render as a compact error card inside the turn it belongs to, with a retry action and the plain reason; the panel shall no longer show a full-width red box.
+- **FR-ACG-079** Record lists and record summaries shall render as Records Table (sortable columns, status as tag pills, row number, row link) and Context Cards (title, size or count meta, excerpt, source-type badge with the source name).
+- **FR-ACG-080** The panel shall render the model's table or card answers through OpenUI (`@openuidev/react-lang`) from a closed component registry (Records Table, Context Card, KPI tile, chart); anything outside the registry shall fall back to text and no raw markup from the model shall be inserted (ADR-0039).
+- **FR-ACG-081** The chat shell shall match the demo's Chat: header with thread tabs, new-thread, history and options controls; the user's message as a right-aligned rounded pill; each assistant turn opening with the line of tool label, source and duration, then the answer as plain flow without a bubble.
+- **FR-ACG-082** The panel shall meet the #2047 acceptance checks: one "working" announcement per run, focus back in the composer after send, `focus-visible` rings only, no re-render of earlier transcript items per streamed frame.
+- **FR-ACG-083** Tool activity shall carry the plain label of each step in the user's language (for example "Searching the catalog", "Reading work orders", "Preparing a material request").
+- **FR-ACG-084** Every panel string shall exist in English and Bahasa.
+- **FR-ACG-085** The final answer event shall carry a `sources` list (record-type keys read and guide pages found in the turn, with titles and paths) so the panel can draw source chips; it shall carry no row data.
+
+#### 5.7.1 What the panel must match, per demo component
+
+Read from the rendered demo (light and dark, 2026-11-28). "Panel must" is the requirement; the demo's variant
+toggles (loader styles, rounded or pill bar, capsules or list) are demo switches: the panel picks one and keeps it.
+
+| Demo component | The demo shows | The panel must |
+|---|---|---|
+| Loading State | pixel-grid loader with shimmer, a verb label ("Churning") and elapsed seconds, in a status region; four loader styles | one loader style, shimmer label, elapsed seconds, announced once (FR-074) |
+| Thinking | collapsible "Thought for N seconds" with a sparkle icon and chevron; expanded: step lines, a count chip ("6 flavors"); Steps / Reasoning / Search / Coding views | collapsible trace with the run's steps and the search step (`find`); a Reasoning view only if the provider returns reasoning |
+| Streaming Text | answer paragraphs with inline mono source chips; below: copy, retry, thumbs up, thumbs down, stacked source avatars, "N sources" expander with source cards; "Follow-ups" label with hairline return rows | all of it (FR-075, FR-085) |
+| Approval Card | compact card: question title, dismiss ×, radio option rows, "Something else…" row, stepper "1/3", Skip, Continue (primary, disabled until a choice) | the `ask_user` form (FR-077) and, with label-value rows and Deny / Approve, the `act` confirm (FR-076) |
+| Tool Chips | header "4 tool calls, 2 messages" with chevron; rows of icon + verb + mono object pill; diff chips with +n −n; "+2 more" | live rows per call, grouped under a collapsible header, "+N more" past four (FR-074) |
+| Task Rows | capsule rows: status circle (number while running, check when done, failed state), title, meta, status badge, chevron to sub-rows; Capsules / List switch | rows for a multi-step run (FR-074); the switch is not built |
+| Chat | tabbed header with new, history and options; right-aligned user pill; assistant turn opens with tool label, source and duration, then plain text; composer card at the bottom | the shell as shown (FR-081) |
+| Prompt Bar | composer card with attach (+), textarea, model picker, dictation, circular send; `@` sources list with descriptions and a Connected badge; `/` commands | the card, attach and the icon send (FR-073); `@` sources, `/` commands, model picker and dictation are **not built** (no backing feature; assumed within D-1, vetoed or kept at the RA-1 review) |
+| Context Cards | "All chunks 32" counter; cards with title, "290 characters", excerpt, type badge (PDF, CSV) and file name | cards for records and guide pages (FR-079) |
+| Records Table | CRM-style grid: header with sort buttons, tag pills, relationship status, row numbers, view options | sortable columns, status tag pills, row number and link (FR-079); the view-options controls are not built |
+| Recommendation Card, Diff Table, Filter Table, Sidebar Nav, Search, Flowchart, Insight Cards, Code Block, Fine-tune Card, Selection Actions, Agent Screen | other demo components | not used in this feature |
 
 ### 5.8 Rollout
 
@@ -345,12 +378,19 @@ Each AC has exactly one owning layer.
 
 ### Panel
 
-- **AC-ACG-039 (E)** *Given* the empty panel, *when* the user clicks a suggested question, *then* it is sent at once and appears as the user's message, and the text "Answers are read-only for now." is nowhere on the panel. (FR-071, FR-072)
-- **AC-ACG-040 (E)** *Given* a scripted proposal for `submit_material_request`, *when* an Engineer-role user approves, *then* the Approval Card shows pending → approving → approved, focus is back in the composer, and the result link opens the request. (FR-073, FR-076)
-- **AC-ACG-041 (U)** *Given* an OpenUI answer containing a Records Table and a Context Card, *then* they render from the registry; an unknown component or raw markup renders as text and no script runs. (FR-074)
-- **AC-ACG-042 (U)** *Given* a thread with five table widgets, *when* a new answer streams, *then* only the streaming item re-renders per frame and earlier widgets do not re-validate (React Profiler assertion). (FR-076)
-- **AC-ACG-043 (U)** *Given* the panel in Bahasa, *then* every new state (chips, approval card, refusal, empty state) is in Bahasa; the all-states test (#2430) is extended. (FR-075, FR-077)
-- **AC-ACG-044 (E)** *Given* a scripted "refused" frame (the database said no), *then* the card shows the refusal in plain words and no success state. (FR-036, FR-073)
+- **AC-ACG-039 (E)** *Given* the empty panel, *when* the user clicks a suggested question, *then* it is sent at once and appears as the user's message, the suggestions are hairline rows (not bordered boxes), and the text "Answers are read-only for now." is nowhere on the panel. (FR-071, FR-072)
+- **AC-ACG-040 (E)** *Given* a scripted proposal for `submit_material_request`, *when* an Engineer-role user approves, *then* the Approval Card shows pending → approving → approved, focus is back in the composer, and the result link opens the request; *when* the user denies, *then* the card shows denied and nothing is written. (FR-076, FR-082)
+- **AC-ACG-041 (U)** *Given* an OpenUI answer containing a Records Table and a Context Card, *then* they render from the registry; an unknown component or raw markup renders as text and no script runs. (FR-080)
+- **AC-ACG-042 (U)** *Given* a thread with five table widgets, *when* a new answer streams, *then* only the streaming item re-renders per frame and earlier widgets do not re-validate (React Profiler assertion). (FR-082)
+- **AC-ACG-043 (U)** *Given* the panel in Bahasa, *then* every state in §5.7.1 (empty, composer, loading, thinking, tool chips, answer row, approval, ask_user, error, refused) is in Bahasa; the all-states test (#2430) is extended. (FR-083, FR-084)
+- **AC-ACG-044 (E)** *Given* a scripted "refused" frame (the database said no), *then* the card shows the refusal in plain words and no success state. (FR-036, FR-076)
+- **AC-ACG-045 (E)** *Given* scripted status and tool frames for a run, *when* the run is working, *then* before the answer arrives the panel shows the Loading State with elapsed seconds, a collapsed-then-expandable Thinking trace listing the steps, and Tool Chips rows for each call under an "N tool calls" header; "working" is announced once. (FR-074, FR-082)
+- **AC-ACG-046 (U)** *Given* an answer frame with a `sources` list, *then* the panel shows source chips and an "N sources" expander listing each; copy puts the answer text on the clipboard; retry re-sends the previous user message; thumbs up and down call the existing feedback path. (FR-075, FR-085)
+- **AC-ACG-047 (U)** *Given* the composer, *then* the send control is an icon button named "Send", disabled while the field is empty, replaced by Stop while a run is in flight, no visible "Send" text exists, and focus stays in the field after sending. (FR-073)
+- **AC-ACG-048 (U)** *Given* an `ask_user` event with three options and two more questions, *then* the Approval Card form shows the options with radio marks, a free-text row and a "1/3" stepper; Continue is disabled until an option or text is given; Skip advances. (FR-077)
+- **AC-ACG-049 (U)** *Given* a failed run, *then* the error is a compact card inside that turn with the plain reason and a retry action, no element spans the panel's full width as a red banner, and retry resends the failed message. (FR-078)
+
+**Rendered acceptance (not a test):** **RA-1** Each panel state against the demo, same states (empty, typing, thinking, tools running, streaming, answered with sources, error, approval, ask_user, refused, long thread, phone width), side by side and judged by the Director at actual size, one review and one fix round (screen-owner runbook); `scripts/ux-proof.sh` clean on the touched routes. FR-ACG-070.
 
 ### Rollout gate (local eval, ADR-0052 — gates the cutover, not the merge)
 
@@ -376,13 +416,13 @@ else waits.
 | FR-ACG-050..056 | AC-031..AC-035 (U) |
 | FR-ACG-060 | AC-008 (U) |
 | FR-ACG-061, 062, 063 | AC-014 (U), AC-015 (U), AC-016 (U), AC-017 (P) |
-| FR-ACG-070..077 | AC-039 (E), AC-040 (E), AC-041 (U), AC-042 (U), AC-043 (U), AC-044 (E) |
+| FR-ACG-070..085 | AC-039 (E), AC-040 (E), AC-041 (U), AC-042 (U), AC-043 (U), AC-044 (E), AC-045 (E), AC-046 (U), AC-047 (U), AC-048 (U), AC-049 (U), RA-1 (rendered, Director) |
 | FR-ACG-080, 081 | AC-038 (U), RG-1..RG-4 (local eval) |
 | NFR-ACG-001, 002 | AC-036 (U), AC-037 (U), AC-010 (U) |
 | NFR-ACG-003, 004, 005 | RG-2, RG-3 (local eval) and the S2 cold-start measure |
 | NFR-ACG-006 | AC-017 (P), AC-023 (U), AC-024 (U), AC-029 (P) |
 | NFR-ACG-007 | AC-001 (U), AC-031 (U) |
-| NFR-ACG-009 | AC-040 (E), AC-043 (U) |
+| NFR-ACG-009 | AC-040 (E), AC-043 (U), AC-045 (E) |
 | NFR-ACG-008, 010 | review checklist (no test: public-repo and no-migration are reviewed in each PR) |
 
 ## 10. Phase 2 — MCP server (after 15 Dec if time is short)
@@ -394,15 +434,20 @@ server on the hosted project) and a review of the act allow-list against DD-API-
 Requirements, ACs and slice are in the plan's phase 2; nothing in phase 1 blocks it, because the catalog and the
 runners are transport-free modules.
 
-## 11. Open points
+## 11. Decided (Director, 2026-11-28) and open points
 
-- **OP-1 Panel baseline.** The brief calls the panel "rebuilt on beautifului.dev components". Chat, Prompt Bar, Thinking, Streaming Text, Tool Chips and the loading state are already adapted on dev (PR #2430). The remaining work is Approval Card, Context Cards, Records Table and the OpenUI answer renderer (installed, unused). The beautifului.dev site itself was not re-fetched while writing this; the component names are those in the brief.
-- **OP-2 Token numbers are characters ÷ 4.** S0 replaces them with the provider's `prompt_tokens` for the baseline and the new set.
-- **OP-3 Roles and money columns are preflight until S1 confirms them** against `role_table_grants` and `pg_policies` at head; the §7 role cells are the starting point, not a ruling.
-- **OP-4 Guide coverage.** Dev has 22 pages; the docs-site branch carries 61 and #3085 lists the rest. `find` is only as good as the pages; RG-2's how-do-I cases name the pages they need, and the index is rebuilt after the docs-site merge. The public base URL for page links is not fixed; the first release links to page titles and paths.
-- **OP-5 `update_task_status` keeps its no-chip rule (ADR-0051 materiality) for parity.** The owner's wording was "always behind the confirm card"; if that is meant literally, `needsApproval` for this one action changes to true. Director to rule.
-- **OP-6 Held actions (§8).** The eight held items need an owner ruling each.
-- **OP-7 Role-job test.** The on-screen job-role rule is met at three seams (scripted-frame journey on the panel as the job role, pgTAP as the job role on the target RPC, and the local eval as the job role through the real loop) because the edge function is not served in CI. Director to confirm this satisfies the binding rule.
-- **OP-8 Clock-in** is excluded because the RPC needs the device position. If a no-position path exists for supervisors (`p_no_position`), it is a request for approval and could be added as a submit.
-- **OP-9 External task tool.** `create_task` on a project whose tasks live in an external tool goes through the adapter's dispatch in the app; the first release refuses it with a pointer to the app.
-- **OP-10 Deployed-model dependence.** The new `find → read` shape adds one round for entities not named in the prompt. If RG-1/RG-2 miss on the deployed model, the fallback is to name more common keys in the one-line list (cheap) before considering a different model (OD-REEL-1 allows it on eval evidence).
+### Decided
+
+- **D-1 Panel baseline (was OP-1).** The rendered panel on dev does not match beautifului.dev, so the **whole panel** is re-matched to the demo (layout, spacing, motion, every state) in PMO tokens, plus Approval Card, Context Cards, Records Table and OpenUI. Acceptance adds the side-by-side rendered comparison RA-1 judged by the Director at actual size and a clean `scripts/ux-proof.sh`. The per-component list is §5.7.1, written from the rendered demo. Assumed within this ruling and open to veto at RA-1: the Prompt Bar's `@` sources, `/` commands, model picker and dictation are not built (no backing feature); the Approval Card shell serves both `ask_user` and the `act` confirm; follow-ups come from the OpenUI answer block; the demo's variant switches are not built.
+- **D-2 Token numbers (was OP-2).** Accepted as written: characters ÷ 4 until S0 replaces them with the provider's `prompt_tokens`.
+- **D-3 Roles and money columns (was OP-3).** Accepted as written: the §7 role cells are preflight until S1 confirms them against `role_table_grants` and `pg_policies` at head.
+- **D-4 Guide coverage (was OP-4).** Accepted as written: `find` is only as good as the pages; the how-do-I eval cases name the pages they need; the index is rebuilt after the docs-site merge; page links use titles and paths until the public base URL is fixed.
+- **D-5 `update_task_status` (was OP-5).** Keeps its current no-chip rule (ADR-0051 materiality parity). Every other `act` action stops at the confirm card.
+- **D-6 Role-job test (was OP-7).** The on-screen job-role rule is met at three seams (scripted-frame journey as the job role, pgTAP as the job role on the target RPC, local eval as the job role through the real loop), **plus** a Director walk: before the cutover the Director walks each job role's assistant jobs on a served local bed (edge function served) and records it (plan task T8.4a).
+- **D-7 Clock-in (was OP-8).** Stays out: the RPC needs the device position.
+- **D-8 External task tool (was OP-9).** `create_task` on a project whose tasks live in an external tool is refused in the first release with a pointer to the app.
+- **D-9 Deployed-model fallback (was OP-10).** If RG-1/RG-2 miss on the deployed model, name more common keys in the one-line list first, before considering a different model (OD-REEL-1 allows it on eval evidence).
+
+### Open points
+
+- **OP-6 Held actions (§8).** The eight held items — `submit_purchase_request`, `save_journal_draft` and `submit_journal`, `request_imprest_replenishment`, `send_client_requisition`, billing claim drafts, `resubmit_budget_version`, `record_project_progress`, RFQ and quotation records — need an owner ruling each. The Director has asked the owner; each is one fragment away.
