@@ -63,3 +63,4 @@ One failure: `src/lib/agent/checkEdgeFnErrorReporting.test.ts` > "exits 1 and na
 | chromium.chunk.01 | 1 | 487 |  2 failed, 4 skipped, 57 passed (8.1m), |
 | chromium.chunk.02 | 1 | 548 |  2 failed, 6 skipped, 61 passed (9.1m), |
 | chromium.chunk.03 | 1 | 590 |  1 failed, 2 did not run, 76 passed (9.8m), |
+| chromium.chunk.04 | 0 | 448 |  57 passed (7.4m), |
