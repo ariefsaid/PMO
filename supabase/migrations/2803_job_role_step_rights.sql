@@ -6,8 +6,21 @@
 -- transition_work_order; the engineer never writes claims, steps or the catalogue. Organisation isolation and active membership hold.
 -- Restated from the live bodies: set_work_order_area_group (1384), set_work_order_check_in_area (1550), set_work_order_plan (1170),
 -- check_task_work_order, enforce_assignee_status_only (1152), and the five claim read-scope policies as 2044 left them.
--- drops: the three setters' role lists gain the engineer test; the task trigger gains the planner's link and nothing else removed.
 -- Rollback: rollback/2803_job_role_step_rights_down.sql
+-- drops: check_task_work_order() | "and (new.work_order_id is not null or new.proof_required)" | the planner may name a work order on a new task, so the test also asks who holds the planner key
+-- drops: archive_scheduled_report(uuid) | "v_is_pcm := public.actor_holds_job_role('project_control_manager')" | the project administrator may also manage schedules; the Project Control Manager test is kept inside the new line
+-- drops: archive_scheduled_report(uuid) | "and coalesce((select o.pcm_scheduled_reports_enabled from public.organizations o where o.id = v_org), false);" | kept, re-wrapped inside the new line
+-- drops: save_scheduled_report(uuid,text,text,text,integer,time,uuid[],text[],boolean) | "v_is_pcm := public.actor_holds_job_role('project_control_manager')" | the project administrator may also manage schedules; the Project Control Manager test is kept inside the new line
+-- drops: save_scheduled_report(uuid,text,text,text,integer,time,uuid[],text[],boolean) | "and coalesce((select o.pcm_scheduled_reports_enabled from public.organizations o where o.id = v_org), false);" | kept, re-wrapped inside the new line
+-- drops: save_scheduled_report(uuid,text,text,text,integer,time,uuid[],text[],boolean) | "case when v_is_admin then 'admin' else 'project_control_manager' end)" | a schedule records the creator's own job role
+-- drops: scheduled_report_pcm_may_change(uuid,uuid) | "select sr.managed_by = 'project_control_manager'" | a manager changes the schedules their own job role created
+-- drops: set_scheduled_report_enabled(uuid,boolean) | "v_is_pcm := public.actor_holds_job_role('project_control_manager')" | the project administrator may also manage schedules; the Project Control Manager test is kept inside the new line
+-- drops: set_scheduled_report_enabled(uuid,boolean) | "and coalesce((select o.pcm_scheduled_reports_enabled from public.organizations o where o.id = v_org), false);" | kept, re-wrapped inside the new line
+-- drops: set_work_order_area_group(uuid,uuid,uuid,boolean,boolean) | "or public.auth_role() not in ('Admin','Executive','Project Manager','Finance') then" | the role list gains the engineer job role
+-- drops: set_work_order_area_group(uuid,uuid,uuid,boolean,boolean) | "raise exception 'only an Admin, Executive, Project Manager or Finance member can set a work order''s area or group' using errcode = '42501';" | message names the engineer too
+-- drops: set_work_order_check_in_area(uuid,double precision,double precision,double precision) | "if v_org is null or public.auth_role() not in ('Admin', 'Executive', 'Project Manager', 'Finance') then" | the role list gains the engineer job role
+-- drops: set_work_order_check_in_area(uuid,double precision,double precision,double precision) | "raise exception 'only an Admin, Executive, Project Manager or Finance member can set a work order''s check-in area' using errcode = '42501';" | message names the engineer too
+-- drops: set_work_order_plan(uuid,uuid,jsonb) | "or public.auth_role() not in ('Admin', 'Executive', 'Finance', 'Project Manager') then" | the role list gains the engineer job role
 
 -- ── hr_officer reads crew attendance, project_administrator reads equipment hours ──────────────────────────────────────────
 create policy attendance_hr_officer_read on public.attendance_days for select to authenticated
@@ -353,7 +366,9 @@ declare
   v_org uuid; v_project uuid; v_status public.work_order_status;
 begin
   -- Structure columns on INSERT: an Engineer/Finance creator (0204) may not set either, except the planner's work-order link. No auth.uid() = server authority.
+  -- 2680: so is a task written by another trigger (trigger depth 2+), e.g. the standard checks a new Draft copies.
   if tg_op = 'INSERT' and auth.uid() is not null
+     and pg_trigger_depth() < 2
      and ((new.work_order_id is not null and not public.actor_holds_job_role('planner')) or new.proof_required)   -- mut:rr_planner_insert
      and auth_role() not in ('Admin','Executive','Project Manager') then
     raise exception 'only a manager may link a task to a work order or require proof' using errcode = '42501';
