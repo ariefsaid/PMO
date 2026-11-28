@@ -5,14 +5,14 @@ your own requests and, when you manage people, the requests waiting for your dec
 
 **Who can do this:** every role. You can file a request for yourself and for the people you
 manage. The decision follows the person's record: their manager decides; if that manager is
-missing or inactive, an HR Manager decides, then an Admin. The person who filed the request never
-decides it. Leave needs to be switched on by an Admin (under Modules); until then the page says
+missing or inactive, an HR Manager decides, then an Admin. The person who entered the request cannot
+decide it. Leave needs to be switched on by an Admin (under Modules); until then the page says
 so.
 
 ## Where to find it
 
-Menu → **Leave**. Leave that waits for a decision also appears in the approvals inbox ("Leave
-requests waiting for you").
+Menu → **Delivery** → **Leave** (the entry appears once an Admin has switched Leave on). Leave
+that waits for a decision also appears in the approvals inbox, under **Leave requests**.
 
 ## Steps
 
@@ -33,21 +33,18 @@ requests waiting for you").
 
 When someone you manage is away and their request reaches you, it appears at the top of the
 **Leave** page under **Waiting for your decision (N)** — and in the approvals inbox. Read the
-person, type, dates and note, then choose **Approve** or **Reject**. The requester gets a
-notification with the result, and the request shows **Approved** or **Rejected** with your name
-on it.
+person, type, dates and note, then choose **Approve** or **Reject**. **Reject** asks for the reason.
+The request then shows "Approved by [your name]" or "Rejected by [your name]".
 
 ### Cancelling
 
-A pending request can be withdrawn with **Cancel request** — by the person it is for, or by who
-filed it. A decided request stands.
+A pending request that is yours can be withdrawn with **Cancel request**. A decided request
+stands.
 
 ## What the result looks like
 
 - Your requests are listed under **Requests** with their status: **Pending**, **Approved**,
   **Rejected** or **Cancelled**, the number of days, and who decided.
-- Every step is on the record: the request, the decision, the decider's name, and the
-  notification to the requester.
 
 ## Common errors and what to do
 
@@ -55,12 +52,11 @@ filed it. A decided request stands.
   Modules."** — your organisation has not switched Leave on. Ask your Admin.
 - **"No leave types yet. Add the types your organisation uses."** — an Admin must create the
   types first, under **Leave settings**.
-- **"You can file leave only for yourself and the people you manage."** — you picked a person
-  outside your line. File for yourself instead, or ask their manager.
-- **The request waits longer than expected** — the decider named on the request may be away;
-  their stand-in or the next level (HR Manager, then Admin) acts on it.
-- **You rejected by mistake** — ask the person to file a fresh request and approve that one; a
-  rejected request cannot be reopened.
+- **"You can file leave only for yourself and the people you manage. Ask your line manager or an
+  Admin to file it."** — the person is outside your line. Ask their manager or an Admin.
+- **The request waits longer than expected** — the page shows who it is waiting for ("Waiting
+  for …"); ask that person. If it says "No active approver is available.", ask your Admin.
+- **You rejected by mistake** — ask the person to file a fresh request and approve that one.
 
 ---
 
@@ -74,14 +70,14 @@ yang menunggu keputusan Anda.
 
 **Siapa yang bisa melakukannya:** semua peran. Anda bisa mengajukan untuk diri sendiri dan untuk
 orang yang Anda kelola. Keputusannya mengikuti data orang: manajernya yang memutuskan; bila
-manajer itu tidak ada atau tidak aktif, HR Manager memutuskan, lalu Admin. Orang yang mengajukan
-tidak pernah memutuskan permintaannya. Cuti perlu dinyalakan oleh Admin (di bawah Modul); sampai
+manajer itu tidak ada atau tidak aktif, HR Manager memutuskan, lalu Admin. Orang yang memasukkan permintaan
+tidak boleh memutuskannya. Cuti perlu dinyalakan oleh Admin (di bawah Modul); sampai
 saat itu halaman berkata demikian.
 
 ## Di mana menemukannya
 
-Menu → **Cuti**. Cuti yang menunggu keputusan juga muncul di kotak masuk persetujuan ("Permohonan
-cuti menunggu Anda").
+Menu → **Pelaksanaan** → **Cuti** (entrinya muncul setelah Admin menyalakan Cuti). Cuti yang
+menunggu keputusan juga muncul di kotak masuk persetujuan, di bawah **Permohonan cuti**.
 
 ## Langkah-langkah
 
@@ -103,21 +99,18 @@ cuti menunggu Anda").
 
 Bila orang yang Anda kelola absen dan permintaannya tiba kepada Anda, ia tampil di bagian atas
 halaman **Cuti** di bawah **Menunggu keputusan Anda (N)** — dan di kotak masuk persetujuan. Baca
-orang, jenis, tanggal, dan catatannya, lalu pilih **Setujui** atau **Tolak**. Pemohon menerima
-notifikasi berisi hasilnya, dan permintaan menampilkan **Disetujui** atau **Ditolak** dengan nama
-Anda padanya.
+orang, jenis, tanggal, dan catatannya, lalu pilih **Setujui** atau **Tolak**. **Tolak** meminta
+alasannya. Permintaan lalu menampilkan "Disetujui oleh [nama Anda]" atau "Ditolak oleh [nama Anda]".
 
 ### Membatalkan
 
-Permintaan yang masih menunggu dapat ditarik dengan **Batalkan permintaan** — oleh orang yang
-diusulkannya, atau oleh yang mengajukannya. Permintaan yang sudah diputuskan berlaku.
+Permintaan yang masih menunggu dan milik Anda dapat ditarik dengan **Batalkan permintaan**.
+Permintaan yang sudah diputuskan berlaku.
 
 ## Hasilnya seperti apa
 
 - Permintaan Anda terdaftar di bawah **Permintaan** dengan statusnya: **Menunggu**, **Disetujui**,
   **Ditolak**, atau **Dibatalkan**, jumlah harinya, dan siapa yang memutuskan.
-- Setiap langkah ada di catatan: permintaannya, keputusannya, nama pemutusnya, dan notifikasi
-  kepada pemohon.
 
 ## Kesalahan umum dan cara mengatasinya
 
@@ -125,10 +118,11 @@ diusulkannya, atau oleh yang mengajukannya. Permintaan yang sudah diputuskan ber
   organisasi Anda belum menyalakan Cuti. Tanya Admin Anda.
 - **"Belum ada jenis cuti. Tambahkan jenis yang dipakai organisasi Anda."** — Admin harus membuat
   jenisnya lebih dulu, di **Pengaturan cuti**.
-- **"Anda hanya dapat mengajukan cuti untuk diri sendiri dan orang yang Anda kelola."** — Anda
-  memilih orang di luar garis Anda. Ajukan untuk diri sendiri, atau minta manajernya.
-- **Permintaan menunggu lebih lama dari yang diharapkan** — pemutus yang tercantum pada
-  permintaan mungkin sedang absen; penggantinya atau level berikutnya (HR Manager, lalu Admin)
-  menindaklanjutinya.
+- **"Anda hanya dapat mengajukan cuti untuk diri sendiri dan orang yang Anda kelola. Minta atasan
+  langsung atau Admin yang mengajukannya."** — orang itu di luar garis Anda. Minta manajernya atau
+  Admin.
+- **Permintaan menunggu lebih lama dari yang diharapkan** — halaman menunjukkan siapa yang
+  ditunggu ("Menunggu …"); tanyakan kepadanya. Bila berbunyi "Tidak ada penyetuju aktif.", tanya
+  Admin Anda.
 - **Anda menolak karena salah** — minta orang itu mengajukan permintaan baru dan setujui yang
-  itu; permintaan yang ditolak tidak dapat dibuka kembali.
+  itu.

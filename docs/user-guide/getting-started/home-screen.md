@@ -10,63 +10,65 @@ have a simpler phone home instead — see [Clock in at the work location](../my-
 ## Where to find it
 
 - The home screen opens by itself after sign-in.
-- Choose **Dashboard** at the top of the menu to come back to it.
+- Choose **Dashboard** in the menu to come back to it.
 - On a phone, choose the leftmost item in the bar at the bottom of the screen.
 
 ## What each role sees
 
+When a stock delivery is addressed to you, **A delivery for you** leads the home screen, for any
+role.
+
 ### Engineer — "My dashboard"
 
-- **A delivery for you** — when a stock delivery is addressed to you, it leads the page.
 - **Waiting for your decision** — approvals that need you, with a count.
-- **Hours by project this week** — how your logged hours split across projects this week.
+- **Returned to me** — expense claims sent back to you, when there are any.
+- **My tasks** — your overdue and upcoming tasks, with an **All tasks** link.
+- **This week’s timesheet** — its status and your hours per day.
+- **Hours by project this week** — how your logged hours split across projects (shown when your
+  home layout is **Overview**; see [Profile and preferences](profile-and-preferences.md)).
 
 ### Project Manager — "My dashboard"
 
-- **A delivery for you**, as above.
-- **My projects** — the delivery projects assigned to you, each with its health, and short
-  counters such as "3 tasks overdue", "2 purchases to approve" or "budget at risk".
+- **My projects** — the delivery projects assigned to you, with columns such as **Delivery**,
+  **Budget used** and **Status**.
 - **My contract value** — the contract value of your projects.
-- **Plan vs actual** — planned budget beside actual spending for your projects.
+- **Plan vs actual** — planned budget beside actual spending.
 
-### Executive — "Dashboard"
+### Executive and Admin — "Dashboard"
 
 Company-level figures: the sales pipeline (with **Win rate** and **Weighted pipeline**),
-**Active projects**, **Plan vs actual**, **Purchasing by stage**, projects off track, and overdue
-customer invoices. Figures you can act on link to the records behind them.
+**Plan vs actual**, **Purchasing by stage**, **Open projects**, **Open invoices**,
+**Projects off track** and **Client overdue** (overdue customer invoices). Figures link to the
+records behind them.
 
 ### Finance — "Dashboard"
 
-What needs Finance — purchasing stages, overdue customer invoices, and the company's money
-figures — beside the same company view.
-
-### Admin — "Dashboard"
-
-The same company view as the Executive, without the money-only tiles your organisation keeps to
-Finance.
+The company page arranged for money work: client overdue invoices and supplier balances, without
+**Purchasing by stage**.
 
 ## The menu
 
 The menu lists every place your role can open, grouped so your own work comes first:
 
 - **Delivery** — projects, work orders, crews, site reports, equipment, stock, meetings and more.
-- **My work** — **Timesheets**, **Expenses**, **Material requests**, **My Tasks**.
+- **My work** — for example **Timesheets**, **Expenses**, **Material requests** and **My Tasks**;
+  which of these you see depends on your role.
 - **Sales** — the sales pipeline and companies.
 - **Finance** — finance pages, for the roles that work with money.
 
-Which groups you see, and in which order, depends on your role: an Engineer sees site work first,
-Finance sees the money pages first. An Admin also finds **Administration** at the bottom. If
-something waits for your decision, the **Approvals** entry sits at the very top of the menu with
-a count.
+Which groups you see, and in which order, depends on your role. **Approvals** sits at the very top
+of the menu, with a count when something waits for your decision; an Engineer sees it only while
+something waits. **Administration** is at the bottom of the menu for the roles that can use it.
 
 ### Search
 
-Choose **Search** and type a few letters — a project, a person, a record — to jump straight to
-it.
+On a computer, choose the **Search or jump to…** box at the top and type a few letters — a
+project, a person, a record — to jump straight to it. On a phone, use **Search** in the bottom
+bar.
 
 ### On a phone
 
-The bar at the bottom shows your home, up to two of your most-used places (for example **My
+The bar at the bottom shows your home, up to two places chosen for your role (for example **My
 Tasks**), then **Search** and **More**. **More** opens the full menu.
 
 ## What the result looks like
@@ -100,43 +102,41 @@ lokasi kerja](../my-work/clock-in.md).
 ## Di mana menemukannya
 
 - Beranda terbuka sendiri setelah Anda masuk.
-- Pilih **Dashboard** di bagian atas menu untuk kembali ke sana.
+- Pilih **Dasbor** di menu untuk kembali ke sana.
 - Di ponsel, pilih item paling kiri di bilah bawah layar.
 
 ## Apa yang dilihat setiap peran
 
+Bila ada pengiriman stok yang dialamatkan kepada Anda, **Ada kiriman untuk Anda** memimpin beranda,
+untuk peran apa pun.
+
 ### Insinyur — "Dasbor saya"
 
-- **Ada kiriman untuk Anda** — bila ada pengiriman stok yang dialamatkan kepada Anda, ia
-  memimpin halaman.
 - **Menunggu keputusan Anda** — persetujuan yang membutuhkan Anda, dengan hitungannya.
-- **Jam per proyek pekan ini** — bagaimana jam kerja Anda terbagi antar proyek pekan ini.
+- **Dikembalikan ke saya** — klaim biaya yang dikembalikan kepada Anda, bila ada.
+- **Tugas saya** — tugas Anda yang lewat tenggat dan yang akan datang, dengan tautan **Semua tugas**.
+- **Lembar waktu minggu ini** — statusnya dan jam Anda per hari.
+- **Jam per proyek minggu ini** — bagaimana jam kerja Anda terbagi antar proyek (tampil bila tata
+  letak beranda Anda **Ringkasan**; lihat [Profil dan preferensi](profile-and-preferences.md)).
 
 ### Manajer Proyek — "Dasbor saya"
 
-- **Ada kiriman untuk Anda**, seperti di atas.
-- **Proyek saya** — proyek pelaksanaan yang ditugaskan kepada Anda, masing-masing dengan kondisi
-  kesehatannya, dan penghitung singkat seperti "3 tugas lewat tenggat", "2 pembelian menunggu
-  persetujuan", atau "anggaran berisiko".
+- **Proyek saya** — proyek pelaksanaan yang ditugaskan kepada Anda, dengan kolom seperti
+  **Progres**, **Anggaran terpakai** dan **Status**.
 - **Nilai kontrak saya** — nilai kontrak proyek-proyek Anda.
-- **Rencana vs realisasi** — anggaran rencana di samping pengeluaran nyata proyek Anda.
+- **Rencana vs realisasi** — anggaran rencana di samping pengeluaran nyata.
 
-### Eksekutif — "Dashboard"
+### Eksekutif dan Admin — "Dasbor"
 
 Angka tingkat perusahaan: pipeline penjualan (dengan **Tingkat kemenangan** dan **Pipeline
-terbobot**), **Proyek aktif**, **Rencana vs realisasi**, **Pembelian per tahap**, proyek yang
-melenceng, dan invoice pelanggan yang lewat jatuh tempo. Angka yang bisa Anda tindak lanjuti
-menautkan ke catatan di belakangnya.
+terbobot**), **Rencana vs realisasi**, **Pembelian berdasarkan tahap**, **Buka proyek**,
+**Buka invoice**, **Proyek menyimpang** dan **Tunggakan** (invoice pelanggan yang lewat jatuh
+tempo). Angka menautkan ke catatan di belakangnya.
 
-### Keuangan — "Dashboard"
+### Keuangan — "Dasbor"
 
-Apa yang membutuhkan Keuangan — tahap pembelian, invoice pelanggan yang lewat jatuh tempo, dan
-angka uang perusahaan — di samping tampilan perusahaan yang sama.
-
-### Admin — "Dashboard"
-
-Tampilan perusahaan yang sama dengan Eksekutif, tanpa ubin khusus uang yang organisasi Anda
-simpan untuk Keuangan.
+Halaman perusahaan yang disusun untuk pekerjaan uang: invoice pelanggan yang lewat jatuh tempo dan
+saldo supplier, tanpa **Pembelian berdasarkan tahap**.
 
 ## Menu
 
@@ -145,23 +145,25 @@ datang lebih dulu:
 
 - **Pelaksanaan** — proyek, perintah kerja, regu, laporan lokasi, peralatan, stok, rapat, dan
   lainnya.
-- **Pekerjaan saya** — **Lembar waktu**, **Biaya**, **Permintaan material**, **Tugas Saya**.
+- **Pekerjaan saya** — misalnya **Lembar waktu**, **Biaya**, **Permintaan material** dan **Tugas
+  Saya**; mana yang Anda lihat bergantung pada peran Anda.
 - **Penjualan** — pipeline penjualan dan perusahaan.
 - **Keuangan** — halaman keuangan, untuk peran yang mengurus uang.
 
-Kelompok mana yang Anda lihat, dan urutannya, bergantung pada peran Anda: seorang Insinyur
-melihat pekerjaan lokasi lebih dulu, Keuangan melihat halaman uang lebih dulu. Admin juga
-menemukan **Administration** di bagian bawah. Bila ada yang menunggu keputusan Anda, entri
-**Persetujuan** berada paling atas menu dengan hitungannya.
+Kelompok mana yang Anda lihat, dan urutannya, bergantung pada peran Anda. **Persetujuan** berada
+paling atas menu, dengan hitungan bila ada yang menunggu keputusan Anda; seorang Insinyur hanya
+melihatnya selama ada yang menunggu. **Administrasi** ada di bagian bawah menu untuk peran yang
+bisa memakainya.
 
 ### Pencarian
 
-Pilih **Cari** dan ketik beberapa huruf — sebuah proyek, orang, atau catatan — untuk melompat
-langsung ke sana.
+Di komputer, pilih kotak **Cari atau lompat ke…** di bagian atas dan ketik beberapa huruf —
+sebuah proyek, orang, atau catatan — untuk melompat langsung ke sana. Di ponsel, pakai **Cari**
+di bilah bawah.
 
 ### Di ponsel
 
-Bilah di bawah menampilkan beranda Anda, hingga dua tempat yang paling sering Anda pakai
+Bilah di bawah menampilkan beranda Anda, hingga dua tempat yang dipilih untuk peran Anda
 (misalnya **Tugas Saya**), lalu **Cari** dan **Lainnya**. **Lainnya** membuka menu lengkap.
 
 ## Hasilnya seperti apa

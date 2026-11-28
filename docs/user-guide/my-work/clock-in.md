@@ -13,7 +13,8 @@ whose crew the person leads.
 ## Where to find it
 
 Sign in on the phone. Light accounts land straight on their home screen, **My work**, which holds
-the **Clock in** card. There is no menu to find — the home screen is the app.
+the **Clock in** card. There is no menu to find — the home screen is the app, with **Settings**
+and **Sign out** at the top.
 
 ## Steps
 
@@ -39,8 +40,9 @@ the **Clock in** card. There is no menu to find — the home screen is the app.
 - **"Location is blocked for this site. Allow it in your browser, or ask your supervisor to
   approve your check-in."** — turn location on for PMO in the browser's site settings, then tap
   again; or choose **Ask my supervisor** and they approve it.
-- **"Your position could not be read."** / **"Reading your position took too long."** — step
-  outside or to a clearer view of the sky and try again, or **Ask my supervisor**.
+- **"Your position could not be read. Try again, or ask your supervisor to approve your
+  check-in."** / **"Reading your position took too long. Try again, or ask your supervisor to
+  approve your check-in."** — try again, or choose **Ask my supervisor**.
 
 ### Not coming in today?
 
@@ -50,8 +52,8 @@ is told; the card shows what you reported and lets you change it.
 
 ## What the result looks like
 
-The day's attendance exists without anyone filling in a sheet: who clocked in, at which work
-order, in which crew, at what time — with the supervisor's approval on the ones that needed it.
+Each tap records who clocked in, at which work order, in which crew, at what time — with the
+supervisor's approval on the ones that needed it.
 The rest of the home screen keeps your day together: your tasks, deliveries addressed to you to
 count and confirm, and the issues you reported.
 
@@ -63,10 +65,9 @@ count and confirm, and the issues you reported.
   you."** — the work order names your crew but not you as a person yet.
 - **"Hours run from 0 to 24"** — the hours field holds something outside that range.
 - **The tap sends but nothing seems to happen** — the card always shows the state ("Sent at …
-  Waiting for … to approve"); wait a moment, and pull down to refresh the page. The state
+  Waiting for … to approve"); wait a moment, and reload the page. The state
   survives closing the app.
-- **You clocked in on the wrong work order** — tell your supervisor; they decide the check-in and
-  the day's attendance.
+- **You clocked in on the wrong work order** — tell your supervisor.
 - **You are a full-account user and see no Clock in card** — clock-in lives on the light account's
   home screen. Attendance for full accounts runs through crews and rosters (see
   [Record daily attendance](../crews/record-daily-attendance.md)).
@@ -89,7 +90,8 @@ bagi Mandor — yang regunya ia pimpin.
 ## Di mana menemukannya
 
 Masuk dari ponsel. Akun ringan tiba langsung di berandanya, **Pekerjaan saya**, yang memuat
-kartu **Absen masuk**. Tidak ada menu yang dicari — beranda itulah aplikasinya.
+kartu **Absen masuk**. Tidak ada menu yang dicari — beranda itulah aplikasinya, dengan **Pengaturan**
+dan **Keluar** di bagian atas.
 
 ## Langkah-langkah
 
@@ -115,8 +117,9 @@ kartu **Absen masuk**. Tidak ada menu yang dicari — beranda itulah aplikasinya
 - **"Lokasi diblokir untuk situs ini. Izinkan di peramban Anda, atau minta supervisor menyetujui
   absen Anda."** — nyalakan lokasi untuk PMO di pengaturan situs peramban, lalu ketuk lagi; atau
   pilih **Minta supervisor saya** dan mereka menyetujuinya.
-- **"Posisi Anda tidak dapat dibaca."** / **"Membaca posisi Anda terlalu lama."** — keluar ke
-  tempat terbuka dan coba lagi, atau **Minta supervisor saya**.
+- **"Posisi Anda tidak dapat dibaca. Coba lagi, atau minta supervisor menyetujui absen Anda."** /
+  **"Membaca posisi Anda terlalu lama. Coba lagi, atau minta supervisor menyetujui absen Anda."** —
+  coba lagi, atau pilih **Minta supervisor saya**.
 
 ### Tidak masuk hari ini?
 
@@ -126,8 +129,8 @@ Anda diberi tahu; kartunya menunjukkan apa yang Anda laporkan dan membiarkan And
 
 ## Hasilnya seperti apa
 
-Kehadiran hari itu ada tanpa siapa pun mengisi lembar: siapa absen masuk, di perintah kerja mana,
-dalam regu apa, pukul berapa — dengan persetujuan pengawas untuk yang membutuhkannya. Bagian
+Setiap ketukan mencatat siapa yang absen masuk, di perintah kerja mana, dalam regu apa, pukul
+berapa — dengan persetujuan pengawas untuk yang membutuhkannya. Bagian
 lain beranda menjaga hari Anda utuh: tugas Anda, kiriman yang dialamatkan kepada Anda untuk
 dihitung dan dikonfirmasi, dan masalah yang Anda laporkan.
 
@@ -140,10 +143,9 @@ dihitung dan dikonfirmasi, dan masalah yang Anda laporkan.
   orang.
 - **"Jam berkisar dari 0 sampai 24"** — kolom jam berisi angka di luar rentang itu.
 - **Ketukannya terkirim tetapi tidak ada yang terlihat terjadi** — kartu selalu menunjukkan
-  keadaannya ("Terkirim pukul … Menunggu … menyetujui"); tunggu sejenak, dan tarik ke bawah untuk
-  menyegarkan halaman. Keadaannya bertahan meski aplikasi ditutup.
-- **Anda absen masuk di perintah kerja yang salah** — beri tahu pengawas Anda; merekalah yang
-  memutuskan absennya dan kehadiran hari itu.
+  keadaannya ("Terkirim pukul … Menunggu … menyetujui"); tunggu sejenak, lalu muat ulang
+  halaman. Keadaannya bertahan meski aplikasi ditutup.
+- **Anda absen masuk di perintah kerja yang salah** — beri tahu pengawas Anda.
 - **Anda pengguna akun penuh dan tidak melihat kartu Absen masuk** — absen masuk berada di beranda
   akun ringan. Kehadiran akun penuh berjalan lewat regu dan jadwal (lihat [Mencatat kehadiran
   harian](../crews/record-daily-attendance.md)).

@@ -31,13 +31,13 @@ signed in as usual.
 
 ## What works well on a phone
 
-- The bar at the bottom keeps your home, your most-used places, **Search** and **More** (the full
+- The bar at the bottom keeps your home, two places chosen for your role, **Search** and **More** (the full
   menu) within thumb reach — see [The home screen and the menu](home-screen.md).
 - Forms and lists use full-width buttons sized for fingers.
 - The Timesheets week grid, My Tasks, the Approvals inbox, material requests and daily site
-  reports all work on the phone; photo uploads use the phone's camera.
-- Text size and other personal settings follow you from device to device — see
-  [Profile and preferences](profile-and-preferences.md).
+  reports all work on the phone.
+- You can make the text larger from the account menu at the top right — see
+  [Profile and preferences](profile-and-preferences.md). Text size is kept per device.
 
 ## What the result looks like
 
@@ -52,8 +52,6 @@ one tap away.
   Safari on iPhone. In another browser the wording or the feature may differ.
 - **A page asks for your location (clock-in) and nothing happens** — the browser needs permission
   to share your location. Allow it for this site in the browser's settings, then try again.
-- **Photos will not upload** — check your connection; large photos take longer on a slow
-  connection.
 
 ---
 
@@ -94,13 +92,13 @@ Anda tetap masuk seperti biasa.
 
 ## Apa yang berjalan baik di ponsel
 
-- Bilah di bawah menempatkan beranda Anda, tempat paling sering dipakai, **Cari**, dan
+- Bilah di bawah menempatkan beranda Anda, dua tempat yang dipilih untuk peran Anda, **Cari**, dan
   **Lainnya** (menu lengkap) dalam jangkauan ibu jari — lihat [Beranda dan menu](home-screen.md).
 - Formulir dan daftar memakai tombol selebar layar yang berukuran untuk jari.
 - Kisi pekan Lembar waktu, Tugas Saya, kotak masuk Persetujuan, permintaan material, dan laporan
-  harian lokasi semuanya bekerja di ponsel; unggahan foto memakai kamera ponsel.
-- Ukuran teks dan pengaturan pribadi lain mengikuti Anda dari perangkat ke perangkat — lihat
-  [Profil dan preferensi](profile-and-preferences.md).
+  harian lokasi semuanya bekerja di ponsel.
+- Anda bisa memperbesar teks dari menu akun di kanan atas — lihat
+  [Profil dan preferensi](profile-and-preferences.md). Ukuran teks disimpan per perangkat.
 
 ## Hasilnya seperti apa
 
@@ -116,5 +114,4 @@ berjarak satu ketukan.
 - **Sebuah halaman meminta lokasi Anda (absen masuk) dan tidak terjadi apa-apa** — peramban
   butuh izin membagikan lokasi Anda. Izinkan untuk situs ini di pengaturan peramban, lalu coba
   lagi.
-- **Foto tidak mau terunggah** — periksa koneksi Anda; foto besar butuh waktu lebih lama di
-  koneksi lambat.
+

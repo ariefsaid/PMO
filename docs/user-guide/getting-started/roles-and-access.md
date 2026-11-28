@@ -9,32 +9,28 @@ who can do that job.
 ## Where to find it
 
 Your own role is shown at the top right, under your name, in the account menu. Admins manage
-roles under **Administration** → people.
+roles under **Administration** → **Users**.
 
 ## The five roles
 
 | Role | What they come to PMO to do |
 |---|---|
 | **Admin** | Set the app up and keep it running: people and access, modules, naming, settings — and everything every other role can do. |
-| **Executive** | See how the company is doing and step in where needed: dashboards, the projects at risk, and the decisions that need their level. |
-| **Project Manager** | Run delivery: projects and work orders, tasks, crews, site reports, meetings — and approve their team's timesheets, purchases and claims. |
-| **Finance** | Run the money: purchasing, supplier bills, customer invoices, payments. Finance works in the finance pages and does not use timesheets. |
-| **Engineer** | Do the site work: daily site reports, material requests, stock, equipment hours, own timesheets, and the tasks assigned to them. |
+| **Executive** | See how the company is doing: dashboards, projects, sales and finance pages, and what waits for their decision. |
+| **Project Manager** | Run delivery: projects and work orders, tasks, crews, site reports, meetings — and decide what waits for them in **Approvals**, such as their team's timesheets. |
+| **Finance** | Run the money: purchasing, supplier bills, customer invoices, payments. Finance works in the finance pages and has no timesheet of its own. |
+| **Engineer** | Do the site work: daily site reports, material requests, stock, equipment, their own timesheets, and the tasks assigned to them. |
 
 ### What everyone can do
 
 Whatever the role, every person can:
 
-- fill in and submit their own timesheet week;
 - raise material requests and expense claims;
 - write the minutes of a meeting and create its action items;
-- see their own tasks, calendar, and leave requests.
+- see the calendar and ask for leave.
 
-### Nobody approves their own work
-
-The person who entered a record never decides it: your own timesheet is approved by your line
-manager, your own purchase by its approver, your own claim by someone else. If a rule needs two
-people, PMO asks them in order.
+Timesheets are for Admin, Executive, Project Manager and Engineer. **My Tasks** is in the menu for
+all roles except Executive.
 
 ## Job roles
 
@@ -46,31 +42,21 @@ Admin). The five roles decide everything else.
 
 ## Light accounts
 
-A **Foreman** or **Field user** holds a light account: one phone home screen with their own
-tasks, their clock-in, deliveries addressed to them and the issues they reported. Light accounts
-have no menu, no project pages and no money figures — see
+A **Foreman** or **Field user** holds a light account: one phone home screen, **My work**, with
+their own tasks, their clock-in, deliveries addressed to them and the issues they reported, plus
+**Settings** and **Sign out**. Light accounts have no menu — see
 [Clock in at the work location](../my-work/clock-in.md).
-
-## Looking through another role's eyes
-
-An Admin can open PMO the way another role sees it — to check what a colleague will see. While
-doing this, a banner names the role being viewed, nothing can be changed, and **Return to Admin**
-brings the Admin back to their own view.
 
 ## What the result looks like
 
 Two people with different roles signing in see different menus and different buttons — each sees
-the places and actions their job needs, and PMO refuses an action a role does not hold, even if
-the screen is reached by typing its address.
+the places and actions their job needs.
 
 ## Common errors and what to do
 
-- **"You don't have access to …"** — your role does not hold that place. If you need it, ask your
-  Admin; they can see your current role and change it.
-- **A button is missing that a colleague has** — the action follows the role (and sometimes the
-  record: only its author can edit a draft). This is expected.
-- **You were asked to approve your own record** — you will find no approve button for it; the
-  request goes to the right other person automatically.
+- **"You don't have access to this page"** — your role does not hold that place. If you need it,
+  ask your Admin; they can see your current role and change it.
+- **A button is missing that a colleague has** — the action follows the role. This is expected.
 
 ---
 
@@ -88,32 +74,28 @@ mengubah peran seseorang.
 ## Di mana menemukannya
 
 Peran Anda sendiri terlihat di kanan atas, di bawah nama Anda, di menu akun. Admin mengelola
-peran di **Administration** → orang.
+peran di **Administrasi** → **Pengguna**.
 
 ## Lima peran
 
 | Peran | Apa yang mereka kerjakan di PMO |
 |---|---|
 | **Admin** | Menyiapkan aplikasi dan menjaganya berjalan: orang dan akses, modul, penamaan, pengaturan — dan semua yang bisa dilakukan peran lain. |
-| **Eksekutif** | Melihat kondisi perusahaan dan masuk di tempat yang perlu: dashboard, proyek yang berisiko, dan keputusan yang membutuhkan levelnya. |
-| **Manajer Proyek** | Menjalankan pelaksanaan: proyek dan perintah kerja, tugas, regu, laporan lokasi, rapat — serta menyetujui lembar waktu, pembelian, dan pengajuan timnya. |
-| **Keuangan** | Mengurus uang: pengadaan, tagihan pemasok, invoice pelanggan, pembayaran. Keuangan bekerja di halaman keuangan dan tidak memakai lembar waktu. |
-| **Insinyur** | Melakukan pekerjaan lokasi: laporan harian lokasi, permintaan material, stok, jam peralatan, lembar waktu sendiri, dan tugas yang ditugaskan kepada mereka. |
+| **Eksekutif** | Melihat kondisi perusahaan: dasbor, proyek, halaman penjualan dan keuangan, serta apa yang menunggu keputusannya. |
+| **Manajer Proyek** | Menjalankan pelaksanaan: proyek dan perintah kerja, tugas, regu, laporan lokasi, rapat — serta memutuskan apa yang menunggu mereka di **Persetujuan**, seperti lembar waktu timnya. |
+| **Keuangan** | Mengurus uang: pengadaan, tagihan pemasok, invoice pelanggan, pembayaran. Keuangan bekerja di halaman keuangan dan tidak punya lembar waktu sendiri. |
+| **Insinyur** | Melakukan pekerjaan lokasi: laporan harian lokasi, permintaan material, stok, peralatan, lembar waktu sendiri, dan tugas yang ditugaskan kepada mereka. |
 
 ### Apa yang bisa dilakukan semua orang
 
 Apa pun perannya, setiap orang bisa:
 
-- mengisi dan mengajukan pekan lembar waktunya sendiri;
-- mengajukan permintaan material dan pengajuan biaya;
+- mengajukan permintaan material dan klaim biaya;
 - menulis notulen rapat dan membuat butir tindakannya;
-- melihat tugas, kalender, dan permintaan cutinya sendiri.
+- melihat kalender dan mengajukan cuti.
 
-### Tidak ada yang menyetujui pekerjaannya sendiri
-
-Orang yang memasukkan sebuah catatan tidak pernah memutusannya: lembar waktu Anda sendiri
-disetujui atasan langsung Anda, pembelian Anda sendiri oleh penyetujunya, pengajuan Anda sendiri
-oleh orang lain. Bila sebuah aturan membutuhkan dua orang, PMO memanggil mereka sesuai urutan.
+Lembar waktu untuk Admin, Eksekutif, Manajer Proyek, dan Insinyur. **Tugas Saya** ada di menu untuk
+semua peran kecuali Eksekutif.
 
 ## Peran jabatan
 
@@ -125,28 +107,18 @@ terbuka untuk **Petugas SDM** (dan Admin). Lima peran menentukan segala hal lain
 
 ## Akun ringan
 
-**Mandor** atau **Pengguna Lapangan** memegang akun ringan: satu beranda ponsel berisi tugasnya
-sendiri, absen masuknya, kiriman yang dialamatkan kepadanya, dan masalah yang ia laporkan. Akun
-ringan tidak punya menu, halaman proyek, atau angka uang — lihat [Absen masuk di lokasi
+**Mandor** atau **Pengguna Lapangan** memegang akun ringan: satu beranda ponsel, **Pekerjaan saya**, berisi tugasnya
+sendiri, absen masuknya, kiriman yang dialamatkan kepadanya, dan masalah yang ia laporkan, ditambah
+**Pengaturan** dan **Keluar**. Akun ringan tidak punya menu — lihat [Absen masuk di lokasi
 kerja](../my-work/clock-in.md).
-
-## Melihat melalui mata peran lain
-
-Admin bisa membuka PMO seperti yang dilihat peran lain — untuk memeriksa apa yang akan dilihat
-rekan kerjanya. Selama melakukan ini, sebuah pita menyebut peran yang dilihat, tidak ada yang bisa
-diubah, dan **Kembali ke Admin** mengembalikan Admin ke tampilannya sendiri.
 
 ## Hasilnya seperti apa
 
 Dua orang dengan peran berbeda yang masuk melihat menu dan tombol yang berbeda — masing-masing
-melihat tempat dan tindakan yang dibutuhkan pekerjaannya, dan PMO menolak tindakan yang tidak
-dipegang perannya, meskipun alamat layarnya diketik langsung.
+melihat tempat dan tindakan yang dibutuhkan pekerjaannya.
 
 ## Kesalahan umum dan cara mengatasinya
 
-- **"Anda tidak memiliki akses ke …"** — peran Anda tidak memegang tempat itu. Bila Anda
+- **"Anda tidak memiliki akses ke halaman ini"** — peran Anda tidak memegang tempat itu. Bila Anda
   membutuhkannya, tanya Admin Anda; mereka bisa melihat peran Anda sekarang dan mengubahnya.
-- **Sebuah tombol tidak ada padahal rekan Anda memilikinya** — tindakan mengikuti peran (dan
-  kadang catatannya: hanya pembuatnya yang bisa mengubah draf). Ini wajar.
-- **Anda diminta menyetujui catatan Anda sendiri** — Anda tidak akan menemukan tombol setujui
-  untuknya; permintaan itu otomatis pergi ke orang lain yang tepat.
+- **Sebuah tombol tidak ada padahal rekan Anda memilikinya** — tindakan mengikuti peran. Ini wajar.

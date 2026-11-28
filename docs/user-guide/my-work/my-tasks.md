@@ -21,8 +21,8 @@ bottom.
 3. Choose a task's name to open it where it lives — on the project's tasks board, or on the
    meeting that created it. The row also shows what the task is tied to: a purchase, an expense
    claim or a material request, and its work order when it has one.
-4. Work on it, then update the progress with the status picker on the row: **To Do**, **In
-   Progress**, **Done** or **Blocked**. This is the update your project manager sees.
+4. Work on it, then update the progress with the status picker on the row: **To do**, **In
+   progress**, **Done** or **Blocked**. The change is saved at once.
 5. Add a question or note with **Comments** — the conversation stays on the task.
 6. Hours to book? Choose **Log time** on the row: it opens Timesheets with that project already
    picked (see [Fill in and submit a timesheet week](../timesheets/fill-and-submit-week.md)).
@@ -30,22 +30,21 @@ bottom.
 
 ## What the result looks like
 
-- Changing the status to **In Progress** or **Done** updates the task everywhere at once: the
-  project's tasks board, the meeting's action items, and the work order's open-tasks list.
+- Changing the status to **In progress** or **Done** updates the task itself, so the project's
+  tasks board and the meeting it came from show the new status.
 - A done task moves out of **Open** into **Completed**; the overdue counter drops.
-- The person who assigned the task sees the new status without asking you.
 
 ## Common errors and what to do
 
 - **"No tasks assigned to you"** — nothing is assigned yet, or the **Completed** view is showing.
   Switch views; if work you expect is missing, ask the person who planned it to assign you.
 - **"No tasks match your search"** — clear the search or the work-order filter.
-- **The status picker refuses the change** — the task may have been changed by someone else a
-  moment earlier. Reload the page and try again.
-- **You cannot edit a task's details, only its status** — task details (name, dates, assignee)
-  are edited by the delivery roles and the task's creator. Tell them what to change, or put it in
-  **Comments**.
-- **A task shows "Archived"** — the project hides archived tasks; it is kept for the record.
+- **The status picker refuses the change** — an error message appears. Check your connection,
+  reload the page and try again.
+- **You cannot edit a task's details, only its status** — task details are edited by Admin,
+  Executive and Project Manager, and by the person who created the task. Tell them what to
+  change, or put it in **Comments**.
+- **A task shows "Archived"** — the task was archived on its project.
 
 ---
 
@@ -58,7 +57,7 @@ melihat apa yang dimintanya, dan memperbarui kemajuannya selagi bekerja. Pekan A
 sini.
 
 **Siapa yang bisa melakukannya:** Manajer Proyek, Keuangan, Insinyur, dan Admin. (Eksekutif
-bekerja dari dashboard perusahaan.) Setiap orang hanya melihat tugas yang ditugaskan kepada
+bekerja dari dasbor perusahaan.) Setiap orang hanya melihat tugas yang ditugaskan kepada
 mereka sendiri.
 
 ## Di mana menemukannya
@@ -78,9 +77,8 @@ bilah bawah.
    yang membuatnya. Barisnya juga menunjukkan apa yang terikat pada tugas: sebuah pembelian,
    pengajuan biaya, atau permintaan material, dan perintah kerjanya bila ada.
 4. Kerjakan, lalu perbarui kemajuannya dengan pemilih status di barisnya: **Akan dikerjakan**,
-   **Sedang dikerjakan**, **Selesai**, atau **Terhambat**. Inilah pembaruan yang dilihat manajer
-   proyek Anda.
-5. Tambahkan pertanyaan atau catatan dengan **Comments** — percakapannya tetap pada tugas itu.
+   **Sedang dikerjakan**, **Selesai**, atau **Terhambat**. Perubahan langsung tersimpan.
+5. Tambahkan pertanyaan atau catatan dengan **Komentar** — percakapannya tetap pada tugas itu.
 6. Ada jam untuk dicatat? Pilih **Catat jam** di barisnya: ia membuka Lembar waktu dengan proyek
    itu sudah terpilih (lihat [Mengisi dan mengajukan pekan lembar
    waktu](../timesheets/fill-and-submit-week.md)). Tugas tanpa proyek tidak punya **Catat jam**,
@@ -88,10 +86,9 @@ bilah bawah.
 
 ## Hasilnya seperti apa
 
-- Mengubah status ke **Sedang dikerjakan** atau **Selesai** memperbarui tugas di mana saja
-  sekaligus: papan tugas proyek, butir tindakan rapat, dan daftar tugas terbuka perintah kerja.
+- Mengubah status ke **Sedang dikerjakan** atau **Selesai** memperbarui tugas itu sendiri, sehingga papan
+  tugas proyek dan rapat asalnya menampilkan status barunya.
 - Tugas selesai keluar dari **Aktif** ke **Selesai**; penghitung terlambat turun.
-- Orang yang menugaskan tugas itu melihat status barunya tanpa menanyakan Anda.
 
 ## Kesalahan umum dan cara mengatasinya
 
@@ -100,10 +97,9 @@ bilah bawah.
   yang merencanakannya menugaskan Anda.
 - **"Tidak ada tugas yang cocok dengan pencarian"** — hapus pencarian atau filter perintah
   kerjanya.
-- **Pemilih status menolak perubahan** — tugasnya mungkin baru diubah orang lain sesaat sebelumnya.
-  Muat ulang halaman dan coba lagi.
+- **Pemilih status menolak perubahan** — sebuah pesan kesalahan muncul. Periksa koneksi Anda,
+  muat ulang halaman, lalu coba lagi.
 - **Anda tidak bisa mengubah detail tugas, hanya statusnya** — detail tugas (nama, tanggal,
-  pemegang) diubah oleh peran pelaksana dan pembuat tugas. Sampaikan apa yang harus diubah, atau
-  tulis di **Comments**.
-- **Sebuah tugas menampilkan "Diarsipkan"** — proyek menyembunyikan tugas yang diarsipkan; ia
-  disimpan untuk catatan.
+  pemegang) diubah oleh Admin, Eksekutif, dan Manajer Proyek, serta orang yang membuat tugas itu. Sampaikan
+  apa yang harus diubah, atau tulis di **Komentar**.
+- **Sebuah tugas menampilkan "Diarsipkan"** — tugas itu diarsipkan pada proyeknya.
