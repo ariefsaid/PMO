@@ -12,8 +12,8 @@ of the validated site days.
 
 - **View** the report: every active member of the organisation, once an administrator turns it
   on.
-- **Turn it on and set it up:** an administrator enables the report in Administration and maps
-  issue types to named department groups.
+- **Set it up:** in **Administration → Projects**, under **Issue closing-time report**, choose
+  the default grouping and map issue types to named department groups.
 
 ## Where to find it
 
@@ -28,7 +28,8 @@ the button does not appear; the register remains.)
    department groups** (the departments your administrator named, with the issue types mapped
    to them).
 3. Read the four cards at the top: **Total issues**, **Closed issues**, **Avg time to close**,
-   and **Stalled issues** — the overdue-and-open count, with its share of the total.
+   and **Stalled issues** (**Overdue and open**). **Closed issues** also shows its share of the
+   total.
 4. Read the department table: each row shows **Total**, **Closed**, **Open**, **Stalled**,
    **Avg closing time** and **Median closing time**. A slow department shows up as a closing
    time far above its median or a high stalled count.
@@ -48,8 +49,8 @@ the button does not appear; the register remains.)
 
 - **"The closing-time report is not enabled for this organisation. An administrator can enable
   it in Administration."** — ask an administrator to turn it on.
-- **"The report cannot be shown — Your role cannot view this report."** — ask an administrator
-  for access.
+- **"The report cannot be shown"** ("Your role cannot view this report. Ask an administrator
+  for access.") — ask an administrator for access.
 - **"No issue data in this period"** — widen the date range or switch the grouping.
 - **"No validated daily report for this work order in this range."** — effective hours need
   validated daily site reports; see
@@ -75,8 +76,8 @@ terhenti, dan jam efektif dari hari-hari laporan yang tervalidasi.
 
 - **Melihat** laporannya: semua anggota organisasi yang aktif, setelah administrator
   mengaktifkannya.
-- **Mengaktifkan dan menyiapkannya:** administrator mengaktifkan laporan di Administrasi dan
-  memetakan jenis isu ke nama grup departemen.
+- **Menyiapkannya:** di **Administrasi → Proyek**, pada **Laporan waktu penyelesaian isu**,
+  pilih pengelompokan bawaan dan petakan jenis isu ke nama grup departemen.
 
 ## Di mana menemukannya
 
@@ -91,10 +92,10 @@ dimatikan, tombolnya tidak muncul; daftarnya tetap ada.)
    **Berdasarkan grup departemen** (departemen yang dinamai administrator Anda, dengan jenis
    isu yang dipetakan kepadanya).
 3. Baca empat kartu di atas: **Total isu**, **Isu ditutup**, **Rata-rata waktu penyelesaian**,
-   dan **Isu terhenti** — hitungan yang melewati tenggat dan terbuka, beserta porsinya dari
-   total.
+   dan **Isu terhenti** (**Melewati tenggat dan terbuka**). **Isu ditutup** juga menampilkan
+   porsinya dari total.
 4. Baca tabel departemen: setiap baris menampilkan **Total**, **Ditutup**, **Terbuka**,
-   **Terhenti**, **Rata-rata waktu penyelesaian**, dan **Median waktu penyelesaian**.
+   **Terhenti**, **Rata-rata waktu tutup**, dan **Median waktu tutup**.
    Departemen yang lambat terlihat dari waktu penyelesaian yang jauh di atas mediannya atau
    hitungan terhenti yang tinggi.
 5. Di bawahnya, panel **Jam kerja efektif**: pilih **Proyek** dan **Perintah kerja** untuk
@@ -112,9 +113,9 @@ dimatikan, tombolnya tidak muncul; daftarnya tetap ada.)
 ## Kesalahan umum dan cara mengatasinya
 
 - **"Laporan waktu penyelesaian tidak diaktifkan untuk organisasi ini. Administrator dapat
-  mengaktifkannya di Administrasi."** — minta administrator mengaktifkannya.
-- **"Laporan tidak dapat ditampilkan — Peran Anda tidak dapat melihat laporan ini."** — minta
-  administrator mengatur aksesnya.
+  mengaktifkannya di menu Administrasi."** — minta administrator mengaktifkannya.
+- **"Laporan tidak dapat ditampilkan"** ("Peran Anda tidak dapat melihat laporan ini. Minta
+  akses ke administrator.") — minta akses ke administrator.
 - **"Tidak ada data isu pada periode ini"** — perlebar rentang tanggalnya atau ganti
   pengelompokannya.
 - **"Belum ada laporan harian yang divalidasi untuk perintah kerja ini pada rentang ini."** —

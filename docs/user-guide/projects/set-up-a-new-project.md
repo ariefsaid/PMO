@@ -25,9 +25,8 @@ Open **Projects** from the menu, then choose **New project**.
 4. Set the **End customer** if the work is finally for a different company than the client.
    Leave it empty when it is the client.
 5. Assign the **Project manager** and, optionally, a **Deputy manager**.
-6. Pick the **Origination stage** — where this job starts (for example a lead, a tender or a
-   signed project). If your organisation uses the sales pipeline, this decides which board
-   column the project appears in.
+6. Pick the **Origination stage** — where this job starts: **Leads** (a prospective job, which
+   appears on the sales pipeline) or **Internal** (an internal project).
 7. Enter the **Estimated value**. As soon as you enter a value above zero, two more fields are
    required: **Tax treatment** ("Inclusive: the amount already includes tax" or "Exclusive:
    tax is on top of the amount") and **Tax amount** — enter 0 if there is no tax. A hint under
@@ -43,12 +42,11 @@ paste them from a spreadsheet. See [Budget and budget changes](budget-and-budget
 
 ## What the result looks like
 
-- The project's page opens, showing the header with the contract value and its tax basis, and
-  the tabs **Overview**, **Work orders**, **Budget**, **Procurement**, **Tasks**, **Contract**,
-  **Materials** and **Documents**.
-- The project appears in the **Projects** list, and in the sales pipeline if its stage is a
-  pipeline stage.
-- Work orders drawn against this project reduce its contract ceiling as they are issued.
+- The project's page opens, showing the header with the contract value and its tax basis. A new
+  lead has the tabs **Overview**, **Budget**, **Tasks** and **Documents**; the tabs **Work order**,
+  **Procurement**, **Contract** and **Materials** appear once the project is past the sales stages.
+- The project appears in the **Projects** list, and on the sales pipeline if its stage is
+  **Leads**.
 
 ## Common errors and what to do
 
@@ -64,8 +62,8 @@ paste them from a spreadsheet. See [Budget and budget changes](budget-and-budget
   project you no longer need, or ask your Operator to upgrade the plan.
 - **"You can't create projects"** — your role does not create projects; ask an Admin,
   Executive or Project Manager.
-- **Leaving with unsaved changes** — the page asks **Stay** or **Leave**. Leaving discards what
-  you typed.
+- **Leaving with unsaved changes** — the page asks "Discard your changes?". Choose **Keep
+  editing** to stay, or **Discard** to leave and lose what you typed.
 
 ---
 
@@ -100,9 +98,8 @@ Buka **Proyek** dari menu, lalu pilih **Proyek baru**.
 4. Isi **Pelanggan akhir** bila pekerjaan akhirnya untuk perusahaan lain selain klien.
    Kosongkan bila sama dengan klien.
 5. Tetapkan **Manajer proyek** dan, bila perlu, **Wakil manajer**.
-6. Pilih **Tahap awal** — di mana pekerjaan ini dimulai (misalnya prospek, tender, atau proyek
-   yang sudah ditandatangani). Bila organisasi Anda memakai pipeline penjualan, pilihan ini
-   menentukan kolom mana di papan tempat proyek muncul.
+6. Pilih **Tahap awal** — di mana pekerjaan ini dimulai: **Prospek** (pekerjaan calon, yang
+   muncul di pipeline penjualan) atau **Internal** (proyek internal).
 7. Masukkan **Nilai estimasi**. Begitu Anda mengisi nilai di atas nol, dua kolom lagi wajib:
    **Perlakuan pajak** ("Inklusif: nilai sudah termasuk pajak" atau "Eksklusif: pajak
    ditambahkan di atas nilai") dan **Jumlah pajak** — isi 0 bila tidak ada pajak. Petunjuk di
@@ -117,12 +114,11 @@ ditempel dari lembar kerja. Lihat [Anggaran dan perubahan anggaran](budget-and-b
 
 ## Hasilnya seperti apa
 
-- Halaman proyek terbuka dengan kepala halaman berisi nilai kontrak dan dasar pajaknya, serta
-  tab **Ringkasan**, **Perintah kerja**, **Anggaran**, **Pengadaan**, **Tugas**, **Kontrak**,
-  **Material**, dan **Dokumen**.
-- Proyek muncul di daftar **Proyek**, dan di pipeline penjualan bila tahapnya masih tahap
-  pipeline.
-- Perintah kerja yang ditarik dari proyek ini mengurangi pagu kontraknya begitu diterbitkan.
+- Halaman proyek terbuka dengan kepala halaman berisi nilai kontrak dan dasar pajaknya. Prospek
+  baru memiliki tab **Ringkasan**, **Anggaran**, **Tugas**, dan **Dokumen**; tab **Perintah
+  kerja**, **Pengadaan**, **Kontrak**, dan **Material** muncul setelah proyek melewati tahap
+  penjualan.
+- Proyek muncul di daftar **Proyek**, dan di pipeline penjualan bila tahapnya **Prospek**.
 
 ## Kesalahan umum dan cara mengatasinya
 
@@ -135,9 +131,10 @@ ditempel dari lembar kerja. Lihat [Anggaran dan perubahan anggaran](budget-and-b
   biarkan usulan nomornya.
 - **"Perusahaan yang dipilih memerlukan segmen nomor klien sebelum Nomor Proyek PMO dapat
   dibuat."** — minta Admin menambahkan segmen nomor klien, lalu pilih klien lagi.
-- **"Anda telah mencapai batas proyek aktif sesuai paket Anda"** — tidak ada yang dibuat.
-  Arsipkan proyek yang tidak lagi dibutuhkan, atau minta Operator menaikkan paketnya.
+- **"Batas proyek aktif pada paket Anda sudah tercapai"** — tidak ada yang dibuat. Arsipkan
+  proyek yang tidak lagi diperlukan, atau minta Operator meningkatkan paketnya.
 - **"Anda tidak dapat membuat proyek"** — peran Anda tidak membuat proyek; minta Admin,
   Eksekutif, atau Manajer Proyek.
-- **Meninggalkan halaman dengan perubahan yang belum disimpan** — halaman menanyakan **Tetap**
-  atau **Keluar**. Keluar menghapus yang Anda tulis.
+- **Meninggalkan halaman dengan perubahan yang belum disimpan** — halaman menanyakan "Buang
+  perubahan Anda?". Pilih **Lanjut mengedit** untuk tetap di halaman, atau **Buang** untuk
+  keluar dan kehilangan yang Anda tulis.

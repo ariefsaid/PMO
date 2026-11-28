@@ -100,7 +100,7 @@ kuantitasnya — dengan atau tanpa permintaan.
 - **Melihat:** Admin, Eksekutif, Manajer Proyek, Keuangan.
 - **Mengajukan dan mengirim** permintaan: pembuatnya atau penyuntingnya (peran-peran yang sama).
 - **Menyetujui atau mengembalikan:** Admin, Eksekutif, dan Keuangan selalu bisa, ditambah
-  peran tambahan yang didaftarkan organisasi sebagai pemeriksa — tidak pernah orang yang
+  peran tambahan yang didaftarkan organisasi sebagai peninjau — tidak pernah orang yang
   mengajukan, mengedit, atau mengirim permintaan itu.
 - **Mencatat pengiriman ke klien dan keputusannya:** Admin, Eksekutif, Manajer Proyek,
   Keuangan.
@@ -110,19 +110,19 @@ kuantitasnya — dengan atau tanpa permintaan.
 ## Di mana menemukannya
 
 - Di **halaman perintah kerja**, bagian **Perubahan kuantitas** memuat permintaan untuk
-  perintah kerja itu, dengan **Ajukan perubahan kuantitas** untuk membuat yang baru.
+  perintah kerja itu, dengan **Minta perubahan kuantitas** untuk membuat yang baru.
 - Daftarnya sendiri adalah **Permintaan perubahan kuantitas**; halamannya terbuka dari tautan
   di notifikasi dan dari bagian perintah kerja. Panel lainnya: **Melebihi kontrak** (setiap
   baris kontrak yang melewati kuantitasnya) dan **Permintaan** (daftarnya).
 
 ## Langkah-langkah
 
-1. Pilih **Permintaan baru** (atau **Ajukan perubahan kuantitas** di perintah kerja).
+1. Pilih **Permintaan baru** (atau **Minta perubahan kuantitas** di perintah kerja).
 2. Pilih **Proyek** dan **Perintah kerja**. Formulirnya memuat baris kontrak yang dialokasikan
    dan melewati kuantitas kontraknya, beserta progres terlapor atau perkiraan di belakangnya.
 3. Untuk setiap baris, isi **Total kuantitas yang diminta** — harus di atas kuantitas kontrak.
    Formulirnya menampilkan **Perubahan nilai** yang ditambahkan setiap baris.
-4. Beri **Alasan** dan **Catatan untuk pemberi persetujuan** (opsional), lalu pilih **Buat
+4. Beri **Alasan** dan **Catatan untuk penyetuju** (opsional), lalu pilih **Buat
    draf**.
 5. Di halaman permintaan, pilih **Kirim untuk persetujuan**. Permintaan menjadi **Menunggu
    persetujuan**.
@@ -155,20 +155,20 @@ diharapkan — agar paparannya terlihat sebelum ada yang diajukan.
 
 ## Kesalahan umum dan cara mengatasinya
 
-- **"Harus di atas kuantitas kontrak sebesar …"** — total yang diminta harus melebihi kuantitas
+- **"Harus di atas kuantitas kontrak …"** — total yang diminta harus melebihi kuantitas
   kontrak; itulah yang menjadikannya perubahan.
-- **"Perintah kerja ini telah mencapai batas permintaannya"** — organisasi membatasi jumlah
-  permintaan satu perintah kerja; Admin bisa mengubah **Batas per perintah kerja** di
+- **"Perintah kerja ini telah mencapai batas permintaan"** — organisasi membatasi jumlah
+  permintaan satu perintah kerja; Admin bisa mengubah **Batas per Perintah kerja** di
   daftarnya.
 - **"Anda mengajukan permintaan ini, jadi orang lain harus menyetujuinya."** (dan versi
   penyunting/pengirimnya) — persetujuan butuh orang yang berbeda.
 - **"Peran Anda tidak dapat menyetujui permintaan perubahan kuantitas. Minta Admin menambahkan
-  peran Anda ke daftar pemeriksa."** — organisasi mendaftarkan peran pemeriksa tambahan; minta
-  Admin mencoret peran Anda.
-- **"Tidak ada orang lain yang dapat menyetujui permintaan ini: ia menunggu sampai pemberi
-  persetujuan lain ada."** — tidak ada pemberi persetujuan yang berwenang; tunggu atau tambahkan
-  pemeriksa.
-- **"Lampirkan surat atau formulir yang dikirim ke klien sebelum mencatat pengirimannya"** —
+  peran Anda ke daftar peninjau."** — organisasi mendaftarkan peran peninjau tambahan; minta
+  Admin mencentang peran Anda.
+- **"Tidak ada orang lain yang dapat menyetujui permintaan ini: permintaan menunggu sampai ada
+  penyetuju lain."** — tidak ada pemberi persetujuan yang berwenang; tunggu atau tambahkan
+  peran peninjau.
+- **"Lampirkan surat atau formulir yang dikirim ke klien sebelum mencatat pengiriman"** —
   pengiriman dicatat hanya bersama berkasnya; sama halnya dengan persetujuan klien.
 - **"Tidak boleh di bawah …"** — penilaian baru atas baris itu berpindah di bawah angka yang
   sudah diminta; selaraskan permintaannya dengan fakta terkini.

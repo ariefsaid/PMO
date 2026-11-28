@@ -10,17 +10,18 @@ tells the person in charge and the project manager when the fix time passes.
 ## Who can do this
 
 - **File** an incident: every member of the organisation.
-- **Edit and investigate** (change the record, start the investigation, add tasks and the root
-  cause): Admin, Executive, Project Manager — and the person in charge can follow up.
-- **Close:** Admin, Executive, Project Manager.
+- **Edit** the record and **add tasks**: Admin, Executive, Project Manager.
+- **Move it forward** (start investigating, close): Admin, Executive, Project Manager, and the
+  incident's own person in charge. The person in charge and the reporter can also record the
+  root cause.
 - **Delete:** Admin only (closing is preferred — it keeps the history).
 
 ## Where to find it
 
 Open **Incidents** from the menu. The register lists every incident with its type, severity,
-status, date, location and person in charge; filter by **Status** or by **Due time**
-(**Overdue**), and search by word. Use the tabs to switch between **Project incidents** and
-**All incidents**.
+status, date, location and person in charge; filter by status (**Filter by status**) or by due time (**Filter by due time**, then
+**Overdue**), and search by word. Use the tabs to switch between **Project incidents** and
+**All incidents**; **Register** and **Closing-time report** switch the view.
 
 ## Steps
 
@@ -28,20 +29,20 @@ status, date, location and person in charge; filter by **Status** or by **Due ti
 
 1. Choose **File incident**.
 2. Under **What happened**, fill in the **Date**, the **Type** (an Admin maintains the types —
-   Incident, Near miss, Unsafe condition), and the **Severity**: **Low**, **Medium**, **High**
-   or **Critical**.
+   for example Incident, Near miss, Unsafe condition), and the **Severity**: **Low**,
+   **Medium**, **High** or **Critical**.
 3. Add the **Location**, and optionally link the **Project** and the **Work order**.
 4. Describe what happened in **Description** — what happened, who was involved, and any
    immediate action taken.
 5. Name the **Person in charge** (who must fix it) if you know them, set **Fix by** (the due
    time), and write **What must be done** (for example "Replace the damaged guard rail").
-6. Add photos — up to 10, 15 MB each — and save. The incident is filed with you recorded as
-   the reporter.
+6. Add photos with **Add photo** — up to 10, 15 MB each — and choose **Save incident**. The
+   incident is filed with you recorded as the reporter.
 
 ### Work the incident
 
-1. On an **Open** incident, **Start investigating** moves it to **Investigating** so the team
-   can record findings.
+1. On an **Open** incident, use **Next action → Start investigating** and confirm: it moves to
+   **Investigating** so the team can record findings.
 2. The **Tasks** section can hold several tasks on one incident (**Add a task**, each with a
    due date), so the fix can be split among people.
 3. **Record the root cause** — why it happened, apart from the visible blocker — while the
@@ -49,8 +50,8 @@ status, date, location and person in charge; filter by **Status** or by **Due ti
 4. The person in charge and the project manager are told when the issue passes its due time;
    the incident then shows **Overdue** and an **Escalated** note.
 5. To close it, use **Next action → Close incident** and write the **Close note** (what was
-   done to fix it). A **close photo** is required for a **High** or **Critical** issue; it is
-   optional for Low and Medium. The photos you filed stay as "At raise", the closing photo as
+   done to fix it). A close photo (**Add close photo**) is required for a **High** or
+   **Critical** issue; it is optional for Low and Medium. The photos you filed stay as "At raise", the closing photo as
    "Close proof".
 6. **Closed** is the final state. If new information emerges, file a follow-up incident.
 
@@ -61,7 +62,7 @@ status, date, location and person in charge; filter by **Status** or by **Due ti
 - The incident's page carries the full record: description, photos, person in charge, fix-by
   time, its tasks, the root cause, and the **What happens next** panel that names who acts
   next.
-- "What happens next" says who can close the issue: the Project Manager, Executive and Admin,
+- **What happens next** says who can close the issue: the Project Manager, Executive and Admin,
   with proof.
 - Every incident that names a project is visible from that project too.
 
@@ -74,7 +75,8 @@ status, date, location and person in charge; filter by **Status** or by **Due ti
   **Retry photo upload** to send the photos again.
 - **"The due time is not valid in your timezone."** — check the fix-by time.
 - **"A close photo is required for a High or Critical issue."** — attach the photo, then close.
-- **Close is refused for you** — only Admin, Executive and Project Manager close incidents.
+- **You cannot close it** — only Admin, Executive, Project Manager and the incident's person in
+  charge move an incident forward.
 - **"This incident either doesn't exist or isn't visible to you."** — the link points to an
   incident you cannot read; find it in the register.
 
@@ -94,17 +96,19 @@ memberi tahu penanggung jawab serta manajer proyek bila waktu perbaikannya lewat
 ## Siapa yang dapat melakukannya
 
 - **Melaporkan** insiden: semua anggota organisasi.
-- **Mengubah dan menyelidiki** (mengubah catatan, memulai penyelidikan, menambah tugas dan akar
-  masalah): Admin, Eksekutif, Manajer Proyek — dan penanggung jawabnya bisa menindaklanjuti.
-- **Menutup:** Admin, Eksekutif, Manajer Proyek.
+- **Mengubah** catatan dan **menambah tugas**: Admin, Eksekutif, Manajer Proyek.
+- **Melanjutkannya** (memulai penyelidikan, menutup): Admin, Eksekutif, Manajer Proyek, dan
+  penanggung jawab insiden itu sendiri. Penanggung jawab dan pelapor juga bisa mencatat akar
+  masalah.
 - **Menghapus:** hanya Admin (menutup lebih disarankan — itu menyimpan riwayatnya).
 
 ## Di mana menemukannya
 
 Buka **Insiden** dari menu. Daftarnya memuat setiap insiden dengan jenis, tingkat keparahan,
-status, tanggal, lokasi, dan penanggung jawabnya; saring menurut **Status** atau **Filter
-berdasarkan tenggat** (**Terlambat**), dan cari dengan kata kunci. Gunakan tab untuk berpindah
-antara **Insiden proyek** dan **Semua insiden**.
+status, tanggal, lokasi, dan penanggung jawabnya; saring menurut status (**Filter status**) atau tenggat (**Filter berdasarkan tenggat**, lalu
+**Terlambat**), dan cari dengan kata kunci. Gunakan tab untuk berpindah
+antara **Insiden proyek** dan **Semua insiden**; **Daftar** dan **Laporan waktu penyelesaian**
+mengganti tampilannya.
 
 ## Langkah-langkah
 
@@ -112,7 +116,7 @@ antara **Insiden proyek** dan **Semua insiden**.
 
 1. Pilih **Laporkan insiden**.
 2. Di bagian **Apa yang terjadi**, isi **Tanggal**, **Jenis**nya (Admin yang memelihara
-   jenisnya — Insiden, Nyaris celaka, Kondisi tidak aman), dan **Tingkat keparahan**nya:
+   jenisnya — misalnya Insiden, Nyaris celaka, Kondisi tidak aman), dan **Tingkat**nya:
    **Rendah**, **Sedang**, **Tinggi**, atau **Kritis**.
 3. Tambahkan **Lokasi**, dan bila perlu tautkan **Proyek** serta **Perintah kerja**.
 4. Jelaskan kejadiannya di **Deskripsi** — apa yang terjadi, siapa yang terlibat, dan tindakan
@@ -120,22 +124,23 @@ antara **Insiden proyek** dan **Semua insiden**.
 5. Sebutkan **Penanggung jawab**nya (yang harus memperbaiki) bila Anda kenal, tetapkan
    **Selesaikan sebelum** (waktu tenggatnya), dan tulis **Yang harus dikerjakan** (misalnya
    "Ganti pagar pengaman yang rusak").
-6. Tambahkan foto — hingga 10, masing-masing 15 MB — lalu simpan. Insiden tercatat dengan Anda
+6. Tambahkan foto dengan **Tambah foto** — hingga 10, masing-masing 15 MB — lalu pilih
+   **Simpan insiden**. Insiden tercatat dengan Anda
    sebagai pelapornya.
 
 ### Kerjakan insidennya
 
-1. Pada insiden **Terbuka**, **Mulai penyelidikan** memindahkannya ke **Diselidiki** agar tim
-   bisa mencatat temuannya.
+1. Pada insiden **Terbuka**, gunakan **Langkah berikutnya → Mulai penyelidikan** dan
+   konfirmasi: insiden pindah ke **Diselidiki** agar tim bisa mencatat temuannya.
 2. Bagian **Tugas** dapat memuat beberapa tugas pada satu insiden (**Tambah tugas**, masing-
    masing dengan tenggat), sehingga perbaikannya bisa dibagi ke beberapa orang.
 3. **Catat akar masalah** — mengapa ini terjadi, terpisah dari hambatan yang terlihat — selagi
    penyelidikannya masih segar.
 4. Penanggung jawab dan manajer proyek diberi tahu bila isu melewati waktu tenggatnya; insiden
    lalu menampilkan **Terlambat** dan keterangan **Dieskalasi**.
-5. Untuk menutupnya, gunakan **Tindakan berikutnya → Tutup insiden** dan tulis **Catatan
-   penutupan** (apa yang dilakukan untuk memperbaikinya). **Foto penutupan** wajib untuk isu
-   **Tinggi** atau **Kritis**; opsional untuk Rendah dan Sedang. Foto yang Anda laporkan tetap
+5. Untuk menutupnya, gunakan **Langkah berikutnya → Tutup insiden** dan tulis **Catatan
+   penutupan** (apa yang dilakukan untuk memperbaikinya). Foto penutupan (**Tambah foto
+   penutupan**) wajib untuk isu **Tinggi** atau **Kritis**; opsional untuk Rendah dan Sedang. Foto yang Anda laporkan tetap
    tersimpan sebagai "Saat dilaporkan", foto penutupan sebagai "Bukti penutupan".
 6. **Ditutup** adalah status akhir. Bila muncul informasi baru, laporkan insiden lanjutan.
 
@@ -146,7 +151,7 @@ antara **Insiden proyek** dan **Semua insiden**.
 - Halaman insidennya memuat catatan lengkap: deskripsi, foto, penanggung jawab, waktu tenggat,
   tugas-tugasnya, akar masalah, dan panel **Apa yang terjadi selanjutnya** yang menyebut siapa
   bertindak berikutnya.
-- "Apa yang terjadi selanjutnya" menyebut siapa yang boleh menutup isunya: Manajer Proyek,
+- **Apa yang terjadi selanjutnya** menyebut siapa yang boleh menutup isunya: Manajer Proyek,
   Eksekutif, dan Admin, dengan bukti.
 - Setiap insiden yang menyebut satu proyek juga terlihat dari proyek itu.
 
@@ -159,7 +164,7 @@ antara **Insiden proyek** dan **Semua insiden**.
   gunakan **Coba unggah foto lagi** untuk mengirim fotonya lagi.
 - **"Waktu jatuh tempo tidak berlaku di zona waktu Anda."** — periksa waktu perbaikannya.
 - **"Isu Tinggi atau Kritis wajib memiliki foto penutupan."** — lampirkan fotonya, lalu tutup.
-- **Penutupan ditolak untuk Anda** — hanya Admin, Eksekutif, dan Manajer Proyek yang menutup
-  insiden.
+- **Anda tidak bisa menutupnya** — hanya Admin, Eksekutif, Manajer Proyek, dan penanggung jawab
+  insiden itu yang melanjutkan insiden.
 - **"Insiden ini tidak ada atau tidak terlihat oleh Anda."** — tautannya menunjuk insiden yang
   tidak bisa Anda baca; cari di daftarnya.

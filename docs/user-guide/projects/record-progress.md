@@ -27,7 +27,7 @@ contract lines; the **Record progress** button sits in its heading.
 4. For each contract line, enter the quantity **done to date** — the running total, not the
    month's move. A lump-sum line asks for **% done to date** (0–100, one decimal place).
    Leave a line empty to record nothing done on it.
-5. Add an optional **Note**.
+5. Add a note in **Note (optional)**, if you want one.
 6. Choose **Save progress**.
 
 To bill the work, Finance raises a billing claim from the same tab — see
@@ -50,12 +50,10 @@ To bill the work, Finance raises a billing claim from the same tab — see
   percent.
 - **"Each quantity done to date must be 0 or more with at most 3 decimal places"** — quantities
   are running totals, never negative.
-- **"Record progress" is missing** — either you are not the project's manager and not Finance
-  or above, or the project has no bill-of-quantities lines yet.
+- **"Record progress" is missing** — either you are not the project's manager and not Finance,
+  Executive or Admin, or the project has no bill-of-quantities lines yet.
 - **"No bill of quantities yet"** — add the contract's priced lines first; progress is
   assessed against them.
-- **The percent did not move** — the assessment you saved may be for an earlier month than you
-  meant; check the **Month** field and save again for the right month.
 
 ---
 
@@ -78,20 +76,20 @@ untuk mengajukan klaim penagihan. Ini catatan operasional — ia tidak pernah me
 
 ## Di mana menemukannya
 
-Buka proyek, lalu tab **Kontrak**. Panel **Daftar kuantitas** memuat baris kontrak yang
+Buka proyek, lalu tab **Kontrak**. Panel **Bill of quantities** memuat baris kontrak yang
 dihargai; tombol **Catat progres** ada di kepala panelnya.
 
 ## Langkah-langkah
 
-1. Pastikan baris kontrak yang dihargai sudah ada — baris yang Anda nilai adalah baris **Daftar
-   kuantitas** (masing-masing dengan kuantitas, satuan, dan tarif; baris lump sum diperoleh
+1. Pastikan baris kontrak yang dihargai sudah ada — baris yang Anda nilai adalah baris **Bill of
+   quantities** (masing-masing dengan kuantitas, satuan, dan tarif; baris lump sum diperoleh
    lewat persen). Tambahkan dengan **Tambah baris** atau **Impor baris** bila belum ada.
 2. Pilih **Catat progres**.
 3. Pilih **Bulan** (formulirnya dimulai pada bulan berjalan organisasi Anda).
 4. Untuk setiap baris kontrak, isi kuantitas **selesai s.d. saat ini** — total berjalan, bukan
    kenaikan bulan ini. Baris lump sum menanyakan **% selesai s.d. saat ini** (0–100, satu
    angka desimal). Biarkan baris kosong untuk mencatat tidak ada yang selesai.
-5. Tambahkan **Catatan** bila perlu.
+5. Tambahkan **Catatan (opsional)** bila perlu.
 6. Pilih **Simpan progres**.
 
 Untuk menagih pekerjaan itu, Keuangan mengajukan klaim penagihan dari tab yang sama — lihat
@@ -101,7 +99,7 @@ Untuk menagih pekerjaan itu, Keuangan mengajukan klaim penagihan dari tab yang s
 
 - Sebuah notifikasi mengonfirmasi "Progres tercatat: …% selesai" — persen tertimbang proyek
   untuk bulan itu.
-- Baris daftar kuantitas kini menampilkan kuantitas hasil penilaian dan nilai **Diperoleh** per
+- Baris bill of quantities kini menampilkan kuantitas hasil penilaian dan nilai **Diperoleh** per
   baris (kuantitas selesai × tarif), beserta total proyek: nilai yang diperoleh s.d. saat ini
   di samping nilai kontrak.
 - Penilaian berikutnya mulai dari kuantitas tercatat terakhir, jadi Anda hanya mengisi yang
@@ -112,13 +110,11 @@ Untuk menagih pekerjaan itu, Keuangan mengajukan klaim penagihan dari tab yang s
 ## Kesalahan umum dan cara mengatasinya
 
 - **"Pilih bulan"** — pilih bulan yang Anda nilai.
-- **"Masukkan persentase dari 0 sampai 100 dengan paling banyak 1 angka desimal"** — perbaiki
+- **"Isi persentase 0 sampai 100 dengan paling banyak 1 angka desimal"** — perbaiki
   persen lump sumnya.
 - **"Setiap kuantitas selesai harus 0 atau lebih dengan paling banyak 3 angka desimal"** —
   kuantitas adalah total berjalan, tidak pernah negatif.
-- **Tombol "Catat progres" tidak ada** — Anda bukan manajer proyek itu dan bukan Keuangan atau
-  di atasnya, atau proyeknya belum punya baris daftar kuantitas.
-- **"Belum ada daftar kuantitas"** — tambahkan dulu baris kontrak yang dihargai; progres
+- **Tombol "Catat progres" tidak ada** — Anda bukan manajer proyek itu dan bukan Keuangan,
+  Eksekutif, atau Admin, atau proyeknya belum punya baris bill of quantities.
+- **"Belum ada bill of quantities"** — tambahkan dulu baris kontrak yang dihargai; progres
   dinilai terhadap baris itu.
-- **Persennya tidak bergerak** — penilaian yang Anda simpan mungkin untuk bulan yang lebih
-  awal dari yang Anda maksud; periksa kolom **Bulan** dan simpan lagi untuk bulan yang benar.

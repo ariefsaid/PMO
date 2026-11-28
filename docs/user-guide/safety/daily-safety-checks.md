@@ -126,7 +126,7 @@ angka bulanan.
 
 ### Catat satu hari
 
-1. Di halaman perintah kerja, pilih **Tanggal**nya (hari ini adalah yang terlambat) dan pilih
+1. Di halaman perintah kerja, pilih **Tanggal**nya (hari ini adalah yang terbaru) dan pilih
    **Catat hari keselamatan**. Hari yang sudah tercatat terbuka, bukan membuat yang kedua.
 2. **Pemeriksaan kebugaran** — untuk setiap pekerja di daftar tugas hari itu (atau tamu yang
    disebut namanya), pilih pemeriksaannya, hasilnya (**Bugar**, **Tidak bugar**, **Belum
@@ -137,7 +137,7 @@ angka bulanan.
 4. **Daftar periksa sebelum kerja** — jawab **Ya**, **Tidak**, atau **Tidak berlaku** untuk
    setiap butir. Jawaban "Tidak" butuh catatan.
 5. **Izin kerja** — tambahkan setiap izin dengan **Jenis izin**, **Nomor izin**, siapa yang
-   **Menerbitkannya**, dan **Berlaku dari**/**Berlaku sampai**. Tutup saat pekerjaannya
+   **Diterbitkan oleh**, dan **Berlaku dari**/**Berlaku sampai**. Tutup saat pekerjaannya
    berakhir; buka kembali atau tambahkan yang lain bila perlu.
 6. **Laporan petugas keselamatan** — hitungan **Nyaris celaka** dan **Observasi** hari itu,
    beserta teks laporannya.
@@ -182,7 +182,7 @@ angka bulanan.
   mengunci.
 - **"Hari ini sudah dikunci. Muat ulang halaman."** — orang lain menguncinya; muat ulang dan
   gunakan **Koreksi** bila harus berubah.
-- **"Hanya orang yang memulai hari keselamatan ini yang bisa menguncinya."** — minta penulis
+- **"Hanya orang yang memulai hari keselamatan ini yang bisa mengunci."** — minta penulis
   harinya.
 - **Angka jam kerja menyebut "belum ada kehadiran terkunci atau disetujui pada bulan ini"** —
   catat dan setujui dulu kehadiran regunya; lihat

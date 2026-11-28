@@ -10,9 +10,10 @@ here lead back to it.
 ## Who can do this
 
 - **View** the project page: every role.
-- **Edit** the project header (name, customer, manager, dates, contract value): Admin,
-  Executive, Project Manager. After a project is won, only Admin, Executive or Finance can
-  change its contract value.
+- **Edit** the project header (name, customer, manager, dates): Admin, Executive, Project
+  Manager.
+- **Change the contract value:** Admin, Executive, Project Manager before the project is won;
+  after it is won, only Admin, Executive or Finance.
 - Some figures are limited by role. A figure your role cannot see shows a note in its place —
   never a guessed number.
 
@@ -28,7 +29,7 @@ The page is one header plus these tabs:
 1. **Overview** — the key facts and the **Money position**: contract, in work orders,
    delivered, invoiced, paid, received, spent, committed and left. "Needs attention" rows and
    the **Activity** record of changes open from here.
-2. **Work orders** — the client's orders under this project, with their progress and billing.
+2. **Work order** — the client's orders under this project, with their progress and billing.
    See [Work orders](../office/work-orders.md).
 3. **Budget** — the planned budget beside what is spent and committed, per category. See
    [Budget and budget changes](budget-and-budget-changes.md).
@@ -40,20 +41,21 @@ The page is one header plus these tabs:
 7. **Materials** — planned and used material for this project.
 8. **Documents** — the files, meeting minutes and photos that belong to the project.
 
-To change the header facts, use **Edit**. To change the contract value, use **Change contract
-value**; PMO asks you to confirm the change, and after the project is won a different person
-may be the one who must confirm the value.
+To change the header facts, use **Edit**. To change the contract value, use **Edit** beside the
+**Contract** figure (on a phone, **Change contract value** in the menu), then **Save**. Once the
+project is won, PMO asks you to confirm the change and records it.
 
 ## What the result looks like
 
 - The header shows the status pill (for example **Ongoing**, **On hold**, **Close-out**), the
-  customer, the manager, the start and target end dates, and a **Progress** bar from the phase
-  plan.
-- The money strip reads left to right like the project's life: **Contract**, then what is
-  **In work orders**, **Delivered**, **Invoiced**, **Paid**, **Received**, **Spent**,
-  **Committed** and what is **Left**.
+  customer, the manager, the start and target end dates, and **Progress**.
+- Under it, a strip of figures: **Contract**, **PMO purchase orders**, **Actual**,
+  **Contract remaining after cost** and **Budget used**.
+- On the **Overview** tab, the **Money position** panel reads left to right like the project's
+  life: **Contract**, **In work orders**, **Delivered**, **Invoiced**, **Paid** and **Spent**.
+  See [The project's money position](project-money-position.md).
 - A figure that cannot be computed yet shows its reason (for example "The contract value hasn't
-  been entered") instead of a zero.
+  been entered.") instead of a zero.
 
 ## Common errors and what to do
 
@@ -64,8 +66,8 @@ may be the one who must confirm the value.
 - **The contract value has a lock icon** — your role cannot change it once the project is won;
   the icon explains why. Ask Admin, Executive or Finance.
 - **You expected a tab and it is not there** — tabs depend on the project's stage and your
-  role: a deal not yet won has no work orders, billing or purchases, and money tabs need money
-  access.
+  role: a deal not yet won has no Work order, Contract, Procurement or Materials tab, and
+  **Contract** and **Procurement** need access to the project's money.
 
 ---
 
@@ -83,9 +85,10 @@ kembali ke halaman ini.
 ## Siapa yang dapat melakukannya
 
 - **Melihat** halaman proyek: semua peran.
-- **Mengubah** kepala proyek (nama, pelanggan, manajer, tanggal, nilai kontrak): Admin,
-  Eksekutif, Manajer Proyek. Setelah proyek dimenangkan, mengubah nilai kontrak perlu kewenangan
-  keuangan — Admin, Eksekutif, atau Keuangan.
+- **Mengubah** kepala proyek (nama, pelanggan, manajer, tanggal): Admin, Eksekutif, Manajer
+  Proyek.
+- **Mengubah nilai kontrak:** Admin, Eksekutif, Manajer Proyek sebelum proyek dimenangkan;
+  setelah dimenangkan, hanya Admin, Eksekutif, atau Keuangan.
 - Beberapa angka dibatasi menurut peran. Angka yang tidak bisa dilihat peran Anda ditampilkan
   dengan keterangannya — bukan angka karangan.
 
@@ -112,19 +115,22 @@ Halaman berisi satu kepala halaman dan tab-tab ini:
 7. **Material** — material yang direncanakan dan terpakai untuk proyek ini.
 8. **Dokumen** — berkas, notulen rapat, dan foto milik proyek ini.
 
-Untuk mengubah fakta kepala halaman, gunakan **Edit**. Untuk mengubah nilai kontrak, gunakan
-**Ubah nilai kontrak**; PMO meminta Anda mengonfirmasi perubahan itu, dan setelah proyek
-dimenangkan orang yang berbeda bisa jadi yang harus mengonfirmasi nilainya.
+Untuk mengubah fakta kepala halaman, gunakan **Ubah**. Untuk mengubah nilai kontrak, gunakan
+**Ubah** di samping angka **Kontrak** (di ponsel, **Ubah nilai kontrak** di menu), lalu
+**Simpan**. Setelah proyek dimenangkan, PMO meminta Anda mengonfirmasi perubahan itu dan
+mencatatnya.
 
 ## Hasilnya seperti apa
 
 - Kepala halaman menampilkan pil status (misalnya **Berjalan**, **Ditunda**, **Penutupan**),
-  pelanggan, manajer, tanggal mulai dan target selesai, serta bar **Progres** dari rencana fase.
-- Strip keuangan dibaca dari kiri ke kanan seperti hidupnya proyek: **Kontrak**, lalu yang
-  **Dalam perintah kerja**, **Terkirim**, **Ditagih**, **Dibayar**, **Diterima**, **Terpakai**,
-  **Terikat**, dan **Sisa**.
+  pelanggan, manajer, tanggal mulai dan target selesai, serta **Progres**.
+- Di bawahnya ada strip angka: **Kontrak**, **Pesanan pembelian PMO**, **Aktual**, **Sisa kontrak
+  setelah biaya**, dan **Anggaran terpakai**.
+- Di tab **Ringkasan**, panel **Posisi keuangan** dibaca dari kiri ke kanan seperti hidupnya
+  proyek: **Kontrak**, **Dalam perintah kerja**, **Terkirim**, **Ditagih**, **Dibayar**, dan
+  **Terpakai**. Lihat [Posisi keuangan proyek](project-money-position.md).
 - Angka yang belum bisa dihitung menampilkan alasannya (misalnya "Nilai kontrak belum
-  tercatat") alih-alih nol.
+  diisi.") alih-alih nol.
 
 ## Kesalahan umum dan cara mengatasinya
 
@@ -136,5 +142,6 @@ dimenangkan orang yang berbeda bisa jadi yang harus mengonfirmasi nilainya.
 - **Nilai kontrak bergambar kunci** — peran Anda tidak bisa mengubahnya setelah proyek
   dimenangkan; gambar itu menjelaskan sebabnya. Minta Admin, Eksekutif, atau Keuangan.
 - **Ada tab yang Anda harapkan tetapi tidak muncul** — tab bergantung pada tahap proyek dan
-  peran Anda: kesempatan yang belum dimenangkan belum punya perintah kerja, penagihan, atau
-  pembelian, dan tab keuangan perlu akses keuangan.
+  peran Anda: kesempatan yang belum dimenangkan belum punya tab Perintah kerja, Kontrak,
+  Pengadaan, atau Material, dan tab **Kontrak** dan **Pengadaan** perlu akses ke keuangan
+  proyek.

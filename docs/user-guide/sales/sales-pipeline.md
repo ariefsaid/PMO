@@ -12,8 +12,8 @@ value times its chance of winning.
 
 - **View and work the pipeline:** Admin, Executive, Project Manager, Finance. Engineers do not
   have the menu — their work lives on their dashboard, projects and tasks.
-- **Move a deal, mark it won/lost/declined:** Admin, Executive, Project Manager, Finance (the
-  same roles that edit a project).
+- **Move a deal, mark it won/lost/declined:** Admin, Executive, Project Manager, Finance. A
+  Project Manager sees "Pipeline managed by the project owner." on projects they do not manage.
 
 ## Where to find it
 
@@ -25,15 +25,16 @@ project's page.
 
 ### Move a deal along
 
-1. The board shows the open stages in order — **Leads**, **Quotation**, **Pre-Qual**,
-   **Tender**, **Negotiation** — plus the two ending columns **Won** and **Lost**. The amounts
-   shown exclude tax, and each card's percentage is its chance to win.
+1. The board shows the open stages in order — **Leads**, **Quotation submitted**, **PQ
+   submitted**, **Tender submitted**, **Negotiation** — plus the two ending columns **Won** and
+   **Lost**. Each card shows the deal's amount and its percentage chance to win (the board
+   says when amounts exclude PPN).
 2. Move a deal by dragging its card to the next column, or open the deal and use **Advance
    to …**. Moves the stage map does not allow are refused with "Move not allowed".
 3. The funnel above the board is also a filter: choose a stage to see only the deals in it.
    **All** shows everything; **Won** shows the decided projects.
-4. On a deal, set the two chances: **% Go** (the chance the project proceeds at all) and
-   **% Get** (the chance we win if the client proceeds). They save automatically.
+4. On a deal, set the two chances: **% Go** ("Chance the project proceeds") and **% Get**
+   ("Chance we win if the client proceeds"), then choose **Save**.
 
 ### Win a deal
 
@@ -42,7 +43,8 @@ project's page.
    **Contract date** — a future date is not allowed. Confirm with **Confirm won**.
 3. The deal becomes **Won, pending kickoff**. Its estimated value is recorded as the project's
    contract value at the win.
-4. To start the work, open the project and move it to **Ongoing** — delivery begins. Record the
+4. To start the work, open the project and move it to **Ongoing** (**Change delivery status**
+   in the project's details) — delivery begins. Record the
    customer's order as a work order on the project's contract tab; see
    [Work orders](../office/work-orders.md).
 5. Before the win is offered, the value must be confirmed: if you set the contract value
@@ -61,11 +63,12 @@ project's page.
 
 ### Watch for stalls (the pipeline review)
 
-- The **Needs attention** card lists deals untouched for 30+ days or sitting 90+ days in one
-  stage; a card itself is marked "Stale bid · stage unchanged for 90+ days".
+- **Needs attention** lists deals untouched for 30+ days or sitting 90+ days in one stage; a
+  card itself is marked "Stale bid · stage unchanged for 90+ days".
 - **Weighted forecast** (value × chance of winning) and **Open value** sit above the board;
   **Won** and **Lost** counts for all time sit beside them.
-- The dashboard's win-rate card breaks **Why deals were lost** down by reason and by client.
+- The company dashboard's **Why deals were lost** panel breaks lost deals down by reason and
+  win and loss by client.
 
 ## What the result looks like
 
@@ -79,15 +82,17 @@ project's page.
 ## Common errors and what to do
 
 - **"Move not allowed"** — the stage map allows only the real-life moves (for example a
-  quotation goes to pre-qualification, or back); follow the offered stages.
+  quotation moves on to pre-qualification, a win or a loss, but cannot move back to a lead);
+  follow the offered stages.
 - **The win is not offered, and the menu says to confirm the value** — someone other than the
   person who set the contract value must do the winning; ask your supervisor or a more senior
   reviewer.
-- **"Customer contract reference" is required** — the win records the client's contract or PO
+- **"Customer contract reference is required"** — the win records the client's contract or PO
   number; get it before marking the deal won.
-- **"The contract date" refuses your date** — a win cannot be dated in the future.
+- **"Contract date is required"**, or the date field refuses your date — a win needs a contract
+  date, and it cannot be in the future.
 - **"You don't have access to the Sales Pipeline"** — the pipeline is available to managers and
-  finance; your role works from the dashboard and projects.
+  finance; your role works from the dashboard, projects and tasks.
 - **A deal shows "Pipeline managed by the project owner."** — you can review the stage and
   journey, but the project's manager makes the lifecycle changes.
 
@@ -111,7 +116,8 @@ menangnya.
 - **Melihat dan mengerjakan pipeline:** Admin, Eksekutif, Manajer Proyek, Keuangan. Engineer
   tidak punya menu ini — pekerjaannya ada di dasbor, proyek, dan tugasnya.
 - **Memindahkan kesempatan, menandai menang/kalah/tidak ikut tender:** Admin, Eksekutif,
-  Manajer Proyek, Keuangan (peran yang sama yang mengedit proyek).
+  Manajer Proyek, Keuangan. Manajer Proyek melihat "Pipeline dikelola oleh pemilik proyek."
+  pada proyek yang tidak dikelolanya.
 
 ## Di mana menemukannya
 
@@ -123,18 +129,18 @@ kesempatan membuka halaman proyeknya, dengan tautan kembali ke pipeline. Tautan 
 
 ### Majukan sebuah kesempatan
 
-1. Papan menampilkan tahap terbuka secara berurutan — **Prospek**, **Penawaran**,
-   **Prakualifikasi**, **Tender**, **Negosiasi** — ditambah dua kolom akhir **Menang** dan
-   **Kalah**. Jumlah yang tampil tidak termasuk pajak, dan persen di setiap kartu adalah
-   peluang menangnya.
+1. Papan menampilkan tahap terbuka secara berurutan — **Prospek**, **Penawaran diajukan**,
+   **Prakualifikasi diajukan**, **Tender diajukan**, **Negosiasi** — ditambah dua kolom akhir
+   **Menang** dan **Kalah**. Setiap kartu menampilkan jumlah kesempatan dan persen peluang
+   menangnya (papan menyebutkan bila jumlahnya tidak termasuk PPN).
 2. Pindahkan kesempatan dengan menyeret kartunya ke kolom berikutnya, atau buka kesempatannya
    dan gunakan **Lanjutkan ke …**. Pindahan yang tidak diizinkan peta tahap ditolak dengan
    "Pemindahan tidak diizinkan".
 3. Corong di atas papan juga berfungsi sebagai penyaring: pilih satu tahap untuk melihat hanya
    kesempatan di tahap itu. **Semua** menampilkan segalanya; **Menang** menampilkan yang sudah
    diputuskan.
-4. Pada satu kesempatan, tetapkan dua peluang: **% Go** (peluang proyek berjalan sama sekali)
-   dan **% Get** (peluang kami menang bila klien berjalan). Keduanya tersimpan otomatis.
+4. Pada satu kesempatan, tetapkan dua peluang: **% Go** ("Peluang proyek berlanjut")
+   dan **% Get** ("Peluang kita menang jika klien melanjutkan"), lalu pilih **Simpan**.
 
 ### Menangkan sebuah kesempatan
 
@@ -143,18 +149,18 @@ kesempatan membuka halaman proyeknya, dengan tautan kembali ke pipeline. Tautan 
    tanggal masa depan tidak diperbolehkan. Konfirmasi dengan **Konfirmasi menang**.
 3. Kesempatan itu menjadi **Menang, menunggu rapat awal**. Nilai estimasinya tercatat sebagai
    nilai kontrak proyek saat kemenangan.
-4. Untuk memulai pekerjaannya, buka proyeknya dan pindahkan ke **Berjalan** — pelaksanaan
-   dimulai. Catat pesanan klien sebagai perintah kerja di tab kontrak proyek; lihat
+4. Untuk memulai pekerjaannya, buka proyeknya dan pindahkan ke **Berjalan** (**Ubah status
+   pelaksanaan** di detail proyek) — pelaksanaan dimulai. Catat pesanan klien sebagai perintah kerja di tab kontrak proyek; lihat
    [Perintah kerja](../office/work-orders.md).
 5. Sebelum kemenangan ditawarkan, nilainya harus dikonfirmasi: bila Anda sendiri yang
-   menetapkan nilai kontraknya, PMO meminta "atasan atau pemeriksa yang lebih senior untuk
-   mengonfirmasi nilai" — menunya menjelaskan ini alih-alih menawarkan kemenangan.
+   menetapkan nilai kontraknya, PMO meminta "atasan atau peninjau yang lebih senior untuk
+   memastikan nilai" — menunya menjelaskan ini alih-alih menawarkan kemenangan.
 
 ### Kalahkan atau tolak sebuah kesempatan
 
-1. **Tandai kalah** mengakhiri kesempatan yang pindah ke pihak lain. Pilih **Alasannya**
-   (harga, kalah pesaing, lingkup atau kecocokan, waktu, kapasitas kami, hubungan, klien
-   membatalkan atau menunda, tidak ada keputusan) dan tambahkan catatan; catatan wajib untuk
+1. **Tandai kalah** mengakhiri kesempatan yang pindah ke pihak lain. Pilih **Alasan**
+   (harga, kalah dari kompetitor, lingkup atau kecocokan, waktu, kapasitas kami, hubungan, klien
+   membatalkan atau menunda, klien belum memutuskan) dan tambahkan catatan; catatan wajib untuk
    "Lainnya".
 2. **Tidak ikut tender** mencatat bahwa kami memilih tidak menawar. Ia keluar dari pipeline dan
    tidak dihitung dalam win rate.
@@ -163,13 +169,13 @@ kesempatan membuka halaman proyeknya, dengan tautan kembali ke pipeline. Tautan 
 
 ### Pantau yang terhenti (peninjauan pipeline)
 
-- Kartu **Perlu perhatian** memuat kesempatan yang tak disentuh 30+ hari atau diam di satu
-  tahap 90+ hari; kartu itu sendiri ditandai "Tender tidak aktif · tahap tidak berubah selam
+- **Perlu perhatian** memuat kesempatan yang tak disentuh 30+ hari atau diam di satu
+  tahap 90+ hari; kartu itu sendiri ditandai "Tender tidak aktif · tahap tidak berubah selama
   90+ hari".
 - **Proyeksi tertimbang** (nilai × peluang menang) dan **Nilai terbuka** ada di atas papan;
   hitungan **Menang** dan **Kalah** sepanjang masa ada di sisinya.
-- Kartu win rate di dasbor menguraikan **Mengapa kesempatan kalah** menurut alasan dan menurut
-  klien.
+- Panel **Alasan deal kalah** di dasbor perusahaan menguraikan deal yang kalah menurut alasan,
+  serta menang dan kalah menurut klien.
 
 ## Hasilnya seperti apa
 
@@ -183,15 +189,16 @@ kesempatan membuka halaman proyeknya, dengan tautan kembali ke pipeline. Tautan 
 ## Kesalahan umum dan cara mengatasinya
 
 - **"Pemindahan tidak diizinkan"** — peta tahap hanya mengizinkan perpindahan yang terjadi di
-  dunia nyata (misalnya penawaran lanjut ke prakualifikasi, atau mundur); ikuti tahap yang
-  ditawarkan.
+  dunia nyata (misalnya penawaran lanjut ke prakualifikasi, menang, atau kalah, tetapi tidak bisa mundur ke
+  prospek); ikuti tahap yang ditawarkan.
 - **Kemenangan tidak ditawarkan, dan menunya meminta konfirmasi nilai** — orang selain yang
-  menetapkan nilai kontrak harus yang memenangkan; minta atasan atau pemeriksa yang lebih
+  menetapkan nilai kontrak harus yang memenangkan; minta atasan atau peninjau yang lebih
   senior.
-- **"Referensi kontrak klien" wajib** — kemenangan mencatat nomor kontrak atau PO klien;
+- **"Referensi kontrak klien wajib diisi"** — kemenangan mencatat nomor kontrak atau PO klien;
   dapatkan dulu sebelum menandai menang.
-- **"Tanggal kontrak" menolak tanggal Anda** — kemenangan tidak boleh bertanggal masa depan.
+- **"Tanggal kontrak wajib diisi"**, atau kolom tanggal menolak tanggal Anda — kemenangan
+  perlu tanggal kontrak, dan tidak boleh bertanggal masa depan.
 - **"Anda tidak memiliki akses ke Pipeline Penjualan"** — pipeline tersedia bagi manajemen dan
-  keuangan; peran Anda bekerja dari dasbor dan proyek.
+  keuangan; peran Anda bekerja dari dasbor, proyek, dan tugas.
 - **Satu kesempatan menampilkan "Pipeline dikelola oleh pemilik proyek."** — Anda bisa
   meninjau tahap dan perjalanannya, tetapi perubahan siklusnya dilakukan manajer proyeknya.
