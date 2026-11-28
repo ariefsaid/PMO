@@ -1,0 +1,5 @@
+{
+  "definer_functions": [
+    "actor_bill_purchase_scope(uuid)"
+  ]
+}

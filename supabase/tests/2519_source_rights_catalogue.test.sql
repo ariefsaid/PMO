@@ -123,8 +123,8 @@ select is(array(select proname from cat_functions where prosrc ~* $re$actor_hold
  array['guard_work_order_section','wo_revenue_plan_vs_actual','wrp_writable_work_order'],
  'AC-SRCAT-PLANNER no other direct Planner function admission');
 select is(array(select proname from cat_functions where prosrc ~* $re$actor_holds_job_role[[:space:]]*\([[:space:]]*'equipment_officer'$re$ order by proname),
- array['create_rented_equipment_asset','equipment_can_edit_terms','equipment_metrics'],
- 'AC-SRCAT-OFFICER only operational metrics, rented-asset registration and the rental-terms check admit Equipment Officer');
+ array['actor_bill_purchase_scope','create_procurement_invoice','create_rented_equipment_asset','equipment_can_edit_terms','equipment_metrics'],
+ 'AC-SRCAT-OFFICER only operational metrics, rented-asset registration, the rental-terms check and rental vendor-bill capture admit Equipment Officer');
 select is(array(select m[1] from cat_functions f cross join lateral
  regexp_matches(f.prosrc,$re$actor_holds_job_role[[:space:]]*\([[:space:]]*'([^']+)'$re$,'gi') m
  where f.proname='wrp_writable_work_order' order by m[1]),

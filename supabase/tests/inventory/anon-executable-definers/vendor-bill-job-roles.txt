@@ -1,0 +1,2 @@
+# vendor-bill job-role read scope (2803): a policy helper; it answers false for a field account and checks the caller's own organisation; vendor_bill_job_roles pgTAP.
+actor_bill_purchase_scope  # called by the purchases and bills read policies
