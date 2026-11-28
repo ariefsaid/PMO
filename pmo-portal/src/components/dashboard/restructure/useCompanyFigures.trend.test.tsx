@@ -13,12 +13,12 @@ vi.mock('@/src/hooks/useRevenue', () => ({
   useHasAnySalesInvoice: () => ({ data: false, isPending: false, isError: false, refetch: vi.fn() }),
   useHasAnyIncomingPayment: () => ({ data: false, isPending: false, isError: false, refetch: vi.fn() }),
 }));
-vi.mock('@/src/hooks/useProcurements', () => ({ useProcurements: () => ({}) }));
+vi.mock('@/src/hooks/useProcurements', async () => (await import('@/src/test/supplierTotalsFromRows')).withSupplierTotals({ useProcurements: () => ({}) }));
 vi.mock('@/src/hooks/useWorkOrderBilling', () => ({ useUnbilledWorkOrders: () => ({}) }));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'IDR', useOrgCurrencyState: () => ({ isResolved: true }) }));
 vi.mock('@/src/hooks/useFxOrgDay', () => ({ useFxOrgDay: () => h.orgDay }));
 vi.mock('@/src/hooks/useErpPurchases', () => ({ useErpPurchases: () => ({}) }));
-vi.mock('./useNeedsYou', () => ({ selectOverdueInvoices: () => undefined, selectSupplierInvoices: () => undefined }));
+vi.mock('./useNeedsYou', () => ({ selectOverdueInvoices: () => undefined, supplierInvoicesFromTotals: () => undefined }));
 vi.mock('@/src/lib/procurement/procurementMoney', () => ({ withLinkedDocuments: () => undefined }));
 
 import { useCompanyFigures } from './useCompanyFigures';

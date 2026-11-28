@@ -26,12 +26,12 @@ vi.mock('@/src/hooks/useDashboard', () => ({
 // cad044df6: the on-hand "Left to bill" figure reads the pack's latest month and its contract rows,
 // so the stub must be a whole pack (as CompanyDashboard.honesty.test.tsx already stubs it).
 vi.mock('@/src/hooks/useManagementPack', () => ({ useManagementPack: () => ({ data: { months: [], rows: [], totals: [] }, isPending: false, isError: false, refetch: vi.fn() }) }));
-vi.mock('@/src/hooks/useProcurements', () => ({ useProcurements: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }) }));
+vi.mock('@/src/hooks/useProcurements', async () => (await import('@/src/test/supplierTotalsFromRows')).withSupplierTotals({ useProcurements: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }) }));
 vi.mock('@/src/hooks/useWorkOrderBilling', () => ({ useUnbilledWorkOrders: () => ({ data: { totals: [], incompleteCount: 0 }, isPending: false, isError: false, refetch: vi.fn() }) }));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD', useOrgCurrencyState: () => ({ isResolved: true }) }));
 vi.mock('@/src/hooks/useFxOrgDay', () => ({ useFxOrgDay: () => ({ day: '2026-10-27', isPending: false, isError: false, retry: vi.fn() }) }));
 vi.mock('@/src/hooks/useErpPurchases', () => ({ useErpPurchases: () => ({ data: [], isPending: false, isError: false }) }));
-vi.mock('./useNeedsYou', () => ({ selectOverdueInvoices: () => undefined, selectSupplierInvoices: () => undefined }));
+vi.mock('./useNeedsYou', () => ({ selectOverdueInvoices: () => undefined, supplierInvoicesFromTotals: () => undefined }));
 vi.mock('@/src/lib/procurement/procurementMoney', () => ({ withLinkedDocuments: () => undefined }));
 // Only the repository seam is stubbed; the real useRevenue query hooks run (issue 1973 probes).
 vi.mock('@/src/lib/repositories', () => ({

@@ -65,7 +65,7 @@ vi.mock('@/src/hooks/useDashboard', () => ({
   useWinRate: () => ({ data: { wins_count: 2, losses_count: 1, wins_value: 500, losses_value: 250, win_rate_count: 2 / 3, win_rate_value: 2 / 3 }, isPending: false, isError: false, refetch: vi.fn() }),
   useLossBreakdown: () => lossState,
 }));
-vi.mock('@/src/hooks/useProcurements', () => ({ useProcurements: () => procurementsState }));
+vi.mock('@/src/hooks/useProcurements', async () => (await import('@/src/test/supplierTotalsFromRows')).withSupplierTotals({ useProcurements: () => procurementsState }));
 vi.mock('@/src/hooks/useWorkOrders', () => ({ useOpenWorkOrdersForHome: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }) }));
 vi.mock('@/src/hooks/useMyTasks', () => ({ useMyTasks: () => myTasksState }));
 vi.mock('@/src/hooks/useProjectsDelivery', () => ({ useProjectManagementOverview: () => ({ data: [], isPending: false, isError: false }), useProjectsDelivery: () => deliveryState, useProjectsDeliverySummary: () => ({ data: {}, isPending: false, isError: false }) }));
@@ -205,7 +205,8 @@ describe('company home — floor (floor-tests/home-company.md)', () => {
     expect(f.pipelineRetry).toHaveBeenCalledOnce();
     expect(f.trendRetry).toHaveBeenCalledOnce();
     expect(needsState.refetch).toHaveBeenCalledOnce();
-    expect(procurementsState.refetch).toHaveBeenCalledOnce();
+    // #3045: the Executive home reads no purchase rows (its supplier figures refresh with todayRetry); only Finance's Ready to pay list does.
+    expect(procurementsState.refetch).not.toHaveBeenCalled();
     expect(projectsState.refetch).toHaveBeenCalledOnce();
   });
 

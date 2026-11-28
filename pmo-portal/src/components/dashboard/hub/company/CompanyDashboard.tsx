@@ -86,18 +86,21 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
   const portfolioIds = portfolioProjects.map((project) => project.id);
   const portfolioMilestones = useProjectManagementOverview(portfolioIds);
   const portfolioDelivery = useProjectsDeliverySummary(portfolioIds);
-  const procurements = useProcurements({ lean: true });
+  const finance = role === 'Finance';
+  // #3045: only Finance's Ready to pay list needs the purchase rows; every home figure comes summed from the server.
+  const procurements = useProcurements({ lean: true, enabled: finance });
   const pipeline = useSalesPipeline();
   const budgetReview = useFinanceBudgetReview();
   const orgCurrency = useOrgCurrency();
   const data = figures.dashboard;
-  const finance = role === 'Finance';
   // Finance's billing chart grows to the ageing list beside it on a wide screen; on a phone it is the usual chart height.
   const wide = useIsDesktop(900);
   const unpaidOf = useSupplierUnpaid(finance);
   const financePosition = useFinancePosition(finance);
-  // Same query key as the figure hooks, so no extra request; present so Retry can re-run it.
-  const erpPurchases = useErpPurchases();
+  // Finance only: the Ready to pay list's linked accounting documents; present so Retry can re-run it.
+  const erpPurchases = useErpPurchases(undefined, { enabled: finance });
+  // refetch() runs even a disabled query, so the rows are re-read only where they are read at all.
+  const refetchPurchaseRows = () => { if (finance) { void procurements.refetch(); void erpPurchases.refetch(); } };
   const [refreshToken, setRefreshToken] = React.useState(0);
   const todayFigure = (id: string) => figures.today.find((figure) => figure.id === id);
   // ponytail: one browser-wide hint (not per organisation); a sign-in to a different organisation can still jump once.
@@ -154,18 +157,17 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
 
   const refresh = () => {
     figures.todayRetry(); figures.periodRetry(); figures.dashboardRetry(); figures.pipelineRetry(); needs.refetch();
-    void procurements.refetch(); void budgetReview.refetch();
+    refetchPurchaseRows(); void budgetReview.refetch();
     void projects.refetch();
     if (finance) void financePosition.retry();
-    void erpPurchases.refetch();
     if (attention.length > 0) void healthDelivery.refetch();
     figures.trendRetry();
     setRefreshToken((current) => current + 1);
   };
 
   const hasEvidence = Boolean(data && ((data.projects_by_status ?? []).some((row) => row.count > 0) || (data.procurements_by_status ?? []).some((row) => row.count > 0)))
-    || Boolean(procurements.data?.length || figures.pipeline?.projects?.length);
-  if (!figures.todayPending && !figures.periodPending && !figures.pipelinePending && !procurements.isPending && !needs.isPending
+    || Boolean(figures.pipeline?.projects?.length);
+  if (!figures.todayPending && !figures.periodPending && !figures.pipelinePending && !(finance && procurements.isPending) && !needs.isPending
     && !figures.dashboardError && !figures.periodError && !figures.pipelineError && !needs.isError && figures.isEmpty && !hasEvidence) {
     return <div className="space-y-4"><h1 className="text-page font-bold">{t('dashboard:hub.company.title', 'Dashboard')}</h1><ListState variant="empty" icon="grid" title={t('dashboard:hub.company.emptyTitle', 'No company activity yet')} sub={t('dashboard:hub.company.emptySub', 'Projects, sales, billing, and purchasing will appear here as records are added.')} /></div>;
   }
@@ -203,7 +205,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
     // A1/A4: a tile waits on (and fails with) the one read it is made of; a failed read says so, never blank, never 0.
     const figureStatus = figures.figureStatus(figure.id);
     const status = figure.id === 'supplier-payables' && erpPurchases.isError
-      ? { ...figureStatus, error: true, retry: () => { figureStatus.retry?.(); void erpPurchases.refetch(); } }
+      ? { ...figureStatus, error: true, retry: () => { figureStatus.retry?.(); refetchPurchaseRows(); } }
       : figureStatus;
     if (status.error) {
       // A failed tile keeps the filled tile's three lines (label, value, caption), so the band never changes shape.
@@ -428,7 +430,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
     // First row: Project health beside what waits on you and what is owed each way, so both questions
     // (are operations running well, are the finances in order) and the decisions waiting are answered before scrolling.
     const overdue = needs.overdueInvoices;
-    const retryOwed = () => { figures.todayRetry(); figures.periodRetry(); void erpPurchases.refetch(); };
+    const retryOwed = () => { figures.todayRetry(); figures.periodRetry(); refetchPurchaseRows(); };
     const owedCard = (
       <FinancesCard className="max-[899px]:order-5" currency={orgCurrency}
         receivables={figures.receivables} receivablesPending={figures.receivablesPending} receivablesError={figures.receivablesError}

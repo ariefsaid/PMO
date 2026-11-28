@@ -6,6 +6,7 @@ import {
   listProcurementsByProject,
   getProjectCommittedSpend,
   getProjectReservedSpend,
+  getSupplierPayablesTotals,
 } from '@/src/lib/db/procurements';
 import { approveProcurementAmount } from '@/src/lib/db/procurementPaymentCeiling';
 import {
@@ -100,6 +101,7 @@ export const procurementRepository: ProcurementRepository = {
   listByProject: (projectId) => wrap(() => listProcurementsByProject(projectId)),
   getProjectCommittedSpend: (projectId) => wrap(() => getProjectCommittedSpend(projectId)),
   getProjectReservedSpend: (projectId) => wrap(() => getProjectReservedSpend(projectId)),
+  getSupplierPayablesTotals: (today) => wrap(() => getSupplierPayablesTotals(today)),
   getPoNeededByRequired: () => wrap(() => getPoNeededByRequired()),
   setPoNeededByRequired: (on) => wrap(() => setPoNeededByRequired(on)),
   getNeededBy: (id) => wrap(() => getProcurementNeededBy(id)),

@@ -18,7 +18,7 @@ const h = vi.hoisted(() => ({
 vi.mock('@/src/hooks/useMedicalRelease', async (importOriginal) => ({ ...(await importOriginal<typeof import('@/src/hooks/useMedicalRelease')>()), useMedicalReleases: () => ({ data: [], isPending: false, isError: false, refetch: () => undefined }) }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'exec-1', org_id: 'org-1' }, role: h.role }) }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ effectiveRole: h.role, realRole: h.role }) }));
-vi.mock('@/src/hooks/useProcurements', () => ({ useProcurements: () => h.procurements }));
+vi.mock('@/src/hooks/useProcurements', async () => (await import('@/src/test/supplierTotalsFromRows')).withSupplierTotals({ useProcurements: () => h.procurements }));
 vi.mock('@/src/hooks/useWorkOrderBilling', () => ({
   useUnbilledWorkOrders: () => ({ data: { totals: [], incompleteCount: 0 }, isPending: false, isError: false, refetch: vi.fn() }),
 }));

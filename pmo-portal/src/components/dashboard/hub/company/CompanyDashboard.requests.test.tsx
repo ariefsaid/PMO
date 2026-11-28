@@ -39,7 +39,7 @@ const pack = {
   rows: [],
   totals: [{ currency: 'USD', months: [{ month: '2026-10', planned: 0, recognised: 0, invoiced: 0, invoiceCount: 0, recognisedToDate: 0, invoicedToDate: 0, invoiceCountToDate: 0, unbilled: 0, remainingWork: 0, leftToBill: 0 }] }],
 };
-const h = vi.hoisted(() => ({ dash: null as unknown, win: null as unknown, pack: { months: [] as string[], rows: [] as unknown[], totals: [] as unknown[] }, procurementList: vi.fn(), erpPurchases: vi.fn() }));
+const h = vi.hoisted(() => ({ dash: null as unknown, win: null as unknown, pack: { months: [] as string[], rows: [] as unknown[], totals: [] as unknown[] }, procurementList: vi.fn(), erpPurchases: vi.fn(), supplierTotals: vi.fn() }));
 
 // Ready to pay / payables ageing read linked accounting documents (L12); none linked here.
 vi.mock('@/src/hooks/useWorkOrderBilling', () => ({
@@ -83,7 +83,7 @@ vi.mock('@/src/lib/repositories', async (importOriginal) => {
   return { ...actual, repositories: {
     ...actual.repositories,
     erpPurchases: { ...actual.repositories.erpPurchases, list: h.erpPurchases },
-    procurement: { ...actual.repositories.procurement, list: h.procurementList },
+    procurement: { ...actual.repositories.procurement, list: h.procurementList, getSupplierPayablesTotals: h.supplierTotals },
   } };
 });
 vi.mock('@/src/hooks/useErpSnapshots', () => ({
@@ -103,7 +103,7 @@ const renderExec = (role: 'Executive' | 'Finance' = 'Finance') => render(
   </QueryClientProvider>,
 );
 
-beforeEach(() => { h.dash = { ...base }; h.win = null; h.pack = pack; h.procurementList.mockReset().mockResolvedValue([]); h.erpPurchases.mockReset().mockResolvedValue([]); localStorage.removeItem('home-layout'); });
+beforeEach(() => { h.dash = { ...base }; h.win = null; h.pack = pack; h.procurementList.mockReset().mockResolvedValue([]); h.erpPurchases.mockReset().mockResolvedValue([]); h.supplierTotals.mockReset().mockResolvedValue([]); localStorage.removeItem('home-layout'); });
 afterEach(async () => { await act(async () => { await i18next.changeLanguage('en'); }); });
 
 describe('company dashboard procurement reads (PERF-FIN-1)', () => {
@@ -120,29 +120,31 @@ describe('company dashboard procurement reads (PERF-FIN-1)', () => {
     expect(leanReads[0][0]).toEqual({ lean: true });
   });
 
-  it('shows and retries a failed supplier purchases read on the Executive company home', async () => {
-    h.erpPurchases.mockRejectedValueOnce(new Error('ERP unavailable')).mockResolvedValueOnce([]);
+  it('shows and retries a failed supplier figures read on the Executive company home', async () => {
+    h.supplierTotals.mockRejectedValueOnce(new Error('unavailable')).mockResolvedValue([]);
     renderExec('Executive');
     const suppliers = screen.getByTestId('owed-to-suppliers');
-
     expect(await within(suppliers).findByText("Couldn't load invoices")).toBeInTheDocument();
-    await waitFor(() => expect(h.erpPurchases).toHaveBeenCalledTimes(1));
-
+    await waitFor(() => expect(h.supplierTotals).toHaveBeenCalledTimes(1));
     await userEvent.click(within(suppliers).getByRole('button', { name: 'Retry' }));
-    await waitFor(() => expect(h.erpPurchases).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(h.supplierTotals).toHaveBeenCalledTimes(2));
   });
 
-  it('uses one shared ERP purchases request on a normal company-home load', async () => {
+  it('#3045 the Executive home makes one supplier totals request and reads no purchase rows or accounting documents', async () => {
     renderExec('Executive');
-
     await screen.findByRole('region', { name: /Company figures|Angka perusahaan/ });
-    await waitFor(() => expect(h.erpPurchases).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(h.supplierTotals).toHaveBeenCalledTimes(1));
+    expect(h.supplierTotals).toHaveBeenCalledWith('2026-10-27');
+    await act(async () => { await new Promise((r) => setTimeout(r, 50)); });
+    expect(h.erpPurchases).not.toHaveBeenCalled();
+    expect(h.procurementList.mock.calls.filter(([filter]) => (filter as { lean?: boolean } | undefined)?.lean === true)).toHaveLength(0);
   });
 });
 
 describe('company dashboard layout stability (CLS) and loading gates', () => {
   it('while the procurement list loads, the figures band shows its figures, the supplier side holds a loading state and the approvals line keeps its loaded height', () => {
     h.procurementList.mockReset().mockReturnValue(new Promise(() => {}));
+    h.supplierTotals.mockReset().mockReturnValue(new Promise(() => {}));
     renderExec();
     const band = screen.getByRole('region', { name: 'Company figures' });
     expect(within(band).queryAllByTestId('kpi-skeleton')).toHaveLength(0);

@@ -172,7 +172,10 @@ select ok(
                        'capture_assignment_family','capture_family_stage',
                        -- AMENDED BY 1150 (#2583): the supplier supply-risk suggestion reads a case's linked ERP invoice/payment documents
                        -- (the view) to state the SAME unpaid figure /finance/payables shows; it ages a supplier's balance, never feeds actuals.
-                       'vendor_supply_risk_suggestion'))
+                       'vendor_supply_risk_suggestion',
+                       -- AMENDED BY 2814 (#3045): the home screen's supplier-balance totals read the linked documents (the view) to total what
+                       -- is owed per currency; a stable read that writes nothing and never feeds actuals.
+                       'get_supplier_payables_totals'))
   and not exists (select 1 from pg_views where schemaname = 'public' and definition ilike '%erp_purchase_documents%'
                     and viewname not in ('erp_purchase_documents_linked','erp_purchase_orphans','erp_purchase_orphans_all')),
   'AC-EPR-006 (re-baselined by AC-PFE-005) ERP purchases never feed actuals; only named link/commitment readers and refresh triggers touch the table');

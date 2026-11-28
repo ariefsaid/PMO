@@ -406,6 +406,7 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
         'getPoNeededByRequired',
         'getProjectCommittedSpend',
         'getProjectReservedSpend',
+        'getSupplierPayablesTotals',
         'itemValuesEditable',
         'linkMicrosoftDocument',
         'list',
