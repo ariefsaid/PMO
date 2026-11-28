@@ -58,3 +58,4 @@ Sandbox restarted once mid-run (chunk 1 was killed at 49/63 and re-run in full a
 - serial s2a (20 files): 1 skipped,29 passed (6.1m),
 - serial s2b (20 files): 33 passed (6.7m),
 - serial s3a (15 files): 26 passed (4.8m),
+- serial s3b (16 files): 26 passed (6.7m),
