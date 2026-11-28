@@ -14,5 +14,5 @@ export function useWorkOrderMaterialAlertCounts(workOrderIds: string[], enabled 
 
 /** Open alerts on the work orders the viewer controls (needs-you). */
 export function useWaitingMaterialAlerts(enabled: boolean) {
-  return useOrgQuery(['waiting-material-alerts'], () => workOrderMaterialAlertsRepository.waiting(), { enabled });
+  return useOrgQuery(['waiting-material-alerts'], () => workOrderMaterialAlertsRepository.waiting(), { enabled, startOnRender: true });
 }
