@@ -13,6 +13,7 @@ vi.mock('@/src/lib/repositories', async (importOriginal) => {
 import React from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { Role } from '@/src/auth/AuthContext';
 
 const h = vi.hoisted(() => ({
   savedChecks: vi.fn(() => ({ data: [], isPending: false, isError: false })),
@@ -45,6 +46,10 @@ vi.mock('@/pages/procurement/VendorWithholdingSlipDetails', () => ({ VendorWithh
 vi.mock('@/pages/procurement/ProcurementLedger', () => ({ ProcurementLedger: ({ invoices, onRecordWithholdingSlip, onWithholdingHistory, onSetVendor, vendorMissing, canWriteWithholdingSlip, targetInvoiceId }: { invoices: { id: string; vi_number?: string }[]; onRecordWithholdingSlip: (invoice: { id: string }) => void; onWithholdingHistory: (invoiceId: string) => void; onSetVendor?: () => void; vendorMissing: boolean; canWriteWithholdingSlip: boolean; targetInvoiceId?: string }) => <section aria-label="Bill row" data-target-invoice={targetInvoiceId}><span>{invoices[0]?.vi_number}</span>{vendorMissing && onSetVendor ? <button onClick={onSetVendor}>Set supplier</button> : canWriteWithholdingSlip ? <button onClick={() => onRecordWithholdingSlip(invoices[0])}>Record bukti potong</button> : null}<button onClick={() => onWithholdingHistory(invoices[0].id)}>Bill history</button></section> }));
 vi.mock('@/src/hooks/useFkOptions', () => ({ useVendorOptions: () => h.vendor, useProjectOptions: () => ({ data: [] }) }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'buyer', org_id: 'org-1', built_in_role: 'buyer' } }) }));
+vi.mock('@/src/auth/usePermission', async (importOriginal) => {
+  const { can } = await import('@/src/auth/policy');
+  return { ...await importOriginal<typeof import('@/src/auth/usePermission')>(), usePermission: () => (action: Parameters<typeof can>[0], entity: Parameters<typeof can>[1], ctx = {}) => can(action, entity, { realRole: h.realRole as Role, builtInRoleKey: 'buyer', ...ctx }) };
+});
 // The database gate itself (actor_may_order_purchases), as the page reads it.
 vi.mock('@/src/hooks/useOrderJobRoles', () => ({ useMayOrderPurchases: () => h.mayOrder }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: h.realRole, effectiveRole: h.effectiveRole }) }));
@@ -106,15 +111,16 @@ describe('a Buyer (job role at Engineer access level) on an approved purchase it
     await waitFor(() => expect(h.updateVendor).toHaveBeenCalledWith({ vendorId: 'vendor-new', byBuyer: true }));
   });
 
-  it('still gets the Engineer view: the manager-only ledger with its money rows is not shown', () => {
+  it('AC-VBJR-004 lets a buyer inspect a supplier bill', () => {
+    h.detail.data = { ...procurement, invoices: [{ id: 'bill-1', vi_number: 'VI-1' }] };
     renderAt('/procurement/proc-001/files');
-    expect(screen.queryByRole('region', { name: 'Bill row' })).not.toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Bill row' })).toHaveTextContent('VI-1');
   });
 
-  it('an Engineer the database does not let order purchases is refused the same record, as before', () => {
+  it('AC-VBJR-004 a buyer reads the purchase even without ordering authority', () => {
     h.mayOrder = false;
     renderAt('/procurement/proc-001/overview');
-    expect(screen.getByTestId('procurement-no-access')).toBeInTheDocument();
+    expect(screen.queryByTestId('procurement-no-access')).not.toBeInTheDocument();
     expect(screen.queryByTestId('buyer-set-supplier')).not.toBeInTheDocument();
   });
 

@@ -3,6 +3,18 @@ import { can } from './policy';
 import type { Action } from './policy';
 import type { Role } from './AuthContext';
 
+it('AC-VBJR-001 job roles read bills and matches without approval rights', () => {
+  for (const builtInRoleKey of ['equipment_officer', 'buyer']) {
+    const ctx = { realRole: 'Engineer' as const, builtInRoleKey };
+    expect(can('view', 'billMatch', ctx)).toBe(true);
+    expect(can('view', 'procurementInvoice', ctx)).toBe(true);
+    expect(can('approve', 'billMatch', ctx)).toBe(false);
+  }
+  expect(can('create', 'procurementInvoice', { realRole: 'Engineer', builtInRoleKey: 'equipment_officer' })).toBe(true);
+  expect(can('create', 'procurementInvoice', { realRole: 'Engineer', builtInRoleKey: 'buyer' })).toBe(false);
+  expect(can('create', 'procurementInvoice', { realRole: 'Engineer', builtInRoleKey: 'equipment_officer', record: { viewOnly: true } })).toBe(false);
+});
+
 const ALL_ROLES: Role[] = ['Admin', 'Executive', 'Project Manager', 'Finance', 'Engineer'];
 const STATEMENT_NON_VIEW_ACTIONS: Exclude<Action, 'view'>[] = [
   'create',

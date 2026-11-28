@@ -17,6 +17,8 @@ export interface FirstDocumentRoles {
   canReceive: boolean;
   /** May record a vendor invoice or a payment (Finance, Admin). */
   canInvoicePay: boolean;
+  /** May record a bill without recording a payment. */
+  canInvoice?: boolean;
 }
 
 /** The kinds the viewer may record first. A request is open to everyone who can raise one. */
@@ -26,7 +28,7 @@ export function recordableFirstKinds(roles: FirstDocumentRoles): RecordKind[] {
       case 'rfq':
       case 'purchase_order': return roles.canSource;
       case 'goods_receipt': return roles.canReceive;
-      case 'vendor_invoice':
+      case 'vendor_invoice': return roles.canInvoicePay || roles.canInvoice === true;
       case 'payment': return roles.canInvoicePay;
       default: return true;
     }

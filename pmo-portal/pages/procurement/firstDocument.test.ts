@@ -4,6 +4,10 @@ import { gateHold, recordableFirstKinds } from './firstDocument';
 const OFF = { request_before_order: false, approval_before_order: false, approval_before_payment: false, receipt_before_invoice: false };
 
 describe('recordableFirstKinds — filtered by who may record each', () => {
+  it('AC-VBJR-002 permits bill capture without offering payment', () => {
+    expect(recordableFirstKinds({ canSource: false, canReceive: false, canInvoicePay: false, canInvoice: true }))
+      .toEqual(['purchase_request', 'vendor_invoice']);
+  });
   it('a requester with no other role may only open with a request', () => {
     expect(recordableFirstKinds({ canSource: false, canReceive: false, canInvoicePay: false })).toEqual(['purchase_request']);
   });

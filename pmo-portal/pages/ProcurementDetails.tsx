@@ -394,7 +394,9 @@ const ProcurementDetails: React.FC = () => {
   // A person the database lets order purchases (actor_may_order_purchases, the same gate the record read uses) opens any purchase
   // of the organisation; money stays behind the access-level views below.
   const namedApprover = p.status === 'Requested' && Boolean(currentUser?.id && p.approvalRoute?.approvers.some((a) => a.id === currentUser.id));
-  const ordinaryRecordScope = namedApprover || mayOrderByRole || (role === 'Engineer'
+  const billJobScope = role === 'Engineer' && (currentUser?.built_in_role === 'buyer'
+    || (currentUser?.built_in_role === 'equipment_officer' && p.rental_from != null));
+  const ordinaryRecordScope = namedApprover || mayOrderByRole || billJobScope || (role === 'Engineer'
     ? raisedByMe
     : role === 'Project Manager'
       ? raisedByMe || Boolean(p.project_id && p.project != null && managerId === currentUser?.id)
@@ -625,10 +627,13 @@ const ProcurementDetails: React.FC = () => {
   const procTabs = procurementTabs(p, t, documentsCount, ledgerRows);
   // AC-IXD-PROC-005: a closed procurement (Paid, Cancelled, Rejected) takes no new documents — same rule as the Files-tab capture row.
   const isClosed = p.status === 'Paid' || p.status === 'Cancelled' || p.status === 'Rejected';
+  const canRecordVendorBill = may('create', 'procurementInvoice', { record: { viewOnly: effectiveRole !== realRole } })
+    && (role !== 'Engineer' || (currentUser?.built_in_role === 'equipment_officer' && p.rental_from != null));
   const recordKinds = isClosed || readOnlyDecision ? [] : recordableFirstKinds({
     canSource: canSource(role),
     canReceive: isRequester || RECEIPT_ROLES.has(role),
     canInvoicePay: INVOICE_PAY_ROLES.has(role),
+    canInvoice: canRecordVendorBill,
   });
   const recordKindLabels: Record<RecordKind, string> = {
     purchase_request: t('procurementRecord:record.purchaseRequest', 'Purchase request'),
@@ -932,7 +937,7 @@ const ProcurementDetails: React.FC = () => {
             ProcurementRecordsSection / DocRow / ProcurementDocumentsSection removed. ░░ */}
         {tab === 'files' && (
           <RecordStack>
-            {!isEngineer ? <ProcurementLedger
+            {(!isEngineer || may('view', 'procurementInvoice')) ? <ProcurementLedger
               detail={p}
               rows={ledgerRows}
               procurementId={p.id}
@@ -962,6 +967,7 @@ const ProcurementDetails: React.FC = () => {
                 canSource: canSource(role),
                 canReceive: isRequester || RECEIPT_ROLES.has(role),
                 canInvoicePay: INVOICE_PAY_ROLES.has(role),
+                canInvoice: canRecordVendorBill,
               })}
               autoOpenFirstDocument={autoOpenFirstDocument}
               onAutoOpenFirstDocumentConsumed={() => setAutoOpenFirstDocument(null)}

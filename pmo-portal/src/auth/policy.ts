@@ -1178,14 +1178,14 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
   procurementInvoice: {
     // Vendor bills and their payments: every role except Engineer (owner ruling 2026-10-23, migration 0350);
     // server RLS remains authoritative.
-    view: allow(MASTER_DATA),
+    view: (role, ctx) => has(MASTER_DATA, role) || holds(ctx, 'equipment_officer') || holds(ctx, 'buyer'),
     // DD-EFK-1: vendor e-Faktur facts use the same Admin/Finance UX gate as outgoing invoices.
     record_efaktur: allow(REVENUE_WRITE),
     // #1671: voiding a mistyped PMO-native subcontract bill is a post-capture bill write, Admin/Finance like the
     // line attribution and e-Faktur. UX only — void_subcontract_bill (0885) enforces role, author SoD and the ERP boundary.
     void: allow(REVENUE_WRITE),
     // Recording a supplier bill from the payables list: Admin or Finance, never while viewing as another role. UX only — the bill RPCs decide.
-    create: allowUnlessViewOnly(REVENUE_WRITE),
+    create: (role, ctx) => ctx.record?.viewOnly !== true && (has(REVENUE_WRITE, role) || holds(ctx, 'equipment_officer')),
   },
   erpPurchaseLink: {
     // ADR-0093: linking an ERPNext purchase document into a purchase (FR-PFE-020) — the ERP-purchase audience; an
@@ -1272,7 +1272,7 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
   workOrderList: { create: allow(ADMIN), edit: allow(ADMIN), archive: allow(ADMIN) },
   // #2622 (1018): a bill's three-way match. get_bill_match reads for Admin/Executive/PM/Finance; approve_bill_match_exception
   // is Admin/Finance, never the bill's author nor its lines' recorder (SoD in the RPC). UX ONLY.
-  billMatch: { view: allow(WORK_ORDER_MONEY), approve: allow(['Admin', 'Finance']), edit: allow(WORK_ORDER_MONEY) },
+  billMatch: { view: (role, ctx) => has(WORK_ORDER_MONEY, role) || holds(ctx, 'equipment_officer') || holds(ctx, 'buyer'), approve: allow(['Admin', 'Finance']), edit: allow(WORK_ORDER_MONEY) },
   // #2634 (1018 §8 / 1357): the organisation's match on/off and tolerances. set_three_way_match_settings is Admin only. UX ONLY.
   // `billMatch.edit` is the receipt-line and bill-line editors (record_receipt_match_lines / record_bill_match_lines).
   threeWayMatchSettings: { manage: allow(ADMIN) },
