@@ -55,3 +55,8 @@ One failure: `src/lib/agent/checkEdgeFnErrorReporting.test.ts` > "exits 1 and na
   check-typed-dals: 1 new cast(s), 0 stale exemption(s).
   ```
   Changed file responsible: `pmo-portal/src/lib/db/shellBootstrap.ts` (line 33; the `supabase.rpc('shell_bootstrap')` result is cast instead of typed from `database.types.ts`). The chain stops at the first red, so I ran every later guard in the chain on its own (check:migrations through check:layout-baseline, 24 guards): all exit 0. Guards before typed-dals (anon-definer-inventory, shadow-types) passed in the chain.
+
+## Step 6 — browser (affected-e2e vs origin/dev, --allow-broad: 480 of 545 specs; 329 chromium lane, 151 serial lane; retries 0; chunks of 40; run per lane via scripts/e2e-local.sh --project=<lane>, the command affected-e2e.mjs --run itself uses)
+| chunk | exit | secs | result |
+|---|---|---|---|
+| chromium.chunk.00 | 0 | 496 |  60 passed (8.2m), |
