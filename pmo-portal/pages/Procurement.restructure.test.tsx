@@ -82,7 +82,7 @@ function renderPage(path = '/procurement') {
   return render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })}>
       <ToastProvider>
-        <MemoryRouter initialEntries={[path]}>
+        <MemoryRouter initialEntries={[path]} useTransitions={false}>
           <RouteProbe />
           <Procurement />
         </MemoryRouter>
@@ -332,9 +332,9 @@ describe('Procurement list restructure', () => {
 
     await pickOption('Status', 'Ordered');
 
+    await waitFor(() => expect(screen.queryByText('Request row')).not.toBeInTheDocument());
     expect(screen.getByTestId('route-path')).toHaveTextContent('status=group%3AOrdered');
     expect(screen.getByText('Ordered row')).toBeInTheDocument();
-    expect(screen.queryByText('Request row')).not.toBeInTheDocument();
   });
 
   it('Grouped view shows counts for each next-step group', async () => {

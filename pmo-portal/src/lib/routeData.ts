@@ -1,11 +1,10 @@
 import { projectWorkOrdersQuery, type ProjectOrdersViewer } from './routeQueries/useWorkOrders';
 import { orgSwitchQuery } from './routeQueries/useOrgSwitch';
 import { billingReconciliationQuery, claimBillingTraceQuery } from './routeQueries/useBillingStages';
-import { workOrderStepsQuery } from './routeQueries/useBillingSteps';
 import { projectClaimsQuery } from './routeQueries/useProgressBilling';
 import { projectQuery } from './routeQueries/useProjects';
 import { workOrderEarnedBilledQuery } from './routeQueries/useEarnedBilled';
-import { costDisciplinesQuery, workOrderCostLinesQuery } from './routeQueries/useWorkOrderCosts';
+import { costDisciplinesQuery } from './routeQueries/useWorkOrderCosts';
 import { workOrderAllocationsQuery, workOrderQuery } from './routeQueries/useWorkOrderRecord';
 import { disciplineRevenueQuery } from './routeQueries/useDisciplineProfit';
 import { projectPlanVsActualQuery } from './routeQueries/useWorkOrderPlanVsActual';
@@ -26,8 +25,6 @@ export function preloadProjectOverview(client: QueryClient, orgId: string, proje
 
 export function preloadWorkOrder(client: QueryClient, orgId: string, id: string): void {
   void client.prefetchQuery(workOrderQuery(orgId, id));
-  void client.prefetchQuery(workOrderStepsQuery(orgId, id));
-  void client.prefetchQuery(workOrderCostLinesQuery(orgId, id));
   void client.prefetchQuery(workOrderAllocationsQuery(orgId, id));
 }
 

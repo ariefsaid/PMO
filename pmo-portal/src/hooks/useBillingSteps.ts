@@ -88,8 +88,8 @@ export function useOverdueClaimSteps(projectId: string) {
 
 /** A work order's billing step list (advisory), and the rights-checked writes on it. Every write refreshes the list and the waiting steps. */
 
-export function useWorkOrderSteps(workOrderId: string | undefined) {
-  return useQuery(workOrderStepsQuery(useOrgId(), workOrderId));
+export function useWorkOrderSteps(workOrderId: string | undefined, enabled = true) {
+  return useQuery(workOrderStepsQuery(useOrgId(), workOrderId, enabled));
 }
 
 /** The rows of every issued work order the viewer may see, optionally one project (the billing board). */

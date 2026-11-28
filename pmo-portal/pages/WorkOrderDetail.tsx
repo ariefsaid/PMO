@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Link, useLocation, useNavigate, useParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { ConfirmDialog, ListState, RecordHeader, RecordSection, RecordStack, SelectField, StatusPill, Tabs, tabId, tabPanelId, useToast } from '@/src/components/ui';
@@ -37,6 +38,10 @@ import { SiteReportsSection } from './work-order-detail/SiteReportsSection';
 import { MissingSection } from './work-order-detail/MissingSection';
 import { missingStepsFromSource } from '@/src/lib/workOrderMissing';
 import { useWorkOrderSteps } from '@/src/hooks/useBillingSteps';
+import { workOrderStepsQuery } from '@/src/lib/routeQueries/useBillingSteps';
+import { costDisciplinesQuery, workOrderCostLinesQuery } from '@/src/lib/routeQueries/useWorkOrderCosts';
+import { projectPlanVsActualQuery } from '@/src/lib/routeQueries/useWorkOrderPlanVsActual';
+import { workOrderBilledMonthsQuery, workOrderBillingQuery } from '@/src/lib/routeQueries/useWorkOrderBilling';
 import { useBuiltInRoleName } from '@/src/hooks/useOrgRoleNames';
 import { BillingStepsSection } from './work-order-detail/BillingStepsSection';
 import { SurveySection } from './work-order-detail/SurveySection';
@@ -86,10 +91,16 @@ const WorkOrderDetail: React.FC = () => {
   const location = useLocation();
   const may = usePermission();
   const stockOn = useFeature('stock');
+  const qc = useQueryClient();
+  // #3079: the page starts only the first tab's reads; each other tab's reads start when it is shown (or hovered/focused).
+  const hasMaterial = stockOn || may('view', 'clientRequisition');
+  const areas = AREAS.filter((key) => key !== 'material' || hasMaterial);
+  const requested = areaFromHash(location.hash);
+  const area: Area = requested && areas.includes(requested) ? requested : 'scope';
   const wo = useWorkOrder(id);
   // #2895: every read keyed by the route id starts WITH the record read, not one render round behind it.
   // Reads that genuinely need the record (the project-scoped ones below) still wait for `project_id`.
-  const woSteps = useWorkOrderSteps(id);
+  const woSteps = useWorkOrderSteps(id, area === 'checks');
   const roleName = useBuiltInRoleName();
   // A Draft is ASSIGNED to the people 1560 puts on the waiting list for the issue step — never everyone the issue gate
   // would admit. 1560 only assigns a Draft while it carries priced money with a recorded author, so the read is gated
@@ -105,7 +116,7 @@ const WorkOrderDetail: React.FC = () => {
   const issues = useWorkOrderIssues(id, issuesOn);
   const openTasks = useWorkOrderOpenTasks(id);
   const allocations = useWorkOrderAllocations(id);
-  const claimDocs = useWorkOrderClaimDocuments(id);
+  const claimDocs = useWorkOrderClaimDocuments(id, area === 'documents');
   const boq = useBoqItems(projectId);
   const bastList = useWorkOrderAcceptancesFor(projectId, id);
   const bastMutations = useWorkOrderAcceptanceMutations(projectId);
@@ -113,16 +124,16 @@ const WorkOrderDetail: React.FC = () => {
   const { toast } = useToast();
   const [confirmFor, setConfirmFor] = useState<{ acceptance: WorkOrderAcceptanceWithLines; error: string | null } | null>(null);
   const canBilling = may('view', 'salesInvoice');
-  const billing = useWorkOrderBilling(projectId, canBilling && Boolean(wo.data));
-  const billedMonths = useWorkOrderBilledMonths(id, canBilling);
-  const costLines = useWorkOrderCostLines(id ?? null);
+  const billing = useWorkOrderBilling(projectId, canBilling && Boolean(wo.data) && area === 'billing');
+  const billedMonths = useWorkOrderBilledMonths(id, canBilling && area === 'billing');
+  const costLines = useWorkOrderCostLines(id ?? null, area === 'cost');
   const flatLines = useMemo(() => Object.values(costLines.data ?? {}).flat(), [costLines.data]);
   const labels = useWorkOrderTimesheetLabels(id ?? null, flatLines);
   const links = useWorkOrderCostLinks(id ?? null, flatLines);
   const money = useWorkOrderCostMoney(id ?? null, flatLines);
-  const disciplines = useCostDisciplines();
+  const disciplines = useCostDisciplines(area === 'cost');
   const canPlanView = may('view', 'workOrderPlan');
-  const pva = useProjectPlanVsActual(projectId, canPlanView && Boolean(wo.data));
+  const pva = useProjectPlanVsActual(projectId, canPlanView && Boolean(wo.data) && area === 'cost');
   const decision = useWorkOrderDecision(wo.data ?? null);
 
   const allocationOptions = useMemo(
@@ -160,7 +171,7 @@ const WorkOrderDetail: React.FC = () => {
     () => [...acceptances.map((a) => a.document_id).filter((d): d is string => Boolean(d)), ...(claimDocs.data ?? [])],
     [acceptances, claimDocs.data],
   );
-  const docs = useWorkOrderDocuments(projectId, id, linkedDocIds, !bastList.isPending && !claimDocs.isPending);
+  const docs = useWorkOrderDocuments(projectId, id, linkedDocIds, area === 'documents' && !bastList.isPending && !claimDocs.isPending);
   const progress = useMemo(
     () => (allocations.data && boq.data ? deriveScopeProgress(allocations.data, boq.data, acceptances) : null),
     [allocations.data, boq.data, acceptances],
@@ -190,10 +201,24 @@ const WorkOrderDetail: React.FC = () => {
   }
   const billingRow = (billing.data ?? []).find((b) => b.workOrderId === row.id) ?? null;
   const issueWaitingText = operationalWaitingForText(issueWaiting.data, t, { roleLabel, empty: 'none' });
-  const hasMaterial = stockOn || may('view', 'clientRequisition');
-  const areas = AREAS.filter((key) => key !== 'material' || hasMaterial);
-  const requested = areaFromHash(location.hash);
-  const area: Area = requested && areas.includes(requested) ? requested : 'scope';
+  const orgId = currentUser?.org_id;
+  // Pointer over or focus on a tab starts that tab's reads, so opening it is instant (read from the tab's id; the Tabs component stays shared and untouched).
+  const prefetchFromTab = (e: React.SyntheticEvent) => {
+    const tab = (e.target as HTMLElement).closest?.('[role="tab"]');
+    const next = AREAS.find((key) => tab?.id === tabId('wo', key));
+    if (next) prefetchArea(next);
+  };
+  const prefetchArea = (next: Area) => {
+    if (next === area) return;
+    if (next === 'cost') {
+      void qc.prefetchQuery(workOrderCostLinesQuery(orgId, row.id));
+      void qc.prefetchQuery(costDisciplinesQuery(orgId));
+      if (canPlanView) void qc.prefetchQuery(projectPlanVsActualQuery(orgId, projectId));
+    } else if (next === 'billing' && canBilling) {
+      void qc.prefetchQuery(workOrderBillingQuery(orgId, projectId));
+      void qc.prefetchQuery(workOrderBilledMonthsQuery(orgId, row.id));
+    } else if (next === 'checks') void qc.prefetchQuery(workOrderStepsQuery(orgId, row.id));
+  };
   const setArea = (next: Area) => navigate({ hash: `wo-${next}` }, { replace: true, state: withTabSwitchNavState(location.state) });
   // What is open on it, counted where both reads have landed: the tab says how many before it is opened.
   const openCount = openTasks.data && (!issuesOn || issues.data) ? openTasks.data.length + (issuesOn ? issues.data?.length ?? 0 : 0) : null;
@@ -248,7 +273,7 @@ const WorkOrderDetail: React.FC = () => {
         </div>
         <AreaHelpButton subject={areaLabels[area]} entries={help} />
       </div>
-      <div data-testid="wo-area-tabs" className="mt-6 hidden items-center border-b border-border md:flex">
+      <div data-testid="wo-area-tabs" onPointerOver={prefetchFromTab} onFocus={prefetchFromTab} className="mt-6 hidden items-center border-b border-border md:flex">
         <div className="min-w-0 flex-1">
           <Tabs<Area> items={tabItems} value={area} onChange={setArea} ariaLabel={areasLabel} idBase="wo" insetFirstTab="panel" className="mb-0! border-b-0! pr-8" />
         </div>
