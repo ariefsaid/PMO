@@ -51,25 +51,25 @@ Full log (not committed): serial run 12.6 min; traces were in /tmp/pmo-portal-te
 
 ## Attribution runs (fresh db reset + fresh build each; only the 17 spec files; serial project)
 
-Runs: 1=dev @ 9f16436de; 2=dev+startup-single-read @ e9270800e; 3=dev+home-figures-totals @ 02fec4ee2
+Runs: 1=dev @ 9f16436de; 2=dev+startup-single-read @ e9270800e; 3=dev+home-figures-totals @ 02fec4ee2; 4=dev+work-order-page-deferred-reads @ 8671a0f36
 
-| spec | run1 | run2 | run3 |
-|---|---|---|---|
-| AC-1117-dashboard-pipeline.spec.ts | FAIL | FAIL | FAIL |
-| AC-701-dashboard-smoke.spec.ts | FAIL | FAIL | FAIL |
-| AC-CSP-016-project-performance-indices.spec.ts | pass | pass | pass |
-| AC-DNC-012-done-not-claimed-age.spec.ts | pass | pass | pass |
-| AC-IHC-011-idle-cost-switch.spec.ts | pass | pass | pass |
-| AC-NATIVE-EQU-role-job.spec.ts | pass | FAIL | pass |
-| AC-RSV-018-reservation-borrow.spec.ts | pass | pass | pass |
-| AC-TAG-002-project-classification.spec.ts | pass | pass | pass |
-| AC-TIER-014-amount-tier-approval.spec.ts | FAIL | FAIL | pass |
-| JOB-E2-monthly-plan-becomes-rental-orders.spec.ts | FAIL | pass | FAIL |
-| JOB-HPG-plan-resave-keeps-rate.spec.ts | pass | pass | pass |
-| JOB-HPG-requester-reads-no-price-any-way.spec.ts | pass | FAIL | pass |
-| JOB-M8-work-in-hand-capacity.spec.ts | pass | pass | pass |
-| JOB-PU10-senior-limit-role.spec.ts | pass | pass | pass |
-| JOB-PU15-morning-cutoff.spec.ts | pass | pass | pass |
-| JOB-PU4-quoted-buy.spec.ts | FAIL | pass | FAIL |
-| hide-prices-screens.spec.ts | pass | FAIL | pass |
-| totals | 5 failed  25 passed (5.6m) | 6 failed  24 passed (4.2m) | 4 failed  26 passed (3.3m) |
+| spec | run1 | run2 | run3 | run4 |
+|---|---|---|---|---|
+| AC-1117-dashboard-pipeline.spec.ts | FAIL | FAIL | FAIL | FAIL |
+| AC-701-dashboard-smoke.spec.ts | FAIL | FAIL | FAIL | FAIL |
+| AC-CSP-016-project-performance-indices.spec.ts | pass | pass | pass | FAIL |
+| AC-DNC-012-done-not-claimed-age.spec.ts | pass | pass | pass | pass |
+| AC-IHC-011-idle-cost-switch.spec.ts | pass | pass | pass | pass |
+| AC-NATIVE-EQU-role-job.spec.ts | pass | FAIL | pass | pass |
+| AC-RSV-018-reservation-borrow.spec.ts | pass | pass | pass | pass |
+| AC-TAG-002-project-classification.spec.ts | pass | pass | pass | pass |
+| AC-TIER-014-amount-tier-approval.spec.ts | FAIL | FAIL | pass | pass |
+| JOB-E2-monthly-plan-becomes-rental-orders.spec.ts | FAIL | pass | FAIL | FAIL |
+| JOB-HPG-plan-resave-keeps-rate.spec.ts | pass | pass | pass | pass |
+| JOB-HPG-requester-reads-no-price-any-way.spec.ts | pass | FAIL | pass | pass |
+| JOB-M8-work-in-hand-capacity.spec.ts | pass | pass | pass | pass |
+| JOB-PU10-senior-limit-role.spec.ts | pass | pass | pass | pass |
+| JOB-PU15-morning-cutoff.spec.ts | pass | pass | pass | pass |
+| JOB-PU4-quoted-buy.spec.ts | FAIL | pass | FAIL | FAIL |
+| hide-prices-screens.spec.ts | pass | FAIL | pass | pass |
+| totals | 5 failed  25 passed (5.6m) | 6 failed  24 passed (4.2m) | 4 failed  26 passed (3.3m) | 5 failed  25 passed (5.7m) |
