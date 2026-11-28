@@ -1128,6 +1128,8 @@
     "choose": "Choose a built-in role",
     "addButton": "Add",
     "save": "Save",
+    "resetDefault": "Reset to default",
+    "usingDefault": "The default is Buyer. You can change this list or reset it later.",
     "saved": "Who can order purchases saved",
     "onlyAdmin": "Only an Admin can change this.",
     "turnOn": "Turn on built-in roles in Administration > People > Built-in roles to name roles that can order."

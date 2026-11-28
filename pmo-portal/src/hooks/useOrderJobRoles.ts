@@ -22,7 +22,7 @@ export function useOrderJobRolesMutation() {
   const qc = useQueryClient();
   const orgId = useOrgId();
   return useMutation({
-    mutationFn: (keys: string[]) => repositories.procurement.setOrderJobRoles(keys),
+    mutationFn: (keys: string[] | null) => repositories.procurement.setOrderJobRoles(keys),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: [ORDER_JOB_ROLES_KEY, orgId] });
       void qc.invalidateQueries({ queryKey: [MAY_ORDER_PURCHASES_KEY, orgId] });

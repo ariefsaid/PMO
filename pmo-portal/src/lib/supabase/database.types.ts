@@ -18646,7 +18646,7 @@ export type Database = {
       purchase_order_settings: {
         Row: {
           authorised_collectors: string[]
-          order_job_roles: string[]
+          order_job_roles: string[] | null
           org_id: string
           print_enabled: boolean
           signature_blocks: string[]
@@ -18655,7 +18655,7 @@ export type Database = {
         }
         Insert: {
           authorised_collectors?: string[]
-          order_job_roles?: string[]
+          order_job_roles?: string[] | null
           org_id?: string
           print_enabled?: boolean
           signature_blocks?: string[]
@@ -18664,7 +18664,7 @@ export type Database = {
         }
         Update: {
           authorised_collectors?: string[]
-          order_job_roles?: string[]
+          order_job_roles?: string[] | null
           org_id?: string
           print_enabled?: boolean
           signature_blocks?: string[]
@@ -36159,7 +36159,7 @@ export type Database = {
         }
         Returns: string
       }
-      po_set_order_job_roles: { Args: { p_keys: string[] }; Returns: string[] }
+      po_set_order_job_roles: { Args: { p_keys: string[] | null }; Returns: string[] | null }
       po_set_print_settings: {
         Args: {
           p_authorised_collectors: string[]

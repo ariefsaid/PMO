@@ -11,17 +11,17 @@ const fail = (error: { message: string; code?: string }): never => {
 };
 
 /** The built-in role keys the organisation lets order purchases. No settings row = none. */
-export async function getOrderJobRoles(): Promise<string[]> {
+export async function getOrderJobRoles(): Promise<string[] | null> {
   const { data, error } = await supabase.from('purchase_order_settings').select('order_job_roles').limit(1);
   if (error) fail(error);
-  return data?.[0]?.order_job_roles ?? [];
+  return data?.[0]?.order_job_roles ?? null;
 }
 
 /** Admin only, built-in roles on, catalogue keys that are not field roles: refused otherwise. Returns the stored list. */
-export async function setOrderJobRoles(keys: string[]): Promise<string[]> {
+export async function setOrderJobRoles(keys: string[] | null): Promise<string[] | null> {
   const { data, error } = await supabase.rpc('po_set_order_job_roles', { p_keys: keys });
   if (error) fail(error);
-  return data ?? [];
+  return data;
 }
 
 /** Whether the signed-in person fills one of the organisation's ordering roles (the database gate itself). */

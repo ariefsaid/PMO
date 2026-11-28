@@ -95,3 +95,18 @@ it('keeps unsaved role choices when saved roles change and offers reload', async
   await userEvent.click(screen.getByRole('button', { name: 'Save' }));
   expect(h.set).toHaveBeenCalledWith(['buyer']);
 });
+
+it('an Admin resets an explicit ordering list to the Buyer default', async () => {
+  h.get.mockResolvedValue([]);
+  mount();
+  await screen.findByText(/No built-in role is named/);
+  await userEvent.click(screen.getByRole('button', { name: /Reset to default/ }));
+  await waitFor(() => expect(h.set).toHaveBeenCalledWith(null));
+});
+
+it('shows Buyer when the organisation uses the default', async () => {
+  h.get.mockResolvedValue(null);
+  mount();
+  expect(await screen.findByRole('button', { name: 'Remove Buyer' })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /Reset to default/ })).toBeDisabled();
+});

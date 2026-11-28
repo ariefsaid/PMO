@@ -1128,6 +1128,8 @@
     "choose": "Pilih peran bawaan",
     "addButton": "Tambah",
     "save": "Simpan",
+    "resetDefault": "Pulihkan bawaan",
+    "usingDefault": "Bawaannya adalah Buyer. Anda dapat mengubah daftar ini atau memulihkannya nanti.",
     "saved": "Siapa yang dapat memesan pembelian tersimpan",
     "onlyAdmin": "Hanya Admin yang dapat mengubah ini.",
     "turnOn": "Aktifkan peran bawaan di Administrasi > Orang > Peran bawaan untuk mencantumkan peran yang dapat memesan."

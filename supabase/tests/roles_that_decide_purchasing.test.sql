@@ -54,6 +54,10 @@ insert into procurement_invoices (id, org_id, procurement_id, vi_number, invoice
 insert into payments (id, org_id, procurement_id, pay_number, status, date, amount, currency) values
   ('18420000-0000-0000-0000-0000000000f1', '18420000-0000-0000-0000-00000000000a', '18420000-0000-0000-0000-0000000000c5', 'PAY-RTD-1', 'Scheduled', '2026-11-21', 1000, 'IDR');
 
+-- This test exercises an explicit empty override; the unset default is covered separately.
+insert into purchase_order_settings (org_id, order_job_roles) values ('18420000-0000-0000-0000-00000000000a', array[]::text[])
+  on conflict (org_id) do update set order_job_roles = excluded.order_job_roles;
+
 create or replace function pg_temp._as(p_uid uuid) returns void language sql as $$
   select set_config('request.jwt.claims', json_build_object('sub', p_uid, 'role', 'authenticated')::text, true);
 $$;

@@ -4,9 +4,9 @@ begin;
 create extension if not exists pgtap;
 select plan(33);
 
-insert into organizations (id, name, default_currency, default_timezone, built_in_roles_enabled) values
-  ('18100000-0000-0000-0000-0000000000a1', 'CHR Org A', 'USD', 'UTC', true),
-  ('18100000-0000-0000-0000-0000000000a2', 'CHR Org B', 'USD', 'UTC', true);
+insert into organizations (id, name, default_currency, default_timezone, built_in_roles_enabled, quantity_change_approver_roles) values
+  ('18100000-0000-0000-0000-0000000000a1', 'CHR Org A', 'USD', 'UTC', true, array[]::text[]),
+  ('18100000-0000-0000-0000-0000000000a2', 'CHR Org B', 'USD', 'UTC', true, array[]::text[]);
 insert into auth.users (id, email) values
   ('18100000-0000-0000-0000-0000000000b1', 'chr-author@example.com'),
   ('18100000-0000-0000-0000-0000000000b2', 'chr-pcm@example.com'),
@@ -48,7 +48,7 @@ create temp table ids (k text primary key, v uuid) on commit drop;
 grant all on ids to authenticated;
 
 -- ── default: today's route (AC-CHR-001) ─────────────────────────────────────────────────────────────
-select is((select quantity_change_approver_roles from organizations where id = '18100000-0000-0000-0000-0000000000a1'), '{}'::text[], 'AC-CHR-001 the reviewer list is empty by default');
+select is((select quantity_change_approver_roles from organizations where id = '18100000-0000-0000-0000-0000000000a1'), '{}'::text[], 'AC-CHR-001 the explicit reviewer list is empty');
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"18100000-0000-0000-0000-0000000000b1","role":"authenticated"}';
 insert into ids select 'r1', qcr_raise('18100000-0000-0000-0000-0000000000e1', null,
@@ -57,7 +57,7 @@ select lives_ok($$select qcr_submit((select v from ids where k = 'r1'))$$, 'the 
 set local request.jwt.claims = '{"sub":"18100000-0000-0000-0000-0000000000b2","role":"authenticated"}';
 select throws_ok($$select qcr_approve((select v from ids where k = 'r1'))$$, '42501',
   'QCR_NOT_APPROVER: your role cannot approve or return quantity change requests; ask an approver, or an Admin to add your role to the reviewer list',
-  'AC-CHR-001 with the default list the Project Control Manager cannot approve');
+  'AC-CHR-001 with the explicit empty list the Project Control Manager cannot approve');
 select is((select reason from qcr_approval_state((select v from ids where k = 'r1'))), 'role', 'AC-CHR-001 the screen is told why');
 set local request.jwt.claims = '{"sub":"18100000-0000-0000-0000-0000000000b6","role":"authenticated"}';
 select is((select eligible_approver_exists from qcr_approval_state((select v from ids where k = 'r1'))), true, 'AC-CHR-001 Finance is still an approver (today unchanged)');

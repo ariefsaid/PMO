@@ -28,12 +28,12 @@ export default function OrderJobRolesSection() {
   const roleName = useBuiltInRoleName();
   const allOptions = useJobRoleOptions(t('orderRoles.choose', 'Choose a built-in role'), ORDER_TIERS);
 
-  const remoteDraft = useRemoteStringDraft({ remote: JSON.stringify([...(query.data ?? [])].sort()), isSuccess: query.isSuccess });
+  const remoteDraft = useRemoteStringDraft({ remote: JSON.stringify(query.data == null ? null : [...query.data].sort()), isSuccess: query.isSuccess });
   const keys: string[] | null = remoteDraft.dirty ? JSON.parse(remoteDraft.draft) : null;
   const setKeys = (value: string[] | null) => { if (value === null) remoteDraft.reload(); else remoteDraft.setDraft(JSON.stringify([...value].sort())); };
   const [pick, setPick] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const current = useMemo(() => keys ?? query.data ?? [], [keys, query.data]);
+  const current = useMemo(() => keys ?? query.data ?? ['buyer'], [keys, query.data]);
   const dirty = keys !== null;
   const options = useMemo(() => allOptions.filter((o) => !current.includes(o.value)), [allOptions, current]);
   // A control that cannot be used says why: not an Admin, or built-in roles are off.
@@ -48,6 +48,14 @@ export default function OrderJobRolesSection() {
     try {
       await save.mutateAsync(current);
       remoteDraft.acceptSaved(JSON.stringify([...current].sort()));
+      toast(t('orderRoles.saved', 'Who can order purchases saved'), undefined, 'success');
+    } catch (err) { setError(refusal(err)); }
+  };
+  const onReset = async () => {
+    setError(null);
+    try {
+      await save.mutateAsync(null);
+      remoteDraft.acceptSaved('null');
       toast(t('orderRoles.saved', 'Who can order purchases saved'), undefined, 'success');
     } catch (err) { setError(refusal(err)); }
   };
@@ -66,6 +74,7 @@ export default function OrderJobRolesSection() {
         ) : (
           <>
             {remoteDraft.remoteChanged && <div role="status"><p>{t('common:uxs11.downPaymentRemoteChanged', 'The saved item changed. Your edit is kept; reload the saved value to discard it.')}</p><Button variant="outline" size="sm" onClick={remoteDraft.reload}>{t('common:uxs11.reloadSaved', 'Reload saved values')}</Button></div>}
+            {query.data === null && !dirty && <p className="text-control text-muted-foreground">{t('orderRoles.usingDefault', 'The default is Buyer. You can change this list or reset it later.')}</p>}
             {current.length === 0 ? (
               <p className="text-control text-muted-foreground">{t('orderRoles.none', 'No built-in role is named, so only the access levels above can order.')}</p>
             ) : (
@@ -100,6 +109,9 @@ export default function OrderJobRolesSection() {
               <div className="flex items-center gap-3 pt-1">
                 <Button variant="primary" onClick={() => void onSave()} loading={save.isPending} disabled={!dirty || save.isPending}>
                   {t('orderRoles.save', 'Save')}
+                </Button>
+                <Button variant="outline" onClick={() => void onReset()} disabled={save.isPending || (query.data === null && !dirty)}>
+                  {t('orderRoles.resetDefault', 'Reset to default')}
                 </Button>
               </div>
             )}
