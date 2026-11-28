@@ -79,6 +79,7 @@ Earlier probe (8 chromium specs at 4 workers): 4 failed (AC-002, AC-009, AC-1834
 |---|---|---|---|---|
 | chunk-chromium-00 | 40 | 1 failed 59 passed (7.0m) | 1 | AC-ADMIA-001-administration-navigation.spec.ts rc=0 17 passed (1.4m) |
 | chunk-chromium-01 | 40 | 4 failed 4 skipped 55 passed (7.0m) | 4 | AC-ECX-030-direct-cost-account.spec.ts rc=0 12 passed (54.1s); AC-EPR-008-erp-purchases.spec.ts rc=0 11 passed (48.1s); AC-HRE-004-hourly-rental.spec.ts rc=0 11 passed (57.1s) |
+| chunk-chromium-02 | 40 | 2 failed 6 skipped 61 passed (7.9m) | 2 | AC-NBR-020-invoice-deep-link.spec.ts rc=0 11 passed (52.3s); AC-PCH-001-purchase-payment-channel.spec.ts rc=0 11 passed (58.6s) |
 
 Real browser failures so far: none (every failure passed when re-run alone).
 
