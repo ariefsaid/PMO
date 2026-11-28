@@ -46,3 +46,4 @@ Sandbox restarted once mid-run (chunk 1 was killed at 49/63 and re-run in full a
 - chromium c70 (10 files): 20 passed (2.4m),
 - chromium c71 (10 files): 20 passed (2.2m),
 - chromium c72 (10 files): 53 passed (4.1m),
+- chromium c73 (10 files): 117 passed (9.3m),
