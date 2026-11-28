@@ -86,10 +86,12 @@ Earlier probe (8 chromium specs at 4 workers): 4 failed (AC-002, AC-009, AC-1834
 | chunk-chromium-06 | 40 | 1 failed 56 passed (8.4m) | 1 | JOB-SR-target-entry.spec.ts rc=0 12 passed (1.3m) |
 | chunk-chromium-07 | 40 | 34 failed 146 passed (17.6m) | 34 | JOB-T3-billing-step-in-needs.spec.ts rc=0 11 passed (1.1m); JOB-T9-task-groups-milestone.spec.ts rc=0 11 passed (1.1m); administration.layout.spec.ts rc=0 15 passed (1.8m); meeting-detail.layout.spec.ts rc=0 17 passed (1.8m); project-detail.layout.spec.ts rc=0 72 passed (10.0m); figure-layout.ts rc=1  |
 | chunk-chromium-08 | 9 | 1 failed 41 passed (3.6m) | 1 | notice-never-blocks-the-control.spec.ts rc=0 16 passed (1.8m) |
-| chunk-serial-00 | 40 | 3 failed 16 skipped 48 passed (10.3m) | 3 | AC-IXD-PROC-W5-3-approvals-inbox.spec.ts rc=1 1 failed 14 passed (1.5m); AC-AUTH-005.spec.ts rc=0 (Mailpit started) 11 passed (56.8s); AC-AUTHF-005-password-reset.spec.ts rc=0 (Mailpit started) 11 passed (1.0m) |
+| chunk-serial-00 | 40 | 3 failed 16 skipped 48 passed (10.3m) | 3 | AC-IXD-PROC-W5-3-approvals-inbox.spec.ts rc=1 first, then rc=0 later 1 failed 14 passed (1.5m); AC-AUTH-005.spec.ts rc=0 (Mailpit started) 11 passed (56.8s); AC-AUTHF-005-password-reset.spec.ts rc=0 (Mailpit started) 11 passed (1.0m) |
 | chunk-serial-01 | 40 | 8 skipped 61 passed (12.9m) | 0 | - |
 | chunk-serial-02 | 40 | 1 failed 1 skipped 51 passed (13.4m) | 1 | JOB-BQ9-buyer-inspection-handoff.spec.ts rc=0 11 passed (1.2m) |
 Note: an entry for e2e/support/figure-layout.ts in a chunk (chunk-chromium-07) is a parser artifact (a helper file in a stack trace, not a spec); the layout specs that use it all passed alone. The 28 project-detail.layout failures in that chunk came from one spec file that took 10.0m alone (72 passed), so they are load/timeout-sensitive.
+
+Browser run finished.
 
 ### Real browser failures (still failing when re-run alone)
 
@@ -110,22 +112,4 @@ Error: S21_HANDLER_SERVER_EXITED_EARLY
         at ChildProcess.<anonymous> (/home/user/PMO/pmo-portal/e2e/support/AC-S21-005-runtime.mjs:99:40)
 
     Error Context: ../../../../tmp/claude-0/-home-user-PMO/a160afea-aa91-52d7-83a5-3494273ab535/scratchpad/e2e/out-chunk-chromium-03-rerun/AC-S21-005-task-list-revie-de223--and-reads-back-the-binding-chromium/error-context.md
-```
-- e2e/serial/AC-IXD-PROC-W5-3-approvals-inbox.spec.ts (chunk-serial-00)
-```
-Error: expect(locator).toBeVisible() failed
-
-    Locator: getByText(/you don.t have access to approvals/i)
-    Expected: visible
-    Timeout: 15000ms
-    Error: element(s) not found
-
-    Call log:
-      - Expect "toBeVisible" with timeout 15000ms
-      - waiting for getByText(/you don.t have access to approvals/i)
-
-
-      516 |     // Goal: the AccessDenied surface is shown (not just an empty inbox).
-      517 |     // Approvals.tsx renders AccessDenied with a "Back" / navigation affordance.
-    > 518 |     await expect(page.getByText(/you don.t have access to approvals/i)).toBeVisible({ timeout: 15_000 });
 ```
