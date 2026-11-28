@@ -13,8 +13,9 @@ against one.
   Manager or Finance — never the claimant, and never the custodian of a site cash the claim is
   charged to.
 - **Pay an approved claim:** Finance or Admin, never the claimant and never the person who approved
-  it. A claim charged to site cash is paid by that site cash's custodian, so a custodian's own claim
-  is not paid from the site cash.
+  it. A claim charged to site cash is paid only by that site cash's custodian. A custodian cannot
+  charge their own claim to their own site cash, so the custodian's own claims are ordinary claims paid
+  by Finance or Admin.
 
 ## Where to find it
 
@@ -33,8 +34,8 @@ against one.
    - **Receipts** — the attached photos or files. Open any you want to check.
    - **Out of plan** — shown when the claim is above the site cash plan; a senior approver decides
      it.
-3. Note the status line: *With you since ⟨date⟩ · lines locked*. The claimant cannot change the
-   lines while you decide.
+3. Note the status line: *With ⟨approver name⟩ since ⟨date⟩ · lines locked*. The claimant cannot
+   change the lines while you decide.
 4. Choose **Approve** and confirm **Approve ⟨number⟩ for ⟨amount⟩?**, with an optional **Note to the
    claimant**; or choose **Reject**, give the reason, and confirm.
 
@@ -50,15 +51,14 @@ against one.
 
 ## What the result looks like
 
-- **Approved**: the claim waits for payment, and the claimant sees the approval with your note.
-- **Rejected**: the claim is **Returned** to the claimant with your reason; they can correct it and
+- **Approve**: the claim waits for payment.
+- **Reject**: the claim is **Returned** to the claimant with your reason; they can correct it and
   choose **Edit and resubmit**.
 - **Paid**: the claim reads *Paid ⟨date⟩*, and its figures show **Amount**, plus **Advance applied**
   and **Cash paid** when an advance was settled, and the payment reference.
-- The claim leaves **Expense claims awaiting you** once decided, and leaves the open lists once
-  paid.
-- A claim charged to site cash marks its receipt as *Paid, waiting for top-up*, so the custodian can
-  ask for the cash back. See [Top up site cash and see balances](top-up-site-cash-and-see-balances.md).
+- The claim leaves **Expense claims awaiting you** once decided.
+- On the site cash's page, **Receipts** lists the claims charged to it. A paid one reads *Paid,
+  waiting for top-up*, then *Paid, in a top-up request*, then *Paid, topped up*. See [Top up site cash and see balances](top-up-site-cash-and-see-balances.md).
 
 ## Common errors and what to do
 
@@ -66,15 +66,10 @@ against one.
   you are the custodian of the site cash it is charged to. The page names who it waits for.
 - **You cannot pay it** — the payer must be Finance or Admin, must not be the claimant, and must not
   be the person who approved it. Ask another Finance user.
-- **"Add a line first"** — the claim has no lines, so it could not be sent. Ask the claimant to add
-  one.
 - **The claim is marked Out of plan** — it is above the approved site cash plan for the month. A
   senior approver decides it; the page names who.
-- **The approval is refused with a message about who decides** — the claim was routed by its
-  project, category and amount. The message names the approvers; an Admin can decide it when nobody
-  else can.
-- **Paid twice by mistake** — the second payment replaces nothing; ask an Admin straight away. The
-  claim keeps one payment record and its history shows every change.
+- **The claim waits for someone else** — claims are routed by project, category and amount. The page
+  names who it is waiting for, and an Admin decides when no named approver can act.
 
 ---
 
@@ -94,8 +89,9 @@ dulu bila klaimnya memakai uang muka.
 - **Menyetujui atau mengembalikan klaim:** penyetuju yang dituju klaim — Admin, Eksekutif, Manajer
   Proyek, atau Keuangan — bukan pengaju, dan bukan pemegang kas lapangan yang dibebani klaim itu.
 - **Membayar klaim yang disetujui:** Keuangan atau Admin, bukan pengaju dan bukan orang yang
-  menyetujuinya. Klaim yang dibebankan ke kas lapangan dibayar oleh pemegang kas lapangan itu,
-  sehingga klaim milik pemegang kas sendiri tidak dibayar dari kas lapangan.
+  menyetujuinya. Klaim yang dibebankan ke kas lapangan hanya dibayar oleh pemegang kas lapangan itu. Pemegang kas
+  tidak dapat membebankan klaimnya sendiri ke kas lapangannya sendiri, jadi klaim pemegang kas adalah
+  klaim biasa yang dibayar Keuangan atau Admin.
 
 ## Di mana menemukannya
 
@@ -114,7 +110,7 @@ dulu bila klaimnya memakai uang muka.
    - **Bukti** — foto atau berkas terlampir. Buka yang ingin Anda periksa.
    - **Di luar rencana** — tampil bila klaim di atas rencana kas lapangan; penyetuju senior yang
      memutuskannya.
-3. Perhatikan baris status: *Menunggu Anda sejak ⟨tanggal⟩ · rincian terkunci*. Pengaju tidak dapat
+3. Perhatikan baris status: *Menunggu ⟨nama penyetuju⟩ sejak ⟨tanggal⟩ · rincian terkunci*. Pengaju tidak dapat
    mengubah rinciannya selama Anda memutuskan.
 4. Pilih **Setujui** dan konfirmasi **Setujui ⟨nomor⟩ sebesar ⟨jumlah⟩?**, dengan **Catatan untuk
    pengaju** bila perlu; atau pilih **Tolak**, berikan alasannya, lalu konfirmasi.
@@ -131,16 +127,16 @@ dulu bila klaimnya memakai uang muka.
 
 ## Hasilnya seperti apa
 
-- **Disetujui**: klaim menunggu pembayaran, dan pengaju melihat persetujuan beserta catatan Anda.
-- **Ditolak**: klaim menjadi **Dikembalikan** kepada pengaju dengan alasan Anda; ia dapat
+- **Setujui**: klaim menunggu pembayaran.
+- **Tolak**: klaim menjadi **Dikembalikan** kepada pengaju dengan alasan Anda; ia dapat
   memperbaikinya dan memilih **Ubah dan ajukan ulang**.
 - **Dibayar**: klaim menampilkan *Dibayar ⟨tanggal⟩*, dan angkanya menunjukkan **Jumlah**, ditambah
   **Uang muka dipakai** dan **Kas dibayar** bila uang muka diselesaikan, serta referensi
   pembayaran.
-- Klaim keluar dari **Klaim biaya menunggu Anda** setelah diputuskan, dan keluar dari daftar terbuka
-  setelah dibayar.
-- Klaim yang dibebankan ke kas lapangan menandai buktinya sebagai *Dibayar, menunggu tambahan dana*,
-  sehingga pemegang kas dapat meminta uangnya kembali. Lihat
+- Klaim keluar dari **Klaim biaya menunggu Anda** setelah diputuskan.
+- Di halaman kas lapangan, **Bukti** memuat klaim yang dibebankan ke sana. Klaim yang sudah dibayar
+  tertulis *Dibayar, menunggu tambahan dana*, lalu *Dibayar, dalam permintaan tambahan dana*, lalu
+  *Dibayar, sudah diganti*. Lihat
   [Tambah dana kas lapangan dan lihat posisinya](top-up-site-cash-and-see-balances.md).
 
 ## Kesalahan umum dan cara mengatasinya
@@ -149,12 +145,9 @@ dulu bila klaimnya memakai uang muka.
   Anda pemegang kas lapangan yang dibebaninya. Halaman menyebut siapa yang ditunggu.
 - **Anda tidak dapat membayarnya** — pembayar harus Keuangan atau Admin, bukan pengaju, dan bukan
   orang yang menyetujuinya. Minta pengguna Keuangan lain.
-- **"Tambahkan rincian dulu"** — klaim belum punya rincian, jadi tidak dapat dikirim. Minta pengaju
-  menambahkannya.
 - **Klaim ditandai Di luar rencana** — klaim di atas rencana kas lapangan bulan itu yang sudah
   disetujui. Penyetuju senior yang memutuskannya; halaman menyebut siapa.
-- **Persetujuan ditolak dengan pesan tentang siapa yang memutuskan** — klaim ditujukan berdasarkan
-  proyek, kategori, dan jumlahnya. Pesannya menyebut para penyetuju; Admin dapat memutuskannya bila
-  tidak ada yang lain bisa.
-- **Terlanjur dibayar dua kali** — pembayaran kedua tidak menggantikan apa pun; segera hubungi
-  Admin. Klaim menyimpan satu catatan pembayaran dan riwayatnya menunjukkan setiap perubahan.
+- **Klaim menunggu orang lain** — klaim ditujukan berdasarkan proyek, kategori, dan jumlahnya.
+  Halaman menyebut siapa yang ditunggu, dan Admin memutuskannya bila tidak ada penyetuju bernama yang
+  dapat bertindak.
+

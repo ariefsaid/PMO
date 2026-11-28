@@ -6,15 +6,18 @@ A purchase type is a label you put on a request — goods, service, rental, or w
 organisation calls its purchases. Types are your own list, and a type marked as having a rental
 period lets you record the rental dates and extend the rental later with a new order.
 
-Purchase types are on for every organisation. With no type chosen, a request behaves exactly as
-before.
+Purchase types are on by default. An Admin can switch them off with the **Purchasing extras** module
+(**Administration → Modules**), which also covers line planning, payment channels, printable purchase
+orders and delivery notes. While that module is off, the type field and the list of types are hidden.
+The type field also shows only once at least one type is active. With no type chosen, a request
+behaves exactly as before.
 
 ## Who can do this
 
 - **Add, rename, retire and restore types:** Admin only.
-- **See the list:** every role; the page is read-only for everyone else.
+- **Other roles:** the page is read-only.
 - **Choose a type on a request:** whoever raises the request. Extending a rental is available to the
-  people who can create purchases.
+  people who can create purchases, on a rental purchase that is not cancelled or returned.
 
 ## Where to find it
 
@@ -28,7 +31,7 @@ before.
 1. Open **Administration → All settings → Purchase types**.
 2. Read **Types**. Each row shows its **Name (English)**, its **Name in Bahasa Indonesia**, whether
    **This type has a rental period**, and its actions.
-3. To add one, use **Add type** at the foot of the list: fill both names, tick **This type has a
+3. To add one, use **Add type** at the foot of the list: fill the **Name (English)** (the **Name in Bahasa Indonesia** is optional), tick **This type has a
    rental period** when it is a rental, and choose **Add type**.
 4. To rename one, change its name and choose **Save**. The English name is what appears in the
    English app; the Bahasa name is used in the Bahasa app when it is filled.
@@ -37,7 +40,7 @@ before.
 
 ### Use a type on a request
 
-1. On **New procurement**, after choosing the project, find **Purchase type**.
+1. On **New procurement**, find **Purchase type**.
 2. Choose the type, or leave **No type**. For a type with a rental period, fill **Rental from** and
    **Rental to**; both are required.
 3. Save the request as usual and send it for approval. See
@@ -73,8 +76,8 @@ before.
 - **"The new period must start after ⟨date⟩."** — an extension begins after the rental it extends
   ends; pick a later start.
 - **"Enter a quantity and a rate of 0 or more."** — on an extension line, fill both figures.
-- **The type you need is not in the picker** — it may be retired, or the page may still be loading.
-  Ask an Admin to restore it.
+- **The type you need is not in the picker** — it may be retired, or the page may still be loading,
+  or the Purchasing extras module is off. Ask an Admin to restore it or switch the module on.
 
 ---
 
@@ -89,15 +92,19 @@ apa pun sebutan organisasi Anda untuk pembeliannya. Jenis adalah daftar milik An
 jenis yang ditandai memiliki masa sewa memungkinkan Anda mencatat tanggal sewa dan memperpanjangnya
 nanti dengan pesanan baru.
 
-Jenis pembelian aktif untuk setiap organisasi. Tanpa memilih jenis, permintaan berjalan persis
-seperti sebelumnya.
+Jenis pembelian aktif secara bawaan. Admin dapat mematikannya lewat modul **Tambahan pembelian**
+(**Administrasi → Modul**), yang juga mencakup perencanaan baris, saluran pembayaran, pesanan pembelian
+yang bisa dicetak, dan surat jalan. Selama modul itu mati, kolom jenis dan daftar jenis tersembunyi.
+Kolom jenis juga baru muncul bila ada setidaknya satu jenis yang aktif. Tanpa memilih jenis,
+permintaan berjalan persis seperti sebelumnya.
 
 ## Siapa yang dapat melakukannya
 
 - **Menambah, mengganti nama, menonaktifkan, dan mengaktifkan lagi jenis:** hanya Admin.
-- **Melihat daftarnya:** semua peran; halamannya hanya untuk dibaca bagi peran lain.
+- **Peran lain:** halamannya hanya untuk dibaca.
 - **Memilih jenis pada permintaan:** siapa pun yang mengajukan permintaan. Memperpanjang sewa
-  tersedia bagi orang yang dapat membuat pembelian.
+  tersedia bagi orang yang dapat membuat pembelian, pada pembelian sewa yang tidak dibatalkan atau
+  dikembalikan.
 
 ## Di mana menemukannya
 
@@ -111,8 +118,8 @@ seperti sebelumnya.
 1. Buka **Administrasi → Semua pengaturan → Jenis pembelian**.
 2. Baca **Jenis**. Setiap baris menampilkan **Nama (English)**, **Nama dalam Bahasa Indonesia**,
    apakah **Jenis ini memiliki masa sewa**, dan aksinya.
-3. Untuk menambah, gunakan **Tambah jenis** di bawah daftar: isi kedua nama, centang **Jenis ini
-   memiliki masa sewa** bila jenisnya sewa, lalu pilih **Tambah jenis**.
+3. Untuk menambah, gunakan **Tambah jenis** di bawah daftar: isi **Nama (English)** (**Nama dalam Bahasa Indonesia** opsional), centang **Jenis ini memiliki masa
+   sewa** bila jenisnya sewa, lalu pilih **Tambah jenis**.
 4. Untuk mengganti nama, ubah namanya dan pilih **Simpan**. Nama Inggris yang muncul di aplikasi
    Inggris; nama Bahasa dipakai di aplikasi Bahasa bila diisi.
 5. Untuk berhenti menawarkan suatu jenis, pilih **Nonaktifkan**. Jenis tampil sebagai **Nonaktif**
@@ -121,7 +128,7 @@ seperti sebelumnya.
 
 ### Memakai jenis pada permintaan
 
-1. Di **Pengadaan baru**, setelah memilih proyek, cari **Jenis pembelian**.
+1. Di **Pengadaan baru**, cari **Jenis pembelian**.
 2. Pilih jenisnya, atau biarkan **Tanpa jenis**. Untuk jenis dengan masa sewa, isi **Sewa dari** dan
    **Sewa sampai**; keduanya wajib.
 3. Simpan permintaan seperti biasa dan ajukan untuk persetujuan. Lihat
@@ -157,5 +164,5 @@ seperti sebelumnya.
 - **"Masa baru harus dimulai setelah ⟨tanggal⟩."** — perpanjangan dimulai setelah sewa yang
   diperpanjang berakhir; pilih tanggal mulai yang lebih lambat.
 - **"Isi jumlah dan tarif 0 atau lebih."** — pada baris perpanjangan, isi kedua angkanya.
-- **Jenis yang Anda butuhkan tidak ada di pilihan** — mungkin sudah dinonaktifkan, atau halamannya
-  masih dimuat. Minta Admin mengaktifkannya lagi.
+- **Jenis yang Anda butuhkan tidak ada di pilihan** — mungkin sudah dinonaktifkan, halamannya masih
+  dimuat, atau modul Tambahan pembelian mati. Minta Admin mengaktifkannya lagi atau menyalakan modulnya.

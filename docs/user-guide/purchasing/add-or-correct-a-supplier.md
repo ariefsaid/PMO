@@ -15,9 +15,10 @@ right tax treatment pre-filled on every bill — so nobody retypes it, and tax i
 ## Where to find it
 
 - **Companies** in the menu (in the **Sales** section), then choose **Supplier** in the type
-  filter; the page title becomes **Suppliers**.
-- Open a supplier row to see its page, with **Edit** at the top and **Supplier tax defaults** just
-  below the header.
+  filter; the page title becomes **Suppliers**. Where your organisation has the sales side switched
+  off, **Suppliers** is in the **Delivery** section instead, for Project Managers, Finance and Admin.
+- Open a supplier row to see its page, with **Edit** at the top and **Supplier tax defaults** below
+  the header. **Archive** is in the menu on the page header.
 
 ## Steps
 
@@ -38,9 +39,8 @@ right tax treatment pre-filled on every bill — so nobody retypes it, and tax i
 ### Correct a supplier
 
 1. Open the supplier from **Companies**.
-2. Choose **Edit**, change what is wrong, and choose **Save company**. Changing the tax number
-   re-checks it before saving.
-3. To stop using a supplier without losing its history, choose **Archive** on its page and confirm
+2. Choose **Edit**, change what is wrong, and choose **Save company**. 
+3. To stop using a supplier without losing its history, choose **Archive** from the menu on its page and confirm
    with **Archive company**. It leaves the pickers and cannot be chosen on new records, and the
    orders and invoices that name it keep it. The confirmation says it can be restored any time.
 
@@ -71,11 +71,12 @@ right tax treatment pre-filled on every bill — so nobody retypes it, and tax i
   leave it empty.
 - **"Enter a rate from 0 to 100…"** on the VAT rate — use a rate between 0 and 100 with at most
   three decimals, or leave it blank.
-- **"Required when withholding is selected"** on the PPh rate — choose **None** as the withholding,
-  or type the rate.
-- **The supplier cannot be deleted** — projects, orders or bills already name it. Archive it
-  instead; the button offers **Archive instead**.
-- **"Only Admin or Finance can change it."** on the tax defaults — ask an Admin or Finance to set
+- **Required when withholding is selected** (under **PPh rate (%)**) — choose **None** as the
+  withholding, or type the rate.
+- **"…is referenced by other records and can't be deleted."** — projects, orders or bills already
+  name the supplier. Choose **Archive instead**. Delete is in the row menu of the **Companies** list
+  and is offered to Admin only.
+- **"Only Admin or Finance can change these."** on the tax defaults — ask an Admin or Finance to set
   them.
 
 ---
@@ -101,9 +102,10 @@ yang mengetik ulang, dan pajak tidak hilang.
 ## Di mana menemukannya
 
 - **Perusahaan** di menu (bagian **Penjualan**), lalu pilih **Supplier** pada filter tipe; judul
-  halaman menjadi **Supplier**.
+  halaman menjadi **Supplier**. Bila organisasi Anda mematikan sisi penjualan, **Supplier** ada di bagian
+  **Pelaksanaan**, untuk Manajer Proyek, Keuangan, dan Admin.
 - Buka baris supplier untuk melihat halamannya, dengan **Ubah** di atas dan **Default pajak
-  supplier** tepat di bawah kepala halaman.
+  supplier** di bawah kepala halaman. **Arsipkan** ada di menu pada kepala halaman.
 
 ## Langkah-langkah
 
@@ -124,9 +126,8 @@ yang mengetik ulang, dan pajak tidak hilang.
 ### Memperbaiki supplier
 
 1. Buka supplier dari **Perusahaan**.
-2. Pilih **Ubah**, perbaiki yang salah, lalu pilih **Simpan perusahaan**. Mengubah nomor pajak
-   memeriksanya kembali sebelum disimpan.
-3. Untuk berhenti memakai supplier tanpa kehilangan riwayatnya, pilih **Arsipkan** di halamannya
+2. Pilih **Ubah**, perbaiki yang salah, lalu pilih **Simpan perusahaan**.
+3. Untuk berhenti memakai supplier tanpa kehilangan riwayatnya, pilih **Arsipkan** dari menu di halamannya
    dan konfirmasi dengan **Arsipkan perusahaan**. Supplier keluar dari pilihan dan tidak dapat
    dipilih pada data baru, sedangkan pesanan serta tagihan yang menyebutnya tetap menyimpannya.
    Konfirmasinya menyebutkan bahwa data dapat dipulihkan kapan saja.
@@ -159,9 +160,10 @@ yang mengetik ulang, dan pajak tidak hilang.
   30, atau kosongkan.
 - **"Masukkan tarif 0 sampai 100…"** pada tarif PPN — gunakan tarif antara 0 dan 100 dengan paling
   banyak tiga angka desimal, atau kosongkan.
-- **"Wajib jika pemotongan pajak dipilih"** pada tarif PPh — pilih **Tidak ada** sebagai
+- **Wajib jika pemotongan pajak dipilih** (di bawah **Tarif PPh (%)**) — pilih **Tidak ada** sebagai
   pemotongan, atau isi tarifnya.
-- **Supplier tidak dapat dihapus** — proyek, pesanan, atau tagihan sudah menyebutnya. Arsipkan saja;
-  tombolnya menawarkan **Arsipkan saja**.
+- **"…is referenced by other records and can't be deleted."** (pesan ini tampil dalam bahasa Inggris) — proyek, pesanan, atau tagihan sudah
+  menyebut supplier. Pilih **Arsipkan saja**. Hapus ada di menu baris daftar **Perusahaan** dan hanya
+  ditawarkan kepada Admin.
 - **"Hanya Admin atau Finance yang dapat mengubahnya."** pada default pajak — minta Admin atau
   Keuangan mengaturnya.

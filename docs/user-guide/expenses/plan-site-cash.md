@@ -10,7 +10,8 @@ it is flagged as out of plan, and the custodian can ask for the cash to be toppe
 ## Who can do this
 
 - **Set up site cash and name its custodian:** Admin or Finance.
-- **Write and submit the monthly plan:** the custodian.
+- **Write and submit the monthly plan:** an Admin, Executive, Project Manager or Finance user —
+  normally the custodian. Whoever starts the plan is its author.
 - **Approve or reject the plan:** Admin, Executive, Project Manager or Finance — never the plan's
   author and never the custodian.
 - **Propose a new limit:** Admin or Finance. The limit is approved by a senior approver who is
@@ -32,7 +33,7 @@ it is flagged as out of plan, and the custodian can ask for the cash to be toppe
 4. If the app says the organisation has no site cash limit yet, an Admin sets that first in
    **Administration**, **Accounting**, **Purchase rules**.
 
-### Write the month's plan (custodian)
+### Write the month's plan (the custodian, or another Admin, Executive, Project Manager or Finance user)
 
 1. Open the project's site cash. In **Plans**, choose the **Month** — **This month** or
    **Next month** — and choose **New plan**.
@@ -48,7 +49,7 @@ it is flagged as out of plan, and the custodian can ask for the cash to be toppe
    site cash waiting for you also appears in **Approvals**.
 2. Choose **Approve**, and confirm **Approve the ⟨month⟩ plan?** — or choose **Reject**, write a
    **Note to the author**, and confirm.
-3. The custodian sees the result; a rejected plan can be corrected and submitted again.
+3. A rejected plan shows your note; its author can correct it and submit it again.
 
 ### Change the limit
 
@@ -59,8 +60,9 @@ it is flagged as out of plan, and the custodian can ask for the cash to be toppe
 
 ## What the result looks like
 
-- A plan runs **Draft** → **Submitted** → **Approved**. **Rejected** and **Cancelled** are endings;
-  a rejected plan can be reopened and resubmitted.
+- A plan runs **Draft** → **Submitted** → **Approved**. A **Rejected** plan can be reopened with
+  **Edit and resubmit**; a **Cancelled** plan is finished. The author, Finance or an Admin can cancel a
+  plan that is not yet approved.
 - This month's plan table shows, per category, **Planned**, **Drawn**, **Remaining** and any
   **Exceptions** — claims or expenses that went above the plan, each linked to its record.
 - A plan approved after the month began is marked **Approved after the month began**.
@@ -73,7 +75,7 @@ it is flagged as out of plan, and the custodian can ask for the cash to be toppe
 - **"Site cash cannot be set up yet: the organisation has no site cash limit."** — an Admin sets the
   limit in **Administration**, **Accounting**, **Purchase rules**, then set up the site cash again.
 - **No eligible custodians** — add a Finance user, or give the project a manager.
-- **"No plans yet. The custodian drafts one per month."** — the custodian creates the first plan.
+- **"No plans yet. The custodian drafts one per month."** — create the first plan with **New plan**.
 - **"No approved plan this month. Spend is out of plan until one is approved."** — claims charged to
   site cash this month are out of plan until the plan is approved.
 - **You cannot approve a plan** — you wrote it, you are its custodian, or your role does not approve
@@ -100,7 +102,8 @@ dapat meminta kas ditambah.
 ## Siapa yang dapat melakukannya
 
 - **Menetapkan kas lapangan dan menunjuk pemegang kasnya:** Admin atau Keuangan.
-- **Menulis dan mengajukan rencana bulanan:** pemegang kas.
+- **Menulis dan mengajukan rencana bulanan:** Admin, Eksekutif, Manajer Proyek, atau Keuangan —
+  biasanya pemegang kas. Siapa pun yang memulai rencana adalah penyusunnya.
 - **Menyetujui atau menolak rencana:** Admin, Eksekutif, Manajer Proyek, atau Keuangan — bukan
   penyusun rencana dan bukan pemegang kas.
 - **Mengusulkan batas baru:** Admin atau Keuangan. Batasnya disetujui penyetuju senior yang bukan
@@ -122,7 +125,7 @@ dapat meminta kas ditambah.
 4. Bila aplikasi menyebut organisasi belum punya batas kas lapangan, Admin mengaturnya lebih dulu
    di **Administrasi**, **Akuntansi**, **Aturan pembelian**.
 
-### Menyusun rencana bulan itu (pemegang kas)
+### Menyusun rencana bulan itu (pemegang kas, atau Admin, Eksekutif, Manajer Proyek, atau Keuangan lain)
 
 1. Buka kas lapangan proyek. Di **Rencana**, pilih **Bulan** — **Bulan ini** atau **Bulan depan** —
    lalu pilih **Rencana baru**.
@@ -139,7 +142,7 @@ dapat meminta kas ditambah.
    **Rencana**; kas lapangan yang menunggu Anda juga muncul di **Persetujuan**.
 2. Pilih **Setujui**, lalu konfirmasi **Setujui rencana ⟨bulan⟩?** — atau pilih **Tolak**, tulis
    **Catatan untuk penyusun**, lalu konfirmasi.
-3. Pemegang kas melihat hasilnya; rencana yang ditolak dapat diperbaiki dan diajukan lagi.
+3. Rencana yang ditolak menampilkan catatan Anda; penyusunnya dapat memperbaiki dan mengajukannya lagi.
 
 ### Mengubah batas kas
 
@@ -150,8 +153,9 @@ dapat meminta kas ditambah.
 
 ## Hasilnya seperti apa
 
-- Rencana berjalan **Draf** → **Diajukan** → **Disetujui**. **Ditolak** dan **Dibatalkan** adalah
-  akhir; rencana yang ditolak dapat dibuka lagi dan diajukan ulang.
+- Rencana berjalan **Draf** → **Diajukan** → **Disetujui**. Rencana **Ditolak** dapat dibuka lagi
+  dengan **Ubah dan ajukan ulang**; rencana **Dibatalkan** sudah selesai. Penyusun, Keuangan, atau
+  Admin dapat membatalkan rencana yang belum disetujui.
 - Tabel rencana bulan ini menampilkan, per kategori, **Direncanakan**, **Terpakai**, **Sisa**, dan
   **Pengecualian** — klaim atau pengeluaran yang melebihi rencana, masing-masing tertaut ke
   catatannya.
@@ -167,8 +171,7 @@ dapat meminta kas ditambah.
   lapangannya lagi.
 - **Tidak ada pemegang kas yang memenuhi syarat** — tambahkan pengguna Keuangan, atau tetapkan
   manajer proyeknya.
-- **"Belum ada rencana. Pemegang kas menyusun satu per bulan."** — pemegang kas membuat rencana
-  pertama.
+- **"Belum ada rencana. Pemegang kas menyusun satu per bulan."** — buat rencana pertama dengan **Rencana baru**.
 - **"Belum ada rencana yang disetujui bulan ini. Pengeluaran di luar rencana sampai ada yang
   disetujui."** — klaim yang dibebankan ke kas lapangan bulan ini di luar rencana sampai rencananya
   disetujui.

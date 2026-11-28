@@ -78,9 +78,9 @@ their cash.
 - **"Not funded yet"** — no money has been put into this site cash. Ask for funding.
 - **A figure shows a dash** — the position could not be read at that moment. Reload the page; no
   figure is shown rather than a wrong zero.
-- **"ERP posting failed" or "Posting to ERP"** — the movement is recorded in PMO and the accounting
-  system did not take it. An Admin checks the posting and the cash account; the site cash figures
-  still read from PMO's own records.
+- **"Posting to ERP", "ERP posting failed" or "ERP posting unconfirmed"** — the movement is recorded
+  in PMO; these notes say whether the accounting system has taken it yet. If it fails or stays
+  unconfirmed, tell an Admin.
 - **"Site cash not found"** — it does not exist, or it is outside your access. Open it from the
   **Site cash** list.
 
@@ -174,8 +174,8 @@ masih menunggu uangnya.
 - **"Belum didanai"** — belum ada uang yang dimasukkan ke kas lapangan ini. Minta pendanaan.
 - **Sebuah angka menampilkan tanda pisah** — posisinya tidak dapat dibaca saat itu. Muat ulang
   halaman; angka tidak ditampilkan daripada menampilkan nol yang salah.
-- **"Posting ERP gagal" atau "Sedang diposting ke ERP"** — pergerakannya tercatat di PMO dan sistem
-  akuntansi belum menerimanya. Admin memeriksa posting dan akun kasnya; angka kas lapangan tetap
-  dibaca dari catatan PMO sendiri.
+- **"Sedang diposting ke ERP", "Posting ERP gagal" atau "Posting ERP belum terkonfirmasi"** —
+  pergerakannya tercatat di PMO; catatan ini menunjukkan apakah sistem akuntansi sudah menerimanya.
+  Bila gagal atau tetap belum terkonfirmasi, beri tahu Admin.
 - **"Kas lapangan tidak ditemukan"** — tidak ada, atau di luar akses Anda. Buka dari daftar
   **Kas lapangan**.

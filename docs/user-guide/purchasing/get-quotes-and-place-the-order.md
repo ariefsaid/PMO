@@ -20,8 +20,8 @@ comparison and the chosen one together on the purchase.
 ## Where to find it
 
 - **Procurement** in the menu (in the **Delivery** section), then open the approved purchase.
-- On the purchase: the one filled button at the top is the current step, and the **More**
-  (⋯) menu holds the other steps. The **Quotations** tab holds the quote list and the comparison.
+- On the purchase: the one filled button at the top is the current step, and the ⋯ menu
+  (**More procurement actions**) holds the other steps. The **Quotations** tab holds the quote list and the comparison.
 
 ## Steps
 
@@ -32,7 +32,7 @@ comparison and the chosen one together on the purchase.
    suppliers.
 3. Open the **Quotations** tab and choose **Add quotation** for each supplier's quote:
    - **Supplier** — pick the supplier.
-   - **Quoted total** — the amount they quoted, in your organisation's currency.
+   - **Quoted total** — the amount they quoted, in the currency of the purchase.
    - Choose **Add quotation** again to save it. Repeat for every quote you received.
 4. Compare the quotes in the **Bid comparison** table. Columns are **Supplier / Quote #**,
    **Value status**, **Amount**, **Valid until** and **Attachments**. The lowest price carries a
@@ -41,14 +41,15 @@ comparison and the chosen one together on the purchase.
    quote sets the purchase's value and supplier, and if it is above the approved amount the
    purchase goes back for approval. Confirm with **Select quote**.
 6. Record the order: choose **Record order**.
-   - If the purchase has no supplier yet, choose one first with **Set supplier**.
+   - If the purchase has no supplier yet, the app says **Choose the supplier first** and opens the supplier
+     choice on the **Files** tab. Choose the supplier, then record the order.
    - The confirmation shows the amount and the supplier. It records the order; it does not send it
      to the supplier. Confirm with **Record order**.
 7. The purchase is now at **Purchase order**. Add the supplier's own order or reference number with
-   **Record another document → Purchase order** if you have it, and attach the file there.
+   **Record another document → Purchase order** if you have it.
 8. If your organisation prints orders, use **Print purchase order** (on the **Timeline** tab, or in
-   the **More** menu). The printed order carries the reference, the supplier, the lines and who is
-   authorised to collect.
+   the ⋯ menu). The printed order carries the reference, the supplier, the lines and who is
+  authorised to collect.
 
 ## What the result looks like
 
@@ -56,8 +57,7 @@ comparison and the chosen one together on the purchase.
   order**.
 - **Money** shows **Order total** beside the earlier request total. The project now counts the
   order as committed spend — **Open orders** on the project's budget view.
-- The **Timeline** lists the quote request, each quotation, the selection and the order, with
-  dates and amounts.
+- The **Timeline** lists the records and steps of the purchase, with dates.
 - Choosing a quote above the approved amount sends the purchase back for approval; it cannot be
   ordered until it is approved again.
 - The next step is receiving the goods; see [Record what arrived](record-what-arrived.md).
@@ -74,9 +74,9 @@ comparison and the chosen one together on the purchase.
   will not compare its amount with the chosen one. Compare by hand or ask Finance.
 - **The purchase went back for approval after choosing a quote** — the chosen amount is above the
   approved amount. An approver must approve it before you can order.
-- **Attaching a file to a quote** — file upload on a quotation is not available yet; the app marks
-  it as coming soon. Attach the supplier's quote on the purchase under **Files**, which accepts
-  files.
+- **Attaching a file to a quote** — the form for a new quote shows **Attach file (coming soon)**
+  and cannot take a file. Save the quote first, then use **Attach file** in the **Attachments** column
+  of its row in the comparison.
 - **"Printing the purchase order is off."** — an Admin turns it on in **Administration**,
   **Accounting**, **Purchase order printing**.
 
@@ -106,18 +106,18 @@ penawaran, perbandingannya, dan pilihan Anda di pembelian yang sama.
 ## Di mana menemukannya
 
 - **Pengadaan** di menu (bagian **Pelaksanaan**), lalu buka pembelian yang sudah disetujui.
-- **Pada pembelian:** satu tombol penuh di atas adalah langkah saat ini, dan menu **Lainnya** (⋯)
+- **Pada pembelian:** satu tombol penuh di atas adalah langkah saat ini, dan menu ⋯ (**Tindakan pengadaan lainnya**)
   memuat langkah lainnya. Tab **Penawaran** memuat daftar penawaran dan perbandingannya.
 
 ## Langkah-langkah
 
 1. Buka pembelian yang sudah disetujui. Statusnya **Disetujui**.
 2. Buka tab **Penawaran**. Selama pembelian masih **Disetujui**, tab itu bertuliskan *Minta
-   penawaran sebelum menambah dan memilih penawaran supplier.* dan menawarkan **Minta penawaran**.
+   penawaran terlebih dahulu, lalu tambahkan dan pilih penawaran pemasok.* dan menawarkan **Minta penawaran**.
    Pilih itu. Ini menandai pembelian sedang dalam penawaran; tidak ada yang dikirim ke supplier.
 3. Buka tab **Penawaran** dan pilih **Tambah penawaran** untuk setiap penawaran supplier:
    - **Supplier** — pilih supplier.
-   - **Total penawaran** — jumlah yang mereka tawarkan, dalam mata uang organisasi Anda.
+   - **Total penawaran** — jumlah yang mereka tawarkan, dalam mata uang pembelian.
    - Pilih **Tambah penawaran** lagi untuk menyimpannya. Ulangi untuk setiap penawaran yang Anda
      terima.
 4. Bandingkan penawaran di tabel **Perbandingan penawaran**. Kolomnya **Supplier / No. penawaran**,
@@ -127,14 +127,14 @@ penawaran, perbandingannya, dan pilihan Anda di pembelian yang sama.
    penawaran terpilih menentukan nilai dan supplier pembelian, dan bila di atas jumlah yang
    disetujui, pembelian kembali untuk persetujuan. Konfirmasi dengan **Pilih penawaran**.
 6. Catat pesanan: pilih **Catat pesanan**.
-   - Bila pembelian belum punya supplier, pilih dulu dengan **Tentukan supplier**.
+   - Bila pembelian belum punya supplier, aplikasi berkata **Pilih supplier dulu** dan membuka pilihan
+     supplier di tab **Berkas**. Pilih supplier-nya, lalu catat pesanan.
    - Konfirmasi menampilkan jumlah dan supplier. Ini mencatat pesanan; pesanan tidak dikirim ke
      supplier. Konfirmasi dengan **Catat pesanan**.
 7. Pembelian kini berstatus **Pesanan pembelian**. Tambahkan nomor pesanan atau referensi dari
-   supplier dengan **Catat dokumen lain → Pesanan pembelian** bila Anda memilikinya, dan
-   lampirkan berkasnya di sana.
+   supplier dengan **Catat dokumen lain → Pesanan pembelian** bila Anda memilikinya.
 8. Bila organisasi Anda mencetak pesanan, gunakan **Cetak pesanan pembelian** (di tab **Linimasa**,
-   atau di menu **Lainnya**). Pesanan tercetak memuat referensi, supplier, baris, dan siapa yang
+   atau di menu ⋯). Pesanan tercetak memuat referensi, supplier, baris, dan siapa yang
    berwenang mengambil.
 
 ## Hasilnya seperti apa
@@ -143,8 +143,7 @@ penawaran, perbandingannya, dan pilihan Anda di pembelian yang sama.
   **Pesanan pembelian**.
 - **Nilai** menampilkan **Total pesanan** di samping total permintaan sebelumnya. Proyek kini
   menghitung pesanan sebagai belanja terikat — **Pesanan terbuka** pada tampilan anggaran proyek.
-- **Linimasa** memuat permintaan penawaran, setiap penawaran, pemilihan, dan pesanan, beserta
-  tanggal dan jumlahnya.
+- **Linimasa** memuat catatan dan langkah pembelian, beserta tanggalnya.
 - Memilih penawaran di atas jumlah yang disetujui mengembalikan pembelian untuk persetujuan;
   pesanan tidak dapat dicatat sampai disetujui lagi.
 - Langkah berikutnya adalah menerima barang; lihat [Catat barang yang datang](record-what-arrived.md).
@@ -153,7 +152,7 @@ penawaran, perbandingannya, dan pilihan Anda di pembelian yang sama.
 
 - **"Pilih supplier dulu."** — pesanan harus punya supplier. Pilih supplier-nya, lalu catat
   pesanan.
-- **"Minta penawaran sebelum menambah dan memilih penawaran supplier."** — pembelian masih
+- **"Minta penawaran terlebih dahulu, lalu tambahkan dan pilih penawaran pemasok."** — pembelian masih
   **Disetujui**. Pilih **Minta penawaran**, lalu tambahkan penawarannya.
 - **Tidak ada tombol Pilih pada penawaran** — penawaran hanya dapat dipilih saat pembelian
   berstatus **Penawaran supplier**, dan hanya oleh peran yang menangani pembelian. Pembelian juga
@@ -163,8 +162,8 @@ penawaran, perbandingannya, dan pilihan Anda di pembelian yang sama.
   tanyakan ke Keuangan.
 - **Pembelian kembali untuk persetujuan setelah memilih penawaran** — jumlah yang dipilih di atas
   jumlah yang disetujui. Pemberi persetujuan harus menyetujuinya sebelum Anda dapat memesan.
-- **Melampirkan berkas pada penawaran** — unggah berkas pada penawaran belum tersedia; aplikasi
-  menandainya segera hadir. Lampirkan penawaran supplier pada pembelian di tab **Berkas**, yang
-  menerima berkas.
+- **Melampirkan berkas pada penawaran** — formulir penawaran baru menampilkan **Lampirkan berkas
+  (segera hadir)** dan belum dapat menerima berkas. Simpan penawarannya dulu, lalu gunakan
+  **Lampirkan file** di kolom **Lampiran** pada barisnya di perbandingan.
 - **"Cetak pesanan pembelian belum aktif."** — Admin mengaktifkannya di **Administrasi**,
   **Akuntansi**, **Cetak pesanan pembelian**.

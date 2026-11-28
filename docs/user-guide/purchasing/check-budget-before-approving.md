@@ -26,7 +26,7 @@ tell you how much room is left, and they never block an approval by themselves.
 2. Read the decision band at the top of the request:
    - **Within your limit**, or **Goes to ⟨name⟩** when the request belongs to someone else.
    - **Budget line used ⟨amount⟩ of ⟨amount⟩** — how much of the project's budget for this
-     category is already committed.
+     category is already used.
 3. Read the **Budget impact** panel:
    - **Project budget** — the budget for the project.
    - **Budget used** — recorded spending, before tax.
@@ -43,29 +43,28 @@ tell you how much room is left, and they never block an approval by themselves.
 ## What the result looks like
 
 - **Approved**: the request moves to the ordering stage, and the people who buy can now get
-  quotes or record the order. The requester sees the new status and the approval note.
+  quotes or record the order. The requester sees the new status.
 - **Returned**: the request goes back to its author as **Returned**, with your reason; they correct
   it and send it again.
 - The money on the request now counts towards **Reserved** until it is ordered, and towards
   **Open orders** once a purchase order is recorded.
-- If the project has no budget for the category, the panel says so instead of showing a figure;
-  decide on the request's own merits.
+- If the project has no active budget, the panel says so instead of showing a figure; decide on
+  the request's own merits.
 
 ## Common errors and what to do
 
-- **No budget figures appear** — the project may have no active budget for this category, the
+- **No budget figures appear** — the project may have no active budget, the
   amounts may be in another currency, or the figures may still be loading. The line in the panel
   says which. Open the project to check its budget.
 - **"Budget comparison unavailable for these currencies"** — the request and the project budget are
   in different currencies, so they cannot be compared. Compare them by hand, or ask Finance.
 - **You cannot approve** — either you raised the request, or it was routed to another approver.
   The page names who it waits for.
-- **The request went back to you as the author** — you cannot approve your own request. Ask the
-  named approver to decide it.
-- **You approved by mistake** — an approval cannot be taken back by the approver. Ask an Admin,
-  and cancel the request if it should stop.
-- **Approval is refused with a message about the amount** — when a supplier invoice is higher than
-  what was approved, an approver must approve the higher amount on the purchase; see
+- **You cannot approve your own request** — ask the named approver to decide it.
+- **You approved by mistake** — an approval cannot be undone from the request. A Project Manager,
+  Finance, Executive or Admin user can stop the purchase with **Cancel procurement**.
+- **A supplier invoice is higher than what was approved** — an approver approves the higher amount
+  on the purchase (**Approve higher amount**); see
   [Record the supplier invoice](record-the-supplier-invoice.md).
 
 ---
@@ -101,7 +100,7 @@ sendirinya.
 2. Baca pita keputusan di atas permintaan:
    - **Dalam batas Anda**, atau **Diteruskan ke ⟨nama⟩** bila permintaan milik orang lain.
    - **Anggaran terpakai ⟨jumlah⟩ dari ⟨jumlah⟩** — berapa banyak anggaran proyek untuk kategori
-     ini yang sudah terikat.
+     ini yang sudah terpakai.
 3. Baca panel **Dampak anggaran**:
    - **Anggaran proyek** — anggaran proyeknya.
    - **Anggaran terpakai** — pengeluaran tercatat, sebelum pajak.
@@ -118,17 +117,17 @@ sendirinya.
 ## Hasilnya seperti apa
 
 - **Disetujui**: permintaan berpindah ke tahap pemesanan, dan bagian pembelian dapat meminta
-  penawaran atau mencatat pesanan. Pengaju melihat status baru dan catatan persetujuan Anda.
+  penawaran atau mencatat pesanan. Pengaju melihat status baru.
 - **Dikembalikan**: permintaan kembali ke pengajunya sebagai **Dikembalikan**, dengan alasan Anda;
   ia memperbaikinya dan mengirimkannya lagi.
 - Nilai permintaan kini masuk **Dicadangkan** sampai dipesan, dan masuk **Pesanan terbuka** setelah
   pesanan pembelian dicatat.
-- Bila proyek belum punya anggaran untuk kategori itu, panel menyebutkannya alih-alih menampilkan
-  angka; putuskan berdasarkan isi permintaannya.
+- Bila proyek belum punya anggaran aktif, panel menyebutkannya alih-alih menampilkan angka; putuskan
+  berdasarkan isi permintaannya.
 
 ## Kesalahan umum dan cara mengatasinya
 
-- **Angka anggaran tidak muncul** — proyek mungkin belum punya anggaran aktif untuk kategori ini,
+- **Angka anggaran tidak muncul** — proyek mungkin belum punya anggaran aktif,
   jumlahnya dalam mata uang lain, atau angkanya masih dimuat. Baris di panel menyebutkan yang mana.
   Buka proyek untuk memeriksa anggarannya.
 - **"Perbandingan anggaran tidak tersedia untuk mata uang ini"** — permintaan dan anggaran proyek
@@ -136,10 +135,10 @@ sendirinya.
   ke Keuangan.
 - **Anda tidak dapat menyetujui** — Anda pengajunya, atau permintaan ditujukan ke penyetuju lain.
   Halaman menyebut siapa yang ditunggu.
-- **Permintaan kembali kepada Anda sebagai pengaju** — Anda tidak dapat menyetujui permintaan
-  sendiri. Minta penyetuju yang disebut untuk memutuskannya.
-- **Terlanjur menyetujui** — persetujuan tidak dapat ditarik kembali oleh penyetuju. Hubungi Admin,
-  dan batalkan permintaannya bila memang harus berhenti.
-- **Persetujuan ditolak dengan pesan tentang jumlah** — bila invoice supplier lebih tinggi dari
-  yang disetujui, penyetuju harus menyetujui jumlah yang lebih tinggi pada pembelian itu; lihat
+- **Anda tidak dapat menyetujui permintaan sendiri** — minta penyetuju yang disebut untuk
+  memutuskannya.
+- **Terlanjur menyetujui** — persetujuan tidak dapat dibatalkan dari permintaan. Manajer Proyek,
+  Keuangan, Eksekutif, atau Admin dapat menghentikan pembelian dengan **Batalkan pengadaan**.
+- **Invoice supplier lebih tinggi dari yang disetujui** — penyetuju menyetujui jumlah yang lebih
+  tinggi pada pembelian itu (**Setujui jumlah lebih tinggi**); lihat
   [Catat invoice supplier](record-the-supplier-invoice.md).

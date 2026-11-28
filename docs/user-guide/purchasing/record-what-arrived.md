@@ -9,15 +9,17 @@ partial delivery. The purchase then waits for the supplier's invoice.
 ## Who can do this
 
 - **Record a receipt:** the person who raised the purchase, a Project Manager, or an Admin.
-- **Record counted quantities on the stock receiving screen:** a purchasing user (the same people
-  who can order), on orders that are sent to the supplier.
-- Finance and Executive can follow the purchase but do not record the receipt.
+- **Record counted quantities on the stock receiving screen:** an Admin, Executive, Project Manager
+  or Finance user, or anyone your organisation has named as able to order purchases (not a
+  storekeeper), on orders that are sent to the supplier.
+- Finance and Executive do not get the **Record receipt** button on the purchase; they can still use
+  the stock receiving screen.
 
 ## Where to find it
 
 - **Procurement** in the menu, then open the purchase. While it is at **Purchase order**, the
   filled button is **Record receipt**.
-- The **Items** tab shows a **Goods received** table while your organisation receives goods against
+- The **Line items** tab shows a **Goods received** table while your organisation receives goods against
   orders, with an **Open receiving** link to the stock screen.
 
 ## Steps
@@ -28,10 +30,10 @@ partial delivery. The purchase then waits for the supplier's invoice.
    - **Delivery note** — the supplier's delivery note number, if there is one (optional).
    - **Receipt date** — the day the goods arrived.
    - **Status** — **Complete** when everything on the order arrived, **Partial** when only some of
-     it did. This is what tells the purchase that the rest is still expected.
+     it did. A partial receipt makes the stage tracker say **Partly received**.
 4. Choose **Save GR**. The confirmation repeats the document and the status; confirm with
    **Save GR**.
-5. To record the exact counted quantity per line, open the **Items** tab and choose
+5. To record the exact counted quantity per line, open the **Line items** tab and choose
    **Open receiving**, or go to **Stock**, **Receive goods**. There you choose the **Purchase
    order**, the warehouse, the **Receipt date**, and enter each line's counted quantity. Choose
    **Record receipt** and confirm **Record this counted quantity?** The count enters stock at the
@@ -43,8 +45,12 @@ partial delivery. The purchase then waits for the supplier's invoice.
 ## What the result looks like
 
 - The purchase moves to **Goods receipt**, and the stage tracker marks the **Receive** stage.
-- A partial delivery is shown as **Partly received**; you can record another receipt later when the
-  rest arrives.
+- The first receipt you save, partial or complete, moves the purchase to **Goods receipt**. A later
+  receipt does not change the purchase status again.
+- A partial delivery is shown as **Partly received**; record another receipt when the rest arrives.
+  On the **Line items** tab, the **Goods received** table (when your organisation receives goods against
+  orders) shows **Ordered**, **Received**, **Outstanding** and a status for each line: **Not received**,
+  **Partly received** or **Fully received**.
 - **Timeline** lists the receipt with its date, delivery note number and status.
 - Stock on hand goes up for the received items, valued at the order cost, when the counts are
   posted on the receiving screen.
@@ -58,12 +64,12 @@ partial delivery. The purchase then waits for the supplier's invoice.
   receipt has been recorded.
 - **The delivery is refused** — check the organisation's purchase rules with an Admin. Some
   organisations require a receipt before an invoice, or an approval before an order.
-- **The count is wrong** — on the receiving screen a purchasing user can reverse a posted receipt
-  with a reason, then record the right count. A procurement receipt cannot be edited after saving,
-  so check the status and date before you save.
+- **The count is wrong** — on the receiving screen a different purchasing user than the one who recorded it can reverse the
+  posted receipt (**Reverse receipt**) with a reason, then record the right count. Check the status and
+  date before you save.
 - **A line has no stock item** — the receiving screen asks you to map the order line to a stock
   item, or records it as a service or direct use with the ordinary receipt path.
-- **"This procurement case doesn't exist or isn't visible to your role"** — open the purchase from
+- **"This procurement case either doesn't exist or isn't visible to your role."** — open the purchase from
   your own Procurement list, or ask an Admin if you expect access.
 - **The goods came without a delivery note** — record the receipt anyway and leave the field empty;
   attach whatever paper you do have under **Files**.
@@ -83,9 +89,11 @@ ini penerimaan sebagian. Pembelian lalu menunggu invoice supplier.
 ## Siapa yang dapat melakukannya
 
 - **Mencatat penerimaan:** pengaju pembelian, Manajer Proyek, atau Admin.
-- **Mencatat jumlah yang dihitung di layar penerimaan stok:** petugas pembelian (orang yang sama
-  yang dapat memesan), pada pesanan yang sudah dikirim ke supplier.
-- Keuangan dan Eksekutif dapat memantau pembelian tetapi tidak mencatat penerimaan.
+- **Mencatat jumlah yang dihitung di layar penerimaan stok:** Admin, Eksekutif, Manajer Proyek, atau
+  Keuangan, atau siapa pun yang organisasi Anda tetapkan boleh memesan pembelian (bukan petugas
+  gudang), pada pesanan yang sudah dikirim ke supplier.
+- Keuangan dan Eksekutif tidak mendapat tombol **Catat penerimaan** pada pembelian; mereka tetap dapat
+  memakai layar penerimaan stok.
 
 ## Di mana menemukannya
 
@@ -101,8 +109,8 @@ ini penerimaan sebagian. Pembelian lalu menunggu invoice supplier.
 3. Isi penerimaannya:
    - **Surat jalan** — nomor surat jalan supplier, bila ada (opsional).
    - **Tanggal penerimaan** — hari barang tiba.
-   - **Status** — **Selesai** bila semua pesanan datang, **Sebagian** bila baru sebagian. Inilah
-     yang memberi tahu pembelian bahwa sisanya masih ditunggu.
+   - **Status** — **Selesai** bila semua pesanan datang, **Sebagian** bila baru sebagian. Penerimaan
+     sebagian membuat pelacak tahap menampilkan **Diterima sebagian**.
 4. Pilih **Simpan GR**. Konfirmasi mengulang dokumen dan statusnya; konfirmasi dengan
    **Simpan GR**.
 5. Untuk mencatat jumlah yang dihitung per baris, buka tab **Item baris** dan pilih
@@ -117,8 +125,11 @@ ini penerimaan sebagian. Pembelian lalu menunggu invoice supplier.
 ## Hasilnya seperti apa
 
 - Pembelian berpindah ke **Penerimaan barang**, dan pelacak tahap menandai tahap **Penerimaan**.
-- Pengiriman sebagian ditampilkan sebagai **Diterima sebagian**; Anda dapat mencatat penerimaan lain
-  nanti saat sisanya datang.
+- Penerimaan pertama yang Anda simpan, sebagian atau lengkap, memindahkan pembelian ke **Penerimaan
+  barang**. Penerimaan berikutnya tidak mengubah status pembelian lagi.
+- Pengiriman sebagian ditampilkan sebagai **Diterima sebagian**; catat penerimaan lain saat sisanya
+  datang. Di tab **Item baris**, tabel **Barang diterima** (bila organisasi Anda menerima barang sesuai
+  pesanan) menampilkan **Dipesan**, **Diterima**, **Sisa**, dan status tiap baris.
 - **Linimasa** memuat penerimaan beserta tanggal, nomor surat jalan, dan statusnya.
 - Stok bertambah untuk barang yang diterima, dinilai dengan biaya pesanan, saat jumlahnya
   diposting di layar penerimaan.
@@ -132,12 +143,12 @@ ini penerimaan sebagian. Pembelian lalu menunggu invoice supplier.
   penerimaannya sudah dicatat.
 - **Pengiriman ditolak** — periksa aturan pembelian organisasi bersama Admin. Sebagian organisasi
   mewajibkan penerimaan sebelum invoice, atau persetujuan sebelum pesanan.
-- **Hitungannya salah** — di layar penerimaan, petugas pembelian dapat membalik penerimaan yang
-  sudah diposting dengan alasan, lalu mencatat hitungan yang benar. Penerimaan pada pengadaan tidak
-  dapat diubah setelah disimpan, jadi periksa status dan tanggalnya sebelum menyimpan.
+- **Hitungannya salah** — di layar penerimaan, petugas pembelian yang bukan pencatat penerimaan itu dapat membalik
+  penerimaan yang sudah diposting (**Balikkan penerimaan**) dengan alasan, lalu mencatat hitungan yang
+  benar. Periksa status dan tanggalnya sebelum menyimpan.
 - **Baris belum punya item stok** — layar penerimaan meminta Anda menautkan baris pesanan ke item
   stok, atau mencatatnya sebagai jasa atau pemakaian langsung lewat jalur penerimaan biasa.
-- **"Kasus pengadaan ini tidak ada atau tidak terlihat untuk peran Anda"** — buka pembelian dari
+- **"Kasus pengadaan ini tidak ada atau tidak terlihat untuk peran Anda."** — buka pembelian dari
   daftar Pengadaan Anda sendiri, atau tanyakan ke Admin bila Anda merasa seharusnya punya akses.
 - **Barang datang tanpa surat jalan** — tetap catat penerimaannya dan biarkan kolomnya kosong;
   lampirkan kertas apa pun yang Anda miliki di tab **Berkas**.

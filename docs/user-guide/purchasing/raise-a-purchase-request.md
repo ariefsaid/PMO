@@ -176,7 +176,7 @@ penawaran supplier dan pesanan.
   **Ajukan untuk persetujuan** lagi. Permintaan mulai lagi dari langkah persetujuan pertama.
 - **Anda tidak dapat menyetujui permintaan Anda sendiri** — orang lain harus memutuskannya.
   Halaman menyebutkan hal itu dan siapa yang menerimanya.
-- **"Anda tidak memiliki akses ke catatan ini"** — permintaan bukan milik Anda dan di luar
+- **"Anda tidak memiliki akses ke data ini"** — permintaan bukan milik Anda dan di luar
   lingkup Anda. Buka dari daftar Pengadaan Anda sendiri, atau tanyakan ke Admin bila Anda merasa
   seharusnya punya akses.
 - **Salah mengajukan** — selama masih draf atau menunggu persetujuan, pengaju dapat

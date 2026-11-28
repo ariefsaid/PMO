@@ -8,15 +8,18 @@ waiting, and the amount involved.
 
 ## Who can do this
 
-- **See the whole organisation's purchases:** Admin, Executive, Project Manager and Finance.
-- **See only your own:** an Engineer sees the purchases they raised.
+- **See the whole organisation's purchases:** Admin, Executive and Finance, and anyone your
+  organisation has named as able to order purchases.
+- **See a part:** a Project Manager sees the purchases on the projects they manage and the ones they
+  raised. An Engineer sees the purchases they raised.
 - Anyone who can open a purchase can open it from the list to act on it.
 
 ## Where to find it
 
 - **Procurement** in the menu (in the **Delivery** section).
 - The **Needs you** tab lists what waits on you, oldest first.
-- The **All** tab carries the filters, the views and the totals.
+- The **All** tab lists every purchase in your scope. The filters, the views and the totals are on the
+  same page.
 
 ## Steps
 
@@ -34,8 +37,9 @@ waiting, and the amount involved.
 5. Read the age of each row. **In stage** counts the days since the purchase entered its current
    stage, so an **Ordered** purchase that has sat for weeks stands out.
 6. At the foot of the list, the summary tiles count what matters:
-   - **Supplier invoices unpaid**, with the oldest invoice's age (**Invoice age ⟨days⟩**).
-   - **Ordered, not invoiced** — orders whose goods or invoice are still outstanding.
+   - **Supplier invoices unpaid**, with the oldest invoice's age (**Invoice age ⟨days⟩**).   - **Ordered, not invoiced** — purchases at **Purchase order** or **Goods receipt**: ordered or
+     received, with no supplier invoice yet.
+   People who may not see prices see no tiles. An Engineer sees only the **Ordered, not invoiced** tile.
 
 ## What the result looks like
 
@@ -45,8 +49,7 @@ waiting, and the amount involved.
   the board.
 - The tiles fall as the backlog clears; the **All** tab keeps showing everything, including finished
   purchases.
-- An Engineer's list holds only their own purchases; ask a Project Manager or Finance for
-  organisation-wide figures.
+- An Engineer's list holds only their own purchases; ask Finance for organisation-wide figures.
 
 ## Common errors and what to do
 
@@ -75,15 +78,18 @@ Anda, sudah berapa lama, dan berapa nilainya.
 
 ## Siapa yang dapat melakukannya
 
-- **Melihat seluruh pembelian organisasi:** Admin, Eksekutif, Manajer Proyek, dan Keuangan.
-- **Melihat milik sendiri saja:** Insinyur melihat pembelian yang ia ajukan.
+- **Melihat seluruh pembelian organisasi:** Admin, Eksekutif, dan Keuangan, serta siapa pun yang
+  organisasi Anda tetapkan boleh memesan pembelian.
+- **Melihat sebagian:** Manajer Proyek melihat pembelian pada proyek yang ia kelola dan yang ia
+  ajukan. Insinyur melihat pembelian yang ia ajukan.
 - Siapa pun yang dapat membuka pembelian dapat membukanya dari daftar untuk bertindak.
 
 ## Di mana menemukannya
 
 - **Pengadaan** di menu (bagian **Pelaksanaan**).
 - Tab **Perlu Anda tindaklanjuti** memuat yang menunggu Anda, yang paling lama lebih dulu.
-- Tab **Semua** memuat filter, tampilan, dan totalnya.
+- Tab **Semua** memuat semua pembelian dalam lingkup Anda. Filter, tampilan, dan totalnya ada di
+  halaman yang sama.
 
 ## Langkah-langkah
 
@@ -103,8 +109,10 @@ Anda, sudah berapa lama, dan berapa nilainya.
 5. Perhatikan umur setiap baris. **Di tahap** menghitung hari sejak pembelian masuk tahap saat ini,
    sehingga pembelian **Dipesan** yang sudah berminggu-minggu akan menonjol.
 6. Di bagian bawah daftar, kotak ringkasan menghitung yang penting:
-   - **Invoice supplier belum dibayar**, beserta usia tagihan tertua (**Usia tagihan ⟨hari⟩**).
-   - **Dipesan, belum ditagih** — pesanan yang barang atau tagihannya masih kurang.
+   - **Invoice supplier belum dibayar**, beserta usia tagihan tertua (**Usia tagihan ⟨hari⟩**).   - **Dipesan, belum ditagih** — pembelian berstatus **Pesanan pembelian** atau **Penerimaan barang**:
+     sudah dipesan atau diterima, tetapi belum ada invoice supplier.
+   Orang yang tidak boleh melihat harga tidak melihat kotak ini. Insinyur hanya melihat kotak **Dipesan,
+   belum ditagih**.
 
 ## Hasilnya seperti apa
 
@@ -114,8 +122,7 @@ Anda, sudah berapa lama, dan berapa nilainya.
   tindaklanjuti** dan memindahkannya di papan.
 - Kotak ringkasan menurun saat tumpukan berkurang; tab **Semua** tetap menampilkan semuanya, termasuk
   pembelian yang sudah selesai.
-- Daftar Insinyur hanya memuat pembelian miliknya; minta Manajer Proyek atau Keuangan untuk angka
-  seluruh organisasi.
+- Daftar Insinyur hanya memuat pembelian miliknya; minta Keuangan untuk angka seluruh organisasi.
 
 ## Kesalahan umum dan cara mengatasinya
 

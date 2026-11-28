@@ -29,13 +29,14 @@ The other side of the same job is purchasing's: see the request, and buy.
 
 1. Open **Stock** and the **On hand** tab, then tick **Below reorder level** (or open the
    **Reorder** tab).
-2. Find the item and the warehouse that is low. Check **On hand** against the **Reorder level**.
+2. Find the item and the warehouse that is low. The **Reorder** tab shows **On hand** beside the
+   **Reorder level** and the **Order quantity** for each row.
 3. Choose **Request purchase** on that row.
 4. The purchase form opens, already filled:
    - **Title** — the item code and name.
-   - **Project** — the project that owns the warehouse, when it has one.
-   - The line's name, quantity and, when the store knows it, the average unit price. The quantity
-     is what is needed to reach the reorder level, or the item's order quantity when one is set.
+   - **Project** — the project that owns the warehouse, when it has one.   - The line's name, quantity and, when the store knows it (and you may see prices), the average
+     unit price. The quantity is the amount short of the reorder level; when stock is exactly at the
+     level, it is the item's order quantity if one is set.
 5. Check the line, add anything else you need, and choose **Save draft**.
 6. Open the saved request and choose **Submit for approval**. Cancel on the form takes you back to
    the stock list you started from.
@@ -51,19 +52,20 @@ The other side of the same job is purchasing's: see the request, and buy.
 
 ## What the result looks like
 
-- A purchase request exists, raised by you, on that project, naming the item and the quantity.
-  Purchasing finds it in **Procurement**, under **Needs you** or **All**, like any other request.
-- The item stays on the **Below reorder level** list until stock is received; the request alone does
-  not change stock.
-- Once the request is approved, ordered and received, stock on hand rises and the item leaves the
-  low list. See [Record what arrived](record-what-arrived.md).
+- Once you save it, a purchase request exists, raised by you, on that project, naming the item and the
+  quantity. It is listed in **Procurement** under **All**; once it is submitted, approvers also find it
+  under **Needs you**, like any other request.
+- The item stays on the **Below reorder level** list until stock is back above its level; the request
+  alone does not change stock.
+- Stock on hand rises when the goods are counted in on the stock receiving screen, after the request is
+  approved and ordered. See [Record what arrived](record-what-arrived.md).
 
 ## Common errors and what to do
 
 - **No Request purchase button on a row** — the item is not at or below its reorder level, the row
   belongs to a warehouse you cannot see, or you are viewing as another role.
-- **The quantity is empty or wrong** — no reorder level or order quantity is set for the item, so
-  the app cannot work it out. Type the quantity yourself, or ask Finance to set the level.
+- **The quantity is empty or wrong** — the app cannot work it out when stock is exactly at the level
+  and no order quantity is set. Type the quantity yourself, or ask Finance to set the order quantity.
 - **"Only Finance, Project Managers, Executives, and Admins can change reorder levels."** — you can
   still request a purchase; only the level itself is theirs to set.
 - **Nothing is on the list** — nothing is at or below its level. Items appear here when stock at a
@@ -108,13 +110,15 @@ Sisi lain pekerjaan yang sama adalah milik bagian pembelian: melihat permintaan 
 
 1. Buka **Stok** dan tab **Persediaan**, lalu centang **Di bawah level pemesanan ulang** (atau buka
    tab **Pemesanan ulang**).
-2. Temukan barang dan gudang yang menipis. Periksa **Sisa** terhadap **Level pemesanan ulang**.
+2. Temukan barang dan gudang yang menipis. Tab **Pemesanan ulang** menampilkan **Sisa** di samping **Level
+   pemesanan ulang** dan **Jumlah pesanan** untuk setiap baris.
 3. Pilih **Ajukan pembelian** pada baris itu.
 4. Formulir pembelian terbuka, sudah terisi:
    - **Judul** — kode dan nama barang.
    - **Proyek** — proyek pemilik gudang, bila ada.
-   - Nama baris, jumlah, dan bila gudang mengetahuinya, harga satuan rata-rata. Jumlahnya adalah
-     yang dibutuhkan untuk mencapai level pemesanan ulang, atau jumlah pesanan barang bila diatur.
+   - Nama baris, jumlah, dan bila gudang mengetahuinya (dan Anda boleh melihat harga), harga satuan
+     rata-rata. Jumlahnya adalah kekurangan terhadap level pemesanan ulang; bila stok tepat di level,
+     jumlahnya adalah jumlah pesanan barang bila diatur.
 5. Periksa barisnya, tambahkan kebutuhan lain, lalu pilih **Simpan draf**.
 6. Buka permintaan yang tersimpan dan pilih **Ajukan untuk persetujuan**. Batal pada formulir
    membawa Anda kembali ke daftar stok tempat Anda mulai.
@@ -130,22 +134,21 @@ Sisi lain pekerjaan yang sama adalah milik bagian pembelian: melihat permintaan 
 
 ## Hasilnya seperti apa
 
-- Terbentuk permintaan pembelian yang Anda ajukan, pada proyek itu, menyebut barang dan jumlahnya.
-  Bagian pembelian menemukannya di **Pengadaan**, pada **Perlu Anda tindaklanjuti** atau **Semua**,
-  seperti permintaan lain.
-- Barang tetap ada di daftar **Di bawah level pemesanan ulang** sampai stoknya diterima; permintaan
-  saja tidak mengubah stok.
-- Setelah permintaan disetujui, dipesan, dan diterima, stok bertambah dan barang keluar dari daftar
-  menipis. Lihat [Catat barang yang datang](record-what-arrived.md).
+- Setelah Anda menyimpannya, terbentuk permintaan pembelian yang Anda ajukan, pada proyek itu, menyebut
+  barang dan jumlahnya. Permintaan itu terdaftar di **Pengadaan** pada **Semua**; setelah diajukan,
+  penyetuju juga menemukannya pada **Perlu Anda tindaklanjuti**, seperti permintaan lain.
+- Barang tetap ada di daftar **Di bawah level pemesanan ulang** sampai stoknya kembali di atas level;
+  permintaan saja tidak mengubah stok.
+- Stok bertambah saat barang dihitung masuk di layar penerimaan stok, setelah permintaan disetujui dan
+  dipesan. Lihat [Catat barang yang datang](record-what-arrived.md).
 
 ## Kesalahan umum dan cara mengatasinya
 
 - **Tidak ada tombol Ajukan pembelian pada baris** — barang tidak berada pada atau di bawah level
   pemesanan ulangnya, barisnya milik gudang yang tidak dapat Anda lihat, atau Anda sedang melihat
   sebagai peran lain.
-- **Jumlahnya kosong atau salah** — belum ada level pemesanan ulang atau jumlah pesanan untuk barang
-  itu, jadi aplikasi tidak dapat menghitungnya. Isi jumlahnya sendiri, atau minta Keuangan
-  menetapkan levelnya.
+- **Jumlahnya kosong atau salah** — aplikasi tidak dapat menghitungnya bila stok tepat di level dan
+  jumlah pesanan belum diatur. Isi jumlahnya sendiri, atau minta Keuangan mengatur jumlah pesanannya.
 - **"Hanya Finance, Manajer Proyek, Eksekutif, dan Admin yang dapat mengubah level pemesanan
   ulang."** — Anda tetap dapat mengajukan pembelian; hanya levelnya yang menjadi wewenang mereka.
 - **Daftarnya kosong** — tidak ada yang berada pada atau di bawah levelnya. Barang muncul di sini
