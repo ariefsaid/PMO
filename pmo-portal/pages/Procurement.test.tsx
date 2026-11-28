@@ -82,11 +82,13 @@ const RouteProbe = () => {
 
 // list-working-set-return (#682): the list-return seam captures context only from the list's own
 // canonical index path (`/procurement`), so the default entry must be `/procurement`, not `/`.
+// useTransitions={false}: the router otherwise commits each address change as a low-priority React transition, which a
+// starved test worker can leave pending for over a second after the click returned. Tests here judge the outcome.
 const renderPage = (initialPath = '/procurement') =>
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })}>
       <ToastProvider>
-        <MemoryRouter initialEntries={[initialPath]}>
+        <MemoryRouter initialEntries={[initialPath]} useTransitions={false}>
           <RouteProbe />
           <Procurement />
         </MemoryRouter>

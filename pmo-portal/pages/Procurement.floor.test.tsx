@@ -41,7 +41,7 @@ const RouteProbe = () => {
 
 const renderPage = (path = '/procurement?tab=all&view=table') => render(
   <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })}>
-    <ToastProvider><MemoryRouter initialEntries={[path]}><RouteProbe /><Procurement /></MemoryRouter></ToastProvider>
+    <ToastProvider><MemoryRouter initialEntries={[path]} useTransitions={false}><RouteProbe /><Procurement /></MemoryRouter></ToastProvider>
   </QueryClientProvider>,
 );
 

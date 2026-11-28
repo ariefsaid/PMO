@@ -31,7 +31,7 @@ vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u-1
 const Where = () => <output data-testid="where">{useLocation().search}</output>;
 const renderBlock = (url = '/procurement') => render(
   <QueryClientProvider client={new QueryClient()}>
-    <MemoryRouter initialEntries={[url]}><ToastProvider><ProcurementBlock showCreate={false} /><Where /></ToastProvider></MemoryRouter>
+    <MemoryRouter initialEntries={[url]} useTransitions={false}><ToastProvider><ProcurementBlock showCreate={false} /><Where /></ToastProvider></MemoryRouter>
   </QueryClientProvider>,
 );
 const openButtons = () => screen.getAllByRole('button', { name: /^Open Purchase PR-/ });

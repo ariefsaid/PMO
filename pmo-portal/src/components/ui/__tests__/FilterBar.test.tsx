@@ -18,7 +18,7 @@ function Example() {
   return <><FilterBar filters={filters} searchKey="q" searchLabel="Search records" values={state.values} onChange={state.setFilter} onClear={state.clear} shown={2} total={total} />
     <output data-testid="url">{location.search}</output><button onClick={() => navigate(-1)}>Back</button></>;
 }
-function setup(path = '/?other=keep') { return render(<MemoryRouter initialEntries={[path]}><Example /></MemoryRouter>); }
+function setup(path = '/?other=keep') { return render(<MemoryRouter initialEntries={[path]} useTransitions={false}><Example /></MemoryRouter>); }
 afterEach(() => vi.unstubAllGlobals());
 describe('FilterBar', () => {
   it('updates search, segments and selects in the URL, and clears only its own filters', async () => {

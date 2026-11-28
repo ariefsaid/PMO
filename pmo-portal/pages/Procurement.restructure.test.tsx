@@ -82,7 +82,7 @@ function renderPage(path = '/procurement') {
   return render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })}>
       <ToastProvider>
-        <MemoryRouter initialEntries={[path]}>
+        <MemoryRouter initialEntries={[path]} useTransitions={false}>
           <RouteProbe />
           <Procurement />
         </MemoryRouter>
