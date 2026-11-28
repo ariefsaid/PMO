@@ -142,8 +142,10 @@ insert into dsr_photos (org_id, report_id, kind, file_path) values
 
 -- ── documents for the close-out items ────────────────────────────────────────────────────────────────────────
 insert into project_documents (id, org_id, project_id, category, title, status, file_path) values
-  ('28030000-0000-0000-0000-000000000600', '28030000-0000-0000-0000-0000000000a1', '28030000-0000-0000-0000-0000000000e1', 'Report', 'Close-out letter', 'Issued', '/rsd/closeout-a.pdf'),
-  ('28030000-0000-0000-0000-000000000601', '28030000-0000-0000-0000-0000000000a2', '28030000-0000-0000-0000-0000000000e2', 'Report', 'Close-out report', 'Issued', '/rsd/closeout-b.pdf');
+  ('28030000-0000-0000-0000-000000000600', '28030000-0000-0000-0000-0000000000a1', '28030000-0000-0000-0000-0000000000e1', 'Report', 'Close-out letter', 'Issued',
+   '28030000-0000-0000-0000-0000000000a1/28030000-0000-0000-0000-0000000000e1/28030000-0000-0000-0000-000000000600/closeout-a.pdf'),
+  ('28030000-0000-0000-0000-000000000601', '28030000-0000-0000-0000-0000000000a2', '28030000-0000-0000-0000-0000000000e2', 'Report', 'Close-out report', 'Issued',
+   '28030000-0000-0000-0000-0000000000a2/28030000-0000-0000-0000-0000000000e2/28030000-0000-0000-0000-000000000601/closeout-b.pdf');
 
 -- ── Org C keeps its own settings BEFORE the seeds run: the guards must skip it ───────────────────────────────
 insert into work_order_checklist_items (id, org_id, label, position, required, owner_job_role, target_days) values
