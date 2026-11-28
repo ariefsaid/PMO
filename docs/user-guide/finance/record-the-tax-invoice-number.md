@@ -9,7 +9,7 @@ in the export, so anyone checking the tax paperwork finds them in one place.
 ## Who can do this
 
 - **Record or change the e-Faktur number and date**: Admin, Finance.
-- **Read them**: Admin, Executive, Project Manager, Finance.
+- **Read them**: Admin, Executive, Finance.
 
 ## Where to find it
 
@@ -67,7 +67,7 @@ ekspor, sehingga siapa pun yang memeriksa dokumen pajaknya menemukannya di satu 
 ## Siapa yang dapat melakukannya
 
 - **Mencatat atau mengubah nomor dan tanggal e-Faktur**: Admin, Keuangan.
-- **Membacanya**: Admin, Eksekutif, Manajer Proyek, Keuangan.
+- **Membacanya**: Admin, Eksekutif, Keuangan.
 
 ## Di mana menemukannya
 

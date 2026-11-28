@@ -9,7 +9,7 @@ work again correctly.
 ## Who can do this
 
 - **Cancel an invoice**: Admin, Finance.
-- **Read invoices, including cancelled ones**: Admin, Executive, Project Manager, Finance.
+- **Read invoices, including cancelled ones**: Admin, Executive, Finance.
 - An invoice that has already been **Paid** cannot be cancelled.
 
 ## Where to find it
@@ -83,7 +83,7 @@ lalu tagih pekerjaannya kembali dengan benar.
 ## Siapa yang dapat melakukannya
 
 - **Membatalkan invoice**: Admin, Keuangan.
-- **Membaca invoice, termasuk yang dibatalkan**: Admin, Eksekutif, Manajer Proyek, Keuangan.
+- **Membaca invoice, termasuk yang dibatalkan**: Admin, Eksekutif, Keuangan.
 - Invoice yang sudah **Lunas** tidak dapat dibatalkan.
 
 ## Di mana menemukannya

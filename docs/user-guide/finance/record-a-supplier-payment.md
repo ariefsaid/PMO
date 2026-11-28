@@ -48,8 +48,8 @@ part of the bill, so the payment settles the bill net of it and the project's sp
 
 - The **Case documents** panel gains a **Payment** row, and the bill's row shows its **Withholding**
   — what was withheld, what the supplier nets, and whether a withholding slip is on record.
-- The bill leaves [Payables](what-to-pay-and-overdue.md), and **To pay suppliers** falls by the
-  amount paid.
+- Once the bill is fully paid it leaves [Payables](what-to-pay-and-overdue.md), and
+  **To pay suppliers** falls by the amount paid. A part payment leaves the rest on the list.
 - The purchase's money figures move once: the bill raises **Invoiced** and **Unpaid**, the payment
   raises **Paid** and clears the **Unpaid** balance.
 - A bill held by the three-way match says so, and its payment waits until the match is settled.
@@ -130,8 +130,9 @@ pengeluaran proyek bergerak satu kali.
 - Panel **Case documents** mendapat baris **Payment**, dan baris tagihannya menampilkan
   **Withholding** — berapa yang dipotong, berapa bersih untuk supplier, dan apakah bukti potongnya
   sudah tercatat.
-- Tagihannya keluar dari [Utang](what-to-pay-and-overdue.md), dan
-  **Yang harus dibayar kepada supplier** turun sebesar jumlah yang dibayarkan.
+- Setelah tagihannya lunas, tagihan keluar dari [Utang](what-to-pay-and-overdue.md), dan
+  **Yang harus dibayar kepada supplier** turun sebesar jumlah yang dibayarkan. Pembayaran sebagian
+  meninggalkan sisanya di daftar.
 - Angka uang pengadaannya bergerak satu kali: tagihan menaikkan **Invoiced** dan **Unpaid**,
   pembayaran menaikkan **Paid** dan menghapus saldo **Unpaid**.
 - Tagihan yang ditahan pencocokan tiga arah menyebutkannya, dan pembayarannya menunggu sampai

@@ -11,7 +11,8 @@ still left to bill.
 
 - **Create a claim and raise its invoice**: Admin, Finance.
 - **Attach a claim's evidence**: Admin, Finance.
-- **Read the claims and their invoices**: Admin, Executive, Project Manager, Finance.
+- **Read the claims and their invoices**: Admin, Executive, Project Manager, Finance — the project's
+  own team reads its claims on the project.
 - **Record a claim's billing stages**: Admin, Finance, Project Manager (see
   [Billing stages and retention](../office/billing-stages-and-retention.md)).
 - The person who raises the invoice **cannot approve it**. Another Admin or Finance user approves

@@ -9,7 +9,7 @@ approver's side of that step.
 ## Who can do this
 
 - **Approve an invoice**: Admin, Finance — but never the person who wrote it.
-- **Read drafts and their approval state**: Admin, Executive, Project Manager, Finance.
+- **Read drafts and their approval state**: Admin, Executive, Finance.
 
 The app enforces this: a draft you wrote yourself does not offer you **Approve**. It is marked
 **Draft · needs a second approver** and waits for someone else.
@@ -72,7 +72,7 @@ menyetujuinya. Halaman ini adalah sisi penyetuju dari langkah itu.
 ## Siapa yang dapat melakukannya
 
 - **Menyetujui invoice**: Admin, Keuangan — tetapi tidak pernah orang yang menulisnya.
-- **Membaca draf dan status persetujuannya**: Admin, Eksekutif, Manajer Proyek, Keuangan.
+- **Membaca draf dan status persetujuannya**: Admin, Eksekutif, Keuangan.
 
 Aplikasi menjaganya: draf yang Anda tulis sendiri tidak menawarkan **Setujui**. Draf itu bertanda
 **Draf · perlu penyetuju kedua** dan menunggu orang lain.

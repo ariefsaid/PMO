@@ -9,7 +9,7 @@ project, and each line with its quantity and rate.
 ## Who can do this
 
 - **Write and save an invoice**: Admin, Finance.
-- **Read invoices**: Admin, Executive, Project Manager, Finance.
+- **Read invoices**: Admin, Executive, Finance.
 - The invoice is saved as a **Draft**. Another Admin or Finance user must approve it (see
   [Approve an invoice someone else prepared](approve-an-invoice.md)).
 
@@ -76,7 +76,7 @@ invoice sendiri — pelanggan, proyek, dan tiap baris dengan kuantitas dan harga
 ## Siapa yang dapat melakukannya
 
 - **Menulis dan menyimpan invoice**: Admin, Keuangan.
-- **Membaca invoice**: Admin, Eksekutif, Manajer Proyek, Keuangan.
+- **Membaca invoice**: Admin, Eksekutif, Keuangan.
 - Invoice disimpan sebagai **Draf**. Admin atau pengguna Keuangan lain harus menyetujuinya (lihat
   [Menyetujui invoice yang dibuat orang lain](approve-an-invoice.md)).
 

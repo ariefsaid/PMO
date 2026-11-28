@@ -9,7 +9,7 @@ have not yet matched to an invoice stays on the payment as **Not yet applied** u
 ## Who can do this
 
 - **Record, apply and cancel a payment**: Admin, Finance.
-- **Read payments and what they settled**: Admin, Executive, Project Manager, Finance.
+- **Read payments and what they settled**: Admin, Executive, Finance.
 
 ## Where to find it
 
@@ -102,7 +102,7 @@ menerapkannya.
 ## Siapa yang dapat melakukannya
 
 - **Mencatat, menerapkan, dan membatalkan pembayaran**: Admin, Keuangan.
-- **Membaca pembayaran dan invoice yang dilunasinya**: Admin, Eksekutif, Manajer Proyek, Keuangan.
+- **Membaca pembayaran dan invoice yang dilunasinya**: Admin, Eksekutif, Keuangan.
 
 ## Di mana menemukannya
 
