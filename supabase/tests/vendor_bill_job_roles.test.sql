@@ -7,10 +7,10 @@ begin;
 create extension if not exists pgtap;
 select plan(13);
 
-insert into organizations (id, name, default_currency) values
-  ('25250000-0000-0000-0000-00000000000a', 'TWM Org',       'IDR'),
-  ('25250000-0000-0000-0000-00000000000b', 'TWM ERP Org',   'IDR'),
-  ('25250000-0000-0000-0000-00000000000c', 'TWM Plain Org', 'IDR');
+insert into organizations (id, name, default_currency, built_in_roles_enabled) values
+  ('25250000-0000-0000-0000-00000000000a', 'TWM Org',       'IDR', true),
+  ('25250000-0000-0000-0000-00000000000b', 'TWM ERP Org',   'IDR', true),
+  ('25250000-0000-0000-0000-00000000000c', 'TWM Plain Org', 'IDR', true);
 insert into auth.users (id, email) values
   ('25250000-0000-0000-0000-0000000000a1', 'twm-admin@example.com'),
   ('25250000-0000-0000-0000-0000000000a2', 'twm-fin1@example.com'),
