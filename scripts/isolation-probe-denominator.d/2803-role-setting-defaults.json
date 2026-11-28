@@ -1,0 +1,6 @@
+{
+  "definer_functions": [
+    "dsr_fills_validate_role(uuid,uuid)",
+    "dsr_validate_role_keys(uuid)"
+  ]
+}

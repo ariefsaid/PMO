@@ -1245,19 +1245,22 @@ describe('can() — daily site report (#1522; dsr_save_draft / dsr_validate / ds
   });
 
   it('AC-DSR-005 validate: Admin, Finance or the project\'s PM, and never the author', () => {
+    // The legacy audience asserts the Admin-set world: a list that names none of these roles.
+    const adminSetOthers = { dailyReportValidateRoles: ['site_supervisor'] };
     for (const realRole of ['Admin', 'Finance'] as const) {
       expect(can('approve', 'dailySiteReport', { realRole, ...rec('u2', 'u9') })).toBe(true);
       expect(can('approve', 'dailySiteReport', { realRole, ...rec('u1', 'u9') })).toBe(false);
     }
     expect(can('approve', 'dailySiteReport', { realRole: 'Project Manager', ...rec('u2', 'u1') })).toBe(true);
-    expect(can('approve', 'dailySiteReport', { realRole: 'Project Manager', ...rec('u2', 'u9') })).toBe(false);
-    expect(can('approve', 'dailySiteReport', { realRole: 'Engineer', ...rec('u2', 'u1') })).toBe(false);
+    expect(can('approve', 'dailySiteReport', { realRole: 'Project Manager', ...rec('u2', 'u9'), ...adminSetOthers })).toBe(false);
+    expect(can('approve', 'dailySiteReport', { realRole: 'Engineer', ...rec('u2', 'u1'), ...adminSetOthers })).toBe(false);
     expect(can('approve', 'dailySiteReport', { realRole: 'Executive', ...rec('u2', 'u9') })).toBe(false);
   });
 
   it('correct: the validate audience, author or not (the corrector becomes the new version\'s author)', () => {
     expect(can('revise', 'dailySiteReport', { realRole: 'Finance', ...rec('u1', 'u9') })).toBe(true);
-    expect(can('revise', 'dailySiteReport', { realRole: 'Engineer', ...rec('u2', 'u9') })).toBe(false);
+    // FR-RSD-003: with an Admin list that names nobody here, a level Engineer is not a validator.
+    expect(can('revise', 'dailySiteReport', { realRole: 'Engineer', ...rec('u2', 'u9'), dailyReportValidateRoles: ['site_supervisor'] })).toBe(false);
   });
 
   it('revenue: the rate catalogue\'s readers only', () => {
@@ -1271,6 +1274,51 @@ describe('can() — daily site report (#1522; dsr_save_draft / dsr_validate / ds
 
   it('every active role views reports', () => {
     expect(allowedRoles('view', 'dailySiteReport')).toEqual(['Admin', 'Executive', 'Project Manager', 'Finance', 'Engineer']);
+  });
+
+  // 2803 RR-3: while the Admin set no validator roles, quantity_surveyor and project_control_manager validate by
+  // default (held key, or no key and the base level); an Admin list admits key holders only (FR-RSD-003).
+  it('FR-RSD-003 the default validators validate while nothing is set, and the author never does', () => {
+    const noSetting = (role: string, builtInRoleKey: string | null) =>
+      can('approve', 'dailySiteReport', { realRole: role as 'Engineer', builtInRoleKey, currentUserId: 'u1', dailyReportValidateRoles: [], record: { author_id: 'u2' } });
+    expect(noSetting('Engineer', 'quantity_surveyor')).toBe(true);
+    expect(noSetting('Engineer', null)).toBe(true);
+    expect(noSetting('Project Manager', 'project_control_manager')).toBe(true);
+    expect(noSetting('Project Manager', null)).toBe(true);
+    expect(noSetting('Engineer', 'buyer')).toBe(false);
+    expect(noSetting('Project Manager', 'construction_manager')).toBe(false);
+    expect(can('approve', 'dailySiteReport', { realRole: 'Engineer', builtInRoleKey: 'quantity_surveyor', currentUserId: 'u1', dailyReportValidateRoles: [], record: { author_id: 'u1' } })).toBe(false);
+  });
+
+  it('FR-RSD-003 an Admin-set list admits its key holders only', () => {
+    const adminSet = (role: string, builtInRoleKey: string | null) =>
+      can('approve', 'dailySiteReport', { realRole: role as 'Engineer', builtInRoleKey, currentUserId: 'u1', dailyReportValidateRoles: ['quantity_surveyor'], record: { author_id: 'u2' } });
+    expect(adminSet('Engineer', 'quantity_surveyor')).toBe(true);
+    expect(adminSet('Engineer', null)).toBe(false);
+    expect(adminSet('Project Manager', 'project_control_manager')).toBe(false);
+  });
+});
+
+describe('can() — crew tools: the 2803 field-controller default (FR-RSD-007; report_crew_tool is the authority)', () => {
+  it('a crew naming no field controller is reported on by a site supervisor (held key or the Engineer level)', () => {
+    const noController = (role: string, builtInRoleKey: string | null) =>
+      can('report', 'crewTool', { realRole: role as 'Engineer', builtInRoleKey, currentUserId: 'u1', record: { field_controller_id: null } });
+    expect(noController('Engineer', 'site_supervisor')).toBe(true);
+    expect(noController('Engineer', null)).toBe(true);
+    expect(noController('Engineer', 'buyer')).toBe(false);
+    expect(noController('Finance', null)).toBe(false);
+    expect(noController('Engineer', 'foreman')).toBe(false);
+    // a Project Manager level person still passes today's crew-manager path
+    expect(noController('Project Manager', null)).toBe(true);
+  });
+
+  it('a crew WITH a field controller keeps today\'s audience', () => {
+    const named = (role: string, builtInRoleKey: string | null) =>
+      can('report', 'crewTool', { realRole: role as 'Engineer', builtInRoleKey, currentUserId: 'u1', record: { field_controller_id: 'u9' } });
+    expect(named('Engineer', 'site_supervisor')).toBe(false);
+    expect(named('Engineer', null)).toBe(false);
+    expect(can('report', 'crewTool', { realRole: 'Engineer', builtInRoleKey: null, currentUserId: 'u9', record: { field_controller_id: 'u9' } })).toBe(true);
+    expect(can('report', 'crewTool', { realRole: 'Admin', builtInRoleKey: null, currentUserId: 'u1', record: { field_controller_id: 'u9' } })).toBe(true);
   });
 });
 
@@ -1309,7 +1357,9 @@ describe('#2581 crew tools register (UX gate; RLS and the crew-tool RPCs are the
     expect(can('manage', 'crewTool', { realRole: 'Admin', record: { viewOnly: true } })).toBe(false);
   });
   it('FR-CTR-016 AC-CTR-008 a field controller reports for their own crew only and never edits or closes', () => {
-    expect(allowedRoles('report', 'crewTool')).toEqual(['Admin', 'Executive', 'Project Manager']);
+    // 2803 RR-3: an organisation with no Admin setting lets the Engineer level report for a controllerless crew, so
+    // the affordance list gains Engineer (report_crew_tool's default branch is the authority).
+    expect(allowedRoles('report', 'crewTool')).toEqual(['Admin', 'Executive', 'Project Manager', 'Engineer']);
     expect(can('report', 'crewTool', { realRole: 'Engineer', currentUserId: 'u1', record: { field_controller_id: 'u1' } })).toBe(true);
     expect(can('report', 'crewTool', { realRole: 'Engineer', currentUserId: 'u1', record: { field_controller_id: 'u2' } })).toBe(false);
     expect(can('report', 'crewTool', { realRole: 'Engineer', currentUserId: 'u1', record: { field_controller_id: 'u1', viewOnly: true } })).toBe(false);

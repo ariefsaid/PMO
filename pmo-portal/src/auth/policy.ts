@@ -3,7 +3,7 @@ export type { Role } from './AuthContext';
 import type { Role } from './AuthContext';
 import { ALL_ROLES, MASTER_DATA_ROLES, REVENUE_WRITE_ROLES } from './coarseRoles';
 import { ON_HAND_STATUSES } from '@/src/lib/db/projectTransitions';
-import { roleHasCapability } from './builtInRoles';
+import { baseLevelOf, roleHasCapability } from './builtInRoles';
 
 /**
  * FE authorization primitive (ADR-0016).
@@ -353,12 +353,17 @@ const TM_CONFIRM: Role[] = ['Admin', 'Finance'];
 // #1522 daily site report (1005): enter = dsr_may_enter, validate = dsr_may_validate, revenue = dsr_may_see_revenue.
 const DSR_ENTER: Role[] = ['Admin', 'Engineer'];
 const DSR_VALIDATE: Role[] = ['Admin', 'Finance'];
-/** 2043 + 2290: dsr_may_validate also admits a job role an Admin gave the daily_report_validate capability (none by default). */
+/** 2043 + 2290: dsr_may_validate also admits a job role an Admin gave the daily_report_validate capability (none by default).
+ *  2803 RR-3: while the Admin set no validator roles, quantity_surveyor and project_control_manager validate by default
+ *  (fillsRole — held key, or no key and the base level). An Admin list admits key holders only. */
+const dsrDefaultFills = (ctx: PolicyContext): boolean =>
+  !ctx.dailyReportValidateRoles?.length && (fillsRole(ctx, 'quantity_surveyor') || fillsRole(ctx, 'project_control_manager'));
 const dsrValidator = (role: Role | null, ctx: PolicyContext): boolean =>
   has(DSR_VALIDATE, role)
   || isOwnProjectPm(role, ctx)
   || roleHasCapability(ctx.builtInRoleKey, 'daily_report_validate')
-  || Boolean(ctx.builtInRoleKey && ctx.dailyReportValidateRoles?.includes(ctx.builtInRoleKey));
+  || Boolean(ctx.builtInRoleKey && ctx.dailyReportValidateRoles?.includes(ctx.builtInRoleKey))
+  || dsrDefaultFills(ctx);
 const DSR_REVENUE: Role[] = ['Admin', 'Finance', 'Executive'];
 
 // #2578 quantity change requests (1127/1128, OD-QCR-2): author roles raise, edit and record; approver roles approve, never
@@ -410,6 +415,16 @@ export const projectMoneyInScope = (
   || Boolean(ownProjectIds?.includes(project.id));
 /** Mirrors actor_holds_job_role (2040): the person holds this job role by key. A person with no job role holds none. */
 const holds = (ctx: PolicyContext, key: string): boolean => ctx.builtInRoleKey === key;
+
+/**
+ * 2803 RR-3: does this member FILL a built-in job role — the held key, or no key and the role's base access level
+ * (the one frontend mirror of holds_job_role, 1840)? A member holding a DIFFERENT key never fills another role.
+ * The database decides; screens and gates ask this so the working defaults reach people without assigned keys.
+ */
+export const fillsRole = (
+  ctx: { realRole: Role | null; builtInRoleKey: string | null | undefined },
+  key: string,
+): boolean => ctx.builtInRoleKey === key || (!ctx.builtInRoleKey && baseLevelOf(key) === ctx.realRole);
 
 /** WON / on-hand statuses for the contract_value SoD (ADR-0019). A value on any of
  *  these is past the pre-win boundary and edits require money authority (Exec/Finance).
@@ -1468,7 +1483,9 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     manage: (role, ctx) => ctx.record?.viewOnly !== true && (has(DELIVERY, role) || (holds(ctx, 'storekeeper') && ctx.record?.keepsCrewSite === true)),
     report: (role, ctx) => ctx.record?.viewOnly !== true && (
       has(DELIVERY, role) || (holds(ctx, 'storekeeper') && ctx.record?.keepsCrewSite === true)
-      || (!!ctx.currentUserId && ctx.record?.field_controller_id === ctx.currentUserId)),
+      || (!!ctx.currentUserId && ctx.record?.field_controller_id === ctx.currentUserId)
+      // 2803 RR-3: a crew naming no field controller is looked after by a site supervisor (mirrors report_crew_tool).
+      || (ctx.record?.field_controller_id == null && fillsRole(ctx, 'site_supervisor'))),
     close: (role, ctx) => ctx.record?.viewOnly !== true && (
       has(DELIVERY, role) || (!!ctx.currentUserId && ctx.record?.assignee_id === ctx.currentUserId)),
     configure: allowUnlessViewOnly(EQUIPMENT_REGISTER_WRITE),

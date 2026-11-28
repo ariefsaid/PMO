@@ -24,6 +24,8 @@ select plan(8);
 
 create temp table la_fn_allow (fn text primary key, kind text not null check (kind in ('field_path','helper','trigger')), why text not null);
 insert into la_fn_allow values
+  ('dsr_fills_validate_role', 'helper', 'the effective-validator gate that dsr_may_validate, the queue and the route read — it answers about the organisation role configuration, writes nothing, and every human surface that calls it gates the caller itself'),
+  ('dsr_validate_role_keys', 'helper', 'names the organisation effective validator role keys (the Admin list, else the working default) — configuration only, no tenant rows'),
   ('order_receiving_blind', 'helper', 'scalar policy predicate: a field account holds no storekeeper job, so it answers false'),
   ('actor_money_scoped', 'helper', 'scalar money-scope predicate: a field account is not a Project Manager, so it answers false'),
   ('order_receiving_line_blind', 'helper', 'scalar policy predicate scoped to the caller organization, false without the storekeeper job'),

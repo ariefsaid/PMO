@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { repositories } from '@/src/lib/repositories';
 import { useAuth } from '@/src/auth/useAuth';
+import { fillsRole } from '@/src/auth/policy';
 import type { StockItemFilters, StockItemInput, StockUnitInput, StockWarehouseInput } from '@/src/lib/db/stockMaster';
 import type { StockDocumentFilters, StockDocumentInput } from '@/src/lib/db/stockDocuments';
 import type { StockLedgerFilters } from '@/src/lib/db/stockReports';
@@ -35,14 +36,32 @@ export function useStockKeepers() {
   return useQuery({ queryKey: ['stock-keepers', orgId], queryFn: () => repositories.stock.master.listKeepers(), enabled: Boolean(orgId) });
 }
 
-/** The locations the signed-in person keeps (#2749). The one place `user_id === me` is read; screens ask `keeps(id)` per location or `keepsAny` for a header action. An Admin is not listed here: `can()` grants Admin on its own. */
+/** The locations the signed-in person keeps (#2749). The one place `user_id === me` is read; screens ask `keeps(id)` per location or `keepsAny` for a header action. An Admin is not listed here: `can()` grants Admin on its own.
+ *  2803 RR-3: a warehouse that names no keeper at all is kept by any member filling storekeeper (fillsRole — mirrors
+ *  stock_assert_keeper's default branch). An unreadable keeper list grants no fallback. */
 export function useMyStockLocations() {
-  const me = useAuth().currentUser?.id;
+  const { currentUser } = useAuth();
+  const me = currentUser?.id;
+  const role = currentUser?.role ?? null;
+  const builtInRoleKey = currentUser?.built_in_role ?? null;
   const keepers = useStockKeepers();
+  const warehouses = useStockWarehouses();
   return useMemo(() => {
-    const ids = new Set((keepers.data ?? []).filter((k) => k.user_id === me).map((k) => k.warehouse_id));
-    return { ids, keeps: (id: string | null | undefined) => !!id && ids.has(id), keepsAny: ids.size > 0, isError: keepers.isError, isPending: keepers.isPending, refetch: keepers.refetch };
-  }, [keepers.data, keepers.isError, keepers.isPending, keepers.refetch, me]);
+    const rows = keepers.data ?? [];
+    const ids = new Set(rows.filter((k) => k.user_id === me).map((k) => k.warehouse_id));
+    const fillsStorekeeper = !keepers.isError && fillsRole({ realRole: role, builtInRoleKey }, 'storekeeper');
+    const keeperless = fillsStorekeeper
+      ? new Set((warehouses.data ?? []).filter((w) => !rows.some((k) => k.warehouse_id === w.id)).map((w) => w.id))
+      : new Set<string>();
+    return {
+      ids,
+      keeps: (id: string | null | undefined) => !!id && (ids.has(id) || keeperless.has(id)),
+      keepsAny: ids.size > 0 || keeperless.size > 0,
+      isError: keepers.isError || warehouses.isError,
+      isPending: keepers.isPending || warehouses.isPending,
+      refetch: () => { keepers.refetch(); warehouses.refetch(); },
+    };
+  }, [builtInRoleKey, keepers, me, role, warehouses]);
 }
 
 type MasterTable = 'stock_units' | 'stock_items' | 'stock_warehouses';

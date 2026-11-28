@@ -32,9 +32,14 @@ describe('AC-WBS-005 which controls show', () => {
     expect(mayActOnStep({ userId: 'p2', builtInRoleKey: 'quality_manager', role: 'Project Manager' }, step)).toBe(false);
     expect(mayActOnStep({ userId: 'p2', builtInRoleKey: 'foreman', role: 'Engineer' }, step)).toBe(false);
   });
-  it('a person with no role key keeps the claim-step writers', () => {
+  it("a person with no role key keeps the claim-step writers, and now fills the step's owner role by base level (2803 RR-3)", () => {
     expect(mayActOnStep({ userId: 'p2', builtInRoleKey: null, role: 'Finance' }, step)).toBe(true);
-    expect(mayActOnStep({ userId: 'p2', builtInRoleKey: null, role: 'Engineer' }, step)).toBe(false);
+    // FR-RSD-004: with no key held, an Engineer fills quantity_surveyor (holds_job_role, 1840) — the default QC
+    // report step reaches the Engineer-level inspector of an organisation that never assigned keys.
+    expect(mayActOnStep({ userId: 'p2', builtInRoleKey: null, role: 'Engineer' }, step)).toBe(true);
+    expect(mayActOnStep({ userId: 'p2', builtInRoleKey: null, role: 'Project Manager' }, { ...step, ownerRoleKey: 'project_control_manager' })).toBe(true);
+    expect(mayActOnStep({ userId: 'p2', builtInRoleKey: null, role: 'Engineer' }, { ...step, ownerRoleKey: 'project_control_manager' })).toBe(false);
+    expect(mayActOnStep({ userId: 'p2', builtInRoleKey: null, role: 'Engineer' }, { ...step, ownerRoleKey: null })).toBe(false);
   });
 });
 

@@ -1,5 +1,5 @@
 import { stageAgeDays, stageOverdue } from '@/src/lib/billingStages';
-import { roleHasCapability } from '@/src/auth/builtInRoles';
+import { baseLevelOf, roleHasCapability } from '@/src/auth/builtInRoles';
 import { legacyMayRunBillingSteps } from '@/src/auth/billingStepRights';
 import type { WaitingWorkOrderStep, WorkOrderStep } from '@/src/lib/db/workOrderBillingSteps';
 
@@ -45,7 +45,10 @@ export function mayActOnStep(actor: StepActor, step: Pick<WorkOrderStep, 'assign
   if (actor.builtInRoleKey) {
     return step.ownerRoleKey === actor.builtInRoleKey || roleHasCapability(actor.builtInRoleKey, 'billing_steps_run');
   }
-  return legacyMayRunBillingSteps(actor.role);
+  // 2803 RR-3: with no key held, a step names its owner by base level too (mirrors holds_job_role, 1840) — the
+  // default QC report step reaches the Engineer-level inspector of an organisation that never assigned keys.
+  return legacyMayRunBillingSteps(actor.role)
+    || (!!step.ownerRoleKey && baseLevelOf(step.ownerRoleKey) === actor.role);
 }
 
 /**

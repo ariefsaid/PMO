@@ -1,0 +1,4 @@
+# 2803 RR-3 role-setting working defaults: the two effective-validator helpers the invoker route
+# (get_dsr_validation_route) calls on the caller's behalf; they read role configuration, write nothing.
+dsr_fills_validate_role  # answers whether a profile fills an effective validator role (Admin list key-only, default by holds_job_role)
+dsr_validate_role_keys  # names the organisation's effective validator role keys (the Admin's list, else the default)

@@ -26,6 +26,23 @@
 -- stock_assert_keeper (1322), report_crew_tool (2041) — each guard line it carried stays.
 -- drops: nothing; every rule each restated body carried stays.
 
+-- drops: actor_has_role_capability(text) | "and public.org_built_in_roles_enabled(public.auth_org_id())" | the enabled gate moves into dsr_fills_validate_role: an Admin-set list implies it (the column guard), and the working default must not require it
+-- drops: actor_has_role_capability(text) | "and public.actor_built_in_role() = any (o.daily_report_validate_roles)" | replaced by dsr_fills_validate_role(o.id, auth.uid()), which keeps the key-only rule for an Admin list and adds the working default
+-- drops: crew_tool_can_report(uuid) | "and (public.crew_tool_may_manage(c.id) or c.field_controller_id = auth.uid())), false)" | split to add the 2803 default arm: a crew naming no field controller is reported on by a member filling site_supervisor
+-- drops: crew_tool_is_reporter() | "or exists (" | reformatted; the arm itself stays (the 2041 three-arm body is restated verbatim, the default arm appended)
+-- drops: crew_tool_is_reporter() | "select 1 from public.crews c where c.org_id = public.auth_org_id() and c.field_controller_id = auth.uid())), false)" | reformatted; the arm itself stays, the 2803 default arm appended after it
+-- drops: dsr_validation_queue() | "or (public.org_built_in_roles_enabled(d.org_id)" | replaced by public.dsr_fills_validate_role(d.org_id, pr.id): the Admin list keeps its key-only rule, the working default is added beside it
+-- drops: dsr_validation_queue() | "and exists (select 1 from public.organizations o" | same replacement as above
+-- drops: dsr_validation_queue() | "where o.id = d.org_id" | same replacement as above
+-- drops: dsr_validation_queue() | "and pr.built_in_role = any (o.daily_report_validate_roles)))))" | same replacement as above
+-- drops: get_dsr_validation_route(uuid) | "select coalesce(array_agg(distinct pr.built_in_role order by pr.built_in_role), '{}'::text[])" | the route now names the EFFECTIVE validator keys (the Admin's list, else the default) whose holders exist
+-- drops: get_dsr_validation_route(uuid) | "join public.profiles pr" | same replacement as above
+-- drops: get_dsr_validation_route(uuid) | "on pr.org_id = o.id" | same replacement as above
+-- drops: get_dsr_validation_route(uuid) | "and pr.built_in_role = any (o.daily_report_validate_roles)" | same replacement as above
+-- drops: get_dsr_validation_route(uuid) | "and o.built_in_roles_enabled is true;" | the enabled gate moves into the effective-keys helper: an Admin-set list implies it, and the working default must not require it
+-- drops: report_crew_tool(uuid,uuid,text,integer,text,jsonb) | "if not (public.crew_tool_may_manage(v_crew.id) or v_crew.field_controller_id = v_uid) then" | split to add the 2803 default arm (site supervisor for a crew naming no controller); every shipped arm stays first
+-- drops: report_crew_tool(uuid,uuid,text,integer,text,jsonb) | "raise exception 'CTR_NOT_ALLOWED: only the crew''s field controller, a crew manager or the keeper of its site store reports a tool' using errcode = '42501';" | the refusal now names the site supervisor too (2041's precedent of naming the new holders)
+
 -- ── §1 the seeder: one function, the new-org path AND the backfill ───────────────────────────────────────────
 create or replace function public.seed_org_defaults(p_org_id uuid) returns void
 language plpgsql security definer set search_path = public, pg_temp as $$
@@ -103,7 +120,7 @@ select public.seed_org_defaults(o.id) from public.organizations o;
 -- surveyor. While nothing is set the default is judged by holds_job_role (held key, or no key and the base level);
 -- an Admin-set list keeps 2290's key-only rule (its column guard guarantees it implies built-in roles on).
 create function public.dsr_validate_role_keys(p_org uuid) returns text[]
-  language sql stable security definer set search_path = pg_catalog, public as $$
+  language sql stable security definer set search_path = pg_catalog, public, pg_temp as $$
   select case when cardinality(o.daily_report_validate_roles) > 0 then o.daily_report_validate_roles
               else array['project_control_manager', 'quantity_surveyor']::text[] end   -- mut:rsd_dsr_default_keys
     from public.organizations o
@@ -113,7 +130,7 @@ revoke all on function public.dsr_validate_role_keys(uuid) from public, anon;
 grant execute on function public.dsr_validate_role_keys(uuid) to authenticated, service_role;
 
 create function public.dsr_fills_validate_role(p_org uuid, p_profile uuid) returns boolean
-  language sql stable security definer set search_path = pg_catalog, public as $$
+  language sql stable security definer set search_path = pg_catalog, public, pg_temp as $$
   select exists (
     select 1
       from public.organizations o
@@ -131,7 +148,7 @@ revoke all on function public.dsr_fills_validate_role(uuid, uuid) from public, a
 grant execute on function public.dsr_fills_validate_role(uuid, uuid) to authenticated, service_role;
 
 create or replace function public.actor_has_role_capability(p_capability text) returns boolean
-  language sql stable security definer set search_path = pg_catalog, public as $$
+  language sql stable security definer set search_path = pg_catalog, public, pg_temp as $$
   select (
     p_capability = 'daily_report_validate'
     and exists (
@@ -316,34 +333,29 @@ end $$;
 
 create or replace function public.crew_tool_is_reporter() returns boolean
   language sql stable security definer set search_path = public, pg_temp as $$
-  select coalesce(public.is_active_member() and (public.crew_can_manage() or exists (
+  select coalesce(public.is_active_member() and (public.crew_can_manage()
+    or exists (select 1 from public.crews s where s.org_id = public.auth_org_id() and public.crew_tool_may_manage(s.id))
+    or exists (
     select 1 from public.crews c where c.org_id = public.auth_org_id() and c.field_controller_id = auth.uid())
-    or (exists (select 1 from public.crews c
-                 where c.org_id = public.auth_org_id() and c.field_controller_id is null)    -- mut:rsd_tool_default
-          and public.holds_job_role(auth.uid(), 'site_supervisor'))), false)
+    or (exists (
+    select 1 from public.crews c2 where c2.org_id = public.auth_org_id() and c2.field_controller_id is null)   -- mut:rsd_tool_default
+    and public.holds_job_role(auth.uid(), 'site_supervisor'))), false)
 $$;
 revoke all on function public.crew_tool_is_reporter() from public, anon;
 grant execute on function public.crew_tool_is_reporter() to authenticated;
 
-CREATE OR REPLACE FUNCTION public.crew_tool_can_report(p_line uuid)
- RETURNS boolean
- LANGUAGE sql
- STABLE SECURITY DEFINER
- SET search_path TO 'public', 'pg_temp'
-AS $function$
+create or replace function public.crew_tool_can_report(p_line uuid) returns boolean
+  language sql stable security definer set search_path = public, pg_temp as $$
   select coalesce(public.is_active_member() and exists (
     select 1 from public.crew_tool_lines l join public.crews c on c.id = l.crew_id
      where l.id = p_line and l.org_id = public.auth_org_id()
        and (public.crew_tool_may_manage(c.id) or c.field_controller_id = auth.uid()
             or (c.field_controller_id is null and public.holds_job_role(auth.uid(), 'site_supervisor')))), false)  -- mut:rsd_tool_default, mut:rsd_tool_named
-$function$
-;
-CREATE OR REPLACE FUNCTION public.report_crew_tool(p_id uuid, p_line uuid, p_kind text, p_qty integer, p_note text, p_photos jsonb)
- RETURNS uuid
- LANGUAGE plpgsql
- SECURITY DEFINER
- SET search_path TO 'public', 'pg_temp'
-AS $function$
+$$;
+create or replace function public.report_crew_tool(p_id uuid, p_line uuid, p_kind text, p_qty integer, p_note text, p_photos jsonb)
+ returns uuid
+ language plpgsql security definer set search_path = public, pg_temp
+as $$
 declare
   v_org uuid := public.auth_org_id(); v_uid uuid := auth.uid();
   v_line public.crew_tool_lines; v_crew public.crews;
@@ -449,5 +461,4 @@ begin
     jsonb_build_object('line_id', v_line.id, 'kind', p_kind, 'qty', p_qty, 'task_id', v_task));
   perform set_config('pmo.crew_tool_rpc', 'off', true);
   return p_id;
-end $function$
-;
+end $$;
