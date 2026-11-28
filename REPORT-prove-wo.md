@@ -35,3 +35,7 @@ Sandbox restarted once mid-run (chunk 1 was killed at 49/63 and re-run in full a
 - chromium chunk 2: 6 skipped,63 passed (7.4m),
 - chromium chunk 3: 1 failed,2 did not run,76 passed (8.3m),
   - FAILED: 1) [chromium] › e2e/AC-S21-005-task-list-review.spec.ts:124:3 › S21 complete ordered task-link journey › Supporting proof: Admin reviews the ClickUp list, saves the source, and reads back the binding 
+  - Re-run alone: `AC-S21-005-task-list-review.spec.ts` fails again (10 passed, 1 failed, 41s), same error `S21_HANDLER_SERVER_EXITED_EARLY`
+    (the spec spawns `deno run --no-remote ...` as a child process, and the child exits before it reports ready). The same Deno module loads
+    and starts in this sandbox when run by hand (Deno 2.7.11, same as CI), so the cause was not isolated here. Neither the spec nor its support
+    files nor the external-link function are in the branch diff, and the test does not touch the work order page. Treat as sandbox/lane-specific, not a branch regression.
