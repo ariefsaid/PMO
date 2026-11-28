@@ -59,3 +59,18 @@ Sandbox restarted once mid-run (chunk 1 was killed at 49/63 and re-run in full a
 - serial s2b (20 files): 33 passed (6.7m),
 - serial s3a (15 files): 26 passed (4.8m),
 - serial s3b (16 files): 26 passed (6.7m),
+
+Browser totals (480 specs, retries off): every chunk above passed except two failures, both shown not to come from the branch (see their notes).
+Work-order journeys in the list (e.g. AC-WORP-003, AC-WORP-004, AC-WOD-008, AC-WOS-019, AC-WPVA-016, AC-WBS-012, AC-WCO-012, AC-WOMS-012, AC-WOR-001, JOB-PC2, JOB-PC3) all passed.
+The consent project was not in the affected list and was not run.
+
+## Step 7 — static
+- `npm run typecheck`: exit 0 (all four tsc projects clean).
+- `npm run check:guards`: exit 0 (read-state OK 3 allowlisted/0 new; layout-baseline 352 keys, none grew; self-tests passed).
+
+## Verdict
+No failure traced to the branch.
+1. `src/lib/agent/checkEdgeFnErrorReporting.test.ts` (unit, shard 4): fails only because the sandbox runs as root (chmod 000 does not block reads). Not in the diff. CI runs unprivileged.
+2. `e2e/AC-S21-005-task-list-review.spec.ts` (chromium chunk 3): the spec's own Deno child process exits before ready; fails alone too; cause not isolated here; spec, support files and the function are not in the diff. Unproven either way for CI — if it is red in CI on this branch, compare against a `dev` run of the same spec.
+3. `e2e/serial/AC-IXD-PROC-W5-3-approvals-inbox.spec.ts` "Engineer with nothing to decide" (serial chunk 0): shared-DB state left by earlier chunks; passes on a fresh seed with the whole file (15 passed).
+Not run: pgTAP (no `supabase/` change), the consent project, and ci.yml's non-test jobs (build, lint of the whole repo, deno job, coverage thresholds, supply-chain audits).
