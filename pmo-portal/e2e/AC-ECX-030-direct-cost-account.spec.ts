@@ -1,15 +1,10 @@
 // @e2e-isolation: read-only — the account request uses a stubbed endpoint; the seeded Admin session is real.
 import { test, expect } from '@playwright/test';
 import { signIn } from './helpers';
+import { overrideProfile } from './support/profile-override';
 
 for (const locale of ['en', 'id'] as const) test(`AC-ECX-030 Admin requests a direct-cost account in ${locale}`, async ({ page }) => {
-  if (locale === 'id') await page.route('**/rest/v1/profiles?*', async (route) => {
-    const response = await route.fetch();
-    const data: unknown = await response.json();
-    if (data && typeof data === 'object' && !Array.isArray(data)) {
-      await route.fulfill({ response, json: { ...data, locale: 'id' } });
-    } else await route.fulfill({ response, json: data });
-  });
+  if (locale === 'id') await overrideProfile(page, { locale: 'id' });
   const requests: Record<string, unknown>[] = [];
   await page.route('**/functions/v1/external-set-company', async (route) => {
     const body = route.request().postDataJSON() as Record<string, unknown>;

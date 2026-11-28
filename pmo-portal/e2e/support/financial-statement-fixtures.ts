@@ -8,6 +8,7 @@
  * Bahasa is a route-rewritten profile read — no seed profile is ever written.
  */
 import type { Page } from '@playwright/test';
+import { overrideProfile, localePatch } from './profile-override';
 
 export type Locale = 'en' | 'id';
 export type Theme = 'light' | 'dark';
@@ -207,14 +208,5 @@ export async function installRoutes(page: Page, options: { projectId: string | n
 
 /** Deterministic viewer language without a persisted write; other profile preferences are preserved. */
 export async function forceLocale(page: Page, locale: Locale) {
-  await page.route('**/rest/v1/profiles?*', async (route) => {
-    const url = new URL(route.request().url());
-    if (route.request().method() !== 'GET' || !url.searchParams.has('id')) return route.fallback();
-    const response = await route.fetch({ maxRetries: 2 });
-    const body: unknown = await response.json();
-    const patch = (row: unknown) => row && !Array.isArray(row) && typeof row === 'object'
-      ? { ...(row as Record<string, unknown>), locale, number_locale: locale === 'id' ? 'id-ID' : 'en-US' }
-      : row;
-    return route.fulfill({ response, json: Array.isArray(body) ? body.map(patch) : patch(body) });
-  });
+  await overrideProfile(page, localePatch(locale));
 }

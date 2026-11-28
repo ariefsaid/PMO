@@ -1,6 +1,7 @@
 // @e2e-isolation: read-only — dashboard signal→lever journeys; nav/assert only over seeded data, no DB writes.
 import { test, expect } from '@playwright/test';
 import { openAppPath, signIn, waitForFonts } from './helpers';
+import { overrideProfile } from './support/profile-override';
 
 /**
  * UXS-013 — a named risk/budget signal carries its own lever (rendered acceptance).
@@ -24,14 +25,7 @@ const SP2402_NAME = 'Cascade Foods 6.0 MW Ground-Mount PV';
 
 /** Pin the signed-in persona's resolved locale to en for this journey, whatever the shared DB says. */
 async function pinEnglishLocale(page: import('@playwright/test').Page) {
-  await page.route('**/rest/v1/profiles?*', async (route) => {
-    const response = await route.fetch({ maxRetries: 2 });
-    const profile = await response.json() as Record<string, unknown> | Record<string, unknown>[];
-    const localized = Array.isArray(profile)
-      ? profile.map((row) => ({ ...row, locale: 'en' }))
-      : { ...profile, locale: 'en' };
-    await route.fulfill({ response, json: localized });
-  });
+  await overrideProfile(page, { locale: 'en' });
 }
 
 test.describe('UXS-013 — a dashboard signal carries its lever', () => {

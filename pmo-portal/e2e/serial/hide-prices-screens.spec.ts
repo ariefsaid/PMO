@@ -6,6 +6,7 @@ import { createProcurementFixture } from '../procurement-fixture';
 import { ORG_ID, ok, runId, serviceClient, sqlAsOwner } from '../support/jobFixtures';
 import { roleJobUser } from '../support/roleJobUser';
 import { makeItem, makeWarehouse, postReceive, runSuffix, userClient } from '../support/stockFixture';
+import { overrideProfile, localePatch } from '../support/profile-override';
 
 const reason = 'Harga disembunyikan dari pemohon.';
 const stockPrice = /(?:75[.,]432|150[.,]864)/;
@@ -21,19 +22,7 @@ async function expectNoPriceFigures(page: Page) {
 }
 
 async function pinLocale(page: Page, getLocale: () => Locale) {
-  await page.route('**/rest/v1/profiles?*', async (route) => {
-    const url = route.request().url();
-    if (route.request().method() !== 'GET' || !/[?&]id=eq\./.test(url)) return route.fallback();
-    const response = await route.fetch({ maxRetries: 2 });
-    let body: unknown;
-    try { body = await response.json(); }
-    catch { return route.fulfill({ response }); }
-    if (body && !Array.isArray(body) && typeof body === 'object' && 'locale' in body) {
-      const locale = getLocale();
-      return route.fulfill({ response, json: { ...body, locale, number_locale: locale === 'id' ? 'id-ID' : 'en-US' } });
-    }
-    return route.fulfill({ response, json: body });
-  });
+  await overrideProfile(page, () => localePatch(getLocale()));
 }
 
 async function capture(page: Page, screen: string, locale: Locale) {

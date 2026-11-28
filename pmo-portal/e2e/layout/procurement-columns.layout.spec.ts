@@ -6,19 +6,11 @@
  */
 import { test, expect } from '@playwright/test';
 import { signIn, waitForFonts } from '../helpers';
+import { overrideProfile } from '../support/profile-override';
 
 for (const locale of ['en', 'id'] as const) test(`@layout #1791/#2497: at 1440px every column holds its text whole with no sideways scroll (${locale})`, async ({ page }) => {
   // Read-only: the profile READ is rewritten to carry the language under test.
-  await page.route('**/rest/v1/profiles?*', async (route) => {
-    if (route.request().method() !== 'GET' || !/[?&]id=eq\./.test(route.request().url())) return route.fallback();
-    const response = await route.fetch({ maxRetries: 2 });
-    let body: unknown;
-    try { body = await response.json(); } catch { return route.fulfill({ response }); }
-    if (body && !Array.isArray(body) && typeof body === 'object' && 'locale' in body) {
-      return route.fulfill({ response, json: { ...body, locale } });
-    }
-    return route.fulfill({ response, json: body });
-  });
+  await overrideProfile(page, { locale });
   await page.route('**/rest/v1/procurements?*', async (route) => {
     const request = route.request();
     if (request.method() !== 'GET' || /id=eq\./.test(request.url())) return route.fallback();
@@ -83,14 +75,7 @@ for (const locale of ['en', 'id'] as const) test(`@layout #1791/#2497: at 1440px
 });
 
 for (const locale of ['en', 'id'] as const) test(`@layout #1791: at 390px the procurement tabs sit on one line and the selected tab is whole inside the strip (${locale})`, async ({ page }) => {
-  await page.route('**/rest/v1/profiles?*', async (route) => {
-    if (route.request().method() !== 'GET' || !/[?&]id=eq\./.test(route.request().url())) return route.fallback();
-    const response = await route.fetch({ maxRetries: 2 });
-    let body: unknown;
-    try { body = await response.json(); } catch { return route.fulfill({ response }); }
-    if (body && !Array.isArray(body) && typeof body === 'object' && 'locale' in body) return route.fulfill({ response, json: { ...body, locale } });
-    return route.fulfill({ response, json: body });
-  });
+  await overrideProfile(page, { locale });
   await page.setViewportSize({ width: 390, height: 844 });
   await signIn(page, 'admin@acme.test');
   await page.goto('/procurement?tab=all');

@@ -6,6 +6,7 @@ import { getActiveLocale, setActiveLocale } from '../../src/lib/locale/activeLoc
 import { assertDashboardPaintAndDesktopAccount, assertRailNavWithinViewport, assertResponsiveRailAndDrawer, assertShortAccountMenu, expectMoneyFits } from '../support/layout-oracles';
 import { registerFigureLayout } from '../support/figure-layout';
 import { registerLayoutSweep } from '../support/layout-sweep';
+import { overrideProfile, localePatch } from '../support/profile-override';
 
 registerLayoutSweep({ path: '/', label: 'dashboard', icons: true, integrations: false });
 
@@ -22,14 +23,7 @@ registerFigureLayout('executive');
 registerFigureLayout('pm');
 
 async function pinBahasaLocale(page: import('@playwright/test').Page) {
-  await page.route('**/rest/v1/profiles?*', async (route) => {
-    const response = await route.fetch({ maxRetries: 2 });
-    const profile = await response.json() as Record<string, unknown> | Record<string, unknown>[];
-    const localized = Array.isArray(profile)
-      ? profile.map((row) => ({ ...row, locale: 'id', number_locale: 'id-ID' }))
-      : { ...profile, locale: 'id', number_locale: 'id-ID' };
-    await route.fulfill({ response, json: localized });
-  });
+  await overrideProfile(page, localePatch('id'));
 }
 
 function expectedShortIdUsd(value: number): string {

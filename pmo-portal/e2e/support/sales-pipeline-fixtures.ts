@@ -9,6 +9,7 @@
  */
 import { expect, type Page } from '@playwright/test';
 import { signIn } from '../helpers';
+import { overrideProfile, localePatch } from './profile-override';
 
 export const LONG_NAME = 'Integrated maintenance planning for regional facilities and remote teams';
 export const LONG_CUSTOMER = 'PT Garuda Regional Infrastructure Services across island operations';
@@ -139,25 +140,7 @@ export async function installSyntheticPipeline(page: Page, locale: 'en' | 'id') 
     if (!url.searchParams.get('status')?.includes('Loss Tender')) return route.fallback();
     return route.fulfill({ json: LOST_PROJECTS });
   });
-  await page.route('**/rest/v1/profiles?*', async (route) => {
-    const url = new URL(route.request().url());
-    if (route.request().method() !== 'GET' || !url.searchParams.has('id')) return route.fallback();
-    const response = await route.fetch({ maxRetries: 2 });
-    let body: unknown;
-    try {
-      body = await response.json();
-    } catch {
-      return route.fulfill({ response });
-    }
-    const localized = (profile: unknown) =>
-      profile && typeof profile === 'object'
-        ? { ...(profile as Record<string, unknown>), locale, number_locale: locale === 'id' ? 'id-ID' : 'en-US' }
-        : profile;
-    return route.fulfill({
-      response,
-      json: Array.isArray(body) ? body.map(localized) : localized(body),
-    });
-  });
+  await overrideProfile(page, localePatch(locale));
 }
 
 export async function openSalesPipeline(

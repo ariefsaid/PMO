@@ -2,6 +2,7 @@ import { expect, request as pwRequest, test as playwrightTest, type Locator, typ
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { overrideProfile, localePatch } from './support/profile-override';
 
 export const SEED_PASSWORD = 'Passw0rd!dev';
 
@@ -207,21 +208,7 @@ export const login = signIn;
  * so no DOM label ever observes the drifted locale.
  */
 export async function pinEnglishLocale(page: Page): Promise<void> {
-  await page.route('**/rest/v1/profiles?*', async (route) => {
-    const url = route.request().url();
-    if (route.request().method() !== 'GET' || !/[?&]id=eq\./.test(url)) return route.fallback();
-    const response = await route.fetch({ maxRetries: 2 });
-    let body: unknown;
-    try {
-      body = await response.json();
-    } catch {
-      return route.fulfill({ response });
-    }
-    if (body && !Array.isArray(body) && typeof body === 'object' && 'locale' in body) {
-      return route.fulfill({ response, json: { ...body, locale: 'en', number_locale: 'en-US' } });
-    }
-    return route.fulfill({ response, json: body });
-  });
+  await overrideProfile(page, localePatch('en'));
 }
 
 /**
