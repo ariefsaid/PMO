@@ -60,6 +60,11 @@ const EN_CATALOGUE = path.join(APP, 'public/locales/en/common.json');
 const DEFAULT_MISMATCH_BASELINE = path.join(HERE, 'i18n-default-mismatch-baseline.json');
 /** Read ONLY by --id mode (FR-L10N-042b); the en-side loader must never touch it. */
 const ID_CATALOGUE = path.join(APP, 'public/locales/id/common.json');
+/** `common` is two files (`commonPages` is its second fallback namespace); every key is still a `common` key. */
+const COMMON_FILES = ['common.json', 'commonPages.json'];
+function readCommon(commonPath) {
+  return Object.assign({}, ...COMMON_FILES.map((name) => JSON.parse(fs.readFileSync(path.join(path.dirname(commonPath), name), 'utf8'))));
+}
 /** Roots scanned for key REFERENCES (the orphan half). Deliberately the whole app, not just
  *  launch scope: a key pointing at text that no longer exists is dead wherever it lives. */
 const REFERENCE_ROOTS = ['pages', 'components', 'src', 'App.tsx'];
@@ -1125,23 +1130,23 @@ function readFromDisk() {
     }
   }
 
-  const catalogue = JSON.parse(fs.readFileSync(EN_CATALOGUE, 'utf8'));
+  const catalogue = readCommon(EN_CATALOGUE);
   const namespaces = Object.fromEntries(fs.readdirSync(path.dirname(EN_CATALOGUE))
-    .filter((name) => name.endsWith('.json') && name !== 'common.json')
+    .filter((name) => name.endsWith('.json') && !COMMON_FILES.includes(name))
     .map((name) => [path.basename(name, '.json'), JSON.parse(fs.readFileSync(path.join(path.dirname(EN_CATALOGUE), name), 'utf8'))]));
   return { entries, launchScopeFiles, referenceFiles, catalogue, namespaces };
 }
 
 function readIdNamespacesFromDisk() {
   const dir = path.dirname(ID_CATALOGUE);
-  return Object.fromEntries(fs.readdirSync(dir).filter((name) => name.endsWith('.json') && name !== 'common.json')
+  return Object.fromEntries(fs.readdirSync(dir).filter((name) => name.endsWith('.json') && !COMMON_FILES.includes(name))
     .map((name) => [path.basename(name, '.json'), JSON.parse(fs.readFileSync(path.join(dir, name), 'utf8'))]));
 }
 
 /** --id mode ONLY. Kept out of `readFromDisk` so the en-side gate stays structurally incapable
  *  of depending on translation state — the self-test asserts this separation. */
 function readIdFromDisk() {
-  return JSON.parse(fs.readFileSync(ID_CATALOGUE, 'utf8'));
+  return readCommon(ID_CATALOGUE);
 }
 
 // ── Reporting ───────────────────────────────────────────────────────────────────────────────

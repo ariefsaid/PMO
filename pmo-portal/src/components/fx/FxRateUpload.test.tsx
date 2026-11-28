@@ -4,18 +4,13 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { I18nextProvider } from 'react-i18next';
 import i18next from 'i18next';
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { ToastProvider } from '@/src/components/ui';
 import type { FxParsed } from '@/src/lib/import/fxRateParser';
 import FxRateUpload from './FxRateUpload';
+import { commonCatalogue } from '@/test/commonCatalogue';
 
-const enCatalogue = JSON.parse(
-  readFileSync(join(process.cwd(), 'public/locales/en/common.json'), 'utf8'),
-);
-const idCatalogue = JSON.parse(
-  readFileSync(join(process.cwd(), 'public/locales/id/common.json'), 'utf8'),
-);
+const enCatalogue = commonCatalogue('en');
+const idCatalogue = commonCatalogue('id');
 const h = vi.hoisted(() => ({ parseFile: vi.fn(), existing: vi.fn(), upsert: vi.fn() }));
 vi.mock('@/src/lib/import/fxRateParser', async () => {
   const actual = await vi.importActual<typeof import('@/src/lib/import/fxRateParser')>(
