@@ -10,3 +10,4 @@ exit 0
 ```
 
 - Shard 2/8: exit 1; Test Files  1 failed | 354 passed (355); Tests  1 failed | 3474 passed (3475) (failure: src/lib/agent/checkEdgeFnErrorReporting.test.ts, rerun pending)
+- Shard 3/8: exit 0;  Test Files 354 passed (354); Tests 3440 passed (3440);
