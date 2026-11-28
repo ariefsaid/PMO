@@ -4,12 +4,13 @@ import { supabase } from '@/src/lib/supabase/client';
 import { trackAuthLogoutSucceeded } from '@/src/lib/analytics';
 import { queryClient } from '@/src/lib/queryClient';
 import { AuthContext, type Profile } from './AuthContext';
+import { readShellBootstrap, seedShellQueries, type ShellBootstrap } from '@/src/lib/db/shellBootstrap';
 
 type ProfileErrorKind = 'not_provisioned' | 'load_error';
 
 type ProfileResult =
-  | { profile: Profile; error: null; errorKind: null }
-  | { profile: null; error: string; errorKind: ProfileErrorKind };
+  | { profile: Profile; error: null; errorKind: null; boot?: ShellBootstrap }
+  | { profile: null; error: string; errorKind: ProfileErrorKind; boot?: undefined };
 
 // PostgREST returns PGRST116 ("Cannot coerce the result to a single JSON object") when
 // .single() matches zero (or more than one) rows — here, zero rows means the signed-in
@@ -28,6 +29,13 @@ async function loadProfile(userId: string): Promise<ProfileResult> {
   // caller here (an auth event or a manual refresh) must see the current row — a move to another
   // org, a role change or a locale edit arrives exactly that way. A cached read here silently
   // pins the session to the profile that was loaded first.
+  // One request for the profile AND the shell's start-up facts (migration 2810); the caller seeds those once the
+  // org scope is settled. When it fails, the plain profile read below decides, as it always did.
+  const boot = await readShellBootstrap();
+  if (boot) {
+    if (!boot.profile) return { profile: null, error: 'No profile for this user', errorKind: 'not_provisioned' };
+    return { profile: boot.profile as unknown as Profile, error: null, errorKind: null, boot };
+  }
   const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).single();
   if (error) {
     const errorKind = classifyProfileError(error);
@@ -110,6 +118,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setProfileErrorKind(result.errorKind);
         } else {
           syncOrgScope(orgIdRef, result.profile?.org_id ?? null);
+          if (result.boot) seedShellQueries(queryClient, result.boot);
           setCurrentUser(result.profile);
           setProfileError(null);
           setProfileErrorKind(null);
@@ -229,6 +238,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return { error: result.error };
       }
       syncOrgScope(orgIdRef, result.profile?.org_id ?? null);
+      if (result.boot) seedShellQueries(queryClient, result.boot);
       setCurrentUser(result.profile);
       setProfileError(null);
       setProfileErrorKind(null);

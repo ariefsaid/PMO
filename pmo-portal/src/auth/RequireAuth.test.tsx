@@ -242,13 +242,15 @@ describe('RequireAuth profile-error states (AC-MSAUTH-010/011)', () => {
 
     expect(retry).toBeDisabled();
     expect(retry).toHaveAttribute('aria-busy', 'true');
-    expect(state.profileReadCount).toBe(2);
+    // The read starts after the one-read start-up call (absent here) falls back, a microtask later.
+    await waitFor(() => expect(state.profileReadCount).toBe(2));
 
     await act(async () => retryRead.resolve({
       data: { id: 'u-retry-in-flight', org_id: 'org-1', role: 'Admin', status: 'active' },
       error: null,
     }));
     expect(await screen.findByText('PROFILE SETTINGS')).toBeInTheDocument();
+    expect(state.profileReadCount).toBe(2);
   });
 
   it('AC-MSAUTH-010: a PGRST116 profile-fetch error renders the not-provisioned state — Sign out present, Retry absent', async () => {
