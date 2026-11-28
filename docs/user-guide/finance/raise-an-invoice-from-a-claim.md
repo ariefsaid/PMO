@@ -68,8 +68,9 @@ Recovery of the down payment is covered in
   status.
 - The project's **Billing summary** shows **Contract value**, **Assessed to date**,
   **Billed to date**, **Remaining**, **Down payment held**, and **Work done, not yet billed**.
-- The new invoice appears in [Receivables](who-owes-what-and-ageing.md) as a **Draft**. Once it is
-  approved it gets its number and becomes **Unpaid**, and it can receive payments.
+- Where invoices are written in PMO, the new invoice appears in
+  [Receivables](who-owes-what-and-ageing.md) as a **Draft**. Once it is approved it gets its number
+  and becomes **Unpaid**, and it can receive payments.
 
 ## Common errors and what to do
 
@@ -168,8 +169,9 @@ Pemulihan uang muka dijelaskan di [Uang muka dan pemulihannya](down-payments-and
   dokumen buktinya, dan kolom **Invoice**: *Not raised*, lalu nomor serta status invoice-nya.
 - **Billing summary** proyek menampilkan **Contract value**, **Assessed to date**,
   **Billed to date**, **Remaining**, **Down payment held**, dan **Work done, not yet billed**.
-- Invoice baru muncul di [Piutang](who-owes-what-and-ageing.md) sebagai **Draf**. Setelah
-  disetujui, invoice mendapat nomornya, menjadi **Belum dibayar**, dan dapat menerima pembayaran.
+- Bila invoice ditulis di PMO, invoice baru muncul di [Piutang](who-owes-what-and-ageing.md) sebagai
+  **Draf**. Setelah disetujui, invoice mendapat nomornya, menjadi **Belum dibayar**, dan dapat
+  menerima pembayaran.
 
 ## Kesalahan umum dan cara mengatasinya
 

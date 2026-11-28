@@ -11,6 +11,8 @@ figures.
 
 - **Read the figures and the invoices**: Admin, Executive, Finance.
 - **Open an invoice, record a payment, raise an invoice**: Admin, Finance.
+- A Project Manager does not get this page, but can open a single invoice from a link someone
+  shares.
 - If your role cannot read an invoice's amount, the figure is labelled — never shown as zero.
 
 ## Where to find it
@@ -87,6 +89,8 @@ setiap invoice terbuka di balik angka-angka itu.
 
 - **Membaca angka dan invoice-nya**: Admin, Eksekutif, Keuangan.
 - **Membuka invoice, mencatat pembayaran, membuat invoice**: Admin, Keuangan.
+- Manajer Proyek tidak mendapat halaman ini, tetapi dapat membuka satu invoice dari tautan yang
+  dibagikan.
 - Bila peran Anda tidak dapat membaca nilai sebuah invoice, angkanya diberi keterangan — tidak
   pernah ditampilkan sebagai nol.
 

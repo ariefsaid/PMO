@@ -23,8 +23,8 @@ project, and each line with its quantity and rate.
 
 1. Open **Receivables** and choose **New invoice**.
 2. Pick the **Customer**. The list shows the companies already recorded for your organisation.
-3. Pick the **Project**. Only live projects of that customer are offered. The project decides the
-   invoice's currency and its tax rate.
+3. Pick the **Project**. Only live projects of that customer are offered. Where your organisation
+   writes its invoices in PMO, the project sets the invoice's currency and its tax rate.
 4. Choose the **Billing kind**:
    - **Contract billing** counts against the contract: it reduces what is left to invoice and counts
      toward revenue and margin.
@@ -90,8 +90,8 @@ invoice sendiri — pelanggan, proyek, dan tiap baris dengan kuantitas dan harga
 
 1. Buka **Piutang** dan pilih **Invoice baru**.
 2. Pilih **Customer**. Daftarnya memuat perusahaan yang sudah tercatat untuk organisasi Anda.
-3. Pilih **Project**. Hanya proyek aktif milik pelanggan itu yang ditawarkan. Proyek menentukan
-   mata uang dan tarif pajak invoice.
+3. Pilih **Project**. Hanya proyek aktif milik pelanggan itu yang ditawarkan. Bila organisasi Anda
+   menulis invoice-nya di PMO, proyek menentukan mata uang dan tarif pajak invoice.
 4. Pilih **Billing kind**:
    - **Contract billing** dihitung terhadap kontrak: mengurangi sisa yang harus ditagih dan masuk
      ke pendapatan serta margin.
