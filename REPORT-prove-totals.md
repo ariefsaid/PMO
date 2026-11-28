@@ -88,6 +88,7 @@ Earlier probe (8 chromium specs at 4 workers): 4 failed (AC-002, AC-009, AC-1834
 | chunk-chromium-08 | 9 | 1 failed 41 passed (3.6m) | 1 | notice-never-blocks-the-control.spec.ts rc=0 16 passed (1.8m) |
 | chunk-serial-00 | 40 | 3 failed 16 skipped 48 passed (10.3m) | 3 | AC-IXD-PROC-W5-3-approvals-inbox.spec.ts rc=1 1 failed 14 passed (1.5m); AC-AUTH-005.spec.ts rc=0 (Mailpit started) 11 passed (56.8s); AC-AUTHF-005-password-reset.spec.ts rc=0 (Mailpit started) 11 passed (1.0m) |
 | chunk-serial-01 | 40 | 8 skipped 61 passed (12.9m) | 0 | - |
+| chunk-serial-02 | 40 | 1 failed 1 skipped 51 passed (13.4m) | 1 | JOB-BQ9-buyer-inspection-handoff.spec.ts rc=0 11 passed (1.2m) |
 Note: an entry for e2e/support/figure-layout.ts in a chunk (chunk-chromium-07) is a parser artifact (a helper file in a stack trace, not a spec); the layout specs that use it all passed alone. The 28 project-detail.layout failures in that chunk came from one spec file that took 10.0m alone (72 passed), so they are load/timeout-sensitive.
 
 ### Real browser failures (still failing when re-run alone)
