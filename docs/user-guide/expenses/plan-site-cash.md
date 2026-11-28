@@ -46,8 +46,8 @@ it is flagged as out of plan, and the custodian can ask for the cash to be toppe
 
 1. Open the site cash. A submitted plan shows its total and its status on its row in **Plans**;
    site cash waiting for you also appears in **Approvals**.
-2. Choose **Approve**, and confirm **Approve the ⟨month⟩ plan?** — with an optional **Note to the
-   author** — or choose **Reject** with a note.
+2. Choose **Approve**, and confirm **Approve the ⟨month⟩ plan?** — or choose **Reject**, write a
+   **Note to the author**, and confirm.
 3. The custodian sees the result; a rejected plan can be corrected and submitted again.
 
 ### Change the limit
@@ -137,8 +137,8 @@ dapat meminta kas ditambah.
 
 1. Buka kas lapangannya. Rencana yang sudah diajukan menampilkan total dan statusnya pada barisnya di
    **Rencana**; kas lapangan yang menunggu Anda juga muncul di **Persetujuan**.
-2. Pilih **Setujui**, lalu konfirmasi **Setujui rencana ⟨bulan⟩?** — dengan **Catatan untuk penyusun**
-   bila perlu — atau pilih **Tolak** dengan catatan.
+2. Pilih **Setujui**, lalu konfirmasi **Setujui rencana ⟨bulan⟩?** — atau pilih **Tolak**, tulis
+   **Catatan untuk penyusun**, lalu konfirmasi.
 3. Pemegang kas melihat hasilnya; rencana yang ditolak dapat diperbaiki dan diajukan lagi.
 
 ### Mengubah batas kas
