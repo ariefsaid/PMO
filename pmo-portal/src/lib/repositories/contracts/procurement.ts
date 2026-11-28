@@ -1,7 +1,7 @@
 /** Procurement case and phase-file repository contracts. */
 import type { CommandIntent } from './commandIntent';
 import type { MicrosoftReferenceInput } from '@/src/lib/m365/reference';
-import type { ProcurementWithRefs, ProjectCommittedSpend, ProjectReservedSpend } from '@/src/lib/db/procurements';
+import type { ProcurementWithRefs, ProjectCommittedSpend, ProjectReservedSpend, SupplierPayablesTotal } from '@/src/lib/db/procurements';
 import type {
   ProcurementDetail,
   ProcurementStatus,
@@ -61,6 +61,7 @@ export interface ProcurementRepository {
   getProjectCommittedSpend(projectId: string): Promise<ProjectCommittedSpend>;
   /** Approved-but-not-yet-ordered demand for one project (ADR-0034). */
   getProjectReservedSpend(projectId: string): Promise<ProjectReservedSpend>;
+  getSupplierPayablesTotals(today: string): Promise<SupplierPayablesTotal[]>;
   /** Organisation-level needed-by requirement (1124d). */
   getPoNeededByRequired(): Promise<boolean>;
   /** Admin-only, audited setting change (1124d). */

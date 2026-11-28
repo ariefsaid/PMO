@@ -452,18 +452,26 @@ export async function listMonthlyInvoiceFacts(from: string, toExclusive: string)
 }
 
 /** What the dashboard's collected figure reads from a received payment. */
-export type PaidPaymentFact = Pick<IncomingPaymentRow, 'status' | 'date' | 'amount' | 'currency'>;
+/** Paid receipts per currency and month: one fact per month's known sum (`amount`, exact decimal text) and one with a null
+ *  amount when any receipt of that month had none. A month of null is the receipts with no date. */
+export type PaidPaymentFact = Pick<IncomingPaymentRow, 'status' | 'date' | 'currency'> & { amount: number | string | null };
 
-/** Paid receipts as narrow facts: no customer join and no receipt-push command read (the dashboard shows neither). */
+/** #3046: Paid receipts summed by the server per currency and month (2815), not every Paid receipt ever recorded.
+ *  The facts carry the same sums and the same unknowns the receipt rows did, so every selector reads them unchanged. */
 export async function listPaidPaymentFacts(): Promise<PaidPaymentFact[]> {
-  return fetchAllPages<PaidPaymentFact>((from, to) =>
-    supabase
-      .from('incoming_payments')
-      .select('status,date,amount,currency')
-      .eq('status', 'Paid')
-      .order('id', { ascending: true })
-      .range(from, to) as unknown as PromiseLike<PageResult<PaidPaymentFact>>,
-  );
+  const { data, error } = await supabase.rpc('get_paid_receipt_months');
+  if (error) throwWrite(error);
+  return paidFactsFromMonths(data ?? []);
+}
+
+export function paidFactsFromMonths(rows: ReadonlyArray<{ currency: string; month: string | null; total: string | null; receipt_count: number; unknown_count: number }>): PaidPaymentFact[] {
+  return rows.flatMap((row) => {
+    const date = row.month ? `${row.month}-01` : null;
+    const facts: PaidPaymentFact[] = [];
+    if (row.receipt_count > row.unknown_count) facts.push({ status: 'Paid', date, amount: row.total, currency: row.currency });
+    if (row.unknown_count > 0) facts.push({ status: 'Paid', date, amount: null, currency: row.currency });
+    return facts;
+  });
 }
 
 /** Whether the org holds ANY client invoice, whatever its status — the dashboard's empty-state evidence

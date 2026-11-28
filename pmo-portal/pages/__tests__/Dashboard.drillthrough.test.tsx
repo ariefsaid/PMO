@@ -97,7 +97,7 @@ vi.mock('@/src/hooks/useDashboard', () => ({
   useWinRate: () => ({ data: null, isPending: false, isError: false }),
   useLossBreakdown: () => ({ data: undefined, isPending: true, isError: false, refetch: vi.fn() }),
 }));
-vi.mock('@/src/hooks/useProcurements', () => ({
+vi.mock('@/src/hooks/useProcurements', async () => (await import('@/src/test/supplierTotalsFromRows')).withSupplierTotals({
   useProcurements: () => ({ data: procurements, isPending: false, isError: false, refetch: vi.fn() }),
 }));
 // task FIX-2 (Discover CRITICAL 2): FinanceDashboard now mounts AccountingSnapshotsSection.
