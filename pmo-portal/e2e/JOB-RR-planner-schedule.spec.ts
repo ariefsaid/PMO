@@ -22,6 +22,7 @@ test('AC-RR-006 planner links tasks to an order and adds a dependency', async ({
       await dialog.getByRole('button', { name: /create task/i }).click();
       await expect(dialog).toBeHidden();
     }
+    await page.getByRole('button', { name: 'All', exact: true }).click();
     const row = page.locator('table tbody tr').filter({ has: page.getByRole('button', { name: `Open task ${run} second` }) });
     await row.hover();
     await row.getByRole('button', { name: 'Row actions' }).click();

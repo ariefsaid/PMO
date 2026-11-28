@@ -21,8 +21,10 @@ test('AC-RR-007 HR officer reviews recorded crew attendance', async ({ page }) =
     await hr.signIn(page);
     await page.goto(`/crews?view=attendance&wo=${order}`);
     const row = page.getByRole('row').filter({ hasText: `${run} worker` });
-    await expect(row.getByText('Present', { exact: true })).toBeVisible({ timeout: 20_000 });
-    await expect(row.getByRole('combobox')).toHaveCount(0);
+    const status = row.getByRole('combobox').first();
+    await expect(status).toHaveValue('present', { timeout: 20_000 });
+    await expect(status).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'Save attendance' })).toHaveCount(0);
   } finally {
     if (order) ok('attendance cleanup', await svc.from('attendance_days').delete().eq('work_order_id', order));
     if (crew) ok('roster cleanup', await svc.from('work_order_crews').delete().eq('crew_id', crew));
