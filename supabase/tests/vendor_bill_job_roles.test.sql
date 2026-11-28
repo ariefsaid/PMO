@@ -99,8 +99,10 @@ select throws_ok($$select create_procurement_invoice('25250000-0000-0000-0000-00
 select throws_ok($$select approve_bill_match_exception(pg_temp.id('existing'), 'reason')$$, '42501', null, 'AC-VBJR-003 equipment officer cannot approve the exception');
 select throws_ok($$select pg_temp.pay(1)$$, '42501', null, 'AC-VBJR-003 equipment officer cannot record a payment');
 reset role;
+select pg_temp.act_as('25250000-0000-0000-0000-0000000000a1');
 update profiles set role = 'Finance', built_in_role = 'finance_officer' where id = '25250000-0000-0000-0000-0000000000a7';
 set local role authenticated;
+select pg_temp.act_as('25250000-0000-0000-0000-0000000000a7');
 select throws_ok($$select approve_bill_match_exception(pg_temp.id('own'), 'reason')$$, '42501', 'separation of duties: the person who recorded this bill or its lines cannot approve its exception', 'AC-VBJR-003 a bill author cannot approve their exception after a role change');
 select pg_temp.act_as('25250000-0000-0000-0000-0000000000a8');
 select lives_ok($$select get_bill_match(pg_temp.id('existing'))$$, 'AC-VBJR-004 buyer reads the match');
