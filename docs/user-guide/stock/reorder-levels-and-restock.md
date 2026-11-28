@@ -78,7 +78,7 @@ habis tanpa diketahui. PMO juga dapat menyarankan level dari seberapa banyak bar
 terpakai, dan mengubah kekurangannya menjadi permintaan pembelian dengan satu klik.
 
 **Siapa yang bisa melakukannya:** semua orang dapat membaca daftar pemesanan ulang. Menetapkan,
-mengubah, atau menghapus level dilakukan Finance, Manajer Proyek, Eksekutif, atau Admin. Siapa pun
+mengubah, atau menghapus level dilakukan Keuangan, Manajer Proyek, Eksekutif, atau Admin. Siapa pun
 boleh mengajukan permintaan pembelian untuk mengisi ulang barang.
 
 ## Di mana menemukannya

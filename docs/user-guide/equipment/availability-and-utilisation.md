@@ -13,9 +13,11 @@ Two figures tell you whether the plant can carry the week's plan:
 organisation's targets beside them. Use it when you promise work: a machine that is below target is
 either down or idle, and both are worth knowing before the plan is set.
 
-**Who can do this:** everyone reads the availability board. Admin, Project Manager and Engineer
-record the daily statuses that feed it. Admin, the equipment manager and a Project Manager set the
-targets and the working hours. Finance and the equipment manager read the rental invoice check on the same page.
+**Who can do this:** everyone reads the availability board. The availability and utilisation figures
+are shown to Admin, Executive, Finance, Project Manager and the Equipment Officer job role. Admin,
+Project Manager and Engineer record the daily statuses that feed it. Admin, the Equipment Manager job
+role and a Project Manager without a job role set the targets and the working hours. Finance, Admin and
+the equipment job roles use the rental invoice check on the same page.
 
 ## Where to find it
 
@@ -54,7 +56,7 @@ targets and the working hours. Finance and the equipment manager read the rental
 - Usage that is still waiting for approval shows as **Awaiting approval** and does not yet lift
   utilisation — approve the week's usage and the figure moves.
 - A machine that has been down more than the escalation limit is flagged **Down more than … days**
-  on the status board, and equipment managers are told.
+  on the status board, and Admin and Project Manager users are told.
 
 ## Common errors and what to do
 
@@ -71,6 +73,7 @@ targets and the working hours. Finance and the equipment manager read the rental
   page; the status board above keeps working.
 - **Targets and hours are not offered** — your role reads availability but does not set them. Ask an
   Admin or the equipment manager.
+- **The figures table is missing** — your role reads the status board but not the figures.
 
 ---
 
@@ -92,10 +95,11 @@ bulan, dengan target organisasi Anda di sampingnya. Gunakan saat Anda menjanjika
 yang di bawah target sedang rusak atau menganggur, dan keduanya penting diketahui sebelum rencana
 ditetapkan.
 
-**Siapa yang bisa melakukannya:** semua orang membaca papan ketersediaan. Admin, Manajer Proyek, dan
-Insinyur mencatat status harian yang menjadi bahannya. Admin, manajer peralatan, dan Manajer Proyek
-menetapkan target dan jam kerja. Finance dan manajer peralatan membaca pemeriksaan tagihan sewa di halaman yang
-sama.
+**Siapa yang bisa melakukannya:** semua orang membaca papan ketersediaan. Angka ketersediaan dan
+pemanfaatan ditampilkan untuk Admin, Eksekutif, Keuangan, Manajer Proyek, dan jabatan Petugas
+Peralatan. Admin, Manajer Proyek, dan Insinyur mencatat status harian yang menjadi bahannya. Admin,
+jabatan Manajer Peralatan, dan Manajer Proyek tanpa jabatan menetapkan target dan jam kerja. Keuangan,
+Admin, dan jabatan peralatan memakai pemeriksaan tagihan sewa di halaman yang sama.
 
 ## Di mana menemukannya
 
@@ -134,7 +138,7 @@ peralatan](equipment-daily-status.md).
 - Pemakaian yang masih menunggu persetujuan tampil sebagai **Menunggu persetujuan** dan belum
   menaikkan pemanfaatan — setujui pemakaian minggu itu dan angkanya bergerak.
 - Mesin yang rusak lebih lama dari batas eskalasi ditandai **Rusak lebih dari … hari** di papan
-  status, dan pengelola peralatan diberi tahu.
+  status, dan pengguna Admin dan Manajer Proyek diberi tahu.
 
 ## Kesalahan umum dan cara mengatasinya
 

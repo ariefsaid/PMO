@@ -42,8 +42,9 @@ sits at the top of the stock setup page.
 - The stock ledger holds the loaded movements, dated as your file dated them, each with its document
   and its reference. Balances at each location start from the last row for that item.
 - **Stock → On hand** shows the closing quantities and values.
-- Opening stock can be loaded once. Later corrections are ordinary counts and adjustments, not
-  another opening load.
+- Opening stock can be loaded once for each location, and only before that location has any stock
+  movement (the page says **This location already has an opening** or **… already has stock
+  movements**). Later corrections are ordinary counts and adjustments, not another opening load.
 
 ## Common errors and what to do
 
@@ -114,8 +115,10 @@ keterangannya, tetapi tidak dapat memuat stok.
 - Buku stok memuat pergerakan yang dimuat, bertanggal sesuai berkas Anda, masing-masing dengan
   dokumen dan referensinya. Sisa di setiap lokasi dimulai dari baris terakhir barang itu.
 - **Stok → Persediaan** menampilkan jumlah dan nilai akhirnya.
-- Stok awal hanya dapat dimuat sekali. Koreksi berikutnya adalah stok opname dan penyesuaian biasa,
-  bukan pemuatan awal lagi.
+- Stok awal hanya dapat dimuat sekali untuk setiap lokasi, dan hanya sebelum lokasi itu punya
+  pergerakan stok (halaman menyatakan **Lokasi ini sudah punya stok awal** atau **Lokasi ini sudah
+  punya pergerakan stok**). Koreksi berikutnya adalah penghitungan dan penyesuaian biasa, bukan
+  pemuatan awal lagi.
 
 ## Kesalahan umum dan cara mengatasinya
 

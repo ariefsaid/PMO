@@ -92,7 +92,7 @@ unggah, dan PMO memeriksa setiap baris sebelum menyimpan apa pun. Baris yang gag
 berkas yang dapat Anda betulkan lalu unggah lagi.
 
 **Siapa yang bisa melakukannya:** tombol impor hanya muncul untuk peran yang boleh membuat jenis
-catatan itu — Admin, Manajer Proyek, Finance, atau Eksekutif, tergantung daftarnya (untuk orang dan
+catatan itu — Admin, Manajer Proyek, Keuangan, atau Eksekutif, tergantung daftarnya (untuk orang dan
 peralatan, juga jabatan Petugas SDM atau Petugas Peralatan). Bila tombolnya
 tidak terlihat, peran Anda boleh membaca daftar tetapi tidak boleh menambah.
 
@@ -107,7 +107,7 @@ Setiap daftar membawa tombol **Impor**-nya sendiri:
 - **Stok → Pengaturan**, lalu tautan **Stok awal** — halaman tersendiri dengan templatnya sendiri
   (lihat [Memuat stok awal](../stock/opening-stock.md)); halaman itu tidak memakai langkah di bawah.
 - **Peralatan → Aset** — **Impor**.
-- **Administrasi → Orang** — **Impor personel**; halaman orangnya sendiri mengimpor dokumennya.
+- **Administrasi → Personel** — **Impor personel**; halaman orangnya sendiri mengimpor dokumennya.
 - **Kru** — **Impor kru** dan **Impor anggota kru**.
 - **Perusahaan** dan **Kontak** — **Impor**.
 

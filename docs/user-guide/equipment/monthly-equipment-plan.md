@@ -13,12 +13,13 @@ organisation and sets its approval step and categories.
 
 ## Where to find it
 
-**Equipment**, then **Monthly equipment plan**. If the plan is not yet on, an Admin sees **Turn on
+**Equipment**, then the **Monthly equipment plan** button at the top of the Equipment screen. It
+appears only when your plan includes procurement. If the plan is not yet on, an Admin sees **Turn on
 the monthly equipment plan** in its place.
 
 ## Steps
 
-1. Open **Equipment → Monthly equipment plan**.
+1. Open **Equipment**, then choose **Monthly equipment plan**.
 2. Choose the **Project** and the **Month**.
 3. If there is no plan yet, add the first line with **Add line**. For each line, fill in:
    - **What is needed** — plain words, for example "Crane 25 ton, 2 weeks".
@@ -36,12 +37,14 @@ the monthly equipment plan** in its place.
 ### Set the plan up (Admin)
 
 1. Choose **Plan settings**.
-2. Turn on **Use the monthly plan**. It needs purchase types on, with a rental type.
+2. Turn on **Use the monthly plan**. It needs purchase types on, with a rental type; the plan settings
+   page says so.
 3. Choose the **Approval step** — the project's spend approvers (then senior approvers, then an
    Admin), or anyone whose role can approve spend — and whether the author may approve their own
    plan.
-4. Keep the **Plan categories** list: add a **Name** and a **Name in Bahasa Indonesia**, and
-   **Retire** one you no longer use.
+4. Choose **Save**.
+5. Keep the **Plan categories** list: add a **Name** and a **Name in Bahasa Indonesia**, choose **Add
+   category**, and **Retire** one you no longer use (**Restore** brings it back).
 
 ## What the result looks like
 
@@ -89,12 +92,13 @@ persetujuan dan kategorinya.
 
 ## Di mana menemukannya
 
-**Peralatan**, lalu **Rencana peralatan bulanan**. Bila rencananya belum aktif, Admin melihat
+**Peralatan**, lalu tombol **Rencana peralatan bulanan** di bagian atas layar Peralatan. Tombol ini
+muncul hanya bila paket Anda mencakup pengadaan. Bila rencananya belum aktif, Admin melihat
 **Aktifkan rencana peralatan bulanan** di tempatnya.
 
 ## Langkah-langkah
 
-1. Buka **Peralatan → Rencana peralatan bulanan**.
+1. Buka **Peralatan**, lalu pilih **Rencana peralatan bulanan**.
 2. Pilih **Proyek** dan **Bulan**.
 3. Bila belum ada rencana, tambahkan baris pertama dengan **Tambah baris**. Untuk setiap baris, isi:
    - **Yang dibutuhkan** — kata sederhana, misalnya "Crane 25 ton, 2 minggu".
@@ -115,8 +119,9 @@ persetujuan dan kategorinya.
 3. Pilih **Langkah persetujuan** — penyetuju pengeluaran proyek (lalu penyetuju senior, lalu Admin),
    atau siapa pun yang perannya dapat menyetujui pengeluaran — dan apakah penyusun boleh menyetujui
    rencananya sendiri.
-4. Kelola daftar **Kategori rencana**: tambahkan **Nama** dan **Nama dalam Bahasa Indonesia**, dan
-   **Nonaktifkan** yang tidak dipakai lagi.
+4. Pilih **Simpan**.
+5. Kelola daftar **Kategori rencana**: tambahkan **Nama** dan **Nama dalam Bahasa Indonesia**, pilih
+   **Tambah kategori**, dan **Nonaktifkan** yang tidak dipakai lagi (**Aktifkan lagi** mengembalikannya).
 
 ## Hasilnya seperti apa
 

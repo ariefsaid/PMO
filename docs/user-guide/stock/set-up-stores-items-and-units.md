@@ -100,7 +100,7 @@ proyek, halaman proyek, area penyiapan, atau tempat vendor tempat material Anda 
 punya penjaga: orang yang memposting penerimaan, transfer, dan pengeluarannya.
 
 **Siapa yang bisa melakukannya:** semua peran dapat membaca daftarnya. Mengubah satuan, barang, dan
-gudang dilakukan Finance, Manajer Proyek, Eksekutif, atau Admin. Menetapkan penjaga gudang dilakukan
+gudang dilakukan Keuangan, Manajer Proyek, Eksekutif, atau Admin. Menetapkan penjaga gudang dilakukan
 Admin.
 
 ## Di mana menemukannya
@@ -143,7 +143,7 @@ mengubah data induk stok.
    usulan awal untuk pengeluaran; tidak membatasi proyek mana yang boleh mengambil dari gudang.
 4. Untuk lokasi vendor, pilih **Perusahaan vendor** yang memegang materialnya.
 5. Bila perlu, isi **Nilai perlindungan** — perlindungan yang dicatat untuk lokasi ini. Nilai stok di
-   atasnya tampil di **Stok → Berisiko**.
+   atasnya tampil di **Stok → Risiko**.
 6. **Buat gudang**. Gunakan **Impor** untuk memuat banyak lokasi sekaligus.
 
 ### Penjaga gudang
@@ -179,4 +179,4 @@ mengubah data induk stok.
 - **Gudang tidak muncul di formulir dokumen** — Anda bukan penjaganya. Minta Admin menambahkan Anda
   di **Penjaga gudang**.
 - **"Anda dapat melihat pengaturan stok."** — peran Anda membaca daftar tetapi tidak mengubahnya.
-  Minta Manajer Proyek, Finance, Eksekutif, atau Admin.
+  Minta Manajer Proyek, Keuangan, Eksekutif, atau Admin.

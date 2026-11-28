@@ -8,7 +8,7 @@ value sitting unprotected is visible instead of assumed. It is the screen to ope
 much stock could we lose here, and is it covered?"
 
 The page is about value per location. For items that are running low, use **Stock → Reorder**
-instead (see [Reorder levels and restocking](reorder-levels-and-restocking.md)).
+instead (see [Reorder levels and restocking](reorder-levels-and-restock.md)).
 
 **Who can do this:** every role can open the page. Value and cover figures are shown to roles that
 may read stock cost; other roles see the locations and whether each has guard cover recorded.
@@ -74,12 +74,12 @@ may read stock cost; other roles see the locations and whether each has guard co
 ## Untuk apa ini
 
 Setiap lokasi stok dapat memiliki **Nilai perlindungan** — besaran perlindungan yang dicatat untuk
-stok yang disimpannya. **Stok → Berisiko** membandingkan nilai stok di setiap lokasi dengan
+stok yang disimpannya. **Stok → Risiko** membandingkan nilai stok di setiap lokasi dengan
 perlindungan itu, sehingga nilai yang tidak terlindungi terlihat, bukan diasumsikan. Halaman ini
 dibuka saat Anda bertanya "berapa nilai stok yang bisa hilang di sini, dan apakah terlindungi?"
 
 Halaman ini tentang nilai per lokasi. Untuk barang yang menipis, gunakan **Stok → Pemesanan ulang**
-(lihat [Level pemesanan ulang dan pengisian stok](reorder-levels-and-restocking.md)).
+(lihat [Level pemesanan ulang dan pengisian stok](reorder-levels-and-restock.md)).
 
 **Siapa yang bisa melakukannya:** semua peran dapat membuka halamannya. Angka nilai dan perlindungan
 ditampilkan untuk peran yang boleh membaca biaya stok; peran lain melihat lokasinya dan apakah
@@ -87,7 +87,7 @@ jaminan penjagaannya tercatat.
 
 ## Di mana menemukannya
 
-**Stok → Berisiko** (tab **Berisiko** di halaman Stok).
+**Stok → Risiko** (tab **Risiko** di halaman Stok).
 
 ## Langkah-langkah
 
@@ -101,11 +101,11 @@ jaminan penjagaannya tercatat.
 
 ### Membaca laporannya
 
-1. Buka **Stok → Berisiko**.
+1. Buka **Stok → Risiko**.
 2. Angka utama menampilkan **Nilai berisiko** dan **Total nilai stok**, beserta berapa lokasi yang
    melebihi perlindungannya.
 3. Tabel mendaftar setiap lokasi dengan **Jenis**, **Proyek**, **Nilai stok** yang disimpannya,
-   **Perlindungan**, dan jumlah **Berisiko** — nilai di atas perlindungan.
+   **Perlindungan**, dan jumlah **Risiko** — nilai di atas perlindungan.
 4. Lokasi tanpa perlindungan tercatat menampilkan **Belum dicatat** di kolom **Perlindungan**, bukan
    nol.
 5. Baris diurutkan dari nilai terbesar, sehingga lokasi yang perlu ditangani ada di atas.
@@ -115,7 +115,7 @@ jaminan penjagaannya tercatat.
 1. Halaman menampilkan lokasinya dan kolom **Jaminan penjagaan**, bukan uang: **Jaminan tercatat**
    atau **Stok tanpa penjagaan**.
 2. Gunakan untuk melihat lokasi mana yang sudah punya perlindungan tercatat, dan minta angkanya ke
-   Finance.
+   Keuangan.
 
 ## Hasilnya seperti apa
 
@@ -133,7 +133,7 @@ jaminan penjagaannya tercatat.
 - **"Belum dicatat"** di **Perlindungan** — belum ada nilai perlindungan di gudang itu. Tambahkan di
   **Stok → Pengaturan → Gudang → Ubah**.
 - **Tidak ada kolom nilai** — peran Anda tidak membaca biaya stok; kolom **Jaminan penjagaan**
-  memberi tahu apakah perlindungan sudah tercatat. Minta nilainya ke Finance.
+  memberi tahu apakah perlindungan sudah tercatat. Minta nilainya ke Keuangan.
 - **"Perlindungan adalah 0 atau lebih, paling banyak 2 desimal."** — betulkan nilainya; itu angka
   uang, bukan jumlah barang.
 - **Lokasi baru tidak muncul di laporan** — hanya lokasi yang menyimpan stok yang tampil. Terima stok

@@ -82,7 +82,7 @@ aktual proyek lengkap tanpa diketik ulang.
 Aturan hanya untuk sisi baca: PMO memakainya untuk menampilkan dan menjumlahkan biaya. Tidak ada yang
 ditulis kembali ke sistem akuntansi Anda.
 
-**Siapa yang bisa melakukannya:** **Finance** dan **Admin** menambah, mengubah, dan mengakhiri aturan.
+**Siapa yang bisa melakukannya:** **Keuangan** dan **Admin** menambah, mengubah, dan mengakhiri aturan.
 Peran lain yang dapat membuka **Administrasi** membaca daftarnya.
 
 ## Di mana menemukannya

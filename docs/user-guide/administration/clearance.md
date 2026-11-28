@@ -18,7 +18,7 @@ Project Manager and HR Officer can read the checklist and see who is cleared.
 
 **Administration → Clearance** (under **People and access**). It appears only while the **People
 and crews** module is on. Each person's checklist opens from
-**Who is cleared** on that page, or from the person's record under **Equipment → People**.
+**Who is cleared** on that page, or from the person's record (open the person from **Administration → People**).
 
 ## Steps
 
@@ -103,14 +103,14 @@ orang lalu mendapat daftar yang sama.
 
 **Siapa yang bisa melakukannya:** **Admin** menamai butir daftar periksa. Admin, Manajer Proyek, atau
 Petugas SDM mencatat dan membetulkan tanggal seseorang — tidak pada catatan dirinya sendiri. Admin,
-Eksekutif, Finance, Manajer Proyek, dan Petugas SDM dapat membaca daftar periksa dan melihat siapa yang
+Eksekutif, Keuangan, Manajer Proyek, dan Petugas SDM dapat membaca daftar periksa dan melihat siapa yang
 lolos.
 
 ## Di mana menemukannya
 
 **Administrasi → Izin ke lokasi** (di grup **Orang dan akses**). Menu ini muncul hanya selama modul
 **Orang dan kru** menyala. Daftar periksa setiap orang dibuka
-dari **Siapa yang lolos** di halaman itu, atau dari catatan orangnya di **Peralatan → Orang**.
+dari **Siapa yang lolos** di halaman itu, atau dari catatan orangnya (buka orangnya dari **Administrasi → Personel**).
 
 ## Langkah-langkah
 

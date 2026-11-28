@@ -13,8 +13,8 @@ without walking the whole store.
 
 **Who can do this:** the store's keeper writes the count sheet, for the warehouses they keep; an
 Admin can do it anywhere. Posting a count that shows a difference is done by someone else — a
-Project Manager or above who did not write it. A count with no difference at all can be posted by
-its own author.
+Project Manager or above (Executive, Finance, Admin) or a Material Coordinator who did not write it. A
+count with no difference at all can be posted by its own author.
 
 ## Where to find it
 
@@ -94,7 +94,8 @@ seluruh gudang.
 
 **Siapa yang bisa melakukannya:** penjaga gudang menulis lembar hitungan untuk gudang yang
 dipegangnya; Admin bisa di mana saja. Posting hitungan yang berselisih dilakukan orang lain —
-Manajer Proyek atau di atasnya yang bukan pembuatnya. Hitungan tanpa selisih sama sekali bisa
+Manajer Proyek atau di atasnya (Eksekutif, Keuangan, Admin) atau Koordinator Material yang bukan
+pembuatnya. Hitungan tanpa selisih sama sekali bisa
 diposting oleh pembuatnya sendiri.
 
 ## Di mana menemukannya
@@ -142,7 +143,7 @@ dibuka lagi dari halaman dokumennya dengan **Ubah draf**.
 ## Kesalahan umum dan cara mengatasinya
 
 - **"Orang lain harus mem-posting ini: Manajer Proyek atau di atasnya yang bukan pembuatnya."** —
-  lembarnya tersimpan; minta Manajer Proyek, Finance, Eksekutif, atau Admin yang bukan pembuatnya
+  lembarnya tersimpan; minta Manajer Proyek, Keuangan, Eksekutif, atau Admin yang bukan pembuatnya
   mempostingnya. Anda tidak dapat memposting selisih sendiri, dan pembuatnya juga tidak.
 - **"Sebutkan alasan stok berubah."** — isi **Alasan**; hitungan yang berselisih, dan setiap
   penyesuaian, membutuhkannya.

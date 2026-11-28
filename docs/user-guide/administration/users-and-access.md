@@ -97,7 +97,7 @@ the only active Admin of an organisation cannot be disabled.
 ## Untuk apa ini
 
 Setiap orang yang masuk ke PMO adalah pengguna organisasi Anda. Setiap pengguna punya **Tingkat
-akses** — lima tingkatnya adalah **Admin**, **Eksekutif**, **Manajer Proyek**, **Finance**, dan
+akses** — lima tingkatnya adalah **Admin**, **Eksekutif**, **Manajer Proyek**, **Keuangan**, dan
 **Insinyur** — dan, bila organisasi Anda mengaktifkan jabatan, sebuah **Jabatan** seperti Penjaga
 Gudang atau Pengawas Lapangan yang berawal dari salah satu tingkat itu dan mempersempit apa yang
 dilihat orang tersebut sesuai pekerjaannya.

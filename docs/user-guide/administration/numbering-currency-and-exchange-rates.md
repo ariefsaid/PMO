@@ -99,7 +99,7 @@ uang asing ditampilkan dalam rupiah. Semuanya ditetapkan sekali, lalu dibiarkan 
 berubah untuk semua orang.
 
 **Siapa yang bisa melakukannya:** **Admin** mengubah pola nomor proyek, tahun buku, dan perlakuan
-pajak bawaan. **Finance** dan **Admin** membaca serta mengunggah kurs; menambah atau mengubah satu
+pajak bawaan. **Keuangan** dan **Admin** membaca serta mengunggah kurs; menambah atau mengubah satu
 kurs dilakukan Admin.
 
 ## Di mana menemukannya

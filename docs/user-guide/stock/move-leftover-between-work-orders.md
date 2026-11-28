@@ -9,8 +9,9 @@ it is on site. Both work orders' balances and costs end up right without a secon
 store.
 
 **Who can do this:** a keeper of the site, yard or staging location, and an Admin. Work-order
-transfers must be on for your organisation (an Admin turns it on), and the **Stock** module must be
-on. It stays off while an external inventory system owns the stock.
+transfers have no switch of their own: they come with the **Stock** module, which an Admin can turn
+on or off under **Administration → Modules**. They stay off while an external inventory system owns
+the stock.
 
 ## Where to find it
 
@@ -29,7 +30,7 @@ Two ways to the same page:
 5. Choose **Where the material is** — a site, yard or staging location of this project that you keep.
 6. Add the lines. Each line's item list shows only material the first work order actually holds; the
    line's help says **Held by the work order: …** with the quantity and unit.
-7. Enter the **Quantity** to move on each line. Add more lines with the add-line button.
+7. Enter the **Quantity** to move on each line. Add more lines with **Add another line**.
 8. Add a **Note** if it helps the reader.
 9. Choose **Move to the other work order** and confirm.
 
@@ -46,9 +47,9 @@ Two ways to the same page:
 
 ## Common errors and what to do
 
-- **"Work-order transfers are off"** — the feature is switched off for your organisation. Ask an
-  Admin to turn **Work-order transfers** on. It cannot be used while an external inventory system
-  owns the stock.
+- **"Work-order transfers are off"** — the **Stock** module is switched off for your organisation, or
+  an external inventory system owns the stock. Ask an Admin to turn **Stock** on under **Administration
+  → Modules**; transfers cannot be used while an external system owns the stock.
 - **"Choose a different work order."** — the two work orders must differ; pick the receiving one.
 - **"This work order holds no material that can be moved."** — the first work order has nothing left
   at that location. Check the **From** work order and the **Where the material is** location.
@@ -77,8 +78,9 @@ sementara stok tetap di tempatnya di lokasi. Sisa dan biaya kedua perintah kerja
 melewati gudang dua kali.
 
 **Siapa yang bisa melakukannya:** penjaga lokasi proyek, halaman proyek, atau area penyiapan, dan
-Admin. Fiturnya harus diaktifkan dulu: Admin mengaktifkannya di **Administrasi → Modul**, pada
-**Stok**. Fitur ini tetap mati selama sistem inventaris eksternal memegang stok.
+Admin. Transfer antar perintah kerja tidak punya sakelar sendiri: fitur ini ikut modul **Stok**, yang dapat
+dinyalakan atau dimatikan Admin di **Administrasi → Modul**. Fitur ini tetap mati selama sistem
+inventaris eksternal memegang stok.
 
 ## Di mana menemukannya
 
@@ -98,7 +100,7 @@ Dua jalan menuju halaman yang sama:
 6. Tambahkan barisnya. Daftar barang tiap baris hanya berisi material yang benar-benar dipegang
    perintah kerja pertama; bantuan barisnya menyebut **Dipegang perintah kerja: …** dengan jumlah dan
    satuannya.
-7. Isi **Jumlah** yang dipindahkan di tiap baris. Tambah baris lain dengan tombol tambah baris.
+7. Isi **Kuantitas** yang dipindahkan di tiap baris. Tambah baris lain dengan **Tambah baris**.
 8. Isi **Catatan** bila membantu pembaca.
 9. Pilih **Pindahkan ke perintah kerja lain** dan konfirmasi.
 
@@ -116,9 +118,9 @@ Dua jalan menuju halaman yang sama:
 
 ## Kesalahan umum dan cara mengatasinya
 
-- **"Transfer antar perintah kerja nonaktif"** — fiturnya dimatikan untuk organisasi Anda. Minta Admin
-  mengaktifkan **Transfer antar perintah kerja**. Fitur ini tidak dapat dipakai selama sistem
-  inventaris eksternal memegang stok.
+- **"Transfer antar perintah kerja nonaktif"** — modul **Stok** dimatikan untuk organisasi Anda, atau
+  sistem inventaris eksternal memegang stok. Minta Admin menyalakan **Stok** di **Administrasi →
+  Modul**; transfer tidak dapat dipakai selama sistem eksternal memegang stok.
 - **"Pilih perintah kerja yang berbeda."** — kedua perintah kerja harus berbeda; pilih yang menerima.
 - **"Perintah kerja ini tidak memegang material yang dapat dipindahkan."** — perintah kerja pertama
   tidak punya sisa di lokasi itu. Periksa perintah kerja **Dari** dan **Lokasi material**.

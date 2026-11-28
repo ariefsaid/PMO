@@ -108,4 +108,4 @@ halaman dokumen.
 - **Ada pergerakan yang Anda harapkan tetapi tidak muncul** — hanya dokumen yang sudah diposting yang
   tampil. Periksa **Stok → Dokumen** untuk draf yang belum diposting, dan periksa rentang tanggalnya.
 - **Tidak ada kolom nilai** — peran Anda tidak membaca biaya stok. Jumlah dan pergerakannya tetap ada;
-  minta angkanya ke Finance.
+  minta angkanya ke Keuangan.

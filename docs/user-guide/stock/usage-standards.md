@@ -71,7 +71,7 @@ menjadi rencana **Bahan habis pakai**, lalu permintaan material diperiksa terhad
 sehingga "biasanya sebanyak ini" menjadi angka yang bisa direncanakan lokasi.
 
 **Siapa yang bisa melakukannya:** semua orang dapat membaca daftarnya. Menambah, mengubah, dan
-mengarsipkan standar dilakukan Finance, Manajer Proyek, Eksekutif, atau Admin.
+mengarsipkan standar dilakukan Keuangan, Manajer Proyek, Eksekutif, atau Admin.
 
 ## Di mana menemukannya
 
