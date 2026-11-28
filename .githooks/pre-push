@@ -1,0 +1,9 @@
+#!/bin/sh
+# Refuse a push CI will test unless the rules were read for this commit; refuse a fourth round without the
+# owner's OK. Rules: docs/ci-push-rules.md. Logic and self-test: scripts/ci-round.sh.
+root="$(git rev-parse --show-toplevel)"
+while read -r _local sha ref _remote; do
+  case "$sha" in 0000000000000000000000000000000000000000) continue ;; esac   # branch deletion
+  case "$ref" in refs/heads/*) "$root/scripts/ci-round.sh" check "${ref#refs/heads/}" "$sha" || exit 1 ;; esac
+done
+exit 0

@@ -294,6 +294,7 @@ jobs:
           bash scripts/check-e2e-isolation.sh --self-test
           bash scripts/check-e2e-org-day.sh --self-test
           bash scripts/check-nul-bytes.sh --self-test
+          bash scripts/ci-round.sh --self-test
           bash scripts/ci-e2e.sh --self-test
           bash scripts/renumber-migration.sh --self-test
           bash scripts/db-seed-prod.test.sh
