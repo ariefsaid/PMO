@@ -457,9 +457,6 @@ declare v_org uuid := public.auth_org_id(); v_uid uuid := auth.uid(); v_reason t
         v_inv public.procurement_invoices; v_proc public.procurements; v_match jsonb; v_capturer uuid; v_recorder uuid;
 begin
   perform public.assert_is_active_member();
-  if public.auth_role() not in ('Admin','Finance') then
-    raise exception 'not authorized' using errcode = '42501';
-  end if;
   if v_reason is null or length(v_reason) > 1000 then
     raise exception 'an exception needs a reason of 1 to 1000 characters' using errcode = '22023';
   end if;
