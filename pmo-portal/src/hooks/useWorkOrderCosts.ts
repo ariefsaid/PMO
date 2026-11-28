@@ -12,8 +12,8 @@ export function useCostDisciplines(enabled = true) {
 
 /** One work order's cost lines grouped by source (#2517 read seam; #2518/#2519/#2523 build on it). */
 
-export function useWorkOrderCostLines(workOrderId: string | null) {
-  return useQuery(workOrderCostLinesQuery(useAuth().currentUser?.org_id, workOrderId));
+export function useWorkOrderCostLines(workOrderId: string | null, enabled = true) {
+  return useQuery(workOrderCostLinesQuery(useAuth().currentUser?.org_id, workOrderId, enabled));
 }
 
 /** Per-source money behind a work order's cost lines (#2518); runs after the lines are read. */

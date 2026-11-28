@@ -7,8 +7,6 @@ import { join } from 'node:path';
 import i18n from '@/src/lib/i18n';
 import { onlineManager, QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useWorkOrder, useWorkOrderAllocations } from '@/src/hooks/useWorkOrderRecord';
-import { useWorkOrderCostLines } from '@/src/hooks/useWorkOrderCosts';
-import { useWorkOrderSteps } from '@/src/hooks/useBillingSteps';
 import { preloadWorkOrder } from '@/src/lib/routeData';
 import { ToastProvider } from '@/src/components/ui';
 import { makeTestQueryClient } from '@/test/testQueryClient';
@@ -29,21 +27,22 @@ const viewerOpen = vi.hoisted(() => vi.fn());
 vi.mock('@/src/components/documents/viewerContext', () => ({ useViewerOnDemand: () => ({ open: viewerOpen }) }));
 const h = vi.hoisted(() => ({ orgId: undefined as string | undefined, wo: null as unknown, alloc: null as unknown, boq: null as unknown, basts: null as unknown, billing: null as unknown,
   docs: null as unknown, issues: null as unknown, tasks: null as unknown, issuesOn: true, claimDocs: null as unknown, lines: null as unknown, money: null as unknown, links: null as unknown, discs: null as unknown, labels: null as unknown, project: null as unknown, canBilling: true, stock: false, pva: { data: undefined, isPending: true, isError: false, refetch: () => undefined } as unknown,
+  on: {} as Record<string, boolean>,
   reads: { alloc: [] as unknown[], claimDocs: [] as unknown[], issues: [] as unknown[], tasks: [] as unknown[], steps: [] as unknown[], costLines: [] as unknown[], billedMonths: [] as unknown[], disciplines: [] as unknown[] } }));
 vi.mock('@/src/hooks/useWorkOrderRecord', async (importOriginal) => ({
-  ...await importOriginal<typeof import('@/src/hooks/useWorkOrderRecord')>(), useWorkOrder: vi.fn(() => h.wo), useWorkOrderAllocations: vi.fn((id: string | undefined) => { h.reads.alloc.push(id); return h.alloc; }), useWorkOrderClaimDocuments: (id: string | undefined) => { h.reads.claimDocs.push(id); return h.claimDocs; }, useWorkOrderIssues: (id: string | undefined, enabled: boolean) => { h.reads.issues.push([id, enabled]); return h.issues; }, useWorkOrderOpenTasks: (id: string | undefined) => { h.reads.tasks.push(id); return h.tasks; } }));
+  ...await importOriginal<typeof import('@/src/hooks/useWorkOrderRecord')>(), useWorkOrder: vi.fn(() => h.wo), useWorkOrderAllocations: vi.fn((id: string | undefined) => { h.reads.alloc.push(id); return h.alloc; }), useWorkOrderClaimDocuments: (id: string | undefined, enabled = true) => { h.reads.claimDocs.push(id); h.on.claimDocs = enabled; return h.claimDocs; }, useWorkOrderIssues: (id: string | undefined, enabled: boolean) => { h.reads.issues.push([id, enabled]); return h.issues; }, useWorkOrderOpenTasks: (id: string | undefined) => { h.reads.tasks.push(id); return h.tasks; } }));
 vi.mock('@/src/auth/useFeature', () => ({ useFeature: (f: string) => f === 'stock' ? h.stock : f === 'incidents' ? h.issuesOn : false }));
 vi.mock('@/src/hooks/useProjects', () => ({ useProject: () => h.project }));
 vi.mock('@/src/hooks/useProgressBilling', () => ({ useBoqItems: () => h.boq }));
 vi.mock('@/src/hooks/useWorkOrderAcceptances', () => ({ useWorkOrderAcceptancesFor: () => h.basts, useWorkOrderAcceptanceMutations: () => ({ confirm: { isPending: false, mutateAsync: vi.fn().mockResolvedValue({ closingValue: null, dpHeld: 0 }) } }) }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u-finance', org_id: h.orgId } }) }));
-vi.mock('@/src/hooks/useWorkOrderBilling', () => ({ useWorkOrderBilling: () => h.billing, useWorkOrderBilledMonths: (id: string | undefined, enabled: boolean) => { h.reads.billedMonths.push([id, enabled]); return { data: undefined, isPending: false, isError: false, refetch: vi.fn() }; } }));
-vi.mock('@/src/hooks/useDocuments', () => ({ useWorkOrderDocuments: () => h.docs }));
+vi.mock('@/src/hooks/useWorkOrderBilling', () => ({ useWorkOrderBilling: (_p: string, enabled = true) => { h.on.billing = enabled; return h.billing; }, useWorkOrderBilledMonths: (id: string | undefined, enabled: boolean) => { h.reads.billedMonths.push([id, enabled]); h.on.billedMonths = enabled; return { data: undefined, isPending: false, isError: false, refetch: vi.fn() }; } }));
+vi.mock('@/src/hooks/useDocuments', () => ({ useWorkOrderDocuments: (_p: string, _w: string | undefined, _l: string[], enabled = true) => { h.on.docs = enabled; return h.docs; } }));
 vi.mock('@/src/hooks/useWorkOrderCosts', async (importOriginal) => ({
   ...await importOriginal<typeof import('@/src/hooks/useWorkOrderCosts')>(),
-  useWorkOrderCostLines: vi.fn((id: string | null) => { h.reads.costLines.push(id); return h.lines; }), useWorkOrderCostMoney: () => h.money, useWorkOrderCostLinks: () => h.links, useCostDisciplines: (enabled: boolean = true) => { h.reads.disciplines.push(enabled); return h.discs; }, useWorkOrderTimesheetLabels: () => h.labels,
+  useWorkOrderCostLines: vi.fn((id: string | null, enabled = true) => { h.reads.costLines.push(id); h.on.costLines = enabled; return h.lines; }), useWorkOrderCostMoney: () => h.money, useWorkOrderCostLinks: () => h.links, useCostDisciplines: (enabled: boolean = true) => { h.reads.disciplines.push(enabled); h.on.disciplines = enabled; return h.discs; }, useWorkOrderTimesheetLabels: () => h.labels,
 }));
-vi.mock('@/src/hooks/useWorkOrderPlanVsActual', () => ({ useProjectPlanVsActual: () => h.pva }));
+vi.mock('@/src/hooks/useWorkOrderPlanVsActual', () => ({ useProjectPlanVsActual: (_p: string, enabled = true) => { h.on.pva = enabled; return h.pva; } }));
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => h.canBilling }));
 // #2578: the quantity-changes section has its own test (QuantityChangesSection.test.tsx); this file pins the existing sections.
 vi.mock('./work-order-detail/QuantityChangesSection', () => ({ QuantityChangesSection: () => null }));
@@ -52,7 +51,7 @@ vi.mock('./work-order-detail/WorkOrderDecision', () => ({ useWorkOrderDecision: 
 vi.mock('./work-order-detail/MissingSection', () => ({ MissingSection: () => null }));
 vi.mock('./work-order-detail/SiteReportsSection', () => ({ SiteReportsSection: () => null }));
 vi.mock('@/src/hooks/useBillingSteps', async (importOriginal) => ({
-  ...await importOriginal<typeof import('@/src/hooks/useBillingSteps')>(), useWorkOrderSteps: vi.fn((workOrderId: string | undefined) => { h.reads.steps.push(workOrderId); return { data: [], isLoading: false, isError: false, refetch: vi.fn() }; }) }));
+  ...await importOriginal<typeof import('@/src/hooks/useBillingSteps')>(), useWorkOrderSteps: vi.fn((workOrderId: string | undefined, enabled = true) => { h.reads.steps.push(workOrderId); h.on.steps = enabled; return { data: [], isLoading: false, isError: false, refetch: vi.fn() }; }) }));
 vi.mock('@/src/hooks/useOrgRoleNames', () => ({ useBuiltInRoleName: () => (k: string) => k }));
 // The sections block (#2576) has its own tests (SectionsSection.test.tsx); this page test only places it.
 vi.mock('./work-order-detail/SectionsSection', () => ({ SectionsSection: (p: { workOrder: { id: string } }) => <div data-testid="sections-stub">{p.workOrder.id}</div> }));
@@ -115,20 +114,15 @@ beforeEach(async () => {
   h.links = q({});
   h.labels = q({});
   h.discs = q([{ id: 'd1', code: 'MECH', name: 'Mechanical' }]);
+  h.on = {};
   for (const key of Object.keys(h.reads) as Array<keyof typeof h.reads>) h.reads[key].length = 0;
 });
 
 describe('WorkOrderDetail', () => {
   it('#2919 every route prefetch is also read by the work order page on its first render', async () => {
-    const [record, costs, billing] = await Promise.all([
-      vi.importActual<typeof import('@/src/hooks/useWorkOrderRecord')>('@/src/hooks/useWorkOrderRecord'),
-      vi.importActual<typeof import('@/src/hooks/useWorkOrderCosts')>('@/src/hooks/useWorkOrderCosts'),
-      vi.importActual<typeof import('@/src/hooks/useBillingSteps')>('@/src/hooks/useBillingSteps'),
-    ]);
+    const record = await vi.importActual<typeof import('@/src/hooks/useWorkOrderRecord')>('@/src/hooks/useWorkOrderRecord');
     vi.mocked(useWorkOrder).mockImplementationOnce(record.useWorkOrder);
     vi.mocked(useWorkOrderAllocations).mockImplementationOnce(record.useWorkOrderAllocations);
-    vi.mocked(useWorkOrderCostLines).mockImplementationOnce(costs.useWorkOrderCostLines);
-    vi.mocked(useWorkOrderSteps).mockImplementationOnce(billing.useWorkOrderSteps);
     const client = new QueryClient();
     const prefetch = vi.spyOn(client, 'prefetchQuery').mockResolvedValue(undefined);
     const wasOnline = onlineManager.isOnline();
@@ -147,7 +141,7 @@ describe('WorkOrderDetail', () => {
       );
       try {
         const prefetchedKeys = prefetch.mock.calls.map(([options]) => options.queryKey);
-        expect(prefetchedKeys).toHaveLength(4);
+        expect(prefetchedKeys).toHaveLength(2);
         expect(client.getQueryCache().getAll().map((query) => query.queryKey)).toEqual(expect.arrayContaining(prefetchedKeys));
       } finally {
         page.unmount();
@@ -172,11 +166,50 @@ describe('WorkOrderDetail', () => {
     expect(h.reads.tasks).toEqual(['w1']);
     expect(h.reads.issues).toEqual([['w1', true]]);
     expect(h.reads.costLines).toEqual(['w1']);
-    expect(h.reads.billedMonths).toEqual([['w1', true]]);
-    // the org-wide discipline list does not wait for the record either
-    expect(h.reads.disciplines).toEqual([true]);
+    // the other tabs' reads carry the same id and no record dependency; #3079 keeps them off until their tab shows
+    expect(h.reads.billedMonths).toEqual([['w1', false]]);
+    expect(h.reads.disciplines).toEqual([false]);
   });
 
+  it('#3079 first load reads only what the first tab shows; the others wait for their tab', async () => {
+    renderPage();
+    // Scope tab: the record, its lines and scope figures, the open counts on the tab strip. Nothing from the other tabs.
+    expect(h.on).toEqual({ steps: false, claimDocs: false, billing: false, billedMonths: false, docs: false, costLines: false, disciplines: false, pva: false });
+  });
+  it.each([
+    ['Cost and plan', { costLines: true, disciplines: true, pva: true }],
+    ['Billing', { billing: true, billedMonths: true }],
+    ['Inspections and close-out', { steps: true }],
+    ['Documents and safety', { claimDocs: true, docs: true }],
+  ])('#3079 opening %s starts exactly its own reads', async (name, expected) => {
+    renderPage();
+    await openArea(new RegExp(`^${name}`));
+    const on = Object.entries(h.on).filter(([, v]) => v).map(([k]) => k).sort();
+    expect(on).toEqual(Object.keys(expected).sort());
+  });
+  it('#3079 a deep link to a tab reads only that tab, and the first tab then reads nothing extra', () => {
+    renderPage('cost');
+    expect(Object.entries(h.on).filter(([, v]) => v).map(([k]) => k).sort()).toEqual(['costLines', 'disciplines', 'pva']);
+  });
+  it('#3079 the issues and tasks reads feeding the tab count stay on the first load, and the scope header figure is still drawn', () => {
+    renderPage();
+    expect(h.reads.issues).toEqual([['w1', true]]);
+    expect(h.reads.tasks).toEqual(['w1']);
+    expect(screen.getByTestId('wo-complete')).toBeTruthy();
+  });
+
+  it('#3079 pointing at a tab starts its reads before it opens, and the tab already open prefetches nothing', async () => {
+    h.orgId = 'o1';
+    const client = makeTestQueryClient();
+    const prefetch = vi.spyOn(client, 'prefetchQuery').mockResolvedValue(undefined);
+    render(<QueryClientProvider client={client}><ToastProvider><MemoryRouter initialEntries={['/work-orders/w1']}><Routes><Route path="/work-orders/:id" element={<WorkOrderDetail />} /></Routes></MemoryRouter></ToastProvider></QueryClientProvider>);
+    try {
+      await userEvent.hover(screen.getByRole('tab', { name: /Site and scope/ }));
+      expect(prefetch).not.toHaveBeenCalled();
+      await userEvent.hover(screen.getByRole('tab', { name: /^Cost and plan/ }));
+      expect(prefetch.mock.calls.map(([o]) => o.queryKey[0]).sort()).toEqual(['cost-disciplines', 'work-order-cost-lines', 'work-order-plan-vs-actual']);
+    } finally { h.orgId = undefined; }
+  });
   it('#1126 one area shows at a time; a tab opens another and the address keeps it for Back and sharing', async () => {
     renderPage();
     expect(screen.getByRole('tab', { name: /Site and scope/ })).toHaveAttribute('aria-selected', 'true');
