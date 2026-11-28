@@ -48,3 +48,5 @@ Sandbox restarted once mid-run (chunk 1 was killed at 49/63 and re-run in full a
 - chromium c72 (10 files): 53 passed (4.1m),
 - chromium c73 (10 files): 117 passed (9.3m),
 - chromium c8 (9 files): 42 passed (3.2m),
+- serial chunk 0: 1 failed,16 skipped,50 passed (8.9m),
+  - FAILED: 1) [serial] › e2e/serial/AC-IXD-PROC-W5-3-approvals-inbox.spec.ts:510:1 › AC-IXD-PROC-W5-3-role: an Engineer with nothing to decide at /approvals is denied (AccessDenied surface rendered) 
