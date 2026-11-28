@@ -95,6 +95,8 @@ const SHAPE_NOT_IN_TYPES = [
     reason: '`dsr_stock_status` is declared `returns jsonb`, so its lines and decimal-string quantities are stated in the module.' },
   { file: 'src/lib/db/myHome.ts', until: 'my_home: \\{ Args: never; Returns: Json',
     reason: '`my_home` and `org_seat_report` are declared `returns jsonb`, so their shapes are stated in the module.' },
+  { file: 'src/lib/db/shellBootstrap.ts', until: 'shell_bootstrap: \\{ Args: never; Returns: Json',
+    reason: '`shell_bootstrap` is declared `returns jsonb`, so its sections are stated in the module.' },
   { file: 'src/lib/db/phoneCheckIn.ts', until: 'phone_check_in: \\{[\\s\\S]*?Returns: Json',
     reason: '`phone_check_in` is declared `returns jsonb`, so its status/outcome shape is stated in the module.' },
   { file: 'src/lib/db/quantityChanges.ts', until: 'record_quantity_forecast: \\{[\\s\\S]*?p_quantity: number',

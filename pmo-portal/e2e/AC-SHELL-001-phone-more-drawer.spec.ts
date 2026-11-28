@@ -1,6 +1,7 @@
 // @e2e-isolation: read-only — signs in, opens/closes the phone drawer and navigates; locale is pinned by rewriting the profile read, no DB writes.
 import { test, expect, type Page } from '@playwright/test';
 import { signIn } from './helpers';
+import { overrideProfile, localePatch } from './support/profile-override';
 
 /**
  * AC-SHELL-001 — at phone width the bottom bar's More opens the navigation drawer; choosing a
@@ -13,13 +14,7 @@ const LOCALES = [
 ] as const;
 
 async function pinLocale(page: Page, locale: 'en' | 'id') {
-  await page.route('**/rest/v1/profiles?*', async (route) => {
-    if (route.request().method() !== 'GET' || !/[?&]id=eq\./.test(route.request().url())) return route.fallback();
-    const response = await route.fetch({ maxRetries: 2 });
-    const body = await response.json().catch(() => null);
-    if (!body || Array.isArray(body) || typeof body !== 'object' || !('locale' in body)) return route.fulfill({ response, json: body });
-    return route.fulfill({ response, json: { ...body, locale, number_locale: locale === 'id' ? 'id-ID' : 'en-US' } });
-  });
+  await overrideProfile(page, localePatch(locale));
 }
 
 for (const L of LOCALES) {

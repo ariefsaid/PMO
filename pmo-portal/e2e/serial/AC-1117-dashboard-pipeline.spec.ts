@@ -6,16 +6,10 @@
 // really was on the book), so the run has to read a quiescent org, apart from the parallel batch.
 import { test, expect } from '@playwright/test';
 import { signIn } from '../helpers';
+import { overrideProfile, localePatch } from '../support/profile-override';
 
 async function pinViewerLocale(page: import('@playwright/test').Page) {
-  await page.route('**/rest/v1/profiles?*', async (route) => {
-    const response = await route.fetch({ maxRetries: 2 });
-    const profile = await response.json() as Record<string, unknown> | Record<string, unknown>[];
-    const english = Array.isArray(profile)
-      ? profile.map((row) => ({ ...row, locale: 'en', number_locale: 'en-US' }))
-      : { ...profile, locale: 'en', number_locale: 'en-US' };
-    await route.fulfill({ response, json: english });
-  });
+  await overrideProfile(page, localePatch('en'));
 }
 
 // AC-1117: capstone journey — dashboard shows dual-lens KPIs and Sales Pipeline renders weighted stages

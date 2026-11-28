@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { test, expect } from '@playwright/test';
 import { login, pickComboboxOption, requireServiceRoleKey, stubErpProjectSync } from '../helpers';
 import ExcelJS from 'exceljs';
+import { overrideProfile, localePatch } from '../support/profile-override';
 
 const org = '00000000-0000-0000-0000-000000000001';
 const url = process.env.SUPABASE_URL ?? 'http://127.0.0.1:54321';
@@ -27,12 +28,7 @@ test('AC-TERM-006: renamed labels reach two screens and the export without chang
     if (removed.error) throw removed.error;
   }
   await stubErpProjectSync(page);
-  await page.route('**/rest/v1/profiles?*', async (route) => {
-    const response = await route.fetch({ maxRetries: 2 });
-    const data = await response.json() as Record<string, unknown> | Record<string, unknown>[];
-    const pin = (row: Record<string, unknown>) => ({ ...row, locale: 'en', number_locale: 'en-US' });
-    await route.fulfill({ response, json: Array.isArray(data) ? data.map(pin) : pin(data) });
-  });
+  await overrideProfile(page, localePatch('en'));
   try {
     await login(page, 'admin@acme.test');
     await page.goto('/projects');

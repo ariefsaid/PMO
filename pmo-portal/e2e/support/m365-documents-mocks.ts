@@ -10,6 +10,7 @@
 import { expect, type Locator, type Page } from '@playwright/test';
 import { waitForFonts } from '../helpers';
 import { PROJECT_ID } from '../document-file-upload.helpers';
+import { overrideProfile } from './profile-override';
 
 export const CORS = {
   'access-control-allow-origin': '*',
@@ -143,20 +144,7 @@ export async function enableM365Feature(page: Page) {
 
 /** Deterministic viewer language without a persisted write; other profile preferences are preserved. */
 export async function forceDocumentsLocale(page: Page, locale: 'en' | 'id') {
-  await page.route('**/rest/v1/profiles?*', async (route) => {
-    if (route.request().method() !== 'GET' || !/[?&]id=eq\./.test(route.request().url())) return route.fallback();
-    const response = await route.fetch({ maxRetries: 2 });
-    let body: unknown;
-    try {
-      body = await response.json();
-    } catch {
-      return route.fulfill({ response });
-    }
-    if (body && !Array.isArray(body) && typeof body === 'object' && 'locale' in body) {
-      body = { ...(body as Record<string, unknown>), locale };
-    }
-    return route.fulfill({ response, json: body });
-  });
+  await overrideProfile(page, { locale });
 }
 
 /** Bahasa without a persisted write: the profile row the AuthProvider reads carries locale 'id' (as UXS-006). */

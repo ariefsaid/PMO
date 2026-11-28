@@ -5,6 +5,7 @@ import { chmodSync, mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { requireServiceRoleKey, signIn, waitForFonts } from './helpers';
 import { requireMatchingLocalSupabaseUrls } from '../src/lib/testing/localSupabaseUrl';
+import { overrideProfile, localePatch } from './support/profile-override';
 
 // Create the invoice from the work order, save it, reload and re-check: one journey, longer than the 30s default.
 test.setTimeout(60_000);
@@ -30,18 +31,9 @@ const discoverModes = [
 let discoverLocale: DiscoverLocale = 'en';
 
 async function pinDiscoverLocale(page: Page) {
-  await page.route('**/rest/v1/profiles?*', async (route) => {
-    if (route.request().method() !== 'GET' || !/[?&]id=eq\./.test(route.request().url())) return route.fallback();
-    const response = await route.fetch({ maxRetries: 2 });
-    const body = await response.json().catch(() => null);
-    if (!body || Array.isArray(body) || typeof body !== 'object' || !('locale' in body)) return route.fulfill({ response, json: body });
-    return route.fulfill({
-      response,
-      json: discoverLocale === 'id'
-        ? { ...body, locale: 'id', number_locale: 'id-ID', timezone: 'Asia/Jakarta' }
-        : { ...body, locale: 'en', number_locale: 'en-US', timezone: 'UTC' },
-    });
-  });
+  await overrideProfile(page, () => (discoverLocale === 'id'
+    ? { ...localePatch('id'), timezone: 'Asia/Jakarta' }
+    : { ...localePatch('en'), timezone: 'UTC' }));
 }
 
 async function setDiscoverPresentation(page: Page, locale: DiscoverLocale, theme: DiscoverTheme) {

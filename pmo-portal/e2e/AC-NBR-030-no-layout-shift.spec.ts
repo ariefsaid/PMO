@@ -9,21 +9,13 @@
  */
 import { test, expect, type Page } from '@playwright/test';
 import { signIn, waitForFonts } from './helpers';
+import { overrideProfile } from './support/profile-override';
 
 const LANGS = [{ code: 'en', numberLocale: 'en-US' }, { code: 'id', numberLocale: 'id-ID' }] as const;
 const WIDTHS = [1440, 390] as const;
 
 async function pinLocale(page: Page, locale: string, numberLocale: string) {
-  await page.route('**/rest/v1/profiles?*', async (route) => {
-    if (route.request().method() !== 'GET' || !/[?&]id=eq\./.test(route.request().url())) return route.fallback();
-    const response = await route.fetch({ maxRetries: 2 });
-    let body: unknown;
-    try { body = await response.json(); } catch { return route.fulfill({ response }); }
-    if (body && !Array.isArray(body) && typeof body === 'object' && 'locale' in body) {
-      return route.fulfill({ response, json: { ...body, locale, number_locale: numberLocale } });
-    }
-    return route.fulfill({ response, json: body });
-  });
+  await overrideProfile(page, { locale, number_locale: numberLocale });
 }
 
 /** Hold matching requests until `release()` is called. */

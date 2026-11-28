@@ -1,6 +1,7 @@
 // @e2e-isolation: read-only — signs in and measures; the profile read is rewritten in the browser only.
 import { test, expect, type Page } from '@playwright/test';
 import { signIn, waitForFonts } from './helpers';
+import { overrideProfile, localePatch } from './support/profile-override';
 
 /**
  * AC-SHELL-003 — at phone width (390) every label on the bottom bar is shown whole, in English and
@@ -8,17 +9,7 @@ import { signIn, waitForFonts } from './helpers';
  * is attached to the report.
  */
 async function pinLocale(page: Page, locale: 'en' | 'id'): Promise<void> {
-  await page.route('**/rest/v1/profiles?*', async (route) => {
-    const url = route.request().url();
-    if (route.request().method() !== 'GET' || !/[?&]id=eq\./.test(url)) return route.fallback();
-    const response = await route.fetch({ maxRetries: 2 });
-    let body: unknown;
-    try { body = await response.json(); } catch { return route.fulfill({ response }); }
-    if (body && !Array.isArray(body) && typeof body === 'object' && 'locale' in body) {
-      return route.fulfill({ response, json: { ...body, locale, number_locale: locale === 'id' ? 'id-ID' : 'en-US' } });
-    }
-    return route.fulfill({ response, json: body });
-  });
+  await overrideProfile(page, localePatch(locale));
 }
 
 const ROLES: Array<[string, string]> = [

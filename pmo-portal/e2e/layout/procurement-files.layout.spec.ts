@@ -20,6 +20,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { loadEnv } from 'vite';
 import { login, requireServiceRoleKey, waitForFonts } from '../helpers';
 import { requireMatchingLocalSupabaseUrls } from '../../src/lib/testing/localSupabaseUrl';
+import { overrideProfile } from '../support/profile-override';
 
 const VITE_ENV = loadEnv('development', process.cwd(), 'VITE_');
 const SUPABASE_URL = requireMatchingLocalSupabaseUrls(process.env.SUPABASE_URL, VITE_ENV.VITE_SUPABASE_URL);
@@ -208,14 +209,7 @@ async function runWithFixture(
 }
 
 async function installLocaleOverride(page: Page, locale: Locale): Promise<void> {
-  await page.route('**/rest/v1/profiles?*', async (route) => {
-    const response = await route.fetch({ maxRetries: 2 });
-    const profile = await response.json() as Record<string, unknown> | Record<string, unknown>[];
-    const localized = Array.isArray(profile)
-      ? profile.map((row) => ({ ...row, locale }))
-      : { ...profile, locale };
-    await route.fulfill({ response, json: localized });
-  });
+  await overrideProfile(page, { locale });
 }
 
 async function openProcurementFiles(page: Page, fixture: Fixture): Promise<void> {

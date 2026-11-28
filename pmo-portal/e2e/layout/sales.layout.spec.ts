@@ -27,6 +27,7 @@ import {
 } from '../support/layout-oracles';
 import { assertFunnelBarGapAndAlignment } from '../support/layout-composition';
 import { LONG_NAME, LONG_CUSTOMER, OPEN_PROJECTS, openSalesPipeline } from '../support/sales-pipeline-fixtures';
+import { overrideProfile, localePatch } from '../support/profile-override';
 
 registerLayoutSweep({ path: '/sales', label: 'sales-pipeline', icons: true });
 
@@ -34,21 +35,7 @@ registerFigureLayout('sales pipeline');
 
 /** Bahasa without a persisted profile write: rewrite the profile row the AuthProvider reads. */
 async function forceBahasa(page: Page) {
-  await page.route('**/rest/v1/profiles?*', async (route) => {
-    const url = route.request().url();
-    if (route.request().method() !== 'GET' || !/[?&]id=eq\./.test(url)) return route.fallback();
-    const response = await route.fetch({ maxRetries: 2 });
-    let body: unknown;
-    try {
-      body = await response.json();
-    } catch {
-      return route.fulfill({ response });
-    }
-    if (body && !Array.isArray(body) && typeof body === 'object' && 'locale' in body) {
-      body = { ...(body as Record<string, unknown>), locale: 'id', number_locale: 'id-ID' };
-    }
-    return route.fulfill({ response, json: body });
-  });
+  await overrideProfile(page, localePatch('id'));
 }
 
 for (const { name, bahasa } of [

@@ -26,6 +26,7 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 import { openAppPath, signIn } from '../helpers';
 import { expectFiguresContained } from './layout-oracles';
 import { FINANCE_FIXTURE, installIdrDashboardFixture } from '../dashboard-idr.fixtures';
+import { overrideProfile, localePatch } from './profile-override';
 
 // Multi-step journey; measured at ~80% of the 30s default in CI.
 test.setTimeout(60_000);
@@ -33,21 +34,7 @@ test.setTimeout(60_000);
 const WIDTHS = [1440, 1024, 390] as const;
 
 async function forceBahasa(page: Page) {
-  await page.route('**/rest/v1/profiles?*', async (route) => {
-    const url = route.request().url();
-    if (route.request().method() !== 'GET' || !/[?&]id=eq\./.test(url)) return route.fallback();
-    const response = await route.fetch({ maxRetries: 2 });
-    let body: unknown;
-    try {
-      body = await response.json();
-    } catch {
-      return route.fulfill({ response });
-    }
-    if (body && !Array.isArray(body) && typeof body === 'object' && 'locale' in body) {
-      body = { ...(body as Record<string, unknown>), locale: 'id', number_locale: 'id-ID' };
-    }
-    return route.fulfill({ response, json: body });
-  });
+  await overrideProfile(page, localePatch('id'));
 }
 
 interface Route {

@@ -60,7 +60,7 @@ export function isMissingRpcError(error: { message?: string; code?: string } | n
 }
 
 /** Coerce one RPC row into an `OrgPlan`, or null when the shape is not what 0537 promises. */
-function toOrgPlan(row: unknown): OrgPlan | null {
+export function toOrgPlan(row: unknown): OrgPlan | null {
   if (!row || typeof row !== 'object') return null;
   const r = row as Record<string, unknown>;
   if (typeof r.plan_id !== 'string' || !r.plan_id) return null;

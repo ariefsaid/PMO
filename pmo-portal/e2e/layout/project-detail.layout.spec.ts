@@ -50,6 +50,7 @@ import {
   forceLocale as forceStatementLocale,
   installRoutes,
 } from '../support/financial-statement-fixtures';
+import { overrideProfile, localePatch } from '../support/profile-override';
 
 test.setTimeout(120_000);
 
@@ -506,16 +507,7 @@ async function stubWorkOrders(page: Page, bahasa: boolean) {
     return r.fulfill({ response: res, json: body });
   });
   if (bahasa) {
-    await page.route('**/rest/v1/profiles?*', async (r) => {
-      if (r.request().method() !== 'GET' || !/[?&]id=eq\./.test(r.request().url())) return r.fallback();
-      const res = await r.fetch();
-      let body: unknown;
-      try { body = await res.json(); } catch { return r.fulfill({ response: res }); }
-      if (body && !Array.isArray(body) && typeof body === 'object' && 'locale' in body) {
-        body = { ...(body as Record<string, unknown>), locale: 'id', number_locale: 'id-ID' };
-      }
-      return r.fulfill({ response: res, json: body });
-    });
+    await overrideProfile(page, localePatch('id'));
   }
 }
 

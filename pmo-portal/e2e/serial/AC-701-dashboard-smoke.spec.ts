@@ -2,16 +2,10 @@
 // which any parallel-lane spec that creates a project shifts (confirmed on the v0.35 release run).
 import { test, expect } from '@playwright/test';
 import { login } from '../helpers';
+import { overrideProfile, localePatch } from '../support/profile-override';
 
 async function pinViewerLocale(page: import('@playwright/test').Page) {
-  await page.route('**/rest/v1/profiles?*', async (route) => {
-    const response = await route.fetch({ maxRetries: 2 });
-    const profile = await response.json() as Record<string, unknown> | Record<string, unknown>[];
-    const english = Array.isArray(profile)
-      ? profile.map((row) => ({ ...row, locale: 'en', number_locale: 'en-US' }))
-      : { ...profile, locale: 'en', number_locale: 'en-US' };
-    await route.fulfill({ response, json: english });
-  });
+  await overrideProfile(page, localePatch('en'));
 }
 
 // AC-701 (+ AC-709 org-scope) — real RPC over the real seed yields org-scoped KPIs in the real UI.
