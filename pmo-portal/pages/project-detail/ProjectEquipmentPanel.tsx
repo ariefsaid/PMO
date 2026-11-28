@@ -16,7 +16,7 @@ const isZero = (v: string) => /^-?0+(\.0+)?$/.test(v.trim());
 export const ProjectEquipmentPanel: React.FC<{ projectId: string; currency: string; equipmentChargeTotal?: string | null }> = ({ projectId, currency, equipmentChargeTotal }) => {
   const { t } = useTranslation();
   const may = usePermission();
-  const canSeeAmounts = may('view', 'equipmentUsage');
+  const canSeeAmounts = may('view', 'equipmentCosting'); // amounts: the approval audience; hours are read by more (a project administrator)
   const today = useOrgToday();
   const range = { from: monthStart(today, -11), to: today };
   const totals = useEquipmentUsageTotals({ projectId, ...range });

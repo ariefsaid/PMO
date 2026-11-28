@@ -286,7 +286,7 @@ const EquipmentAssetDetail: React.FC = () => {
         <VendorResponsePanel asset={asset} today={today} />
         <UsageCard assetId={asset.id} today={today} projectName={projectName} />
         {may('view', 'equipmentCosting') && <CostingCard asset={asset} assetRow={asset} projectName={projectName} money={money} />}
-        {may('view', 'equipmentUsage') && <AllocationsCard assetId={asset.id} today={today} projectName={projectName} money={money} />}
+        {may('view', 'equipmentCosting') && <AllocationsCard assetId={asset.id} today={today} projectName={projectName} money={money} />}
       </RecordStack>
     </div>
   );
