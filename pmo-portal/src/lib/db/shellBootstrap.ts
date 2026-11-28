@@ -61,5 +61,9 @@ export function seedShellQueries(qc: QueryClient, boot: ShellBootstrap): void {
   if (boot.plan !== undefined) set(orgPlanGroupQueryKey(org), toOrgPlan(boot.plan));
   if (typeof boot.is_operator === 'boolean') set(['operator', 'isOperator'], boot.is_operator);
   if (typeof boot.hide_prices_enabled === 'boolean') set([HIDE_PRICES_ENABLED_KEY, org], boot.hide_prices_enabled);
-  if (typeof boot.may_see_prices === 'boolean') set([MAY_SEE_PRICES_KEY, org, profile.id], boot.may_see_prices);
+  const mayKey = [MAY_SEE_PRICES_KEY, org, profile.id] as const;
+  if (typeof boot.may_see_prices === 'boolean') set(mayKey, boot.may_see_prices);
+  // The server leaves may_see_prices out while hiding is off. An older cached answer must not survive that: when hiding
+  // turns on again the hook would trust it (fresh for 5 minutes) and show a price the database now withholds.
+  else if (typeof boot.hide_prices_enabled === 'boolean') qc.removeQueries({ queryKey: mayKey, exact: true });
 }
