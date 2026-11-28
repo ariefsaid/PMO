@@ -84,18 +84,20 @@ create or replace function public.seed_purchase_types(p_org uuid) returns void
   on conflict do nothing $$;
 
 create function public.purchase_default_approver_ids(p_org uuid, p_project uuid, p_procurement uuid, p_requester uuid) returns uuid[]
-  language sql stable security definer set search_path = pg_catalog, public, pg_temp as $$
-  select coalesce(array_agg(pf.id order by pf.id), '{}')
+  language plpgsql stable security definer set search_path = pg_catalog, public, pg_temp as $$
+begin
+  perform public.assert_not_light();
+  return (select coalesce(array_agg(pf.id order by pf.id), '{}')
     from public.profiles pf
-   where p_org = public.auth_org_id() and not public.actor_is_light() and pf.org_id = p_org and pf.status = 'active'
+   where p_org = public.auth_org_id() and pf.org_id = p_org and pf.status = 'active'
      and pf.id is distinct from p_requester
      and public.holds_spend_approval_authority(pf.role)
      and case when exists (select 1 from public.procurements pr join public.purchase_types t on t.id = pr.purchase_type_id
                             where pr.id = p_procurement and pr.org_id = p_org and (t.is_service or t.is_rental))
               then pf.built_in_role = 'procurement_manager'
               else pf.id = (select coalesce(pj.deputy_manager_id, pj.project_manager_id) from public.projects pj
-                             where pj.id = p_project and pj.org_id = p_org) end
-$$;
+                             where pj.id = p_project and pj.org_id = p_org) end);
+end $$;
 revoke all on function public.purchase_default_approver_ids(uuid, uuid, uuid, uuid) from public, anon;
 grant execute on function public.purchase_default_approver_ids(uuid, uuid, uuid, uuid) to authenticated;
 
@@ -302,15 +304,6 @@ begin
   if v_p_rows > 0 then
     if cardinality(v_p_ids) > 0 then
       return query select 'project'::text, v_reason, v_p_ids, v_budget, v_used;
-    else
-      return query select 'admin'::text, v_reason, '{}'::uuid[], v_budget, v_used;
-    end if;
-    return;
-  end if;
-  if p_procurement is not null then
-    v_def := public.purchase_default_approver_ids(p_org_id, p_project_id, p_procurement, p_requester_id);
-    if cardinality(v_def) > 0 then
-      return query select 'project'::text, v_reason, v_def, v_budget, v_used;
     else
       return query select 'admin'::text, v_reason, '{}'::uuid[], v_budget, v_used;
     end if;

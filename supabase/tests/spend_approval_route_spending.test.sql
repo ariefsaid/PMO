@@ -259,7 +259,7 @@ select is(pg_temp.r('a0923000-0000-0000-0000-00000000000a', 'a0923000-0000-0000-
 
 -- ── Shape: invoker, same signature, no new definer.
 reset role;
-select is((select prosecdef from pg_proc where oid = 'public.spend_approval_route(uuid,uuid,public.budget_category,numeric,text,uuid,uuid,timestamptz)'::regprocedure), false,
+select is((select prosecdef from pg_proc where oid = 'public.spend_approval_route(uuid,uuid,public.budget_category,numeric,text,uuid,uuid,timestamptz,uuid)'::regprocedure), false,
   'AC-APR-050: the route still runs as the caller');
 select is((select count(*)::int from pg_proc where proname = 'org_ledger_currency'), 0,
   'AC-APR-050: no new function carries the ledger currency; it is read from the budget position');
@@ -473,7 +473,7 @@ select is((select count(*)::int from pg_proc where pronamespace = 'public'::regn
 select is((select bool_or(has_function_privilege('anon', oid, 'execute')) from pg_proc
             where pronamespace = 'public'::regnamespace and proname in ('spend_approval_route_from_figures', 'spend_approval_project_figures', 'spend_approval_line_figures')),
   false, 'AC-APR-054: anonymous callers cannot execute the figure functions');
-select ok((select obj_description('public.spend_approval_route_from_figures(uuid,uuid,public.budget_category,numeric,text,uuid,uuid,timestamptz,jsonb)'::regprocedure, 'pg_proc')) like 'DISPLAY ONLY%spend_approval_route%',
+select ok((select obj_description('public.spend_approval_route_from_figures(uuid,uuid,public.budget_category,numeric,text,uuid,uuid,timestamptz,jsonb,uuid)'::regprocedure, 'pg_proc')) like 'DISPLAY ONLY%spend_approval_route%',
   'AC-APR-054: the logic is documented as display only and names the route every decision uses');
 
 
