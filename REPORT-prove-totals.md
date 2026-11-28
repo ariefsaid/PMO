@@ -46,3 +46,25 @@ Counts: Files=1180, Tests=29318, Result: FAIL. 1 file failed, 1 test of 24.
 - Root cause (confirmed in the database): the function public.get_supplier_payables_totals, added by migration 2814_supplier_payables_totals.sql line 53, reads public.erp_purchase_documents_linked (the CTE named erp). Its source matches the ilike '%erp_purchase_documents%' and it is not in the allow-list. The other new function (get_paid_receipt_months) does not match. The allow-list sits in supabase/tests/erp_purchase_documents.test.sql around lines 129-175; the branch did not touch that file, and origin/dev has no mention of the new function.
 - Most likely responsible changed file: supabase/migrations/2814_supplier_payables_totals.sql (or the allow-list in the test, which needs an entry naming get_supplier_payables_totals with the "ages a supplier balance, never feeds actuals" reason).
 - Page showed: not a browser test.
+
+## Step 5: unit, whole suite as CI's full mode (8 shards, --coverage), run sequentially
+
+| Shard | Test Files | Tests |
+|-------|-----------|-------|
+| 1/8 | 349 passed (349) | 3376 passed (3376) |
+| 2/8 | 354 passed (354) | 3597 passed (3597) |
+| 3/8 | 354 passed (354) | 3312 passed (3312) |
+| 4/8 | 1 failed, 353 passed, 1 skipped (355) | 1 failed, 4024 passed, 2 skipped (4027) |
+| 5/8 | 356 passed (356) | 3890 passed (3890) |
+| 6/8 | 356 passed (356) | 3867 passed (3867) |
+| 7/8 | 355 passed (355) | 3471 passed (3471) |
+| 8/8 | 355 passed (355) | 3580 passed (3580) |
+
+Totals: 2,833 of 2,834 files pass (1 failed + 1 skipped counted in shard 4); 1 test failed.
+
+### Failure in shard 4 (environmental, not this branch)
+- Test: src/lib/agent/checkEdgeFnErrorReporting.test.ts > "exits 1 and names the specific file when a function's index.ts cannot be read (unreadable-file case)..."
+- Re-run alone: fails the same way (deterministic here, not load-sensitive).
+- Error: `AssertionError: expected '✗ supabase/functions/erpnext-sweep/in…' to match /could not read this file/`
+- Root cause: the test does chmodSync(file, 0o000) and expects the CLI to fail reading it. This sandbox runs as uid 0 (root), which can read a mode-000 file, so the CLI reads it normally and reports a different (wrapping) error. CI runs as a non-root user. The branch does not touch this file or src/lib/agent.
+- Verdict: sandbox artifact; expected green on CI.
