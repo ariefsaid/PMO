@@ -83,6 +83,10 @@ insert into auth.users (id,email) values
 insert into profiles (id,org_id,full_name,email,role,status,built_in_role) values
   ('25250000-0000-0000-0000-0000000000a7', '25250000-0000-0000-0000-00000000000a', 'Equipment', 'job-equipment@example.com', 'Engineer', 'active', 'equipment_officer'),
   ('25250000-0000-0000-0000-0000000000a8', '25250000-0000-0000-0000-00000000000a', 'Buyer', 'job-buyer@example.com', 'Engineer', 'active', 'buyer');
+insert into purchase_types (id, org_id, name, is_rental) values
+  ('25250000-0000-0000-0000-0000000000e1', '25250000-0000-0000-0000-00000000000a', 'Rental for test', true);
+update procurements set purchase_type_id = '25250000-0000-0000-0000-0000000000e1', rental_from = current_date,
+  rental_to = current_date + 1 where id = '25250000-0000-0000-0000-0000000000f1';
 set local role authenticated;
 select pg_temp.act_as('25250000-0000-0000-0000-0000000000a1');
 select set_three_way_match_settings(true, 5, 2);
