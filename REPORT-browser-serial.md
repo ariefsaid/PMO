@@ -104,3 +104,28 @@ Branch runs where nothing passing on dev failed: **run 3 (home-figures-totals)**
 - Failing step: the test's own steps passed or its first error was swallowed; what the run reports is the cleanup error `AC-CSP-016 cleanup failed: restore bindings: map an account to the Equipment category first` (spec line 142). The first underlying failure, if any, is not in the log (the test's `failure` variable would have produced an AggregateError; it did not, so the body itself finished and only the cleanup step failed).
 - Page showed: the signed-in shell (sidebar with "11 pending" approvals), no error banner.
 - Totals/performance reads: none relevant to the error; the failure is in the cleanup write to the Equipment-category account mapping, which AC-NATIVE-EQU also edits (run 4 interleaved the two specs in time).
+
+## CI-style runs: same four runs with --workers=1 (as CI runs the serial project); fresh db reset + build each
+
+Runs: 1=dev @ 9f16436de
+
+| spec | run1 |
+|---|---|
+| AC-1117-dashboard-pipeline.spec.ts | pass |
+| AC-701-dashboard-smoke.spec.ts | pass |
+| AC-CSP-016-project-performance-indices.spec.ts | pass |
+| AC-DNC-012-done-not-claimed-age.spec.ts | pass |
+| AC-IHC-011-idle-cost-switch.spec.ts | pass |
+| AC-NATIVE-EQU-role-job.spec.ts | pass |
+| AC-RSV-018-reservation-borrow.spec.ts | pass |
+| AC-TAG-002-project-classification.spec.ts | pass |
+| AC-TIER-014-amount-tier-approval.spec.ts | pass |
+| JOB-E2-monthly-plan-becomes-rental-orders.spec.ts | pass |
+| JOB-HPG-plan-resave-keeps-rate.spec.ts | pass |
+| JOB-HPG-requester-reads-no-price-any-way.spec.ts | pass |
+| JOB-M8-work-in-hand-capacity.spec.ts | pass |
+| JOB-PU10-senior-limit-role.spec.ts | pass |
+| JOB-PU15-morning-cutoff.spec.ts | pass |
+| JOB-PU4-quoted-buy.spec.ts | pass |
+| hide-prices-screens.spec.ts | pass |
+| totals | 30 passed (4.2m) |
