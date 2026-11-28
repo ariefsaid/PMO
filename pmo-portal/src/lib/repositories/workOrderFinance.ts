@@ -41,12 +41,12 @@ function isRefused(err: unknown): boolean {
   return typeof code === 'string' && /^[0-9A-Z]{5}$/.test(code);
 }
 
-async function load(projectId: string): Promise<ProjectPlanVsActual> {
+async function load(projectId: string, readBilling: () => Promise<WorkOrderBillingRow[]> = () => listWorkOrderBilling(projectId)): Promise<ProjectPlanVsActual> {
   let unavailableProject = false;
   const [orders, billing, money, projectFinances] = await Promise.all([
     listProjectWorkOrders(projectId),
     // Revenue is the shipped per-work-order billing read; when it cannot be read, revenue is unknown, never zero.
-    listWorkOrderBilling(projectId).catch((): WorkOrderBillingRow[] | null => null),
+    readBilling().catch((): WorkOrderBillingRow[] | null => null),
     // FR-WPVA-013: canonical database refusals produce the restricted state.
     listProjectCostAmounts(projectId).then((lines): CostAmountLine[] | null => lines, (err) => {
       if (isRefused(err)) { unavailableProject = (err as { code?: string }).code === 'P0002'; return null; }
@@ -140,7 +140,8 @@ export const workOrderFinanceRepository = {
       throw error;
     }
   }),
-  projectPlanVsActual: (projectId: string): Promise<ProjectPlanVsActual> => wrap(() => load(projectId)),
+  /** `readBilling` lets the caller supply the project's billing read (the page's cached one), so it is fetched once. */
+  projectPlanVsActual: (projectId: string, readBilling?: () => Promise<WorkOrderBillingRow[]>): Promise<ProjectPlanVsActual> => wrap(() => load(projectId, readBilling)),
   setPlan: (projectId: string, workOrderId: string, changes: readonly PlanChange[]): Promise<void> => wrap(() => setWorkOrderPlan(projectId, workOrderId, changes)),
   setSplit: (projectId: string, split: readonly SplitPercent[]): Promise<number> => wrap(() => setSharedSplit(projectId, split)),
   clearSplit: (projectId: string): Promise<number> => wrap(() => clearSharedSplit(projectId)),

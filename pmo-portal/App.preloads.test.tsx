@@ -185,14 +185,12 @@ describe('preloadsForPath (#1834 route-entry preload rules)', () => {
   });
 });
 
-it('#2919 starts the work order record, steps, costs and allocations at route entry', () => {
+it('#2919 starts the work order record and its allocations at route entry; #3079 the other tabs wait for their tab', () => {
   const prefetch = vi.spyOn(queryClient, 'prefetchQuery').mockResolvedValue(undefined);
   try {
     preloadForPath('/work-orders/w1#wo-cost', { orgId: 'o1', client: queryClient });
     expect(prefetch.mock.calls.map(([options]) => options.queryKey)).toEqual([
       ['work-order', 'o1', 'w1'],
-      ['work-order-billing-steps', 'o1', 'w1'],
-      ['work-order-cost-lines', 'o1', 'w1'],
       ['work-order-lines', 'o1', 'wo', 'w1'],
     ]);
     prefetch.mockClear();
@@ -219,7 +217,7 @@ it('#2919 starts work order reads during navigation, before the new page can com
     expect(prefetch.mock.calls.map(([options]) => options.queryKey)).toContainEqual(['work-order', 'o1', 'w1']);
     finishLoader();
     await navigation;
-    expect(prefetch).toHaveBeenCalledTimes(4);
+    expect(prefetch).toHaveBeenCalledTimes(2);
   } finally {
     finishLoader();
     unsubscribe?.();
