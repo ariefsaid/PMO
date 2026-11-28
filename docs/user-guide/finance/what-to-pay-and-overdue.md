@@ -33,6 +33,9 @@ what has been waiting too long.
    paid.
 4. Choose **Overdue only** to narrow the list to supplier invoices more than 90 days old, oldest
    first. The button carries its own count.
+
+The list carries no supplier due date, so the **Invoice age** is how you judge what goes into this
+week's run: the older the invoice, the longer the supplier has waited.
 5. Use **Search payables** to find a supplier, a purchase, a project or a project manager.
 6. Choose **Export** for the list as a spreadsheet, or select rows and choose **Export selected**.
 7. To pay one, click the row (or use **Open procurement** in its menu), then record the payment on
@@ -105,6 +108,9 @@ ini dan melihat tagihan mana yang sudah terlalu lama menunggu.
    dibayar.
 4. Pilih **Overdue only** untuk menyaring invoice supplier yang berumur lebih dari 90 hari, dari yang
    tertua. Tombolnya mencantumkan jumlahnya.
+
+Daftar ini tidak memuat tanggal jatuh tempo dari supplier, jadi **Umur invoice** adalah dasar menilai
+apa yang masuk pembayaran minggu ini: makin tua invoice-nya, makin lama supplier menunggu.
 5. Gunakan **Cari utang** untuk menemukan supplier, pengadaan, proyek, atau manajer proyek.
 6. Pilih **Ekspor** untuk mengunduh daftarnya sebagai lembar kerja, atau pilih baris lalu
    **Ekspor pilihan**.

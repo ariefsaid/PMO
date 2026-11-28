@@ -39,7 +39,9 @@ PMO, marked **Outside PMO**.
 1. Open the submitted journal from the list.
 2. Choose **Approve** and confirm. The journal is approved and sent to the ledger; the confirm
    window says so.
-3. If sending fails, the page says **Approved, but not sent** and offers **Retry send**.
+3. If sending fails, the page says **Approved, but not sent** and offers **Retry send**. An approved
+   journal that has not reached the ledger also offers **Send to the ledger**; use it to send it
+   again once the cause is fixed.
 4. To correct an approved journal, choose **Reverse**: enter the **Reversal date** and a **Reason**,
    then **Draft the reversal**. A new draft swaps every debit and credit, and a second approver
    approves it.
@@ -121,7 +123,8 @@ PMO, bertanda **Di luar PMO**.
 2. Pilih **Setujui** dan konfirmasi. Jurnal disetujui dan dikirim ke buku besar; jendela
    konfirmasinya menyebutkan hal itu.
 3. Bila pengiriman gagal, halamannya berbunyi **Disetujui, tetapi belum terkirim** dan menawarkan
-   **Kirim ulang**.
+   **Kirim ulang**. Jurnal yang sudah disetujui tetapi belum sampai ke buku besar juga menawarkan
+   **Kirim ke buku besar**; gunakan itu untuk mengirimnya lagi setelah penyebabnya dibereskan.
 4. Untuk memperbaiki jurnal yang sudah disetujui, pilih **Balik**: isi **Tanggal pembalikan** dan
    **Alasan**, lalu **Buat draf pembalikan**. Draf baru menukar setiap debet dan kredit, dan penyetuju
    kedua menyetujuinya.

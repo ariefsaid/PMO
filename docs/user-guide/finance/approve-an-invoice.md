@@ -25,8 +25,8 @@ The app enforces this: a draft you wrote yourself does not offer you **Approve**
 1. Open the draft. Either click its row and choose **View invoice**, or open **Approvals** →
    **Customer invoices** and choose the invoice there.
 2. Check the customer, the project, the lines, the tax and the total.
-3. Choose **Approve**. From the list's row menu the item reads **Approve**; on the invoice's own
-   page it is the main button at the top.
+3. Choose **Approve**. On the invoice's own page it is the main button at the top; from the list's
+   row menu the item reads **Approve** and opens the invoice for you.
 4. In the confirm window, check the sentence — *Approving issues the invoice: it gets its number,
    becomes Unpaid and can receive payments* — and choose **Approve invoice**.
 
@@ -88,8 +88,8 @@ Aplikasi menjaganya: draf yang Anda tulis sendiri tidak menawarkan **Setujui**. 
 1. Buka drafnya. Klik barisnya lalu pilih **View invoice**, atau buka **Persetujuan** →
    **Customer invoices** dan pilih invoice di sana.
 2. Periksa pelanggan, proyek, baris, pajak, dan totalnya.
-3. Pilih **Setujui**. Dari menu baris daftar, pilihannya berbunyi **Setujui**; di halaman invoice
-   sendiri, itu tombol utama di bagian atas.
+3. Pilih **Setujui**. Di halaman invoice sendiri, itu tombol utama di bagian atas; dari menu baris
+   daftar, pilihannya berbunyi **Setujui** dan membuka invoice untuk Anda.
 4. Di jendela konfirmasi, periksa kalimatnya — *Menyetujui menerbitkan invoice: invoice mendapat
    nomornya, menjadi Belum dibayar, dan dapat menerima pembayaran* — lalu pilih **Approve invoice**.
 
