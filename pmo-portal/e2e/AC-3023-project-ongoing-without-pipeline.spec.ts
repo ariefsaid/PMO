@@ -87,7 +87,7 @@ test('AC-3023: a Project Manager in a pipeline-off organisation creates a projec
     // header keeps in its Project details popover.
     await page.getByRole('button', { name: 'Project details', exact: true }).click();
     await page.getByRole('button', { name: /change status/i }).first().click();
-    await page.getByRole('button', { name: 'Ongoing', exact: true }).click();
+    await page.getByRole('button', { name: 'Ongoing Project', exact: true }).click();
     await page.getByRole('button', { name: /Move to Ongoing/i }).click();
     await expect(visibleToast(page, /Moved to Ongoing/i)).toBeVisible({ timeout: 20_000 });
 
