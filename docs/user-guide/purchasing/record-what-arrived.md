@@ -26,7 +26,6 @@ partial delivery. The purchase then waits for the supplier's invoice.
 2. Choose **Record receipt**.
 3. Fill in the receipt:
    - **Delivery note** — the supplier's delivery note number, if there is one (optional).
-   - **Group ref (optional)** — a shared reference, if your organisation uses one.
    - **Receipt date** — the day the goods arrived.
    - **Status** — **Complete** when everything on the order arrived, **Partial** when only some of
      it did. This is what tells the purchase that the rest is still expected.
@@ -101,7 +100,6 @@ ini penerimaan sebagian. Pembelian lalu menunggu invoice supplier.
 2. Pilih **Catat penerimaan**.
 3. Isi penerimaannya:
    - **Surat jalan** — nomor surat jalan supplier, bila ada (opsional).
-   - **Ref. grup (opsional)** — referensi bersama, bila organisasi Anda memakainya.
    - **Tanggal penerimaan** — hari barang tiba.
    - **Status** — **Selesai** bila semua pesanan datang, **Sebagian** bila baru sebagian. Inilah
      yang memberi tahu pembelian bahwa sisanya masih ditunggu.

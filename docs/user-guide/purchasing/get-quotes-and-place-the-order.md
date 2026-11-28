@@ -20,14 +20,16 @@ comparison and the chosen one together on the purchase.
 ## Where to find it
 
 - **Procurement** in the menu (in the **Delivery** section), then open the approved purchase.
-- On the purchase: the one filled button at the top is the next step. The **Quotations** tab holds
-  the quote list and the comparison.
+- On the purchase: the one filled button at the top is the current step, and the **More**
+  (⋯) menu holds the other steps. The **Quotations** tab holds the quote list and the comparison.
 
 ## Steps
 
 1. Open the approved purchase. Its status is **Approved**.
-2. Choose **Request quotations**. This marks the purchase as being out for quotation; it does not
-   send anything to the suppliers.
+2. Open the **Quotations** tab. While the purchase is still **Approved**, the tab says *Request
+   quotations before adding and selecting supplier quotes.* and offers **Request quotations**.
+   Choose it. This marks the purchase as being out for quotation; it does not send anything to the
+   suppliers.
 3. Open the **Quotations** tab and choose **Add quotation** for each supplier's quote:
    - **Supplier** — pick the supplier.
    - **Quoted total** — the amount they quoted, in your organisation's currency.
@@ -104,14 +106,15 @@ penawaran, perbandingannya, dan pilihan Anda di pembelian yang sama.
 ## Di mana menemukannya
 
 - **Pengadaan** di menu (bagian **Pelaksanaan**), lalu buka pembelian yang sudah disetujui.
-- Pada pembelian: satu tombol penuh di atas adalah langkah berikutnya. Tab **Penawaran** memuat
-  daftar penawaran dan perbandingannya.
+- **Pada pembelian:** satu tombol penuh di atas adalah langkah saat ini, dan menu **Lainnya** (⋯)
+  memuat langkah lainnya. Tab **Penawaran** memuat daftar penawaran dan perbandingannya.
 
 ## Langkah-langkah
 
 1. Buka pembelian yang sudah disetujui. Statusnya **Disetujui**.
-2. Pilih **Minta penawaran**. Ini menandai pembelian sedang dalam penawaran; tidak ada yang
-   dikirim ke supplier.
+2. Buka tab **Penawaran**. Selama pembelian masih **Disetujui**, tab itu bertuliskan *Minta
+   penawaran sebelum menambah dan memilih penawaran supplier.* dan menawarkan **Minta penawaran**.
+   Pilih itu. Ini menandai pembelian sedang dalam penawaran; tidak ada yang dikirim ke supplier.
 3. Buka tab **Penawaran** dan pilih **Tambah penawaran** untuk setiap penawaran supplier:
    - **Supplier** — pilih supplier.
    - **Total penawaran** — jumlah yang mereka tawarkan, dalam mata uang organisasi Anda.

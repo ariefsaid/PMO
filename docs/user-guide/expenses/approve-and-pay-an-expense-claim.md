@@ -13,7 +13,8 @@ against one.
   Manager or Finance — never the claimant, and never the custodian of a site cash the claim is
   charged to.
 - **Pay an approved claim:** Finance or Admin, never the claimant and never the person who approved
-  it. A claim charged to site cash is paid by that site cash's custodian.
+  it. A claim charged to site cash is paid by that site cash's custodian, so a custodian's own claim
+  is not paid from the site cash.
 
 ## Where to find it
 
@@ -93,7 +94,8 @@ dulu bila klaimnya memakai uang muka.
 - **Menyetujui atau mengembalikan klaim:** penyetuju yang dituju klaim — Admin, Eksekutif, Manajer
   Proyek, atau Keuangan — bukan pengaju, dan bukan pemegang kas lapangan yang dibebani klaim itu.
 - **Membayar klaim yang disetujui:** Keuangan atau Admin, bukan pengaju dan bukan orang yang
-  menyetujuinya. Klaim yang dibebankan ke kas lapangan dibayar oleh pemegang kas lapangan itu.
+  menyetujuinya. Klaim yang dibebankan ke kas lapangan dibayar oleh pemegang kas lapangan itu,
+  sehingga klaim milik pemegang kas sendiri tidak dibayar dari kas lapangan.
 
 ## Di mana menemukannya
 
