@@ -29,3 +29,29 @@ Sandbox: Docker, local Supabase stack, supabase db reset. DB files changed (migr
 - Stock connect two-session race | exit=0 | # tests 1 # pass 1 # fail 0 
 - AI credit allocation race | exit=0 | # tests 4 # pass 4 # fail 0 
 - Fiscal year ensure script tests | exit=0 | # tests 2 # pass 2 # fail 0 
+
+## Step 5 — unit (CI command `vitest run --coverage --shard=i/6`, sequential)
+Shards 1,2,3,6 as 6-way shards; shards 4 and 5 timed out at my 10-minute foreground limit, so they were run as 12-way shards 7-10 (same slices). Union = 2834 files, matching `vitest list`.
+| shard | Test Files | Tests |
+|---|---|---|
+| 1/6 | 468 passed | 4748 passed |
+| 2/6 | 472 passed | 4579 passed |
+| 3/6 | 471 passed, 1 skipped (472) | 5194 passed, 2 skipped |
+| 7/12 | 237 passed | 2543 passed |
+| 8/12 | 237 passed | 2573 passed |
+| 9/12 | 237 passed | 2598 passed |
+| 10/12 | 1 failed, 236 passed (237) | 1 failed, 2305 passed (2306) |
+| 6/6 | 474 passed | 4801 passed |
+
+One failure: `src/lib/agent/checkEdgeFnErrorReporting.test.ts` > "exits 1 and names the specific file when a function's index.ts cannot be read (unreadable-file case)". Error: `expected '✗ supabase/functions/erpnext-sweep/in…' to match /could not read this file/`. The test does `chmod 000` on a file and expects a read error; this sandbox runs as uid 0, which ignores file modes, so the file was read normally. Not in the changed files; an artifact of running as root, expected to pass on CI (non-root). Not re-run as non-root.
+
+## Step 7 — typecheck and guards
+- `npm run typecheck`: exit 0, no errors.
+- `npm run check:guards`: **RED** at `check:typed-dals` (exit 1):
+  ```
+  UNTYPED DB ACCESS: src/lib/db/shellBootstrap.ts:33
+    return data as unknown as ShellBootstrap;
+    call the generated type instead: drop the cast, or regenerate database.types.ts.
+  check-typed-dals: 1 new cast(s), 0 stale exemption(s).
+  ```
+  Changed file responsible: `pmo-portal/src/lib/db/shellBootstrap.ts` (line 33; the `supabase.rpc('shell_bootstrap')` result is cast instead of typed from `database.types.ts`). The chain stops at the first red, so I ran every later guard in the chain on its own (check:migrations through check:layout-baseline, 24 guards): all exit 0. Guards before typed-dals (anon-definer-inventory, shadow-types) passed in the chain.
