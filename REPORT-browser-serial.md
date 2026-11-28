@@ -51,25 +51,25 @@ Full log (not committed): serial run 12.6 min; traces were in /tmp/pmo-portal-te
 
 ## Attribution runs (fresh db reset + fresh build each; only the 17 spec files; serial project)
 
-Runs: 1=dev @ 9f16436de
+Runs: 1=dev @ 9f16436de; 2=dev+startup-single-read @ e9270800e
 
-| spec | run1 |
-|---|---|
-| AC-1117-dashboard-pipeline.spec.ts | FAIL |
-| AC-701-dashboard-smoke.spec.ts | FAIL |
-| AC-CSP-016-project-performance-indices.spec.ts | pass |
-| AC-DNC-012-done-not-claimed-age.spec.ts | pass |
-| AC-IHC-011-idle-cost-switch.spec.ts | pass |
-| AC-NATIVE-EQU-role-job.spec.ts | pass |
-| AC-RSV-018-reservation-borrow.spec.ts | pass |
-| AC-TAG-002-project-classification.spec.ts | pass |
-| AC-TIER-014-amount-tier-approval.spec.ts | FAIL |
-| JOB-E2-monthly-plan-becomes-rental-orders.spec.ts | FAIL |
-| JOB-HPG-plan-resave-keeps-rate.spec.ts | pass |
-| JOB-HPG-requester-reads-no-price-any-way.spec.ts | pass |
-| JOB-M8-work-in-hand-capacity.spec.ts | pass |
-| JOB-PU10-senior-limit-role.spec.ts | pass |
-| JOB-PU15-morning-cutoff.spec.ts | pass |
-| JOB-PU4-quoted-buy.spec.ts | FAIL |
-| hide-prices-screens.spec.ts | pass |
-| totals | 5 failed  25 passed (5.6m) |
+| spec | run1 | run2 |
+|---|---|---|
+| AC-1117-dashboard-pipeline.spec.ts | FAIL | FAIL |
+| AC-701-dashboard-smoke.spec.ts | FAIL | FAIL |
+| AC-CSP-016-project-performance-indices.spec.ts | pass | pass |
+| AC-DNC-012-done-not-claimed-age.spec.ts | pass | pass |
+| AC-IHC-011-idle-cost-switch.spec.ts | pass | pass |
+| AC-NATIVE-EQU-role-job.spec.ts | pass | FAIL |
+| AC-RSV-018-reservation-borrow.spec.ts | pass | pass |
+| AC-TAG-002-project-classification.spec.ts | pass | pass |
+| AC-TIER-014-amount-tier-approval.spec.ts | FAIL | FAIL |
+| JOB-E2-monthly-plan-becomes-rental-orders.spec.ts | FAIL | pass |
+| JOB-HPG-plan-resave-keeps-rate.spec.ts | pass | pass |
+| JOB-HPG-requester-reads-no-price-any-way.spec.ts | pass | FAIL |
+| JOB-M8-work-in-hand-capacity.spec.ts | pass | pass |
+| JOB-PU10-senior-limit-role.spec.ts | pass | pass |
+| JOB-PU15-morning-cutoff.spec.ts | pass | pass |
+| JOB-PU4-quoted-buy.spec.ts | FAIL | pass |
+| hide-prices-screens.spec.ts | pass | FAIL |
+| totals | 5 failed  25 passed (5.6m) | 6 failed  24 passed (4.2m) |
