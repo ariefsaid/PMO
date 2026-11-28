@@ -32,3 +32,4 @@ Run with `scripts/e2e-local.sh --project=<lane> --retries=0`, chunks of 40 files
 Sandbox restarted once mid-run (chunk 1 was killed at 49/63 and re-run in full after a stack reset).
 - chromium chunk 0: 60 passed (7.2m)
 - chromium chunk 1: 59 passed, 4 skipped (7.0m)
+- chromium chunk 2: 6 skipped,63 passed (7.4m),
