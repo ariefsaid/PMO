@@ -40,3 +40,4 @@ Sandbox restarted once mid-run (chunk 1 was killed at 49/63 and re-run in full a
     and starts in this sandbox when run by hand (Deno 2.7.11, same as CI), so the cause was not isolated here. Neither the spec nor its support
     files nor the external-link function are in the branch diff, and the test does not touch the work order page. Treat as sandbox/lane-specific, not a branch regression.
 - chromium chunk 4: 57 passed (6.3m),
+- chromium chunk 5: 58 passed (7.0m),
