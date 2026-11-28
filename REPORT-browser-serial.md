@@ -76,7 +76,7 @@ Runs: 1=dev @ 9f16436de; 2=dev+startup-single-read @ e9270800e; 3=dev+home-figur
 
 
 ## Trace analysis: passed on run 1 (dev), failed on a branch run
-Runs 1-4 used Playwright's default worker count, not CI's `--workers=1`; the list output shows spec files interleaving, so shared org-level state (the Equipment account mapping, the hide-prices setting) may race. See the `--workers=1` section below, if present, for the CI-style runs.
+Runs 1-4 above used Playwright's default worker count, not CI's `--workers=1`; the list output shows spec files interleaving, so shared org-level state (Equipment account mapping, hide-prices setting) raced. Of this section's findings only the hide-prices one is reproduced under `--workers=1`; the rest (AC-NATIVE-EQU, AC-CSP-016, JOB-HPG-requester, the dashboards, JOB-E2, JOB-PU4, AC-TIER-014) passed on all four `--workers=1` runs, so they are parallelism effects, not branch effects.
 
 Branch runs where nothing passing on dev failed: **run 3 (home-figures-totals)**. The two dashboard specs (AC-1117, AC-701) fail on dev and on all three branches with identical values (run 1 and run 3: "$7.06M" received where "$3.46M" is expected; "9 with a signed contract" where 7 is expected), so they are not caused by any branch. JOB-E2, JOB-PU4 fail on dev too; AC-TIER-014 failed on dev and run 2 only.
 
@@ -129,3 +129,12 @@ Runs: 1=dev @ 9f16436de; 2=dev+startup-single-read @ 7dcf6e41e; 3=dev+home-figur
 | JOB-PU4-quoted-buy.spec.ts | pass | pass | pass | pass |
 | hide-prices-screens.spec.ts | pass | FAIL | pass | pass |
 | totals | 30 passed (4.2m) | 1 failed  29 passed (3.7m) | 30 passed (4.4m) | 30 passed (4.3m) |
+
+## Conclusion (CI-style `--workers=1`, fresh database each run)
+- dev baseline: all 17 specs pass. home-figures-totals and work-order-page-deferred-reads: all 17 pass.
+- **startup-single-read is the only branch with a failure: `hide-prices-screens.spec.ts`** ("Admin hides purchase and stock prices from a requester while a procurement manager still sees them"), failing in both the parallel run and the `--workers=1` run, passing on dev.
+  - Step: line 130, the requester's new-item description field `getByLabel('Deskripsi item baru')` (Bahasa pass) is not found within 5 s.
+  - Page: the requester's shell and request page, without that field.
+  - Calls in the `--workers=1` trace (16 `shell_bootstrap` answers, all 200): for the signed-in site supervisor every answer says `hide_prices_enabled = true`, `may_see_prices = false`. The only `get_hide_prices_enabled` (true) and `get_may_see_prices` (true) calls were at 09:19:42, at the start (Admin session). So the page is told "prices hidden" consistently in this run; the missing description field is not explained by the price answers in this run. The earlier parallel-run trace for JOB-HPG-requester showed a bootstrap answer with `hide_prices_enabled = false` and no `may_see_prices` key a second after one with true/false; that one did not recur under `--workers=1`.
+- The two dashboard specs and the others that failed in the default-worker runs all pass under `--workers=1`: they are parallel-run interference, not attributable to any branch.
+- Wall times (17 specs, `--workers=1`): 4.2 / 3.7 / 4.4 / 4.3 min.
