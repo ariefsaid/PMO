@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, useLocation, useNavigate } from 'react-router';
 import { axe } from 'jest-axe';
 import { describe, expect, it, vi, afterEach } from 'vitest';
@@ -18,7 +18,7 @@ function Example() {
   return <><FilterBar filters={filters} searchKey="q" searchLabel="Search records" values={state.values} onChange={state.setFilter} onClear={state.clear} shown={2} total={total} />
     <output data-testid="url">{location.search}</output><button onClick={() => navigate(-1)}>Back</button></>;
 }
-function setup(path = '/?other=keep') { return render(<MemoryRouter initialEntries={[path]}><Example /></MemoryRouter>); }
+function setup(path = '/?other=keep') { return render(<MemoryRouter initialEntries={[path]} useTransitions={false}><Example /></MemoryRouter>); }
 afterEach(() => vi.unstubAllGlobals());
 describe('FilterBar', () => {
   it('updates search, segments and selects in the URL, and clears only its own filters', async () => {
@@ -29,8 +29,8 @@ describe('FilterBar', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Open' }));
     // #2497: a select filter is the app's own picker, never the browser's select.
     await pickOption('Project', 'One');
+    await waitFor(() => expect(screen.getByTestId('url')).toHaveTextContent('other=keep&q=bridge&status=open&project=one'));
     expect(screen.getByRole('combobox', { name: 'Project' })).toHaveTextContent('One');
-    expect(screen.getByTestId('url')).toHaveTextContent('other=keep&q=bridge&status=open&project=one');
     expect(screen.getByText('Showing 2 of 5')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Clear all' }));
     expect(screen.getByTestId('url')).toHaveTextContent('?other=keep');

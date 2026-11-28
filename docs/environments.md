@@ -300,9 +300,10 @@ and the health endpoint, never this file.
 function deploy and the management-token read even with the owner's yes; on 2026-10-14, with the owner's
 "deploy when green", it allowed the whole sequence. So the Director runs `scripts/db-push-prod.sh`, the function
 deploy (token resolved inline, never written to a file), the health check, the `main` → `production` push and the
-hosted-grant sweep — and if a step is refused, stops there and hands the owner that exact command (never
-work around a refusal). The after-push probes stay **owner-run**: the probe driver rotates the smoke-org Admin
-password and keeps the probe secrets inside the one process the owner runs.
+hosted-grant sweep and the after-push probes (owner, 2026-10-16: the Director runs the probe driver too, in the
+background, and reports its result) — and if a step is refused, stops there and hands the owner that exact command
+(never work around a refusal). The probe driver rotates the smoke-org Admin password and keeps the probe secrets
+inside its one process.
 ⚑ GoTrue throttles password sign-ins right after the two smokes — wait a minute before the isolation probe's
 sign-in. ⚑ Read the cloud DB (sweeps, counts, migration level) with `scripts/prod-read.sh`, never the `supabase`
 CLI with `--linked` (it needs a management token the session lacks; `.claude/hooks/prod-db-path-gate.sh` blocks it).

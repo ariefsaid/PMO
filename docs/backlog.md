@@ -10,6 +10,18 @@
 
 ### ⚑⚑⚑ CURRENT STATE — run the four commands below before quoting any number
 
+**2026-11-28 — v0.47.0 is on production** (`production` == `main`, tag `v0.47.0`; cloud database at migration 2800;
+edge functions stamped with the release commit; live bundle reports 0.47.0). The release carries the 28 November
+round (#3031, release #3074): owner-supplied material tracking per work order with its loader (#3010), the invoice
+at its own billing step (#3022), a project made ongoing without the sales pipeline (#3023), work-order reopen and
+closed-order reconciliation (#3024), vendor record fields (#3025, open for one role ruling), work-order cost left
+out of project figures (#3026), the fix batch, about 25 speed fixes under #3014, eight engineering tickets under
+#1533, and a CI push gate (`docs/ci-push-rules.md`). Seven CI rounds to `dev` and three release runs: the database
+job stops at its first red step, so each unproven step hid the next; the release run found a navigation stall (a
+shell hook re-rendering until the five-second transition limit), fixed from the trace. Built and waiting, not on
+`dev`: a second speed round (#3035, #3045, #3046, #3047, the language split of #3016, a single start-up read, the
+work-order page's deferred reads #3079). v0.46.0 (27 November) went to production the day before.
+
 **2026-11-26 — v0.45.0 is on production** (`production` == `main`, tag `v0.45.0`; cloud database at migration 2680;
 30 edge functions stamped with the release commit; live bundle reports 0.45.0). The release carries the 25 November
 round: acceptance journeys for a contractor client's test script (one per case, signed in as the job role), the app

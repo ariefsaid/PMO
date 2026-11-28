@@ -82,11 +82,13 @@ const RouteProbe = () => {
 
 // list-working-set-return (#682): the list-return seam captures context only from the list's own
 // canonical index path (`/procurement`), so the default entry must be `/procurement`, not `/`.
+// useTransitions={false}: the router otherwise commits each address change as a low-priority React transition, which a
+// starved test worker can leave pending for over a second after the click returned. Tests here judge the outcome.
 const renderPage = (initialPath = '/procurement') =>
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })}>
       <ToastProvider>
-        <MemoryRouter initialEntries={[initialPath]}>
+        <MemoryRouter initialEntries={[initialPath]} useTransitions={false}>
           <RouteProbe />
           <Procurement />
         </MemoryRouter>
@@ -332,7 +334,8 @@ describe('Procurement index — IA-3 (real data)', () => {
   it('status filter narrows the list (Paid only)', async () => {
     renderPage('/procurement?tab=all&view=grouped');
     await pickOption('Status', 'Paid');
-    expect(screen.queryByText('Workstations & AV')).not.toBeInTheDocument();
+    // The pick writes the address; the router commits that as a transition, so the narrowed list lands a beat later.
+    await waitFor(() => expect(screen.queryByText('Workstations & AV')).not.toBeInTheDocument());
     expect(screen.getByText('Crane hire — 6 weeks')).toBeInTheDocument();
   });
 
@@ -343,7 +346,8 @@ describe('Procurement index — IA-3 (real data)', () => {
     expect(screen.getByText('Crane hire — 6 weeks')).toBeInTheDocument();
 
     await pickOption('Status', 'Paid');
-    expect(screen.queryByText('Workstations & AV')).not.toBeInTheDocument();
+    // The pick writes the address; the router commits that as a transition, so the narrowed list lands a beat later.
+    await waitFor(() => expect(screen.queryByText('Workstations & AV')).not.toBeInTheDocument());
     expect(screen.getByText('Crane hire — 6 weeks')).toBeInTheDocument();
     expect(screen.getByTestId('route-path')).toHaveTextContent('status=Paid');
 
