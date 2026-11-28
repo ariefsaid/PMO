@@ -5,3 +5,4 @@ Status: RUNNING. CI flags: `vitest run --coverage --shard=N/8 --reporter=default
 
 - Shard 5/8: 355 files passed (355); 3524 tests passed (3524); 502s
 - Shard 6/8: 355 files passed (355); 3893 tests passed (3893); 553s
+- Shard 7/8: 356 files passed (356); 4101 tests passed (4101); 519s
