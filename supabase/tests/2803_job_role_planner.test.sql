@@ -17,7 +17,10 @@ select lives_ok($$update tasks set work_order_id = '28030000-0000-0000-0000-0000
 select is((select work_order_id from tasks where id = '28030000-0000-0000-0000-0000000000f1'), '28030000-0000-0000-0000-0000000000e2'::uuid, 'task link persists');
 select lives_ok($$insert into task_dependencies (task_id, depends_on_id) values ('28030000-0000-0000-0000-0000000000f1', '28030000-0000-0000-0000-0000000000f2')$$, 'AC-RR-006 planner adds dependency');
 select throws_ok($$update tasks set name = 'Renamed' where id = '28030000-0000-0000-0000-0000000000f2'$$, '42501', 'only the task status may be changed by its assignee', 'planner changes the link and nothing else on a task');
+select lives_ok($$insert into tasks (project_id, name, status, work_order_id) values ('28030000-0000-0000-0000-0000000000e1', 'Born linked', 'To Do', '28030000-0000-0000-0000-0000000000e2')$$, 'AC-RR-006 planner creates a task already linked');
+select throws_ok($$insert into tasks (project_id, name, status, work_order_id, proof_required) values ('28030000-0000-0000-0000-0000000000e1', 'Needs proof', 'To Do', '28030000-0000-0000-0000-0000000000e2', true)$$, '42501', null, 'planner does not set proof_required');
 select set_config('request.jwt.claims', '{"sub":"28030000-0000-0000-0000-0000000000d2","role":"authenticated"}', true);
+select throws_ok($$insert into tasks (project_id, name, status, work_order_id) values ('28030000-0000-0000-0000-0000000000e1', 'Unrelated link', 'To Do', '28030000-0000-0000-0000-0000000000e2')$$, '42501', null, 'unrelated role cannot create a linked task');
 select throws_ok($$update tasks set work_order_id = '28030000-0000-0000-0000-0000000000e2' where id = '28030000-0000-0000-0000-0000000000f2'$$, '42501', null, 'unrelated role cannot link a task');
 select throws_ok($$insert into task_dependencies (task_id, depends_on_id) values ('28030000-0000-0000-0000-0000000000f2', '28030000-0000-0000-0000-0000000000f1')$$, '42501', null, 'unrelated role cannot add dependency');
 select * from finish();
