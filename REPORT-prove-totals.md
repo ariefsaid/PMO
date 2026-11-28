@@ -80,6 +80,25 @@ Earlier probe (8 chromium specs at 4 workers): 4 failed (AC-002, AC-009, AC-1834
 | chunk-chromium-00 | 40 | 1 failed 59 passed (7.0m) | 1 | AC-ADMIA-001-administration-navigation.spec.ts rc=0 17 passed (1.4m) |
 | chunk-chromium-01 | 40 | 4 failed 4 skipped 55 passed (7.0m) | 4 | AC-ECX-030-direct-cost-account.spec.ts rc=0 12 passed (54.1s); AC-EPR-008-erp-purchases.spec.ts rc=0 11 passed (48.1s); AC-HRE-004-hourly-rental.spec.ts rc=0 11 passed (57.1s) |
 | chunk-chromium-02 | 40 | 2 failed 6 skipped 61 passed (7.9m) | 2 | AC-NBR-020-invoice-deep-link.spec.ts rc=0 11 passed (52.3s); AC-PCH-001-purchase-payment-channel.spec.ts rc=0 11 passed (58.6s) |
+| chunk-chromium-03 | 40 | 7 failed 70 passed (8.7m) | 7 | AC-RET-004-billing-reconciliation-retention.spec.ts rc=0 11 passed (1.3m); AC-S21-005-task-list-review.spec.ts rc=1 1 failed 10 passed (43.2s); AC-SCH-013-pcm-scheduled-reports.spec.ts rc=0 11 passed (52.5s); AC-SITE-012-construction-completion.spec.ts rc=0 11 passed (58.4s); AC-SITE-BQ10-quality-evidence.spec.ts rc=0 11 passed (1.0m); AC-SSW-001-yard-to-work-order.spec.ts rc=0 11 passed (1.2m); AC-TPI-015-inspection-journey.spec.ts rc=0 11 passed (51.1s) |
 
-Real browser failures so far: none (every failure passed when re-run alone).
+### Real browser failures (still failing when re-run alone)
 
+- e2e/AC-S21-005-task-list-review.spec.ts (chunk-chromium-03)
+```
+Error: S21_HANDLER_SERVER_EXITED_EARLY
+
+       at support/AC-S21-005-runtime.mjs:18
+
+      16 |
+      17 | function safeFailure(code) {
+    > 18 |   return new Error(code);
+         |          ^
+      19 | }
+      20 |
+      21 | export async function findPort() {
+        at safeFailure (/home/user/PMO/pmo-portal/e2e/support/AC-S21-005-runtime.mjs:18:10)
+        at ChildProcess.<anonymous> (/home/user/PMO/pmo-portal/e2e/support/AC-S21-005-runtime.mjs:99:40)
+
+    Error Context: ../../../../tmp/claude-0/-home-user-PMO/a160afea-aa91-52d7-83a5-3494273ab535/scratchpad/e2e/out-chunk-chromium-03-rerun/AC-S21-005-task-list-revie-de223--and-reads-back-the-binding-chromium/error-context.md
+```
