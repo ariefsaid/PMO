@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, useLocation, useNavigate } from 'react-router';
 import { axe } from 'jest-axe';
 import { describe, expect, it, vi, afterEach } from 'vitest';
@@ -29,8 +29,8 @@ describe('FilterBar', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Open' }));
     // #2497: a select filter is the app's own picker, never the browser's select.
     await pickOption('Project', 'One');
+    await waitFor(() => expect(screen.getByTestId('url')).toHaveTextContent('other=keep&q=bridge&status=open&project=one'));
     expect(screen.getByRole('combobox', { name: 'Project' })).toHaveTextContent('One');
-    expect(screen.getByTestId('url')).toHaveTextContent('other=keep&q=bridge&status=open&project=one');
     expect(screen.getByText('Showing 2 of 5')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Clear all' }));
     expect(screen.getByTestId('url')).toHaveTextContent('?other=keep');

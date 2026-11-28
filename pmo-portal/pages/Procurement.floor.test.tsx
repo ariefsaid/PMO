@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -103,7 +103,7 @@ describe('Procurement list floors', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Filters' }));
     await pickOption('Category', 'Services');
     expect(screen.getByText('Order case')).toBeInTheDocument();
-    expect(screen.queryByText('Request case')).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByText('Request case')).not.toBeInTheDocument());
   });
 
   it('floor: Project filter leaves only procurements for the selected project and writes the URL', async () => {
@@ -111,7 +111,7 @@ describe('Procurement list floors', () => {
     await pickOption('Project', 'Bridge project');
     expect(screen.getByText('Request case')).toBeInTheDocument();
     expect(screen.getByText('Receipt case')).toBeInTheDocument();
-    expect(screen.queryByText('Order case')).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByText('Order case')).not.toBeInTheDocument());
     expect(screen.getByTestId('route-path')).toHaveTextContent('project=p1');
   });
 
@@ -120,7 +120,7 @@ describe('Procurement list floors', () => {
     await pickOption('Supplier', 'Beta Supply');
     expect(screen.getByText('Order case')).toBeInTheDocument();
     expect(screen.getByText('Pay case')).toBeInTheDocument();
-    expect(screen.queryByText('Request case')).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByText('Request case')).not.toBeInTheDocument());
     expect(screen.getByTestId('route-path')).toHaveTextContent('supplier=v2');
   });
 
@@ -129,7 +129,7 @@ describe('Procurement list floors', () => {
     await pickOption('Raised by', 'Alice Requester');
     expect(screen.getByText('Request case')).toBeInTheDocument();
     expect(screen.getByText('Receipt case')).toBeInTheDocument();
-    expect(screen.queryByText('Order case')).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByText('Order case')).not.toBeInTheDocument());
   });
 
   it('floor: Category filter leaves only matching procurement rows', async () => {
@@ -137,7 +137,7 @@ describe('Procurement list floors', () => {
     await pickOption('Category', 'Services');
     expect(screen.getByText('Order case')).toBeInTheDocument();
     expect(screen.getByText('Pay case')).toBeInTheDocument();
-    expect(screen.queryByText('Request case')).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByText('Request case')).not.toBeInTheDocument());
   });
 
   it('floor: in the table view the Raised by filter (once also offered as "Owner") leaves only matching rows', async () => {
@@ -145,7 +145,7 @@ describe('Procurement list floors', () => {
     await pickOption('Raised by', 'Bob Requester');
     expect(screen.getByText('Order case')).toBeInTheDocument();
     expect(screen.getByText('Pay case')).toBeInTheDocument();
-    expect(screen.queryByText('Request case')).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByText('Request case')).not.toBeInTheDocument());
   });
 
   it('floor: list Retry refetches procurements after a read error', async () => {

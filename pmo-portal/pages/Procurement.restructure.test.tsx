@@ -332,9 +332,9 @@ describe('Procurement list restructure', () => {
 
     await pickOption('Status', 'Ordered');
 
+    await waitFor(() => expect(screen.queryByText('Request row')).not.toBeInTheDocument());
     expect(screen.getByTestId('route-path')).toHaveTextContent('status=group%3AOrdered');
     expect(screen.getByText('Ordered row')).toBeInTheDocument();
-    expect(screen.queryByText('Request row')).not.toBeInTheDocument();
   });
 
   it('Grouped view shows counts for each next-step group', async () => {

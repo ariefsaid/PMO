@@ -47,9 +47,11 @@ describe('ProcurementBlock company list is numbered pages of 50 over the whole s
   it('Next goes to page 2, the address carries it, and Previous returns to page 1 without it', async () => {
     renderBlock();
     await next();
-    expect(screen.getByText('Showing 51–100 of 120')).toBeInTheDocument();
+    // The page is read from the address, which the router commits as a transition: wait for the page a person would see.
+    expect(await screen.findByText('Showing 51–100 of 120')).toBeInTheDocument();
     expect(screen.getByTestId('where')).toHaveTextContent('page=2');
     await userEvent.click(screen.getByRole('button', { name: 'Previous page' }));
+    expect(await screen.findByText('Showing 1–50 of 120')).toBeInTheDocument();
     expect(screen.getByTestId('where')).not.toHaveTextContent('page=');
   });
   it('a shared link to page 3 opens page 3', () => {
@@ -60,13 +62,16 @@ describe('ProcurementBlock company list is numbered pages of 50 over the whole s
   it('Buyer finds a purchase by number on page 3 by paging', async () => {
     renderBlock();
     expect(screen.queryByRole('button', { name: 'Open Purchase PR-110' })).not.toBeInTheDocument();
-    await next(); await next();
-    expect(screen.getByRole('button', { name: 'Open Purchase PR-110' })).toBeInTheDocument();
+    await next();
+    // The second click must meet page 2's Next button, so wait for page 2 before pressing again.
+    await screen.findByText('Showing 51–100 of 120');
+    await next();
+    expect(await screen.findByRole('button', { name: 'Open Purchase PR-110' })).toBeInTheDocument();
   });
   it('Buyer finds a purchase by number that lies on page 3 by search, and a search starts again at page 1', async () => {
     renderBlock('/procurement?page=2');
     await userEvent.type(screen.getByRole('searchbox'), 'PR-110');
-    expect(screen.getByRole('button', { name: 'Open Purchase PR-110' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Open Purchase PR-110' })).toBeInTheDocument();
     expect(screen.getByTestId('where')).not.toHaveTextContent('page=');
   });
   it('select all selects every matching row, not only the 50 on the page', async () => {

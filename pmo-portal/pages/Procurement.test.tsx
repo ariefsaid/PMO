@@ -332,7 +332,8 @@ describe('Procurement index — IA-3 (real data)', () => {
   it('status filter narrows the list (Paid only)', async () => {
     renderPage('/procurement?tab=all&view=grouped');
     await pickOption('Status', 'Paid');
-    expect(screen.queryByText('Workstations & AV')).not.toBeInTheDocument();
+    // The pick writes the address; the router commits that as a transition, so the narrowed list lands a beat later.
+    await waitFor(() => expect(screen.queryByText('Workstations & AV')).not.toBeInTheDocument());
     expect(screen.getByText('Crane hire — 6 weeks')).toBeInTheDocument();
   });
 
@@ -343,7 +344,8 @@ describe('Procurement index — IA-3 (real data)', () => {
     expect(screen.getByText('Crane hire — 6 weeks')).toBeInTheDocument();
 
     await pickOption('Status', 'Paid');
-    expect(screen.queryByText('Workstations & AV')).not.toBeInTheDocument();
+    // The pick writes the address; the router commits that as a transition, so the narrowed list lands a beat later.
+    await waitFor(() => expect(screen.queryByText('Workstations & AV')).not.toBeInTheDocument());
     expect(screen.getByText('Crane hire — 6 weeks')).toBeInTheDocument();
     expect(screen.getByTestId('route-path')).toHaveTextContent('status=Paid');
 
