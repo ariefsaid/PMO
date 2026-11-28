@@ -10,8 +10,8 @@ Finance, Project Manager, Executive or Admin. Naming a warehouse's keepers is do
 
 ## Where to find it
 
-**Stock → Setup**. The **Setup** tab appears only for people who may change stock master data. The
-same three lists are also reachable from **Stock → Setup** on a phone through the same page.
+**Stock → Setup**. The **Setup** tab appears on the Stock pages only for people who may change stock
+master data.
 
 ## Steps
 
@@ -101,8 +101,8 @@ Admin.
 
 ## Di mana menemukannya
 
-**Stok → Pengaturan**. Tab **Pengaturan** hanya muncul untuk orang yang boleh mengubah data induk
-stok.
+**Stok → Pengaturan**. Tab **Pengaturan** hanya muncul di halaman Stok untuk orang yang boleh
+mengubah data induk stok.
 
 ## Langkah-langkah
 

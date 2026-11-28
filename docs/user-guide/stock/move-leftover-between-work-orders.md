@@ -15,7 +15,7 @@ on. It stays off while an external inventory system owns the stock.
 Two ways to the same page:
 
 - **Stock → Documents**, then **New document → Move leftover to another work order**.
-- **Stock → On hand**, then the **More movements** menu → **Move leftover to another work order**.
+- **Stock → On hand**, then the **More** menu → **Move leftover to another work order**.
 
 ## Steps
 
@@ -81,7 +81,7 @@ Admin. Fiturnya harus diaktifkan dulu: Admin mengaktifkannya di **Administrasi �
 Dua jalan menuju halaman yang sama:
 
 - **Stok → Dokumen**, lalu **Dokumen baru → Pindahkan sisa ke perintah kerja lain**.
-- **Stok → Persediaan**, lalu menu **Pergerakan lain** → **Pindahkan sisa ke perintah kerja lain**.
+- **Stok → Persediaan**, lalu menu **Lainnya** → **Pindahkan sisa ke perintah kerja lain**.
 
 ## Langkah-langkah
 

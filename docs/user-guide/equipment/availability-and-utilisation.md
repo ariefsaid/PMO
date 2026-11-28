@@ -12,8 +12,8 @@ organisation's targets beside them. Use it when you promise work: a machine that
 either down or idle, and both are worth knowing before the plan is set.
 
 **Who can do this:** everyone reads the availability board. Admin, Project Manager and Engineer
-record the daily statuses that feed it. Admin, and the equipment manager role, set the targets and
-the working hours. Finance and the equipment manager read the rental invoice check on the same page.
+record the daily statuses that feed it. Admin, the equipment manager and a Project Manager set the
+targets and the working hours. Finance and the equipment manager read the rental invoice check on the same page.
 
 ## Where to find it
 
@@ -89,8 +89,8 @@ yang di bawah target sedang rusak atau menganggur, dan keduanya penting diketahu
 ditetapkan.
 
 **Siapa yang bisa melakukannya:** semua orang membaca papan ketersediaan. Admin, Manajer Proyek, dan
-Insinyur mencatat status harian yang menjadi bahannya. Admin dan peran manajer peralatan menetapkan
-target dan jam kerja. Finance dan manajer peralatan membaca pemeriksaan tagihan sewa di halaman yang
+Insinyur mencatat status harian yang menjadi bahannya. Admin, manajer peralatan, dan Manajer Proyek
+menetapkan target dan jam kerja. Finance dan manajer peralatan membaca pemeriksaan tagihan sewa di halaman yang
 sama.
 
 ## Di mana menemukannya

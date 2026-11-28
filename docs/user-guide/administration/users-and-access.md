@@ -24,8 +24,10 @@ the only active Admin of an organisation cannot be disabled.
 1. Open **Administration → Users** and choose **Invite user**.
 2. Enter the person's **Email**.
 3. Choose the **Access level** — what they may see and do once they sign in.
-4. If **Job role** is offered, choose it. A job role starts from one access level and sets what the
-   person sees and does for their job; the form confirms which level it lands on.
+4. If **Job role** is offered, choose it. PMO has 28 ready-made job roles, in three tiers — **Managers**,
+   **Officers** and **Field** — such as Storekeeper, Site Supervisor, HR Officer or Equipment Manager.
+   A job role starts from one access level and sets what the person sees and does for their job; the
+   form confirms which level it lands on.
 5. Choose **Invite user**.
 6. The person receives an invitation email and appears in the list as soon as the invitation is
    accepted.
@@ -112,9 +114,10 @@ Admin aktif di sebuah organisasi tidak dapat dinonaktifkan.
 1. Buka **Administrasi → Pengguna** dan pilih **Undang pengguna**.
 2. Isi **Email** orangnya.
 3. Pilih **Tingkat akses** — apa yang boleh ia lihat dan lakukan setelah masuk.
-4. Bila **Jabatan** ditawarkan, pilih jabatannya. Jabatan berawal dari satu tingkat akses dan
-   menentukan apa yang dilihat dan dilakukan orang itu untuk pekerjaannya; formulirnya menegaskan
-   tingkat mana yang dipakai.
+4. Bila **Jabatan** ditawarkan, pilih jabatannya. PMO punya 28 jabatan siap pakai dalam tiga tingkat —
+   **Manajer**, **Petugas**, dan **Lapangan** — seperti Penjaga Gudang, Pengawas Lapangan, Petugas SDM,
+   atau Manajer Peralatan. Jabatan berawal dari satu tingkat akses dan menentukan apa yang dilihat dan
+   dilakukan orang itu untuk pekerjaannya; formulirnya menegaskan tingkat mana yang dipakai.
 5. Pilih **Undang pengguna**.
 6. Orang itu menerima email undangan dan muncul di daftar setelah undangannya diterima.
 
