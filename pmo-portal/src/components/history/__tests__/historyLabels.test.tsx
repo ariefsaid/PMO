@@ -4,8 +4,10 @@ import { renderHook } from '@testing-library/react';
 import { fieldLabels, kindLabels, auditActionLabels } from '../historyLabels';
 import { FIELD_KINDS } from '../historyFields';
 import { useHistoryEnumLabel } from '../useHistoryEnumLabel';
-import en from '../../../../public/locales/en/common.json';
-import id from '../../../../public/locales/id/common.json';
+import { commonCatalogue } from '@/test/commonCatalogue';
+
+const en = commonCatalogue('en') as unknown as { history: Record<string, Record<string, string>> };
+const id = commonCatalogue('id') as unknown as { history: Record<string, Record<string, string>> };
 
 vi.mock('@/src/hooks/useProjectStatusLabel', () => ({ useProjectStatusLabel: () => (v: string) => v }));
 vi.mock('@/src/hooks/useProcurementStageLabel', () => ({ useProcurementStageLabel: () => () => '' }));

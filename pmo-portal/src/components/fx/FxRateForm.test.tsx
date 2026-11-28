@@ -4,19 +4,14 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import userEvent from '@testing-library/user-event';
 import { I18nextProvider } from 'react-i18next';
 import i18next from 'i18next';
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import type { SubmitError } from '@/src/components/ui';
 import type { FxRateRow } from '@/src/lib/repositories/types';
 import FxRateForm from './FxRateForm';
+import { commonCatalogue } from '@/test/commonCatalogue';
 import { latestPickableDay } from '@/test/dateField';
 
-const enCatalogue = JSON.parse(
-  readFileSync(join(process.cwd(), 'public/locales/en/common.json'), 'utf8'),
-);
-const idCatalogue = JSON.parse(
-  readFileSync(join(process.cwd(), 'public/locales/id/common.json'), 'utf8'),
-);
+const enCatalogue = commonCatalogue('en');
+const idCatalogue = commonCatalogue('id');
 const today = '2026-10-31';
 const row: FxRateRow = {
   id: 'rate-1',

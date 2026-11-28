@@ -5,6 +5,7 @@ import { test, expect } from '@playwright/test';
 import { formatTableMoney } from '../src/lib/format';
 import { inDays, orgToday, serviceClient, need } from './support/jobJourney';
 import { createJobRoleUser, removeJobOrganization } from './support/jobRoleUser';
+import { sqlAsOwner } from './support/jobFixtures';
 import { openWorkOrderArea } from './support/workOrderArea';
 
 test.setTimeout(180_000);
@@ -64,31 +65,20 @@ test('JOB-PC31 project control manager sees what work-order direct cost leaves o
       org_id: org.id, code: 'WH-PC31', name: 'Main store', kind: 'central',
     }).select('id').single());
 
-    const docPriced = must('stock doc priced', await db.from('stock_documents').insert({
-      org_id: org.id, number: 'SI-PC31-1', kind: 'issue', status: 'Posted', warehouse_id: wh.id,
-      project_id: project.id, work_order_id: wo.id, occurred_on: day, created_by: pcm.id, posted_by: pcm.id, posted_at: new Date().toISOString(),
-    }).select('id').single());
-    const linePriced = must('stock line priced', await db.from('stock_document_lines').insert({
-      org_id: org.id, document_id: docPriced.id, line_no: 1, item_id: itemPriced.id, quantity: 3, direction: 'out',
-    }).select('id').single());
-    must('stock ledger priced', await db.from('stock_ledger').insert({
-      org_id: org.id, document_id: docPriced.id, line_id: linePriced.id, item_id: itemPriced.id,
-      warehouse_id: wh.id, project_id: project.id, kind: 'issue', qty_delta: -3, value_delta: -1_200,
-      qty_after: 0, value_after: 0, occurred_on: day, posted_by: pcm.id,
-    }).select('id'));
-
-    const docFree = must('stock doc free', await db.from('stock_documents').insert({
-      org_id: org.id, number: 'SI-PC31-2', kind: 'issue', status: 'Posted', warehouse_id: wh.id,
-      project_id: project.id, work_order_id: wo.id, occurred_on: day, created_by: pcm.id, posted_by: pcm.id, posted_at: new Date().toISOString(),
-    }).select('id').single());
-    const lineFree = must('stock line free', await db.from('stock_document_lines').insert({
-      org_id: org.id, document_id: docFree.id, line_no: 1, item_id: itemFree.id, quantity: 1, direction: 'out',
-    }).select('id').single());
-    must('stock ledger free', await db.from('stock_ledger').insert({
-      org_id: org.id, document_id: docFree.id, line_id: lineFree.id, item_id: itemFree.id,
-      warehouse_id: wh.id, project_id: project.id, kind: 'issue', qty_delta: -1, value_delta: 0,
-      qty_after: 0, value_after: 0, occurred_on: day, posted_by: pcm.id,
-    }).select('id'));
+    // Posted stock is written only by the posting engine (no direct write for the service role), so the posted documents,
+    // their lines and ledger rows are seeded as the database owner, exactly as the engine would leave them.
+    const posted = new Date().toISOString();
+    const stock = (number: string, itemId: string, qty: number, value: number) => {
+      const doc = crypto.randomUUID();
+      const line = crypto.randomUUID();
+      return `insert into public.stock_documents (id, org_id, number, kind, status, warehouse_id, project_id, work_order_id, occurred_on, created_by, posted_by, posted_at)
+          values ('${doc}', '${org.id}', '${number}', 'issue', 'Posted', '${wh.id}', '${project.id}', '${wo.id}', '${day}', '${pcm.id}', '${pcm.id}', '${posted}');
+        insert into public.stock_document_lines (id, org_id, document_id, line_no, item_id, quantity, direction)
+          values ('${line}', '${org.id}', '${doc}', 1, '${itemId}', ${qty}, 'out');
+        insert into public.stock_ledger (org_id, document_id, line_id, item_id, warehouse_id, project_id, kind, qty_delta, value_delta, qty_after, value_after, occurred_on, posted_by)
+          values ('${org.id}', '${doc}', '${line}', '${itemId}', '${wh.id}', '${project.id}', 'issue', ${-qty}, ${-value}, 0, 0, '${day}', '${pcm.id}');`;
+    };
+    sqlAsOwner(stock('SI-PC31-1', itemPriced.id, 3, 1_200) + stock('SI-PC31-2', itemFree.id, 1, 0));
 
     // Sign in as project_control_manager and open the work order's Cost and plan tab.
     await pcm.signIn(page);
