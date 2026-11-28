@@ -13,8 +13,16 @@ import { FALLBACK_LOCALE, isUsableLocaleTag } from '@/src/lib/locale/resolveLoca
  */
 
 /** Feature namespaces. Each maps to `public/locales/<lng>/<ns>.json`. */
-export const NAMESPACES = ['common', 'ui', 'auth', 'import', 'crm', 'sales', 'projectTabs', 'projects', 'finance', 'financeHub', 'dashboard', 'project', 'procurement', 'expenseClaims', 'meetingCreate', 'recordFolders', 'documentViewer', 'costAttribution', 'procurementRecord', 'procurementList', 'procurementCreate', 'assistantPanel', 'viewBuilder', 'profilePreferences', 'stock', 'imprest', 'equipment', 'timeAndMaterials', 'boardDrag', 'lostReason', 'administration', 'plans', 'tasks', 'calendar', 'meetings', 'timesheets', 'status', 'home', 'oauthConsent', 'legal', 'journals', 'incidents', 'workOrderCost', 'workOrderPva', 'workOrderSections', 'workOrderRevenuePlan', 'materialRequests', 'purchaseTypes', 'equipmentPlans', 'workOrders', 'siteReport', 'quantityChanges', 'crews', 'crewTools', 'subcontractCertificates', 'notifications', 'supplyRisk', 'usageStandards', 'workInHand', 'emailNotifications', 'myHome', 'closeout', 'ownerMaterial', 'billingSteps', 'survey', 'safety', 'refusals', 'waitingList', 'priceVisibility'] as const;
+export const NAMESPACES = ['common', 'ui', 'auth', 'import', 'crm', 'sales', 'projectTabs', 'projects', 'finance', 'financeHub', 'dashboard', 'project', 'procurement', 'expenseClaims', 'meetingCreate', 'recordFolders', 'documentViewer', 'costAttribution', 'procurementRecord', 'procurementList', 'procurementCreate', 'assistantPanel', 'viewBuilder', 'profilePreferences', 'stock', 'imprest', 'equipment', 'timeAndMaterials', 'boardDrag', 'lostReason', 'administration', 'plans', 'tasks', 'calendar', 'meetings', 'timesheets', 'status', 'home', 'oauthConsent', 'legal', 'journals', 'incidents', 'workOrderCost', 'workOrderPva', 'workOrderSections', 'workOrderRevenuePlan', 'materialRequests', 'purchaseTypes', 'equipmentPlans', 'workOrders', 'siteReport', 'quantityChanges', 'crews', 'crewTools', 'subcontractCertificates', 'notifications', 'supplyRisk', 'usageStandards', 'workInHand', 'emailNotifications', 'myHome', 'closeout', 'ownerMaterial', 'billingSteps', 'survey', 'safety', 'refusals', 'waitingList', 'priceVisibility', 'commonPages'] as const;
 export const DEFAULT_NS = 'common';
+/**
+ * `common` split: copy only certain screens render (companies, contacts, meetings, history, fx,
+ * statements, bupot, …) lives here so first paint of every other screen does not download it. It is
+ * the second `fallbackNS`, so keys stay unchanged; every route that renders one
+ * lists it in its `PRELOAD_RULES` namespaces — `commonPages.guard.test.ts` fails a route that does not.
+ */
+export const PAGES_NS = 'commonPages';
+export const FALLBACK_NAMESPACES: readonly string[] = [DEFAULT_NS, PAGES_NS];
 
 /**
  * The namespaces RESIDENT AT BOOT (#2097). Only `common` — the app chrome, and the one catalogue
@@ -251,6 +259,8 @@ export function createParseMissingKeyHandler(
     // English — the default is a first-paint fallback, not the answer. (This is the `t('crm:x',
     // 'Companies')`-through-a-bare-`useTranslation()` case, which is most of the app.)
     loadOnDemand(namespace);
+    // A bare key that `common` lacks may live in the second fallback catalogue (the safety net behind the route rules).
+    if (namespace === DEFAULT_NS) loadOnDemand(PAGES_NS);
     if (defaultValue != null && defaultValue !== '') return defaultValue;
     // If the English fallback was deferred for a non-English boot and a genuinely missing key is
     // rendered without a call-site default, pull the English fallback immediately.
@@ -269,7 +279,8 @@ export function createParseMissingKeyHandler(
     const resource =
       typeof instance.getResource === 'function'
         ? instance.getResource(FALLBACK_LOCALE, namespace, bareKey) ??
-          (namespace === DEFAULT_NS ? undefined : instance.getResource(FALLBACK_LOCALE, DEFAULT_NS, bareKey))
+          FALLBACK_NAMESPACES.filter((ns) => ns !== namespace)
+            .map((ns) => instance.getResource(FALLBACK_LOCALE, ns, bareKey)).find((value) => value !== undefined)
         : undefined;
     if (typeof resource === 'string' && resource !== '') return resource;
     // The last resort is the key WITHOUT its namespace prefix: `companies.title` reads like a
@@ -462,7 +473,7 @@ export function i18nInitOptions(
     // For a non-English boot, defer English fallback until after first paint so the first wave
     // fetches only the user's resolved language (`scheduleEnglishFallback` restores `en`).
     fallbackLng: bootLocale === FALLBACK_LOCALE ? FALLBACK_LOCALE : false,
-    fallbackNS: DEFAULT_NS,
+    fallbackNS: [...FALLBACK_NAMESPACES],
     // #2097 + P3: boot with `common` plus the shell and destination route namespaces in one wave.
     ns: namespaces,
     defaultNS: DEFAULT_NS,

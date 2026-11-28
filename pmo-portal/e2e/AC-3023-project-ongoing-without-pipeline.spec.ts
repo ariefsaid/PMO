@@ -2,7 +2,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
 import { jobRoleUser } from './support/jobRole';
-import { need, ok, serviceClient } from './support/jobFixtures';
+import { need, ok, serviceClient, sqlAsOwner } from './support/jobFixtures';
 import { stubErpProjectSync, visibleToast } from './helpers';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
@@ -32,12 +32,13 @@ test('AC-3023: a Project Manager in a pipeline-off organisation creates a projec
 
   // The run's own organisation, with the sales-pipeline module switched off.
   ok('organisation', await admin.from('organizations').insert({ id: orgId, name: `Pipeline-Off Org ${run}` }));
-  ok('feature off', await admin.from('org_features').insert({ org_id: orgId, feature_key: 'sales_pipeline', enabled: false }));
+  // The service role only reads org_features (plan resolution owns its writes), so the override is set as the database owner.
+  sqlAsOwner(`insert into public.org_features (org_id, feature_key, enabled) values ('${orgId}', 'sales_pipeline', false);`);
   const client = need('client', await admin.from('companies')
     .insert({ org_id: orgId, name: clientName, type: 'Client' })
     .select('id')
     .single());
-  const pm = await jobRoleUser({ jobRole: 'Project Manager', org: orgId, service: admin, run, displayName: `PM ${run}` });
+  const pm = await jobRoleUser({ jobRole: 'project_manager', org: orgId, service: admin, run, displayName: `PM ${run}` });
 
   let projectId: string | null = null;
   try {
@@ -82,23 +83,27 @@ test('AC-3023: a Project Manager in a pipeline-off organisation creates a projec
     await page.getByRole('button', { name: /Confirm won/i }).click();
     await expect(visibleToast(page, /Moved to Won, pending kickoff/i)).toBeVisible({ timeout: 20_000 });
 
-    // 3 — Start it: the ordinary Won, Pending KoM → Ongoing Project move through the status menu.
+    // 3 — Start it: the ordinary Won, Pending KoM → Ongoing Project move through the status control, which the
+    // header keeps in its Project details popover.
+    await page.getByRole('button', { name: 'Project details', exact: true }).click();
     await page.getByRole('button', { name: /change status/i }).first().click();
-    await page.getByRole('button', { name: 'Ongoing', exact: true }).click();
+    await page.getByRole('button', { name: 'Ongoing Project', exact: true }).click();
     await page.getByRole('button', { name: /Move to Ongoing/i }).click();
     await expect(visibleToast(page, /Moved to Ongoing/i)).toBeVisible({ timeout: 20_000 });
 
     // GOAL ORACLE: after a reload the record is genuinely Ongoing with the win artifacts.
+    // The status shows in the header; the customer contract reference sits in its Project details popover.
     await page.reload();
-    await expect(page.getByText('CPO-3023').first()).toBeVisible({ timeout: 20_000 });
     await expect(page.locator('body').getByText(/^Ongoing$/)).toBeVisible({ timeout: 20_000 });
+    await page.getByRole('button', { name: 'Project details', exact: true }).click();
+    await expect(page.getByRole('dialog').getByText('CPO-3023').first()).toBeVisible({ timeout: 20_000 });
   } finally {
     // Delete exactly what this run created (the project, then the person, the client, the
     // feature override, the organisation).
     if (projectId) ok('project cleanup', await admin.from('projects').delete().eq('id', projectId));
     try { await pm.cleanup(); } catch (e) { console.warn('AC-3023 profile cleanup:', e); }
     ok('client cleanup', await admin.from('companies').delete().eq('id', client.id as string));
-    ok('feature cleanup', await admin.from('org_features').delete().eq('org_id', orgId));
+    sqlAsOwner(`delete from public.org_features where org_id = '${orgId}';`);
     ok('organisation cleanup', await admin.from('organizations').delete().eq('id', orgId));
   }
 });

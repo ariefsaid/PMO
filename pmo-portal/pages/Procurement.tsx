@@ -39,6 +39,7 @@ import { useProjects } from '@/src/hooks/useProjects';
 import { trackProcurementDetailOpened, trackFilterApplied, trackEmptyStateSeen } from '@/src/lib/analytics';
 import { useProcurementListScope } from '@/src/hooks/useProcurementListScope';
 import { ProcurementBlock } from '@/src/components/procurement';
+import { COMPANY_LIST_PAGE_SIZE } from '@/src/components/procurement/ProcurementBlock';
 import { ProcurementKpiRow, type ProcurementTab } from './procurement/list/ProcurementKpiRow';
 import { formatDay, formatMoneyLines } from '@/src/lib/format';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
@@ -504,7 +505,8 @@ const ProcurementPage: React.FC = () => {
               onChange={handleFilterChange}
               onClear={clearFilters}
               shown={filtered.length}
-              total={tabRows.length}
+              // Past one page the table's own foot carries the count ("Showing a–b of n"): one count line.
+              total={currentView === 'table' && filtered.length > COMPANY_LIST_PAGE_SIZE ? undefined : tabRows.length}
               labels={{
                 all: t('tab.all', 'All'),
                 filters: t('filter.filters', 'Filters'),

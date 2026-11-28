@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { commonCatalogue } from '@/test/commonCatalogue';
 
 const catalogues = {
   en: catalogue('en'),
@@ -8,7 +9,7 @@ const catalogues = {
 };
 
 function catalogue(locale: 'en' | 'id') {
-  const common = JSON.parse(readFileSync(join(process.cwd(), `public/locales/${locale}/common.json`), 'utf8'));
+  const common = commonCatalogue(locale) as { history: unknown; projectDetail: { gantt: unknown; tasks?: { form?: object } } & Record<string, object> };
   const project = JSON.parse(readFileSync(join(process.cwd(), `public/locales/${locale}/project.json`), 'utf8'));
   return {
     ...common,
