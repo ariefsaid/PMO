@@ -43,3 +43,4 @@ Sandbox restarted once mid-run (chunk 1 was killed at 49/63 and re-run in full a
 - chromium chunk 5: 58 passed (7.0m),
 - chromium chunk 6: 57 passed (7.6m),
 - chromium chunk 7 (40 files, 180 tests incl. layout sweeps): too long for one foreground call; re-run as four 10-file sub-chunks c70-c73:
+- chromium c70 (10 files): 20 passed (2.4m),
