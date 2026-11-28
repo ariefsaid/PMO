@@ -8,8 +8,9 @@ whether that person is cleared.
 PMO ships no items: you name what matters for your sites, once, and every person then gets the same
 checklist.
 
-**Who can do this:** an **Admin** sets the checklist items and records or corrects a person's dates.
-Everyone else can read the checklist and who is cleared, on the person's own page.
+**Who can do this:** an **Admin** names the checklist items. An Admin, a Project Manager or an HR
+Officer records and corrects a person's dates — never on their own record. Admin, Executive, Finance,
+Project Manager and HR Officer can read the checklist and see who is cleared.
 
 ## Where to find it
 
@@ -92,9 +93,10 @@ tanggal selesainya, kapan kedaluwarsanya, dan apakah orang itu lolos.
 PMO tidak membawa butir bawaan: Anda menamai apa yang penting untuk lokasi Anda, sekali, dan setiap
 orang lalu mendapat daftar yang sama.
 
-**Siapa yang bisa melakukannya:** **Admin** menetapkan butir daftar periksa serta mencatat atau
-membetulkan tanggal seseorang. Orang lain dapat membaca daftar periksa dan siapa yang lolos, di
-halaman orangnya.
+**Siapa yang bisa melakukannya:** **Admin** menamai butir daftar periksa. Admin, Manajer Proyek, atau
+Petugas SDM mencatat dan membetulkan tanggal seseorang — tidak pada catatan dirinya sendiri. Admin,
+Eksekutif, Finance, Manajer Proyek, dan Petugas SDM dapat membaca daftar periksa dan melihat siapa yang
+lolos.
 
 ## Di mana menemukannya
 

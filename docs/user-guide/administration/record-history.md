@@ -4,8 +4,8 @@ Every change to a work order, a budget, a purchase, a task, a project or a custo
 written down: what changed, who changed it, and when. The **History** views turn that record into an
 answer — "who set this value, and on what day?" — instead of an email trail.
 
-**Who can do this:** every role that can open the record can read its history. History is read-only
-for everyone: nobody edits or deletes an entry.
+**Who can do this:** the roles that can open a record can read the history shown on it. History is
+read-only for everyone: nobody edits or deletes an entry.
 
 ## Where to find it
 
@@ -67,8 +67,9 @@ Setiap perubahan pada perintah kerja, anggaran, pembelian, tugas, proyek, atau c
 tercatat: apa yang berubah, siapa yang mengubahnya, dan kapan. Tampilan **Riwayat** mengubah catatan
 itu menjadi jawaban — "siapa menetapkan nilai ini, dan pada hari apa?" — bukan jejak email.
 
-**Siapa yang bisa melakukannya:** semua peran yang dapat membuka catatannya dapat membaca
-riwayatnya. Riwayat hanya untuk dibaca semua orang: tidak ada yang mengubah atau menghapus entrinya.
+**Siapa yang bisa melakukannya:** peran yang dapat membuka sebuah catatan dapat membaca riwayat yang
+ditampilkan padanya. Riwayat hanya untuk dibaca semua orang: tidak ada yang mengubah atau menghapus
+entrinya.
 
 ## Di mana menemukannya
 
