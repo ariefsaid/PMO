@@ -9,3 +9,4 @@ git config core.hooksPath .githooks
 chmod +x .githooks/* 2>/dev/null || true
 echo "✓ core.hooksPath = .githooks (tracked)"
 echo "  pre-commit now gates: edge-fn test binding + deno tests for changed functions"
+echo "  pre-push now gates: rules read per commit (scripts/ci-round.sh ack) + a fourth CI round needs the owner"

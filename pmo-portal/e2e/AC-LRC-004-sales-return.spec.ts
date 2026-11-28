@@ -64,7 +64,8 @@ test(
       .getByRole('navigation', { name: /breadcrumb/i })
       .getByRole('link', { name: /^sales pipeline$/i })
       .click();
-    await expect(page).toHaveURL(/\/sales$/, { timeout: 10_000 });
+    // `view` may be present: a bare list visit keeps the view the person chose this session (#703); the narrowing is not carried.
+    await expect(page).toHaveURL((u) => u.pathname === '/sales' && !u.searchParams.has('status') && !u.searchParams.has('q'), { timeout: 10_000 });
     await page.getByRole('navigation', { name: 'Primary navigation' }).getByRole('link', { name: 'Projects', exact: true }).click();
     await expect(page).toHaveURL(/\/projects$/, { timeout: 10_000 });
 

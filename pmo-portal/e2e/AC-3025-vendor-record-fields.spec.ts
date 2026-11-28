@@ -44,7 +44,7 @@ test('AC-3025: a finance user keeps a vendor code, address and payment terms on 
     await page.getByLabel(/Payment terms \(days\)/i).fill('45');
     await page.getByLabel(/^Address/i).fill('Jl. Raya 12, Surabaya');
     await page.getByRole('button', { name: /^Save company$/i }).click();
-    await expect(visibleToast(page, /Company saved|saved/i)).toBeVisible({ timeout: 20_000 });
+    await expect(visibleToast(page, /Company updated/i)).toBeVisible({ timeout: 20_000 });
 
     // GOAL ORACLE: the record shows what was kept.
     await expect(page.getByText(`VEN-${run}`)).toBeVisible({ timeout: 20_000 });
