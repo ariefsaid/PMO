@@ -11,8 +11,8 @@ here lead back to it.
 
 - **View** the project page: every role.
 - **Edit** the project header (name, customer, manager, dates, contract value): Admin,
-  Executive, Project Manager. After a project is won, changing its contract value needs money
-  authority — Admin, Executive or Finance.
+  Executive, Project Manager. After a project is won, only Admin, Executive or Finance can
+  change its contract value.
 - Some figures are limited by role. A figure your role cannot see shows a note in its place —
   never a guessed number.
 
