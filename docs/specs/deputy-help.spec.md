@@ -1,5 +1,7 @@
 # Feature: Deputy-as-help-desk — a curated product-help corpus grounded in the user's own role
 
+> **Superseded in part (2026-11-28, #3084):** the in-prompt help corpus (FR-DH-001..003, FR-DH-011) is replaced by user-guide search through `find` — see [`assistant-catalog.spec.md`](assistant-catalog.spec.md). The role-grounding rule (FR-DH-007) and "describe only what the user's role may do" stay.
+
 > **Authority:** `docs/backlog.md` §"GTM / MVP-viability program" item 8 (owner-approved 2026-07-04):
 > *"in-app help link · **deputy-as-help-desk** (help corpus = glossary + jtbd.md into assistant
 > context) + per-role walkthrough videos recorded during onboarding. No written manual until a
