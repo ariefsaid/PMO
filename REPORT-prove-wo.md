@@ -26,3 +26,9 @@ to match /could not read this file/`. Cause: the test does `chmodSync(index.ts, 
 uid 0, which ignores file modes, so the read succeeds. Environmental, not in the diff, reproduced alone.
 Not related to the branch.
 
+
+## Step 6 — BROWSER (affected-e2e vs origin/dev, `--allow-broad`: 480 of 545 specs; 329 chromium lane, 151 serial lane)
+Run with `scripts/e2e-local.sh --project=<lane> --retries=0`, chunks of 40 files (chromium 2 workers, serial 1 worker).
+Sandbox restarted once mid-run (chunk 1 was killed at 49/63 and re-run in full after a stack reset).
+- chromium chunk 0: 60 passed (7.2m)
+- chromium chunk 1: 59 passed, 4 skipped (7.0m)
