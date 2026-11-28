@@ -10,9 +10,9 @@ and switching it back on brings everything back exactly as it was.
 **Your plan** is the other half of the same question: what your organisation's subscription
 includes, and the limits it carries. It is read-only in the app.
 
-**Who can do this:** an **Admin** switches modules on and off. **Your plan** is visible to the
-organisation's administrator; your PMO provider changes plans and adds credits, and the usage and
-feature screens belong to them.
+**Who can do this:** an **Admin** switches modules on and off. An **Admin** or **Executive** can read
+**Your plan** and **Credits**, which are read-only; your PMO provider manages your plan and adds
+credits.
 
 ## Where to find it
 
@@ -27,8 +27,9 @@ feature screens belong to them.
 ### Switch a module
 
 1. Open **Administration → Modules**.
-2. Each card is one module: **People and crews**, **Site day**, **Stock**, **Purchasing extras**,
-   **Billing extras**, and **Management views**. Its helper line says in plain words what it holds.
+2. **Management views** sits at the top with its own switch. Below it, each card is one module:
+   **People and crews**, **Site day**, **Stock**, **Purchasing extras** and **Billing extras**. Its
+   helper line says in plain words what it holds.
 3. Use the switch to turn the module off or on. The change applies to everyone straight away: the
    module's menu entries, screens, panels and fields disappear, and its settings with them.
 4. Inside a module card, some steps and notices stay off until you choose them — for example, the
@@ -58,8 +59,8 @@ feature screens belong to them.
 
 - **A screen has disappeared for the whole team** — its module was switched off. Open
   **Administration → Modules**, switch it back on, and reload.
-- **"Your plan is visible to the organisation's administrator."** — only an Admin reads the plan and
-  its limits. Ask an Admin for a seat or feature question.
+- **"Your plan is visible to the organisation's administrator."** — only an Admin or Executive reads
+  the plan and its limits. Ask an Admin for a seat or feature question.
 - **"Usage not tracked yet"** — the plan's usage meters do not count that figure yet. The limit is
   still the limit; use the figure as the ceiling rather than a current count.
 - **"Your plan could not be loaded"** — the read failed. Use **Try again**; if it keeps failing, ask
@@ -87,9 +88,9 @@ seperti semula.
 **Paket Anda** adalah sisi lain dari pertanyaan yang sama: apa yang termasuk dalam langganan
 organisasi Anda, dan batasannya. Halaman ini hanya untuk dibaca di aplikasi.
 
-**Siapa yang bisa melakukannya:** **Admin** menyalakan dan mematikan modul. **Paket Anda** terlihat
-oleh administrator organisasi; penyedia PMO Anda mengubah paket dan menambah kredit, dan layar
-pemakaian serta fitur adalah milik mereka.
+**Siapa yang bisa melakukannya:** **Admin** menyalakan dan mematikan modul. **Admin** atau
+**Eksekutif** dapat membaca **Paket Anda** dan **Kredit**, yang hanya untuk dibaca; penyedia PMO Anda
+mengelola paket dan menambah kredit.
 
 ## Di mana menemukannya
 
@@ -104,9 +105,9 @@ pemakaian serta fitur adalah milik mereka.
 ### Menyalakan atau mematikan modul
 
 1. Buka **Administrasi → Modul**.
-2. Setiap kartu adalah satu modul: **Orang dan kru**, **Hari kerja di lokasi**, **Stok**, **Tambahan
-   pembelian**, **Tambahan penagihan**, dan **Tampilan manajemen**. Baris bantuannya menjelaskan isinya
-   dengan kata sederhana.
+2. **Tampilan manajemen** ada di bagian atas dengan sakelarnya sendiri. Di bawahnya, setiap kartu
+   adalah satu modul: **Orang dan kru**, **Hari kerja di lokasi**, **Stok**, **Tambahan pembelian**, dan
+   **Tambahan penagihan**. Baris bantuannya menjelaskan isinya dengan kata sederhana.
 3. Gunakan sakelarnya untuk mematikan atau menyalakan modul. Perubahan berlaku untuk semua orang
    segera: entri menu, layar, panel, dan kolom modul itu hilang, begitu pula pengaturannya.
 4. Di dalam kartu modul, sebagian langkah dan pemberitahuan tetap mati sampai Anda memilihnya —
@@ -136,8 +137,8 @@ pemakaian serta fitur adalah milik mereka.
 
 - **Sebuah layar hilang untuk seluruh tim** — modulnya dimatikan. Buka **Administrasi → Modul**,
   nyalakan kembali, lalu muat ulang.
-- **"Paket Anda terlihat oleh administrator organisasi."** — hanya Admin yang membaca paket dan
-  batasannya. Tanyakan soal kursi atau fitur kepada Admin.
+- **"Paket Anda terlihat oleh administrator organisasi."** — hanya Admin atau Eksekutif yang membaca
+  paket dan batasannya. Tanyakan soal kursi atau fitur kepada Admin.
 - **"Pemakaian belum dilacak"** — penghitung pemakaian paket belum menghitung angka itu. Batasnya
   tetap batas; gunakan angka itu sebagai plafon, bukan hitungan saat ini.
 - **"Paket Anda tidak dapat dimuat"** — pembacaan gagal. Gunakan **Coba lagi**; bila terus gagal,

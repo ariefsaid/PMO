@@ -25,20 +25,22 @@ the only active Admin of an organisation cannot be disabled.
 
 1. Open **Administration → Users** and choose **Invite user**.
 2. Enter the person's **Email**.
-3. Choose the **Access level** — what they may see and do once they sign in.
-4. If **Job role** is offered, choose it. PMO has 28 ready-made job roles, in three tiers — **Managers**,
+3. Choose the **Job role** — required when your organisation uses job roles, and it replaces the
+   **Access level** choice. PMO has 28 ready-made job roles, in three tiers — **Managers**,
    **Officers** and **Field** — such as Storekeeper, Site Supervisor, HR Officer or Equipment Manager.
    A job role starts from one access level and sets what the person sees and does for their job; the
-   form confirms which level it lands on.
+   form shows the level it uses (*Access level: … (set by the job role)*).
+4. If job roles are not in use, choose the **Access level** instead — what they may see and do once
+   they sign in.
 5. Choose **Invite user**.
-6. The person receives an invitation email and appears in the list as soon as the invitation is
-   accepted.
+6. A message says **Invite sent** and the person receives an invitation email. Inviting the same
+   address again says **Already invited**, or **Invite sent again** if the earlier link had expired.
 
 ### Change what someone can do
 
 1. Find the person with **Search by name or email…**.
-2. Open the row menu and choose **Edit access level** (or **Change job role** when job roles are
-   on).
+2. Open the row menu and choose **Change job role** when job roles are on, or **Edit access level**
+   when they are not. Your own row does not offer this, so ask another Admin to change your access.
 3. Pick the new level or role and confirm. The confirm step names the person and the change, and
    says it applies across the whole workspace immediately.
 
@@ -68,14 +70,16 @@ the only active Admin of an organisation cannot be disabled.
 
 ## Common errors and what to do
 
-- **"Administration is an Admin-only area."** — your role cannot manage users. Ask an Admin. An
+- **"Administration is an Admin-only area. You don’t have access to user management."** — your role
+  cannot manage users. Ask an Admin. An
   Executive sees the list read-only.
 - **"That person is already in your workspace."** — the email is already a user. Search for them and
   change their access level instead of inviting again.
-- **"Your plan has no seats left"** — everyone on the plan already has a seat. The plan must be
-  upgraded before another person can be invited or re-enabled.
+- **"Your plan has no seats left"** — everyone on the plan already has a seat. Ask your PMO provider to
+  upgrade the plan before another person can be invited or re-enabled.
 - **"The invitation was not sent"** — the email could not go out, so nothing was saved. Check the
-  address and try again; what you typed is kept.
+  address and try again; what you typed is kept. **"Too many invitations in a short time"** — wait a
+  minute, then invite again.
 - **"Already invited"** — the person already has a valid invitation. No second email was sent.
 - **"Invitation sent, job role not saved"** — the invitation went out but the job role was not
   stored. Open the person's row and choose **Change job role**.
@@ -117,18 +121,24 @@ Admin aktif di sebuah organisasi tidak dapat dinonaktifkan.
 
 1. Buka **Administrasi → Pengguna** dan pilih **Undang pengguna**.
 2. Isi **Email** orangnya.
-3. Pilih **Tingkat akses** — apa yang boleh ia lihat dan lakukan setelah masuk.
-4. Bila **Jabatan** ditawarkan, pilih jabatannya. PMO punya 28 jabatan siap pakai dalam tiga tingkat —
-   **Manajer**, **Petugas**, dan **Lapangan** — seperti Penjaga Gudang, Pengawas Lapangan, Petugas SDM,
-   atau Manajer Peralatan. Jabatan berawal dari satu tingkat akses dan menentukan apa yang dilihat dan
-   dilakukan orang itu untuk pekerjaannya; formulirnya menegaskan tingkat mana yang dipakai.
+3. Pilih **Jabatan** — wajib bila organisasi Anda memakai jabatan, dan menggantikan pilihan **Tingkat
+   akses**. PMO punya 28 jabatan siap pakai dalam tiga tingkat — **Manajer**, **Petugas**, dan
+   **Lapangan** — seperti Penjaga Gudang, Pengawas Lapangan, Petugas SDM, atau Manajer Peralatan.
+   Jabatan berawal dari satu tingkat akses dan menentukan apa yang dilihat dan dilakukan orang itu untuk
+   pekerjaannya; formulirnya menampilkan tingkat yang dipakai (*Tingkat akses: … (ditentukan oleh
+   jabatan)*).
+4. Bila jabatan tidak dipakai, pilih **Tingkat akses** — apa yang boleh ia lihat dan lakukan setelah
+   masuk.
 5. Pilih **Undang pengguna**.
-6. Orang itu menerima email undangan dan muncul di daftar setelah undangannya diterima.
+6. Muncul pesan **Undangan terkirim** dan orang itu menerima email undangan. Mengundang alamat yang
+   sama lagi menampilkan **Sudah diundang**, atau **Undangan dikirim ulang** bila tautan sebelumnya
+   sudah kedaluwarsa.
 
 ### Mengubah apa yang boleh dilakukan seseorang
 
 1. Temukan orangnya dengan **Cari berdasarkan nama atau email…**.
-2. Buka menu baris dan pilih **Ubah tingkat akses** (atau **Ubah jabatan** bila jabatan aktif).
+2. Buka menu baris dan pilih **Ubah jabatan** bila jabatan dipakai, atau **Ubah tingkat akses** bila
+   tidak. Baris Anda sendiri tidak menawarkan ini; minta Admin lain mengubah akses Anda.
 3. Pilih tingkat atau jabatan barunya lalu konfirmasi. Langkah konfirmasi menyebut nama orang dan
    perubahannya, serta menyatakan bahwa perubahan berlaku di seluruh organisasi segera.
 
@@ -158,14 +168,15 @@ Admin aktif di sebuah organisasi tidak dapat dinonaktifkan.
 
 ## Kesalahan umum dan cara mengatasinya
 
-- **"Administrasi hanya untuk Admin."** — peran Anda tidak dapat mengelola pengguna. Minta Admin.
+- **"Administrasi hanya untuk Admin. Anda tidak memiliki akses ke manajemen pengguna."** — peran Anda tidak dapat mengelola pengguna. Minta Admin.
   Eksekutif melihat daftarnya tanpa dapat mengubah.
 - **"Orang tersebut sudah ada di organisasi Anda."** — email itu sudah menjadi pengguna. Cari
   orangnya dan ubah tingkat aksesnya, jangan undang lagi.
-- **"Paket Anda tidak memiliki sisa kursi"** — semua kursi pada paket sudah terpakai. Paket harus
-  ditingkatkan sebelum orang lain dapat diundang atau diaktifkan kembali.
+- **"Paket Anda tidak memiliki sisa kursi"** — semua kursi pada paket sudah terpakai. Minta
+  penyedia PMO Anda meningkatkan paket sebelum orang lain dapat diundang atau diaktifkan kembali.
 - **"Undangan belum terkirim"** — email tidak bisa dikirim, jadi belum ada yang tersimpan. Periksa
-  alamatnya dan coba lagi; isian Anda tetap ada.
+  alamatnya dan coba lagi; isian Anda tetap ada. **"Terlalu banyak undangan dalam waktu singkat"** —
+  tunggu semenit, lalu undang lagi.
 - **"Sudah diundang"** — orang itu sudah punya undangan yang berlaku. Tidak ada email kedua.
 - **"Undangan terkirim, jabatan belum tersimpan"** — undangan terkirim tetapi jabatannya tidak
   tersimpan. Buka barisnya dan pilih **Ubah jabatan**.

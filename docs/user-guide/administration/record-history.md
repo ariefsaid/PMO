@@ -82,7 +82,7 @@ entrinya.
   kaki halaman.
 - **Sebuah pembelian** — buka dan gunakan **Riwayat lengkap**.
 - **Sebuah tugas** — buka laci tugasnya.
-- **Kurs** — **Set oleh** dan **Perubahan terakhir** menyebut orang dan harinya pada setiap kurs.
+- **Kurs** — **Diubah oleh** dan **Perubahan terakhir** menyebut orang dan harinya pada setiap kurs.
 
 Catatan lain menampilkan fakta yang sama dengan kata-katanya sendiri: langkah persetujuan permintaan
 material, validasi laporan lokasi, dan pembaruan dokumen masing-masing menyebut siapa memutuskan dan
@@ -98,7 +98,7 @@ kapan.
 4. Persempit perubahan dengan chip jenisnya — **Proyek**, **Anggaran**, **Perintah kerja**,
    **Pengadaan**, **Tugas** — atau tetap **Semua**.
 5. Baca entrinya: ringkasan satu baris, lalu nama dan peran orangnya, serta hari dan jamnya.
-6. Bila entrinya punya lebih dari ringkasan, pilih **Lihat detail** untuk mencantumkan setiap kolom
+6. Bila entrinya punya lebih dari ringkasan, pilih **Lihat detail perubahan** untuk mencantumkan setiap kolom
    yang berubah — misalnya *Status diubah*, *Nilai pesanan diubah*, *Diarsipkan*, atau *Dipulihkan*.
 7. Gunakan **Muat yang lebih lama** untuk membaca lebih jauh ke belakang.
 
@@ -119,7 +119,7 @@ kapan.
 - **"Belum ada perubahan tercatat"** — belum ada yang diubah pada catatan ini sejak riwayat dimulai.
 - **"Tidak dapat memuat riwayat"** — pembacaan gagal. Gunakan **Coba lagi**; bagian lain halaman
   catatan tetap berjalan.
-- **"Sebagian nama catatan tidak dapat dimuat."** — nama pada sebagian entri tidak dapat dibaca.
+- **"Beberapa nama catatan tidak dapat dimuat."** — nama pada sebagian entri tidak dapat dibaca.
   Perubahan dan tanggalnya tetap ditampilkan.
 - **"Tidak tersedia" menggantikan nama** — orang atau catatan itu tidak dapat dibaca peran Anda, atau
   sudah tidak ada. Perubahan dan tanggalnya tetap tercatat.

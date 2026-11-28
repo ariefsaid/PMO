@@ -20,7 +20,8 @@ connects their own Microsoft 365 account under **My integrations**.
 
 - **Administration → Organization integrations** (the Administration section; the **Organization
   settings** view on the same page holds email notifications).
-- **My integrations** — your personal Microsoft 365 connection.
+- **My integrations** — your personal Microsoft 365 connection. Open it from your account menu (top
+  bar). It is listed only when your organisation's plan includes the Microsoft 365 integration.
 
 ## Steps
 
@@ -45,7 +46,7 @@ connects their own Microsoft 365 account under **My integrations**.
 ### Connect your own Microsoft 365 account
 
 1. Open **My integrations**.
-2. Under **Microsoft 365**, choose to connect.
+2. Under **Microsoft 365**, choose **Connect Microsoft 365**.
 3. Sign in to Microsoft when the window opens and approve the access PMO asks for.
 4. Your card then reads **Connected. You can disconnect any time.**
 
@@ -65,6 +66,9 @@ connects their own Microsoft 365 account under **My integrations**.
 
 ## Common errors and what to do
 
+- **"Your organization hasn't approved the PMO Portal app yet. Ask your administrator to approve it in
+  Microsoft 365."** — an Admin must approve the app for the organisation (on **Administration →
+  Organization integrations**) before anyone can connect their own account.
 - **"Your administrator manages this app."** — the Microsoft 365 app registration belongs to the
   organisation. Ask an Admin.
 - **"Your ERPNext Companies could not be read."** — the company list could not be fetched. **Try
@@ -76,7 +80,7 @@ connects their own Microsoft 365 account under **My integrations**.
 - **"Data resides with ClickUp (US-hosted)." / "Data resides on your ERPNext instance."** — where that
   service keeps the data. Read it before connecting if your organisation has rules about where data
   may sit.
-- **"Couldn't read connection status"** — the status read failed. Use **Retry status**; no service is
+- **"Couldn't read connection status"** — the status read failed. Use **Retry** or **Retry status**; no service is
   treated as connected while the state is unknown.
 - **A disconnect did not complete** — the card says so and names the reason. Try again.
 - **A field changed without anyone editing it** — a connected service maintains it. See
@@ -107,7 +111,8 @@ orang menghubungkan akun Microsoft 365-nya sendiri di **Integrasi saya**.
 
 - **Administrasi → Integrasi organisasi** (bagian Administrasi; tampilan **Pengaturan organisasi** di
   halaman yang sama memuat notifikasi email).
-- **Integrasi saya** — koneksi Microsoft 365 pribadi Anda.
+- **Integrasi saya** — koneksi Microsoft 365 pribadi Anda. Buka dari menu akun Anda (bilah atas).
+  Menu ini muncul hanya bila paket organisasi Anda mencakup integrasi Microsoft 365.
 
 ## Langkah-langkah
 
@@ -133,25 +138,28 @@ orang menghubungkan akun Microsoft 365-nya sendiri di **Integrasi saya**.
 ### Menghubungkan akun Microsoft 365 Anda
 
 1. Buka **Integrasi saya**.
-2. Di **Microsoft 365**, pilih untuk menghubungkan.
+2. Di **Microsoft 365**, pilih **Hubungkan Microsoft 365**.
 3. Masuk ke Microsoft saat jendelanya terbuka dan setujui akses yang diminta PMO.
-4. Kartu Anda lalu berbunyi **Terhubung. Anda dapat memutuskan kapan saja.**
+4. Kartu Anda lalu berbunyi **Terhubung. Anda dapat memutuskan koneksi kapan saja.**
 
 ## Hasilnya seperti apa
 
 - Layanan yang terhubung menampilkan **Terhubung**, siapa yang menghubungkannya, dan harinya. Bila
-  koneksinya kemudian bermasalah, kartunya menyebutkannya — misalnya **Odoo tidak dapat dijangkau**,
-  **Odoo menolak kunci API**, atau **Kunci API akan kedaluwarsa** — beserta langkah berikutnya.
+  koneksinya kemudian bermasalah, kartunya menyebutkannya — misalnya **Odoo tidak dapat dihubungi**,
+  **Odoo menolak kunci API**, atau **Kunci API segera kedaluwarsa** — beserta langkah berikutnya.
 - Layanan yang menunggu dipilihkannya perusahaan menampilkan **Menunggu aktivasi** dan menjeda
   sinkronisasi sampai perusahaan dipilih.
 - **Informasi yang diperbarui dari layanan terhubung** mencantumkan area yang dikelola tiap layanan,
   sehingga pembaca tahu mengapa nama perusahaan atau sebuah tugas berubah tanpa ada yang mengubahnya.
 - Bila status sebuah layanan tidak dapat dibaca sama sekali, kartunya berbunyi **Status koneksi tidak
-  tersedia** dengan **Coba status lagi** — bukan status tebakan.
+  tersedia** dengan **Muat ulang status** — bukan status tebakan.
 - Kartu Microsoft 365 pribadi Anda terpisah: memutusnya hanya memengaruhi akses dokumen Anda sendiri.
 
 ## Kesalahan umum dan cara mengatasinya
 
+- **"Organisasi Anda belum menyetujui aplikasi PMO Portal. Minta administrator menyetujuinya di
+  Microsoft 365."** — Admin harus menyetujui aplikasinya untuk organisasi (di **Administrasi →
+  Integrasi organisasi**) sebelum siapa pun dapat menghubungkan akunnya sendiri.
 - **"Administrator Anda mengelola aplikasi ini."** — pendaftaran aplikasi Microsoft 365 milik
   organisasi. Minta Admin.
 - **"Perusahaan ERPNext Anda tidak dapat dibaca."** — daftar perusahaan tidak dapat diambil. Pilih
@@ -160,10 +168,10 @@ orang menghubungkan akun Microsoft 365-nya sendiri di **Integrasi saya**.
   aktifkan.
 - **"ERPNext … tidak didukung."** — versi sistem akuntansi di luar dukungan PMO. Belum ada yang
   diaktifkan; tanyakan versi yang didukung kepada operator Anda.
-- **"Data berada di ClickUp (berhost AS)." / "Data berada di instans ERPNext Anda."** — tempat layanan
+- **"Data berada di ClickUp (di AS)." / "Data berada di instans ERPNext Anda."** — tempat layanan
   itu menyimpan data. Bacalah sebelum menghubungkan bila organisasi Anda punya aturan tentang lokasi
   data.
-- **"Tidak dapat membaca status koneksi"** — pembacaan status gagal. Gunakan **Coba status lagi**;
+- **"Tidak dapat membaca status koneksi"** — pembacaan status gagal. Gunakan **Coba lagi** atau **Muat ulang status**;
   tidak ada layanan yang dianggap terhubung selama statusnya tidak diketahui.
 - **Pemutusan tidak selesai** — kartunya menyebutkannya beserta alasannya. Coba lagi.
 - **Sebuah kolom berubah tanpa ada yang mengubahnya** — layanan terhubung yang mengelolanya. Lihat

@@ -7,9 +7,10 @@ email, in which language, and which reports are emailed to people or roles on a 
 nobody has to open PMO just to find out that something is waiting for them.
 
 **Who can do this:** an **Admin** turns the email events on, picks the extra roles copied on each, and
-sets the email language. An Admin manages every scheduled report. Where the organisation allows it,
-the **Project Control Manager** may also create and manage scheduled reports they can read, for
-recipients who can read them too.
+sets the email language. An Admin manages every scheduled report. Where an Admin has switched on
+**Project Control Manager can schedule reports** (at the top of **Administration → Scheduled
+reports**), a person with the **Project Control Manager** job role may also create and manage scheduled
+reports they can read, for recipients who can read them too.
 
 ## Where to find it
 
@@ -40,10 +41,10 @@ recipients who can read them too.
    - **Name** — what the email is called in the list.
    - **Report** — **Daily progress summary** or **Overdue tasks**.
    - **Repeats** — **Daily** or **Weekly**; for weekly, choose the day under **On**.
-   - **Send time** — the hour it goes out, in the organisation timezone.
+   - **Send time** — the time it goes out, in the organisation timezone.
    - **Send to these roles** and **And these people** — at least one role or person.
 3. Choose **Save report**.
-4. Use the switch on a row to pause or resume it, **Edit** to change it, or **Archive** to stop it for
+4. Use the switch on a row to pause or resume it (the row shows **On** or **Off**), **Edit** to change it, or **Archive** to stop it for
    good.
 
 ## What the result looks like
@@ -55,8 +56,7 @@ recipients who can read them too.
 - Each recipient sees only the figures their role allows; the same report sent to different people is
   filtered per person.
 - Archiving a report stops it sending; emails already sent are not affected.
-- Every change you make is saved against your account, and the page says so if a change was not
-  saved.
+- If a change could not be saved, the page says **The change was not saved**.
 
 ## Common errors and what to do
 
@@ -88,8 +88,10 @@ tahu ada sesuatu yang menunggu.
 
 **Siapa yang bisa melakukannya:** **Admin** menyalakan kejadian email, memilih peran tambahan yang
 disalin pada tiap kejadian, dan menetapkan bahasa email. Admin mengelola semua laporan terjadwal. Bila
-organisasi mengizinkannya, **Manajer Pengendalian Proyek** juga dapat membuat dan mengelola laporan
-terjadwal yang boleh ia baca, untuk penerima yang juga boleh membacanya.
+Admin menyalakan **Manajer Pengendalian Proyek dapat menjadwalkan laporan** (di bagian atas
+**Administrasi → Laporan terjadwal**), orang dengan jabatan **Manajer Pengendalian Proyek** juga dapat
+membuat dan mengelola laporan terjadwal yang boleh ia baca, untuk penerima yang juga boleh
+membacanya.
 
 ## Di mana menemukannya
 
@@ -121,10 +123,10 @@ terjadwal yang boleh ia baca, untuk penerima yang juga boleh membacanya.
    - **Nama** — sebutan email itu di daftar.
    - **Laporan** — **Ringkasan progres harian** atau **Tugas terlambat**.
    - **Berulang** — **Harian** atau **Mingguan**; untuk mingguan, pilih harinya di **Pada hari**.
-   - **Jam kirim** — jam pengirimannya, menurut zona waktu organisasi.
+   - **Jam kirim** — waktu pengirimannya, menurut zona waktu organisasi.
    - **Kirim ke peran ini** dan **Dan orang ini** — setidaknya satu peran atau orang.
 3. Pilih **Simpan laporan**.
-4. Gunakan sakelar pada barisnya untuk menjeda atau melanjutkan, **Ubah** untuk menggantinya, atau
+4. Gunakan sakelar pada barisnya untuk menjeda atau melanjutkan (baris menampilkan **Aktif** atau **Nonaktif**), **Ubah** untuk menggantinya, atau
    **Arsipkan** untuk menghentikannya selamanya.
 
 ## Hasilnya seperti apa
@@ -136,8 +138,7 @@ terjadwal yang boleh ia baca, untuk penerima yang juga boleh membacanya.
 - Setiap penerima hanya melihat angka yang diizinkan perannya; laporan yang sama yang dikirim ke orang
   berbeda disaring per orang.
 - Mengarsipkan laporan menghentikan pengirimannya; email yang sudah terkirim tidak terpengaruh.
-- Setiap perubahan yang Anda buat tersimpan atas akun Anda, dan halaman memberi tahu bila ada
-  perubahan yang tidak tersimpan.
+- Bila perubahan tidak dapat disimpan, halaman menyatakan **Perubahan tidak tersimpan**.
 
 ## Kesalahan umum dan cara mengatasinya
 
@@ -147,7 +148,7 @@ terjadwal yang boleh ia baca, untuk penerima yang juga boleh membacanya.
 - **Laporan tidak mau tersimpan** — perlu nama, setidaknya satu peran atau orang, pilihan
   pengulangan (dan hari, bila mingguan), serta jam kirim. Tombol **Simpan laporan** tetap tidak aktif
   sampai semuanya terisi.
-- **"Laporan terjadwal dikelola Admin atau Manajer Pengendalian Proyek yang diaktifkan."** — peran
+- **"Laporan terjadwal dikelola oleh Admin atau Project Control Manager yang diaktifkan."** — peran
   Anda tidak dapat mengelolanya. Minta Admin.
 - **"Belum ada laporan terjadwal."** — belum ada yang ditambahkan. Pilih **Tambah laporan
   terjadwal**.

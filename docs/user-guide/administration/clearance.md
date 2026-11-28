@@ -16,7 +16,8 @@ Project Manager and HR Officer can read the checklist and see who is cleared.
 
 ## Where to find it
 
-**Administration → Clearance** (under **People and access**). Each person's checklist opens from
+**Administration → Clearance** (under **People and access**). It appears only while the **People
+and crews** module is on. Each person's checklist opens from
 **Who is cleared** on that page, or from the person's record under **Equipment → People**.
 
 ## Steps
@@ -41,12 +42,15 @@ Project Manager and HR Officer can read the checklist and see who is cleared.
    and choose **Cleared-for-site checklist**.
 2. Each item shows its state: **Done**, **Expiring soon**, **Expired** or **Not done**, and its
    **Due …** day where a target was set.
-3. Choose **Record** (or **Edit**) on an item.
+3. Choose **Record** (or **Edit**) on an item. An item that takes its dates from a document has
+   **Add the document** or **Open the document** instead; it opens the person's record, where the
+   document and its expiry are kept.
 4. Enter the **Date done** — it starts at today.
 5. Optionally enter **Expires on (optional)**, and a short **Note (optional)**. Keep the note short and
    do not record medical detail in it.
 6. **Save**. The person's checklist and their cleared answer update at once.
-7. Use **Remove** on an item to clear the date again and mark it not done.
+7. To clear a date, choose **Edit** on the item, then **Remove**, and confirm **Remove this date?**.
+   The item goes back to not done.
 
 ### Archive an item you no longer use
 
@@ -56,7 +60,7 @@ Project Manager and HR Officer can read the checklist and see who is cleared.
 
 ## What the result looks like
 
-- **Who is cleared** lists each person with their progress — *x of y required* — any **Overdue**
+- **Who is cleared** lists each person with their progress — *x of y required* — any **Overdue: n**
   count, and a **Cleared** or **Not cleared** pill.
 - A person is **Cleared** only when every required item is done and none is expired. An item that has
   run out keeps the person **Not cleared** until it is renewed.
@@ -104,7 +108,8 @@ lolos.
 
 ## Di mana menemukannya
 
-**Administrasi → Izin ke lokasi** (di grup **Orang dan akses**). Daftar periksa setiap orang dibuka
+**Administrasi → Izin ke lokasi** (di grup **Orang dan akses**). Menu ini muncul hanya selama modul
+**Orang dan kru** menyala. Daftar periksa setiap orang dibuka
 dari **Siapa yang lolos** di halaman itu, atau dari catatan orangnya di **Peralatan → Orang**.
 
 ## Langkah-langkah
@@ -129,12 +134,15 @@ dari **Siapa yang lolos** di halaman itu, atau dari catatan orangnya di **Perala
    catatannya dan pilih **Daftar periksa izin ke lokasi**.
 2. Setiap butir menampilkan keadaannya: **Selesai**, **Segera kedaluwarsa**, **Kedaluwarsa**, atau
    **Belum selesai**, beserta hari **Jatuh tempo …** bila targetnya diisi.
-3. Pilih **Catat** (atau **Ubah**) pada butir itu.
+3. Pilih **Catat** (atau **Ubah**) pada butir itu. Butir yang mengambil tanggal dari dokumen
+   menampilkan **Tambahkan dokumennya** atau **Buka dokumennya**; itu membuka catatan orangnya, tempat
+   dokumen dan kedaluwarsanya disimpan.
 4. Isi **Tanggal selesai** — awalnya hari ini.
 5. Bila perlu isi **Kedaluwarsa pada (opsional)** dan **Catatan (opsional)** yang singkat. Tulis
    singkat saja dan jangan catat rincian medis di sini.
 6. **Simpan**. Daftar periksa orang itu dan status lolosnya langsung diperbarui.
-7. Gunakan **Hapus** pada butir untuk mencabut tanggalnya dan menandainya belum selesai.
+7. Untuk mencabut tanggal, pilih **Ubah** pada butir, lalu **Hapus**, dan konfirmasi **Hapus tanggal
+   ini?**. Butir kembali menjadi belum selesai.
 
 ### Mengarsipkan butir yang tidak dipakai lagi
 
@@ -145,7 +153,7 @@ dari **Siapa yang lolos** di halaman itu, atau dari catatan orangnya di **Perala
 ## Hasilnya seperti apa
 
 - **Siapa yang lolos** mencantumkan setiap orang dengan progresnya — *x dari y wajib* — jumlah
-  **Terlambat** bila ada, dan pil **Lolos** atau **Belum lolos**.
+  **Terlambat: n** bila ada, dan pil **Lolos** atau **Belum lolos**.
 - Seseorang **Lolos** hanya bila semua butir wajib selesai dan tidak ada yang kedaluwarsa. Butir yang
   sudah habis masa berlakunya membuat orangnya tetap **Belum lolos** sampai diperbarui.
 - Bila sebuah butir mengambil tanggal dari dokumen, barisnya menyebut **Dari dokumen …**, atau

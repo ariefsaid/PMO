@@ -28,30 +28,34 @@ lists**, **Daily site reports**, **Work orders**, and **Issues**.
 ### Stages
 
 1. Find **Sales and project stages**.
-2. Rename any stage in **Bahasa Inggris** and **Bahasa Indonesia**. An empty name keeps the default.
-3. **Simpan**. Notes, filters and reports keep working; the stage simply reads your word.
+2. Rename any stage in the **English** and **Bahasa Indonesia** columns. An empty name keeps the default.
+3. Choose **Save**. Notes, filters and reports keep working; the stage simply reads your word.
 
 ### Cost disciplines
 
 1. Find **Cost disciplines**. Costs and plans are read by discipline (civil, mechanical, electrical,
    …), and the list is the organisation's own.
-2. **Add discipline**: a **Code** (up to 20 characters) and a **Name** (up to 120). Use **Edit** to
-   rename.
+2. Choose **Add discipline**, enter a **Code** (up to 20 characters) and a **Name** (up to 120), then
+   **Save discipline**. Use **Edit** to rename.
 3. **Archive** one you no longer use; it leaves the pickers, and records that already name it keep it.
 
 ### Work-order lists
 
 1. Under **Work orders**, find **Work order areas** and **Work order groups**.
-2. In each, choose **Add**, then enter a **Code** and a **Name** (and an optional **Description**).
+2. In each, choose **Add**, then enter a **Code** and a **Name** (and an optional **Description**), and
+   **Save**.
 3. These become the grouping choices on work orders. **Archive** an entry to retire it; the work
    orders already using it keep it.
 
 ### Issues
 
 1. Under **Issues**, find **Issue types**.
-2. Add or **Rename** the types people choose when they raise an issue. Renaming a type renames it on
-   every issue that has it; **Archive** hides a type from new issues.
-3. Set the **Issue closing-time report** grouping if your organisation reads issues by department.
+2. Under **New issue type**, enter a name and choose **Add**, or **Rename** the types people choose
+   when they raise an issue. Renaming a type renames it on every issue that has it; **Archive** hides a
+   type from new issues, and **Restore** brings it back.
+3. Under **Issue closing-time report**, choose the **Default grouping** — **By issue type** or **By
+   custom department groups** — if your organisation reads issues by department; for department groups,
+   use **Add department group**.
 
 ### The rest of the list
 
@@ -74,10 +78,11 @@ card explains what it changes, and each saves with its own button.
 
 ## Common errors and what to do
 
-- **"Use 40 characters or fewer."** — a stage or issue-type name is too long.
+- **"Use 40 characters or fewer"** — a stage name is too long.
 - **"That type is already in the list" / "Another live entry already uses this code."** — the same
   name or code exists. Edit that entry instead of adding a second.
-- **"Only an Admin can change this list."** — your role reads the list but does not change it.
+- **"Only an Admin can change this list."** — your role reads the list but does not change it. The
+  classification card says **"Only an Admin can change these options."**
 - **"No issue types yet, so nobody can raise an issue."** — the list is empty. Add the organisation's
   issue types; until then the raise-issue form has nothing to pick.
 - **A removed option still appears on an old record** — that is intended: removing offers it for new
@@ -102,7 +107,7 @@ organisasi sendiri, jadi ditetapkan di satu tempat untuk semua proyek.
 ## Di mana menemukannya
 
 **Administrasi → Pengaturan proyek**. Halaman ini mengelompokkan pengaturannya menurut pekerjaan:
-**Penomoran dan daftar proyek**, **Laporan harian lokasi**, **Perintah kerja**, dan **Masalah**.
+**Penomoran dan daftar proyek**, **Laporan harian lapangan**, **Perintah kerja**, dan **Masalah**.
 
 ## Langkah-langkah
 
@@ -117,34 +122,35 @@ organisasi sendiri, jadi ditetapkan di satu tempat untuk semua proyek.
 ### Tahapan
 
 1. Cari **Tahapan penjualan dan proyek**.
-2. Ganti nama tahapan mana pun di **Bahasa Inggris** dan **Bahasa Indonesia**. Nama kosong memakai
-   nama bawaan.
-3. **Simpan**. Catatan, filter, dan laporan tetap berjalan; tahapannya hanya memakai kata Anda.
+2. Ganti nama tahapan mana pun di kolom **Bahasa Inggris** dan **Bahasa Indonesia**. Nama kosong
+   memakai nama bawaan.
+3. Pilih **Simpan**. Catatan, filter, dan laporan tetap berjalan; tahapannya hanya memakai kata Anda.
 
 ### Disiplin biaya
 
 1. Cari **Disiplin biaya**. Biaya dan rencana dibaca per disiplin (sipil, mekanikal, elektrikal, …),
    dan daftarnya milik organisasi sendiri.
-2. **Tambah disiplin**: **Kode** (hingga 20 karakter) dan **Nama** (hingga 120). Gunakan **Ubah** untuk
-   mengganti nama.
+2. Pilih **Tambah disiplin**, isi **Kode** (hingga 20 karakter) dan **Nama** (hingga 120), lalu **Simpan
+   disiplin**. Gunakan **Ubah** untuk mengganti nama.
 3. **Arsipkan** yang tidak dipakai lagi; ia keluar dari pilihan, dan catatan yang sudah menyebutnya
    tetap memakainya.
 
 ### Daftar perintah kerja
 
-1. Di **Perintah kerja**, cari **Area perintah kerja** dan **Grup perintah kerja**.
-2. Di masing-masing, pilih **Tambah**, lalu isi **Kode** dan **Nama** (serta **Deskripsi** opsional).
+1. Di **Perintah kerja**, cari **Wilayah perintah kerja** dan **Grup perintah kerja**.
+2. Di masing-masing, pilih **Tambah**, lalu isi **Kode** dan **Nama** (serta **Deskripsi (opsional)**), lalu **Simpan**.
 3. Keduanya menjadi pilihan pengelompokan pada perintah kerja. **Arsipkan** entri untuk
    menghentikannya; perintah kerja yang sudah memakainya tetap memilikinya.
 
 ### Masalah
 
-1. Di **Masalah**, cari **Jenis masalah**.
-2. Tambahkan atau **Ubah nama** jenis yang dipilih orang saat mengangkat masalah. Mengganti nama jenis
-   menggantinya pada setiap masalah yang memakainya; **Arsipkan** menyembunyikan jenis dari masalah
-   baru.
-3. Atur pengelompokan **Laporan waktu tutup masalah** bila organisasi Anda membaca masalah per
-   departemen.
+1. Di **Masalah**, cari **Jenis isu**.
+2. Di **Jenis isu baru**, isi nama lalu pilih **Tambah**, atau **Ubah nama** jenis yang dipilih orang
+   saat mengangkat isu. Mengganti nama jenis menggantinya pada setiap isu yang memakainya;
+   **Arsipkan** menyembunyikan jenis dari isu baru, dan **Pulihkan** mengembalikannya.
+3. Di **Laporan waktu penyelesaian isu**, pilih **Pengelompokan bawaan** — **Berdasarkan jenis isu**
+   atau **Berdasarkan grup departemen kustom** — bila organisasi Anda membaca isu per departemen; untuk
+   grup departemen, gunakan **Tambah grup departemen**.
 
 ### Sisa daftarnya
 
@@ -152,7 +158,7 @@ Halaman yang sama juga memuat: **Pola nomor proyek** (lihat [Menjaga penomoran, 
 tetap benar](numbering-currency-and-exchange-rates.md)), **Daftar laporan lapangan** (alasan menganggur
 dan kondisi cuaca), **Validasi laporan harian lokasi**, **Titik pemeriksaan harian**, **Pemeriksaan
 standar untuk perintah kerja baru**, **Daftar periksa penutupan**, **Kapasitas kerja bulanan**,
-**Tanggal tidak bekerja**, **Target kehadiran**, dan **Kinerja biaya dan jadwal**. Setiap kartu
+**Hari tidak kerja**, **Target kehadiran**, dan **Kinerja biaya dan jadwal**. Setiap kartu
 menjelaskan apa yang diubahnya, dan masing-masing disimpan dengan tombolnya sendiri.
 
 ## Hasilnya seperti apa
@@ -161,21 +167,18 @@ menjelaskan apa yang diubahnya, dan masing-masing disimpan dengan tombolnya send
 - Papan penjualan dan proyek memakai nama tahapan Anda, dalam bahasa yang dipilih pembacanya.
 - Catatan biaya, rencana, dan laporan dikelompokkan menurut disiplin Anda, dan perintah kerja
   menawarkan area serta grup Anda.
-- Mengangkat masalah menawarkan jenis masalah Anda, dan laporan waktu tutup dikelompokkan menurutnya.
+- Mengangkat isu menawarkan jenis isu Anda, dan laporan waktu tutup dikelompokkan menurutnya.
 - Pilihan daftar yang Anda arsipkan hilang dari catatan baru sementara setiap catatan yang sudah
   memakainya tetap menyimpan nilainya.
 
 ## Kesalahan umum dan cara mengatasinya
 
-- **"Gunakan paling banyak 40 karakter."** — nama tahapan atau jenis masalah terlalu panjang.
-- **"Nama itu sudah ada dalam daftar" / "Entri lain yang aktif sudah memakai kode ini."** — nama atau
+- **"Gunakan paling banyak 40 karakter"** — nama tahapan terlalu panjang.
+- **"Jenis itu sudah ada di daftar" / "Entri aktif lain sudah memakai kode ini."** — nama atau
   kodenya sudah ada. Ubah entri itu, jangan menambah yang kedua.
 - **"Hanya Admin yang dapat mengubah daftar ini."** — peran Anda membaca daftar tetapi tidak
-  mengubahnya.
-- **"Belum ada jenis masalah, sehingga tidak ada yang dapat mengangkat masalah."** — daftarnya kosong.
-  Tambahkan jenis masalah organisasi Anda; sampai saat itu formulir pengangkatan masalah tidak punya
-  pilihan.
-- **"Hanya Admin yang dapat mengubah pilihan ini."** — muncul saat Anda mencoba mengubah klasifikasi
-  dari tampilan hanya-lihat.
+  mengubahnya. Kartu klasifikasi menyatakan **"Hanya Admin yang dapat mengubah pilihan ini."**
+- **"Belum ada jenis isu, jadi belum ada yang bisa mengajukan isu."** — daftarnya kosong. Tambahkan
+  jenis isu organisasi Anda; sampai saat itu formulir isu tidak punya pilihan.
 - **Pilihan yang dihapus masih muncul di catatan lama** — itu memang disengaja: penghapusan hanya
   menghentikan penawaran untuk catatan baru, dan catatan yang ada tetap menyimpan nilainya.

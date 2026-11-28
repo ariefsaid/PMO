@@ -19,7 +19,7 @@ it as the index. The three screens this page covers:
 
 - **Administration → Project setup** — **Numbering and project lists**.
 - **Administration → Accounting setup** — **Tax and fiscal year**.
-- **Administration → Exchange rates**.
+- **Administration → Exchange rates**. It appears only when your plan includes multi-currency.
 
 ## Steps
 
@@ -29,17 +29,19 @@ it as the index. The three screens this page covers:
 2. Read the format: PMO-assigned project numbers use `{CLIENT}`, `{YY}` and `{SEQ4}`, once each. The
    default is `PRJ-{YY}-{SEQ4}`.
 3. Type your pattern. The page tells you at once if a token is unknown, repeated or missing.
-4. Choose **Save**. **New project numbers will use this pattern. Existing project numbers are
+4. Choose **Save pattern**. **New project numbers will use this pattern. Existing project numbers are
    unchanged.**
 
 ### Set the fiscal year and default tax treatment
 
 1. Open **Administration → Accounting setup** and the **Tax and fiscal year** group.
-2. Choose the month the **Fiscal year starts in**, and save. PMO places each payment in a fiscal year
+2. Choose the month the **Fiscal year starts in**, then choose **Save fiscal year**. PMO places each payment in a fiscal year
    by its date, and the Budget tab shows spending per year; changing the month re-sorts past
    payments.
 3. Choose the **Default tax treatment** — **Inclusive: the amount already includes tax** or
-   **Exclusive: tax is on top of the amount** — and save.
+   **Exclusive: tax is on top of the amount**. It saves as soon as you choose, with a message *Default
+   tax treatment updated*: new contracts, work orders and invoices start on this basis, and existing
+   records keep theirs.
 
 ### Keep exchange rates
 
@@ -65,7 +67,7 @@ it as the index. The three screens this page covers:
 
 ## Common errors and what to do
 
-- **"Pattern cannot be empty."** — enter a pattern; there is always one in force.
+- **"Pattern cannot be empty. Enter a project-number pattern."** — enter a pattern; there is always one in force.
 - **"The token … is not one this app knows. Use CLIENT, YY or SEQ4."** — a token is misspelled.
 - **"Use … exactly once." / "Include … exactly once."** — a token is repeated or missing; each of the
   three appears once.
@@ -108,7 +110,7 @@ tempat mengubahnya. Gunakan sebagai daftar isi. Tiga layar yang dibahas halaman 
 
 - **Administrasi → Pengaturan proyek** — **Penomoran dan daftar proyek**.
 - **Administrasi → Pengaturan akuntansi** — **Pajak dan tahun buku**.
-- **Administrasi → Kurs**.
+- **Administrasi → Kurs mata uang**. Menu ini muncul hanya bila paket Anda mencakup multi-mata uang.
 
 ## Langkah-langkah
 
@@ -119,22 +121,24 @@ tempat mengubahnya. Gunakan sebagai daftar isi. Tiga layar yang dibahas halaman 
    sekali. Bawaannya `PRJ-{YY}-{SEQ4}`.
 3. Ketik pola Anda. Halaman langsung memberi tahu bila ada token yang tidak dikenal, berulang, atau
    hilang.
-4. Pilih **Simpan**. **Nomor proyek baru memakai pola ini. Nomor proyek yang sudah ada tidak
-   berubah.**
+4. Pilih **Simpan pola**. **Nomor proyek baru akan menggunakan pola ini. Nomor proyek yang sudah ada
+   tidak berubah.**
 
 ### Menetapkan tahun buku dan perlakuan pajak bawaan
 
 1. Buka **Administrasi → Pengaturan akuntansi** dan grup **Pajak dan tahun buku**.
-2. Pilih bulan **Tahun buku dimulai**, lalu simpan. PMO menempatkan setiap pembayaran dalam tahun
+2. Pilih bulan **Tahun fiskal dimulai pada**, lalu pilih **Simpan tahun fiskal**. PMO menempatkan setiap pembayaran dalam tahun
    buku menurut tanggalnya, dan tab Anggaran menampilkan belanja per tahun; mengganti bulannya
    menyusun ulang pembayaran lampau.
-3. Pilih **Perlakuan pajak bawaan** — **Inklusif: jumlah sudah termasuk pajak** atau **Eksklusif:
-   pajak ditambahkan di atas jumlah** — lalu simpan.
+3. Pilih **Perlakuan pajak default** — **Inklusif: nilai sudah termasuk pajak** atau **Eksklusif:
+   pajak ditambahkan di atas nilai**. Pilihan tersimpan begitu dipilih, dengan pesan *Perlakuan pajak
+   default diperbarui*: kontrak, perintah kerja, dan invoice baru memakai dasar ini, sedangkan catatan
+   lama tidak berubah.
 
 ### Menjaga kurs
 
-1. Buka **Administrasi → Kurs**. Tabel mencantumkan **Tanggal publikasi**, kurs **IDR per USD**,
-   **Sumber**, **Set oleh**, dan **Perubahan terakhir**.
+1. Buka **Administrasi → Kurs mata uang**. Tabel mencantumkan **Tanggal publikasi**, kurs **IDR per USD**,
+   **Sumber**, **Diubah oleh**, dan **Perubahan terakhir**.
 2. **Unggah berkas** menerima buku kerja Bank Indonesia atau CSV `tanggal,kurs` maksimal 500 baris.
    Anda melihat pratinjau berapa kurs baru, berubah, dan tidak berubah sebelum apa pun disimpan, dan
    baris yang tidak terbaca didaftar beserta baris dan alasannya.
@@ -155,13 +159,13 @@ tempat mengubahnya. Gunakan sebagai daftar isi. Tiga layar yang dibahas halaman 
 
 ## Kesalahan umum dan cara mengatasinya
 
-- **"Pola tidak boleh kosong."** — isi polanya; selalu ada pola yang berlaku.
-- **"Token … bukan yang dikenal aplikasi ini. Gunakan CLIENT, YY, atau SEQ4."** — ada token yang
+- **"Pola tidak boleh kosong. Isi pola nomor proyek."** — isi polanya; selalu ada pola yang berlaku.
+- **"Token … tidak dikenal aplikasi ini. Gunakan CLIENT, YY, atau SEQ4."** — ada token yang
   salah ketik.
-- **"Gunakan … tepat sekali." / "Sertakan … tepat sekali."** — ada token yang berulang atau hilang;
+- **"Pakai … tepat satu kali." / "Sertakan … tepat satu kali."** — ada token yang berulang atau hilang;
   masing-masing dari ketiganya muncul sekali.
 - **"Kurs tersedia bagi Finance dan Admin."** — peran Anda tidak dapat membaca atau mengubah kurs.
-  Minta Finance atau Admin.
+  Minta Keuangan atau Admin.
 - **"Tanggal publikasi tidak boleh di masa depan."** — pilih hari ini atau hari sebelumnya.
 - **"Masukkan kurs 1.000–100.000 dengan maksimal enam angka desimal; periksa pemisah angka."** —
   kursnya di luar rentang atau pemisah ribuan terbaca sebagai desimal.
@@ -171,5 +175,5 @@ tempat mengubahnya. Gunakan sebagai daftar isi. Tiga layar yang dibahas halaman 
   semua atau tidak sama sekali. Betulkan baris yang tercantum lebih dulu.
 - **"Kolom tanggal dan kurs tidak dapat ditentukan dengan pasti."** — baris judul berkas tidak
   menyebut kolom mana yang mana. Pakai buku kerja yang didukung atau CSV dua kolom `tanggal,kurs`.
-- **"Sistem akuntansi Anda menetapkan tahun buku."** — bila sistem akuntansi terhubung, tahun buku
+- **"Sistem akuntansi Anda yang menetapkan tahun fiskal."** — bila sistem akuntansi terhubung, tahun buku
   berasal dari sana dan tidak diubah di sini.

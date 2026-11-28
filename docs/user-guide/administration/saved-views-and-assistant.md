@@ -11,7 +11,7 @@ what you can already see, and says so.
 
 **Who can do this:** every member can build their own views, and can ask the assistant where the
 organisation has it turned on. A view you mark **Shared with your organisation** is readable by your
-colleagues; only you (or whoever owns it) can edit or archive it.
+colleagues; only its owner or an Admin can edit or archive it.
 
 ## Where to find it
 
@@ -26,12 +26,13 @@ colleagues; only you (or whoever owns it) can edit or archive it.
 1. Choose **My Views → New View**.
 2. Give it a **View name** and, if you like, a **Description**.
 3. Choose the **Scope**: **Private: only you**, or **Shared with your organisation**.
-4. Add a panel and pick its type: **Summary figures**, **Key figure**, **Table**, **Pipeline**,
+4. Choose **+ Add panel** and pick its type: **Summary figures**, **Key figure**, **Table**, **Pipeline**,
    **Bar chart** or **Progress**.
 5. Choose the data source — **Projects**, **Companies** or **Contacts** — then the columns, the
    filters, any group-by and any total the panel type offers.
 6. Add more panels as you need; each panel keeps its own settings.
-7. Save the view. It appears in **My Views** and opens from there again.
+7. Choose **Save view** (**Update view** when you are editing an existing one). It appears in
+   **My Views** and opens from there again.
 
 ### Compose a view with AI instead
 
@@ -82,13 +83,15 @@ colleagues; only you (or whoever owns it) can edit or archive it.
 - **"Maximum of … panels reached."** — this view has its full set of panels. Remove one first.
 - **"The saved view changed while you were editing."** — someone saved a newer version. Choose
   **Reload saved view** to take theirs, or **Continue editing** to keep your unsaved work.
-- **"You cannot edit this view."** — it belongs to someone else. Ask its owner, or build your own copy.
-- **"This view was not found."** — it may have been archived. Go to **My Views**.
-- **"Couldn't generate a valid view for that description."** — rephrase, or be more specific about the
-  data source and the panel type.
+- **"You cannot edit this view."** — it belongs to someone else. Ask its owner.
+- **"View not found."** — this view may have been archived, or you do not have access. Choose **Go to
+  My Views**.
+- **"Couldn't generate a valid view for that description. Try rephrasing or being more specific."** —
+  rephrase, or be more specific about the data source and the panel type.
 - **"I only see what you can see."** — the assistant answers within your own access; it cannot show
   you figures your role cannot read.
-- **"You've used up your assistant credits for now."** — ask your admin for more credits.
+- **"You've used up your assistant credits for now — contact your admin to request more."** — ask
+  your admin for more credits.
 
 ---
 
@@ -106,13 +109,13 @@ dari sedikit sumber data, dan apakah hanya Anda atau seluruh organisasi yang mel
 menjawab pertanyaan tentang apa yang sudah boleh Anda lihat, dan menyatakannya.
 
 **Siapa yang bisa melakukannya:** setiap anggota dapat membuat tampilannya sendiri, dan dapat bertanya
-kepada asisten bila organisasi mengaktifkannya. Tampilan yang Anda tandai **Dibagikan ke organisasi
-Anda** dapat dibaca rekan kerja; hanya Anda (atau pemiliknya) yang dapat mengubah atau
+kepada asisten bila organisasi mengaktifkannya. Tampilan yang Anda tandai **Dibagikan dengan organisasi
+Anda** dapat dibaca rekan kerja; hanya pemiliknya atau Admin yang dapat mengubah atau
 mengarsipkannya.
 
 ## Di mana menemukannya
 
-- **Tampilan Saya** di menu, lalu **Tampilan Baru**, atau **Susun dengan AI**.
+- **Tampilan Saya** di menu, lalu **Tampilan Baru**, atau **Buat dengan AI**.
 - **Asisten** di menu — panel asisten, yang dapat **Disematkan** di samping pekerjaan Anda atau
   ditampilkan **Melayang**.
 
@@ -122,17 +125,17 @@ mengarsipkannya.
 
 1. Pilih **Tampilan Saya → Tampilan Baru**.
 2. Beri **Nama tampilan** dan, bila perlu, **Deskripsi**.
-3. Pilih **Cakupan**: **Pribadi: hanya Anda**, atau **Dibagikan ke organisasi Anda**.
-4. Tambahkan panel dan pilih jenisnya: **Ringkasan angka**, **Angka utama**, **Tabel**, **Alur penjualan**,
+3. Pilih **Cakupan**: **Pribadi: hanya Anda**, atau **Dibagikan dengan organisasi Anda**.
+4. Pilih **+ Tambah panel** dan pilih jenisnya: **Ringkasan angka**, **Angka utama**, **Tabel**, **Alur penjualan**,
    **Diagram batang**, atau **Progres**.
 5. Pilih sumber datanya — **Proyek**, **Perusahaan**, atau **Kontak** — lalu kolom, filter, pengelompokan,
    dan total yang ditawarkan jenis panel itu.
 6. Tambahkan panel lain sesuai kebutuhan; setiap panel menyimpan pengaturannya sendiri.
-7. Simpan tampilannya. Ia muncul di **Tampilan Saya** dan terbuka dari sana lagi.
+7. Pilih **Simpan tampilan** (**Perbarui tampilan** bila Anda mengubah tampilan yang sudah ada). Ia muncul di **Tampilan Saya** dan terbuka dari sana lagi.
 
 ### Menyusun tampilan dengan AI
 
-1. Di **Tampilan Saya**, pilih **Susun dengan AI**.
+1. Di **Tampilan Saya**, pilih **Buat dengan AI**.
 2. Jelaskan tampilan yang Anda inginkan dengan kata sederhana — misalnya "proyek saya yang terlambat,
    dalam bentuk tabel".
 3. Asisten menyusun draf dan membukanya di penyusun. Tinjau, sesuaikan bila perlu, lalu simpan.
@@ -140,22 +143,22 @@ mengarsipkannya.
 ### Menemukan dan mengelola tampilan
 
 1. **Tampilan Saya** mencantumkan setiap tampilan dengan **Nama**, **Deskripsi**, **Diperbarui**, dan
-   **Pemilik** — **Anda**, atau **Rekan kerja**, dengan *dibagikan ke organisasi* bila berlaku.
+   **Pemilik** — **Anda**, atau **Rekan tim**, dengan *dibagikan ke organisasi* bila berlaku.
 2. Buka tampilan lewat namanya. Gunakan menu baris untuk **Ubah** atau **Arsipkan**; pengarsipan
    bertanya dulu lalu menghapusnya dari daftar.
 
 ### Bertanya kepada asisten
 
 1. Buka **Asisten** dari menu.
-2. Ketik pertanyaan Anda di **Ajukan pertanyaan…** lalu kirim. Panel menampilkan **Mengerjakan jawaban
-   Anda** dan Anda dapat mengetik pertanyaan berikutnya sementara itu.
+2. Ketik pertanyaan Anda di **Tanyakan sesuatu…** lalu kirim. Panel menampilkan **Sedang menyiapkan
+   jawaban** dan Anda dapat mengetik pertanyaan berikutnya sementara itu.
 3. Di halaman proyek, pembelian, perusahaan, atau kontak, panel menawarkan pertanyaan siap pakai
-   tentang catatan itu — misalnya **Ringkas status proyek ini** atau **Tugas apa di proyek ini yang
+   tentang catatan itu — misalnya **Ringkas status proyek ini.** atau **Tugas mana pada proyek ini yang
    terlambat?**.
-4. Gunakan **Hentikan** untuk membatalkan jawaban, **Coba lagi** bila gagal, dan **Percakapan baru**
+4. Gunakan **Berhenti** untuk membatalkan jawaban, **Coba lagi** bila gagal, dan **Percakapan baru**
    untuk memulai ulang; **Riwayat** mencantumkan percakapan Anda sebelumnya.
 5. Bila asisten mengusulkan perubahan pada sebuah catatan, ia bertanya dulu: **Satu tindakan tulis
-   menunggu keputusan Anda**, dengan **Setujui** dan pilihan menolak. Tidak ada yang ditulis sebelum
+   menunggu keputusan Anda**, dengan **Setujui** dan **Tolak**. Tidak ada yang ditulis sebelum
    Anda menyetujui.
 6. Gunakan **Sematkan** untuk menaruh panel di samping pekerjaan Anda, atau **Melayang** untuk
    mengambangkannya.
@@ -172,22 +175,22 @@ mengarsipkannya.
 
 ## Kesalahan umum dan cara mengatasinya
 
-- **"Tampilan belum valid. Tinjau panel dan simpan lagi."** — ada panel yang belum lengkap. Buka lalu
+- **"Tampilan ini belum valid. Periksa panel lalu simpan lagi."** — ada panel yang belum lengkap. Buka lalu
   lengkapi atau hapus.
-- **"Sebuah panel meminta sumber data yang tidak dimiliki aplikasi."** — sumbernya tidak tersedia
+- **"Ada panel yang meminta sumber data yang tidak ada di aplikasi."** — sumbernya tidak tersedia
   untuk Anda. Buka panel itu dan pilih sumber yang ada.
-- **"Total diminta pada kolom yang bukan angka."** — pilih kolom angka untuk totalnya, atau hapus
+- **"Ada total yang diminta pada kolom yang bukan angka."** — pilih kolom angka untuk totalnya, atau hapus
   totalnya.
 - **"Lengkapi atau hapus setiap baris filter sebelum menyimpan."** — ada filter yang belum terisi
   penuh.
-- **"Maksimal … panel tercapai."** — tampilan ini sudah penuh panelnya. Hapus satu dulu.
+- **"Maksimum … panel telah tercapai."** — tampilan ini sudah penuh panelnya. Hapus satu dulu.
 - **"Tampilan tersimpan berubah saat Anda mengedit."** — seseorang menyimpan versi yang lebih baru.
-  Pilih **Muat ulang tampilan tersimpan** untuk memakai versinya, atau **Lanjut mengedit** untuk
+  Pilih **Muat ulang tampilan tersimpan** untuk memakai versinya, atau **Lanjutkan mengedit** untuk
   mempertahankan pekerjaan Anda.
-- **"Anda tidak dapat mengubah tampilan ini."** — tampilan itu milik orang lain. Tanyakan pemiliknya,
-  atau buat salinan sendiri.
-- **"Tampilan ini tidak ditemukan."** — mungkin sudah diarsipkan. Buka **Tampilan Saya**.
-- **"Tidak dapat membuat tampilan yang valid untuk deskripsi itu."** — ubah kalimatnya, atau lebih
+- **"Anda tidak dapat mengedit tampilan ini."** — tampilan itu milik orang lain. Tanyakan pemiliknya.
+- **"Tampilan tidak ditemukan."** — tampilan ini mungkin telah diarsipkan atau Anda tidak memiliki
+  akses. Pilih **Buka Tampilan Saya**.
+- **"Tampilan yang sah tidak bisa dibuat dari deskripsi itu. Coba tulis ulang atau lebih spesifik."** — ubah kalimatnya, atau lebih
   spesifik tentang sumber data dan jenis panel.
 - **"Saya hanya dapat melihat data yang dapat Anda lihat."** — asisten menjawab dalam batas akses
   Anda; ia tidak dapat menampilkan angka yang tidak boleh dibaca peran Anda.

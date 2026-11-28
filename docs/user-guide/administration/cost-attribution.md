@@ -21,8 +21,8 @@ accounting system.
 
 1. Open **Administration → Cost attribution** and choose **Add rule**.
 2. Give the rule a **Rule name**.
-3. Under **Match by**, choose what the rule looks for: **An account group**, or **One ERP account**
-   and its account.
+3. Under **Match by**, choose what the rule looks for: **An account group** (then pick the **ERP account
+   group**), or **One ERP account** (then pick the **ERP account**).
 4. Optionally narrow it under **Narrow to (optional)** by **Cost centre** and by **Party** (with a
    **Party type** such as Employee).
 5. Under **Posting dates it applies to**, set **Applies from** and, if the rule has an end,
@@ -62,8 +62,9 @@ accounting system.
   anything.
 - **Preview shows "No untagged ledger lines match this rule"** — nothing in that window fits the
   match. Widen the dates or check the account and narrowing.
-- **Some cost is “Not mapped”** — map that account to a budget category in the **Budget account map**,
-  or the cost will not show in project actuals.
+- **Some cost is “Not mapped”** — map that account to a budget category in the **Budget account map**
+  (**Administration → Accounting setup**, under **Costs and account mapping**), or the cost will not
+  show in project actuals.
 
 ---
 
@@ -74,7 +75,7 @@ accounting system.
 ## Untuk apa ini
 
 Saat biaya datang dari sistem akuntansi Anda, sebagian besar sudah menyebut proyek. Sebagian tidak —
-akun bersama, biaya overhead, tagihan yang dicatat tanpa tanda proyek. Aturan **Atribusi biaya**
+akun bersama, biaya overhead, tagihan yang dicatat tanpa tanda proyek. Aturan **Alokasi biaya**
 menempatkan biaya tanpa proyek itu ke satu atau beberapa proyek menurut persentase, sehingga biaya
 aktual proyek lengkap tanpa diketik ulang.
 
@@ -86,41 +87,41 @@ Peran lain yang dapat membuka **Administrasi** membaca daftarnya.
 
 ## Di mana menemukannya
 
-**Administrasi → Atribusi biaya** (di grup **Pengaturan** pada navigasi samping Administrasi).
+**Administrasi → Alokasi biaya** (di grup **Penyiapan** pada navigasi samping Administrasi).
 
 ## Langkah-langkah
 
-1. Buka **Administrasi → Atribusi biaya** dan pilih **Tambah aturan**.
+1. Buka **Administrasi → Alokasi biaya** dan pilih **Tambah aturan**.
 2. Beri **Nama aturan**.
-3. Di **Cocokkan menurut**, pilih apa yang dicari aturan: **Grup akun**, atau **Satu akun ERP**
-   beserta akunnya.
+3. Di **Cocokkan berdasarkan**, pilih apa yang dicari aturan: **Grup akun** (lalu pilih **Grup akun
+   ERP**), atau **Satu akun ERP** (lalu pilih **Akun ERP**).
 4. Bila perlu persempit di **Persempit ke (opsional)** menurut **Pusat biaya** dan **Pihak** (dengan
    **Jenis pihak** seperti Karyawan).
 5. Di **Tanggal posting yang berlaku**, isi **Berlaku mulai** dan, bila aturan berakhir,
    **Berlaku sampai (opsional)**.
-6. Di **Diberikan ke**, tambahkan proyek dan **Persen**-nya; gunakan **Tambah proyek** untuk lebih.
+6. Di **Dialokasikan ke**, tambahkan proyek dan **Persen**-nya; gunakan **Tambah proyek** untuk lebih.
    Persentasenya harus berjumlah 100.
-7. Pilih **Pratinjau efek** untuk melihat berapa biaya tanpa proyek yang akan ditempatkan aturan itu ke
+7. Pilih **Pratinjau dampak** untuk melihat berapa biaya tanpa proyek yang akan ditempatkan aturan itu ke
    tiap proyek dan bulan, sebelum disimpan.
 8. Pilih **Simpan aturan**.
 9. Untuk menghentikan aturan, gunakan **Akhiri** pada barisnya lalu konfirmasi. Aturan berhenti berlaku
-   untuk biaya yang diposting setelah hari ini; biaya yang sudah diatribusikan tetap diatribusikan.
+   untuk biaya yang diposting setelah hari ini; biaya yang sudah dialokasikan tetap dialokasikan.
 
 ## Hasilnya seperti apa
 
-- Daftar menampilkan setiap aturan dengan **Cocokkan**-nya, **Diberikan ke** beserta pembagiannya,
+- Daftar menampilkan setiap aturan dengan **Kecocokan**-nya, **Dialokasikan ke** beserta pembagiannya,
   **Tanggal posting**-nya, dan **Versi**-nya — versinya naik setiap kali aturan disimpan lagi.
-- Total biaya proyek memuat bagian yang diatribusikan, dan menyebutnya: *Termasuk … diatribusikan oleh
-  aturan biaya*, dengan jumlah yang bertanda di sampingnya.
-- **Pratinjau efek** menghitung baris buku besar tanpa proyek yang cocok dalam rentang aturan, dan
+- Total biaya proyek memuat bagian yang dialokasikan, dan menyebutnya: *Termasuk … dialokasikan oleh
+  aturan biaya*, dengan jumlah yang ditandai di ERP di sampingnya.
+- **Pratinjau dampak** menghitung baris buku besar tanpa proyek yang cocok dalam rentang aturan, dan
   memperingatkan bila sebagian biaya itu berada di akun yang tidak tertaut ke kategori anggaran,
   karena biaya itu tidak akan muncul di aktual proyek.
 - Mengakhiri aturan tidak mengubah masa lalu: hanya biaya yang diposting setelah hari ini yang berhenti
-  diatribusikan.
+  dialokasikan.
 
 ## Kesalahan umum dan cara mengatasinya
 
-- **"Hanya Finance dan Admin yang dapat mengubah aturan atribusi biaya."** — peran Anda membaca
+- **"Hanya Finance dan Admin yang dapat mengubah aturan alokasi biaya."** — peran Anda membaca
   daftarnya.
 - **"Persentase harus berjumlah 100."** — sesuaikan persentasenya di antara proyek.
 - **"Persentase harus di atas 0, paling banyak 100, dengan maksimal 4 desimal."** — betulkan angkanya.
@@ -135,7 +136,8 @@ Peran lain yang dapat membuka **Administrasi** membaca daftarnya.
   mulai.
 - **"Isi pihaknya, atau kosongkan jenis pihaknya."** — jenis pihak tanpa pihak tidak dapat mencocokkan
   apa pun.
-- **Pratinjau menampilkan "Tidak ada baris buku besar tanpa proyek yang cocok"** — tidak ada yang
-  cocok dalam rentang itu. Lebarkan tanggalnya atau periksa akun dan persempitannya.
-- **Sebagian biaya “Tidak dipetakan”** — petakan akun itu ke kategori anggaran di **Peta akun
-  anggaran**, atau biayanya tidak akan muncul di aktual proyek.
+- **Pratinjau menampilkan "Tidak ada baris buku besar tanpa proyek yang cocok dengan aturan ini pada
+  periodenya."** — tidak ada yang cocok dalam rentang itu. Lebarkan tanggalnya atau periksa akun dan persempitannya.
+- **Sebagian biaya “Belum dipetakan”** — petakan akun itu ke kategori anggaran di **Peta akun
+  anggaran** (**Administrasi → Pengaturan akuntansi**, di bagian **Biaya dan pemetaan akun**), atau
+  biayanya tidak akan muncul di aktual proyek.
