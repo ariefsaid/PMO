@@ -5,7 +5,7 @@
 -- Bills are recorded through create_procurement_invoice so their create audit carries the real author.
 begin;
 create extension if not exists pgtap;
-select plan(9);
+select plan(13);
 
 insert into organizations (id, name, default_currency) values
   ('25250000-0000-0000-0000-00000000000a', 'TWM Org',       'IDR'),
@@ -33,20 +33,24 @@ insert into projects (id, org_id, name, status) values
   ('25250000-0000-0000-0000-0000000000d1', '25250000-0000-0000-0000-00000000000a', 'TWM Site',  'Ongoing Project'),
   ('25250000-0000-0000-0000-0000000000d2', '25250000-0000-0000-0000-00000000000b', 'TWM ERP Site', 'Ongoing Project'),
   ('25250000-0000-0000-0000-0000000000d3', '25250000-0000-0000-0000-00000000000c', 'TWM Plain Site', 'Ongoing Project');
+insert into org_purchase_type_settings (org_id,enabled) values
+ ('25250000-0000-0000-0000-00000000000a',true) on conflict(org_id) do update set enabled=true;
+insert into purchase_types (id,org_id,name,is_rental) values
+ ('25250000-0000-0000-0000-0000000000e1','25250000-0000-0000-0000-00000000000a','Rental for test',true);
 -- p1: the goods purchase under test. p2: a subcontract purchase (its own cap applies). p3: a purchase whose bill has
 -- no recorded author. pb: org B's purchase. pn: org N's purchase.
 insert into procurements (id, org_id, title, project_id, requested_by_id, status, total_value, approved_total_value,
-                          approved_by_id, budget_category, currency, is_subcontract) values
+                          approved_by_id, budget_category, currency, is_subcontract, purchase_type_id, rental_from, rental_to) values
   ('25250000-0000-0000-0000-0000000000f1', '25250000-0000-0000-0000-00000000000a', 'TWM cement and steel', '25250000-0000-0000-0000-0000000000d1',
-   '25250000-0000-0000-0000-0000000000a4', 'Vendor Invoiced', 600000, 600000, '25250000-0000-0000-0000-0000000000a6', 'Materials', 'IDR', false),
+   '25250000-0000-0000-0000-0000000000a4', 'Vendor Invoiced', 600000, 600000, '25250000-0000-0000-0000-0000000000a6', 'Materials', 'IDR', false, '25250000-0000-0000-0000-0000000000e1', current_date, current_date + 1),
   ('25250000-0000-0000-0000-0000000000f2', '25250000-0000-0000-0000-00000000000a', 'TWM subcontract', '25250000-0000-0000-0000-0000000000d1',
-   '25250000-0000-0000-0000-0000000000a4', 'Vendor Invoiced', 100000, 100000, '25250000-0000-0000-0000-0000000000a6', 'Subcontractors', 'IDR', true),
+   '25250000-0000-0000-0000-0000000000a4', 'Vendor Invoiced', 100000, 100000, '25250000-0000-0000-0000-0000000000a6', 'Subcontractors', 'IDR', true, null, null, null),
   ('25250000-0000-0000-0000-0000000000f3', '25250000-0000-0000-0000-00000000000a', 'TWM unknown author', '25250000-0000-0000-0000-0000000000d1',
-   '25250000-0000-0000-0000-0000000000a4', 'Vendor Invoiced', 100000, 100000, '25250000-0000-0000-0000-0000000000a6', 'Materials', 'IDR', false),
+   '25250000-0000-0000-0000-0000000000a4', 'Vendor Invoiced', 100000, 100000, '25250000-0000-0000-0000-0000000000a6', 'Materials', 'IDR', false, null, null, null),
   ('25250000-0000-0000-0000-0000000000fb', '25250000-0000-0000-0000-00000000000b', 'TWM ERP buy', '25250000-0000-0000-0000-0000000000d2',
-   '25250000-0000-0000-0000-0000000000b1', 'Vendor Invoiced', 100000, 100000, '25250000-0000-0000-0000-0000000000b1', 'Materials', 'IDR', false),
+   '25250000-0000-0000-0000-0000000000b1', 'Vendor Invoiced', 100000, 100000, '25250000-0000-0000-0000-0000000000b1', 'Materials', 'IDR', false, null, null, null),
   ('25250000-0000-0000-0000-0000000000fc', '25250000-0000-0000-0000-00000000000c', 'TWM plain buy', '25250000-0000-0000-0000-0000000000d3',
-   '25250000-0000-0000-0000-0000000000c1', 'Vendor Invoiced', 100000, 100000, '25250000-0000-0000-0000-0000000000c1', 'Materials', 'IDR', false);
+   '25250000-0000-0000-0000-0000000000c1', 'Vendor Invoiced', 100000, 100000, '25250000-0000-0000-0000-0000000000c1', 'Materials', 'IDR', false, null, null, null);
 -- Ordered items (the order's lines): cement 100 @ 1,000 and steel 10 @ 50,000 on p1; one item on p3.
 insert into procurement_items (id, org_id, procurement_id, name, quantity, rate) values
   ('25250000-0000-0000-0000-000000000011', '25250000-0000-0000-0000-00000000000a', '25250000-0000-0000-0000-0000000000f1', 'Cement', 100, 1000),
@@ -83,22 +87,25 @@ insert into auth.users (id,email) values
 insert into profiles (id,org_id,full_name,email,role,status,built_in_role) values
   ('25250000-0000-0000-0000-0000000000a7', '25250000-0000-0000-0000-00000000000a', 'Equipment', 'job-equipment@example.com', 'Engineer', 'active', 'equipment_officer'),
   ('25250000-0000-0000-0000-0000000000a8', '25250000-0000-0000-0000-00000000000a', 'Buyer', 'job-buyer@example.com', 'Engineer', 'active', 'buyer');
-insert into purchase_types (id, org_id, name, is_rental) values
-  ('25250000-0000-0000-0000-0000000000e1', '25250000-0000-0000-0000-00000000000a', 'Rental for test', true);
-update procurements set purchase_type_id = '25250000-0000-0000-0000-0000000000e1', rental_from = current_date,
-  rental_to = current_date + 1 where id = '25250000-0000-0000-0000-0000000000f1';
 set local role authenticated;
 select pg_temp.act_as('25250000-0000-0000-0000-0000000000a1');
 select set_three_way_match_settings(true, 5, 2);
 select set_config('twm.existing', pg_temp.bill(80000)::text, true);
 select pg_temp.act_as('25250000-0000-0000-0000-0000000000a7');
 select lives_ok($$select get_bill_match(pg_temp.id('existing'))$$, 'AC-VBJR-001 equipment officer reads the match');
-select lives_ok($$select pg_temp.bill(2000)$$, 'AC-VBJR-002 equipment officer records a vendor bill');
+select lives_ok($$select set_config('twm.own', pg_temp.bill(2000)::text, true)$$, 'AC-VBJR-002 equipment officer records a vendor bill');
+select is((select count(*) from procurements where id = '25250000-0000-0000-0000-0000000000f1'), 1::bigint, 'AC-VBJR-002 equipment officer reads the rental purchase');
+select throws_ok($$select create_procurement_invoice('25250000-0000-0000-0000-0000000000f2','Received',current_date,p_amount=>100,p_tax_treatment=>'exclusive',p_tax_amount=>0)$$, '42501', null, 'AC-VBJR-005 equipment officer cannot record a non-rental bill');
 select throws_ok($$select approve_bill_match_exception(pg_temp.id('existing'), 'reason')$$, '42501', null, 'AC-VBJR-003 equipment officer cannot approve the exception');
 select throws_ok($$select pg_temp.pay(1)$$, '42501', null, 'AC-VBJR-003 equipment officer cannot record a payment');
+reset role;
+update profiles set role = 'Finance', built_in_role = 'finance_officer' where id = '25250000-0000-0000-0000-0000000000a7';
+set local role authenticated;
+select throws_ok($$select approve_bill_match_exception(pg_temp.id('own'), 'reason')$$, '42501', 'separation of duties: the person who recorded this bill or its lines cannot approve its exception', 'AC-VBJR-003 a bill author cannot approve their exception after a role change');
 select pg_temp.act_as('25250000-0000-0000-0000-0000000000a8');
 select lives_ok($$select get_bill_match(pg_temp.id('existing'))$$, 'AC-VBJR-004 buyer reads the match');
 select is((select count(*) from procurement_invoices where id=pg_temp.id('existing')), 1::bigint, 'AC-VBJR-004 buyer reads the bill');
+select is((select count(*) from procurements where id='25250000-0000-0000-0000-0000000000f1'), 1::bigint, 'AC-VBJR-004 buyer reads the purchase');
 select throws_ok($$select approve_bill_match_exception(pg_temp.id('existing'), 'reason')$$, '42501', null, 'AC-VBJR-003 buyer cannot approve the exception');
 select throws_ok($$select pg_temp.pay(1)$$, '42501', null, 'AC-VBJR-003 buyer cannot record a payment');
 select pg_temp.act_as('25250000-0000-0000-0000-0000000000a5');
