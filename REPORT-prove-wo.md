@@ -55,3 +55,4 @@ Sandbox restarted once mid-run (chunk 1 was killed at 49/63 and re-run in full a
     The DB was reset here, so serial chunks 1-3 ran on a fresh seed.
 - serial chunk 1 (40 files, 69 tests): killed by my 10-minute foreground limit at test 67/69, no failures logged before that; the last 3 files (TERM-006, TIER-014, TSP-011) re-run below as s1tail:
 - serial s1tail (3 files): 1 skipped,12 passed (1.4m),
+- serial s2a (20 files): 1 skipped,29 passed (6.1m),
