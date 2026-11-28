@@ -33,9 +33,11 @@ create or replace function pg_temp._as(p_uid uuid) returns void language sql as 
   select set_config('request.jwt.claims', json_build_object('sub', p_uid, 'role', 'authenticated')::text, true);
 $$;
 grant execute on function pg_temp._as(uuid) to authenticated;
+insert into purchase_order_settings (org_id, order_job_roles) values ('26650000-0000-0000-0000-00000000000a', array[]::text[])
+  on conflict (org_id) do update set order_job_roles = excluded.order_job_roles;
 set local role authenticated;
 
--- ordering right not named yet: the Buyer reads nothing
+-- ordering right explicitly empty (an unset list now defaults to Buyer): the Buyer reads nothing
 select pg_temp._as('26650000-0000-0000-0000-0000000000a2');
 select is((select count(*)::int from procurement_receipts), 0, 'with the ordering right not given a Buyer reads no receipt');
 
