@@ -84,6 +84,9 @@ Earlier probe (8 chromium specs at 4 workers): 4 failed (AC-002, AC-009, AC-1834
 | chunk-chromium-04 | 40 | 4 failed 53 passed (7.6m) | 4 | AC-VSR-015-set-supply-risk.spec.ts rc=0 11 passed (57.0s); AC-WBS-012-wo-billing-steps.spec.ts rc=0 11 passed (1.1m); AC-WOS-019-sections-rollup.spec.ts rc=0 12 passed (1.3m) |
 | chunk-chromium-05 | 40 | 58 passed (7.7m) | 0 | - |
 | chunk-chromium-06 | 40 | 1 failed 56 passed (8.4m) | 1 | JOB-SR-target-entry.spec.ts rc=0 12 passed (1.3m) |
+| chunk-chromium-07 | 40 | 34 failed 146 passed (17.6m) | 34 | JOB-T3-billing-step-in-needs.spec.ts rc=0 11 passed (1.1m); JOB-T9-task-groups-milestone.spec.ts rc=0 11 passed (1.1m); administration.layout.spec.ts rc=0 15 passed (1.8m); meeting-detail.layout.spec.ts rc=0 17 passed (1.8m); project-detail.layout.spec.ts rc=0 72 passed (10.0m); figure-layout.ts rc=1  |
+| chunk-chromium-08 | 9 | 1 failed 41 passed (3.6m) | 1 | notice-never-blocks-the-control.spec.ts rc=0 16 passed (1.8m) |
+Note: an entry for e2e/support/figure-layout.ts in a chunk (chunk-chromium-07) is a parser artifact (a helper file in a stack trace, not a spec); the layout specs that use it all passed alone. The 28 project-detail.layout failures in that chunk came from one spec file that took 10.0m alone (72 passed), so they are load/timeout-sensitive.
 
 ### Real browser failures (still failing when re-run alone)
 
