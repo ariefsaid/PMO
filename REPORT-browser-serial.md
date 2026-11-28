@@ -48,3 +48,28 @@ Passed in step A or B. Alone timings (whole file incl. setup) where measured:
 Note: JOB-HPG-requester-reads-no-price-any-way and hide-prices pass or fail on the same hidden-price theme as failure 3; and the three dashboard numbers (AC-1117, AC-701, JOB-M8) all differ by exactly $1,000 / one project, which points at shared leftover or seed state rather than three separate bugs.
 
 Full log (not committed): serial run 12.6 min; traces were in /tmp/pmo-portal-test-results on the runner.
+
+## Attribution runs (fresh db reset + fresh build each; only the 17 spec files; serial project)
+
+Runs: 1=dev @ 9f16436de
+
+| spec | run1 |
+|---|---|
+| AC-1117-dashboard-pipeline.spec.ts | FAIL |
+| AC-701-dashboard-smoke.spec.ts | FAIL |
+| AC-CSP-016-project-performance-indices.spec.ts | pass |
+| AC-DNC-012-done-not-claimed-age.spec.ts | pass |
+| AC-IHC-011-idle-cost-switch.spec.ts | pass |
+| AC-NATIVE-EQU-role-job.spec.ts | pass |
+| AC-RSV-018-reservation-borrow.spec.ts | pass |
+| AC-TAG-002-project-classification.spec.ts | pass |
+| AC-TIER-014-amount-tier-approval.spec.ts | FAIL |
+| JOB-E2-monthly-plan-becomes-rental-orders.spec.ts | FAIL |
+| JOB-HPG-plan-resave-keeps-rate.spec.ts | pass |
+| JOB-HPG-requester-reads-no-price-any-way.spec.ts | pass |
+| JOB-M8-work-in-hand-capacity.spec.ts | pass |
+| JOB-PU10-senior-limit-role.spec.ts | pass |
+| JOB-PU15-morning-cutoff.spec.ts | pass |
+| JOB-PU4-quoted-buy.spec.ts | FAIL |
+| hide-prices-screens.spec.ts | pass |
+| totals | 5 failed  25 passed (5.6m) |
