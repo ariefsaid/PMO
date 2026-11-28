@@ -10,6 +10,88 @@ Each released section pins the full deploy manifest (app sha · DB migration hig
 edge-function state) so "what's in production" is unambiguous. The DB schema version (migration
 high-water mark) moves independently of the product tag.
 
+## [0.47.0](https://github.com/ariefsaid/PMO/compare/v0.46.0...v0.47.0) (2026-11-28)
+
+
+### Features
+
+* a vendor record holds a code, an address and payment terms ([#3025](https://github.com/ariefsaid/PMO/issues/3025)) ([159882d](https://github.com/ariefsaid/PMO/commit/159882dfefb83c8267d697a6e4f51f840f8cad34))
+* **billing:** a step list may name the invoice step; the invoice waits only for the steps before it ([#3022](https://github.com/ariefsaid/PMO/issues/3022)) ([e2fdef8](https://github.com/ariefsaid/PMO/commit/e2fdef8c18b4cd30dfe9c1a90036e9e82bbe214f))
+* expose source omissions in material rollups ([384c889](https://github.com/ariefsaid/PMO/commit/384c88903f6be093de12c5ab6035a283f3433a1e))
+* **material:** owner material screens, term keys and role-job journey ([#3010](https://github.com/ariefsaid/PMO/issues/3010)) ([a89cafd](https://github.com/ariefsaid/PMO/commit/a89cafded5518fe699c87f06ca10beb1762278cd))
+* **material:** partial-load marks, owner return, over-plan marker; retitle test ids ([#3010](https://github.com/ariefsaid/PMO/issues/3010)) ([f60fe36](https://github.com/ariefsaid/PMO/commit/f60fe360a48d957249d50a095b403054ec6a33a5))
+* **material:** plain wording for every line-level load reason ([#3010](https://github.com/ariefsaid/PMO/issues/3010)) ([30cc508](https://github.com/ariefsaid/PMO/commit/30cc508e825e04bb64296ddc8ced660b50c59f30))
+* the vendor's tax number, held under its own read rule ([#3025](https://github.com/ariefsaid/PMO/issues/3025)) ([11f72fc](https://github.com/ariefsaid/PMO/commit/11f72fcfc04678e656abbbe7e6df597f5045518f))
+* **work-orders:** Admin reopens a closed work order with a required reason ([#3024](https://github.com/ariefsaid/PMO/issues/3024)) ([05c58e8](https://github.com/ariefsaid/PMO/commit/05c58e81cc3d7ad9c1a4996ada105f08ae1ed140))
+* **work-orders:** show amounts not yet counted under direct cost ([#3026](https://github.com/ariefsaid/PMO/issues/3026)) ([d820dc5](https://github.com/ariefsaid/PMO/commit/d820dc5e38ee04cc36f1421e4d7a5cd74c8c1bb2))
+
+
+### Bug Fixes
+
+* **1128:** re-point only reads that opted into masking; pin pending and failed caller answers as hidden ([7235b47](https://github.com/ariefsaid/PMO/commit/7235b477b9335dbad2a4cccd69d68421083d1daf))
+* **1128:** rewrite only masking-opted selects in the visibility gate ([4e7b27a](https://github.com/ariefsaid/PMO/commit/4e7b27a2b9b2d37a0cab42bd0cb3622dc2f749a8))
+* a pipeline-off organisation can start a project ([#3023](https://github.com/ariefsaid/PMO/issues/3023)) ([d91e732](https://github.com/ariefsaid/PMO/commit/d91e7327044ac842576b4fc226d151a19718dbf2))
+* a vendor create sends only the vendor fields that were filled ([#3025](https://github.com/ariefsaid/PMO/issues/3025)) ([ad52a35](https://github.com/ariefsaid/PMO/commit/ad52a3520d9d182a4bf4bf7c37a2224b74e68944))
+* **billing:** the claim list's invoice gate counts only the steps before the invoice step, as the server does ([#3022](https://github.com/ariefsaid/PMO/issues/3022)) ([3d44dec](https://github.com/ariefsaid/PMO/commit/3d44decae0f74d0cb0279a38184191bc8c92d0fd))
+* complete material partial-load type contract ([0b6272b](https://github.com/ariefsaid/PMO/commit/0b6272b2ecd9895c15b4661ab16a658628ded913))
+* declare the vendor-detail field props the form section reads ([#3025](https://github.com/ariefsaid/PMO/issues/3025)) ([fee1670](https://github.com/ariefsaid/PMO/commit/fee16700e471775c476046f52695dc4bbde54132))
+* exclude tombstoned leaves from section progress and harden data-read correctness ([#2980](https://github.com/ariefsaid/PMO/issues/2980), [#2999](https://github.com/ariefsaid/PMO/issues/2999)) ([8eeef1d](https://github.com/ariefsaid/PMO/commit/8eeef1d9d85177b5edbb3f66e5b67a7d8b9467f6))
+* **i18n:** retry a stale versioned catalogue once on the unversioned path ([6ea1121](https://github.com/ariefsaid/PMO/commit/6ea11219034a953a622c1755dec486ca137a150d))
+* navigation stall and release journey fixes ([0a302a5](https://github.com/ariefsaid/PMO/commit/0a302a551e05df40cd77ad14738fe3133d62f0b2))
+* register the vendor columns in change history and the i18n allowlist ([#3025](https://github.com/ariefsaid/PMO/issues/3025)) ([f5e2df4](https://github.com/ariefsaid/PMO/commit/f5e2df458a4c79500f21d8048a383285c9c78a00))
+* release journey fixes and the CI push gate ([0c80ada](https://github.com/ariefsaid/PMO/commit/0c80adad0ddf62ed5fd5f5ca732a075c427451ab))
+* **safety:** lock dialog and header take the fitness gap from the server's own missing-rule ([1c08a5c](https://github.com/ariefsaid/PMO/commit/1c08a5c1a5536327d56c907a70ffc1f6973ecd80))
+* **shell:** the cached record read keeps one answer per route, so a navigation is not restarted until React forces it ([236f6cb](https://github.com/ariefsaid/PMO/commit/236f6cb620b8522390b22f33730ecc3a97ba52f7))
+* the company form writes the vendor tax number only when it was read and the user changed it ([#3025](https://github.com/ariefsaid/PMO/issues/3025)) ([c77dad6](https://github.com/ariefsaid/PMO/commit/c77dad67499ef849c2728ba6709b1bbdaa452785))
+* the company page reads the vendor tax number through the companies hook ([#3025](https://github.com/ariefsaid/PMO/issues/3025)) ([4bb3196](https://github.com/ariefsaid/PMO/commit/4bb3196d030fb8a064e4d6f2d0d644b79f77859d))
+* **ui:** reword two Bahasa billing-step labels to 'invoice'; give the empty roster table its own id ([93c7180](https://github.com/ariefsaid/PMO/commit/93c71807cbee6a2fc07ff6fc09f2fbb2ec6728a6))
+* **work-orders:** left-out amounts net of payments not linked to a bill; draft orders excluded ([#3026](https://github.com/ariefsaid/PMO/issues/3026)) ([e49e348](https://github.com/ariefsaid/PMO/commit/e49e348dadfb7b74c80ff7b2ebfde04392023e15))
+* **work-orders:** left-out toggle icon uses shared names ([4d6cf83](https://github.com/ariefsaid/PMO/commit/4d6cf838d0ca0b8972351c765bef3addaf506c90))
+
+
+### Performance
+
+* **1128:** resolve price visibility once; gate price-bearing reads on the answer ([51aaa20](https://github.com/ariefsaid/PMO/commit/51aaa2031c03a40966e8e82d27a0df2b0ca01b78))
+* **analytics:** expose the consent read through the analytics facade ([d18968f](https://github.com/ariefsaid/PMO/commit/d18968f045e3036d614bc7bbe46afd104ba52320))
+* **analytics:** skip the org plan read when analytics is not live ([e626de9](https://github.com/ariefsaid/PMO/commit/e626de9736d75fd28ced527ff9a68ff823f2ff2a))
+* **analytics:** track in-flight queries incrementally in route first-data timing ([f340e27](https://github.com/ariefsaid/PMO/commit/f340e272dba2d3ccc903f31c712af079603f676c))
+* **boot:** static org defaults repository and single-wave profile-gated language loading ([2834e70](https://github.com/ariefsaid/PMO/commit/2834e704b5178295dfccdfd90505481a0bde4f3c))
+* **calendar:** read project ids from the picker list instead of the full joined list ([4ea8801](https://github.com/ariefsaid/PMO/commit/4ea8801ecf8ce59e49b91ee0f45fcb532fc184c9))
+* **css:** keep test, eval and e2e sources out of the Tailwind scan ([b8ccc61](https://github.com/ariefsaid/PMO/commit/b8ccc61f0b82fa0f05cccf12c68de82d25f2d120))
+* **dashboard:** lean procurement list no longer reads stage-event and receipt rows ([d338fc9](https://github.com/ariefsaid/PMO/commit/d338fc9a4586215a4e32c07fa3f398c673d35dfe))
+* finance screens read the purchase list under one shared key ([7107582](https://github.com/ariefsaid/PMO/commit/71075828502d3ca94960b8539686e230f1957e5e))
+* **home:** the needs-you waiting reads start in the render that first asks for them, not after the dashboard commits ([62a99bb](https://github.com/ariefsaid/PMO/commit/62a99bb315d06d2fa0524d078be9406269231058))
+* **i18n:** compile organisation terminology pattern once per terms object and locale ([2f08b32](https://github.com/ariefsaid/PMO/commit/2f08b3234a180b62f008c22f2c6d45629497080c))
+* **i18n:** serve language catalogues from a content-hashed address with an immutable cache rule ([0bb7f2a](https://github.com/ariefsaid/PMO/commit/0bb7f2ab5eb66c46464d5aaf47c5817dbf611e33))
+* make the shared organisation read fall back to each reader's own read ([12ad786](https://github.com/ariefsaid/PMO/commit/12ad786c8282667e4688cbcd3ca54f986a93212c))
+* narrow cache invalidation after stock-cost and ledger-basis saves ([eca1223](https://github.com/ariefsaid/PMO/commit/eca122322e8a8358a5695479cc432554d53e7af4))
+* picker-only screens read the narrow project picker list ([72f0966](https://github.com/ariefsaid/PMO/commit/72f09661671357e2e84e86a73f90fc22a850c29d))
+* PM home no longer reads the purchase list it never uses ([4d4dc81](https://github.com/ariefsaid/PMO/commit/4d4dc8126a8d109b6d01bb278c100211e64f3c22))
+* **procurement:** read only a Project Manager's own and managed purchases on the list ([3ca34d3](https://github.com/ariefsaid/PMO/commit/3ca34d3c2cb1bab814804db26b25955cad856be4))
+* project option lists derive from the shared project list read ([02e6616](https://github.com/ariefsaid/PMO/commit/02e6616f7afb3d18ae2e7c4453e20b23d023affe))
+* **project:** defer speculative tab code until overview paint ([51cd7d5](https://github.com/ariefsaid/PMO/commit/51cd7d592b2dfb95d631180eb3e27d135e6d529c))
+* **project:** prefetch authorized overview reads from navigation ([587df70](https://github.com/ariefsaid/PMO/commit/587df70159642a5f11bceeb21fac7b63dcb61408))
+* **project:** restrict early reads to resolved current viewer and project routes ([8e4e0d9](https://github.com/ariefsaid/PMO/commit/8e4e0d94a0a7034b81673e256805b9dcbd1c0702))
+* **projects:** read own tasks only for Engineers on the projects list ([afa2dbc](https://github.com/ariefsaid/PMO/commit/afa2dbca808f418f1b2af529b5518cbcc7b20714))
+* **project:** wait for resolved navigation access and preserve screen task reads ([a82bef2](https://github.com/ariefsaid/PMO/commit/a82bef2e3ef2c40dfb7a20323dd95569480e1735))
+* **routes:** separate navigation query factories from screen hooks ([47b2087](https://github.com/ariefsaid/PMO/commit/47b20879934aa25058d507c427ba0fe662fc5e6d))
+* share one organizations read between settings requested in the same moment ([3bd2dd1](https://github.com/ariefsaid/PMO/commit/3bd2dd1b94e4aadf76c25e70c70145e5696ac108))
+* **shell:** keep network hooks out of the provider-chain root, memoise ShellChrome, one cache subscription for record lists ([fadc81e](https://github.com/ariefsaid/PMO/commit/fadc81e14bc8bcb934d69776c9599506f3b2147f))
+* **shell:** start the Approvals badge reads and analytics after the first screen's data; skip whole-page scans; preconnect to the API; cache fonts ([2fc796e](https://github.com/ariefsaid/PMO/commit/2fc796e7206133c4011d4a9779782c7ae6eb4b14))
+* **shell:** the first download no longer carries the command palette or the repositories behind the organisation switches ([0e69e6c](https://github.com/ariefsaid/PMO/commit/0e69e6c981dac7f69b5870ece6179feba2a0dadd))
+* **surveys:** skip survey id lookups for users still in their first week ([1189aad](https://github.com/ariefsaid/PMO/commit/1189aade86c588a80641a71fc468c4f6ce49ab80))
+* work order page reads only its own documents and acceptances ([0b5db27](https://github.com/ariefsaid/PMO/commit/0b5db270228e4823caf81ab2219a8f5a0ac97034))
+
+
+### Refactors
+
+* **db:** eleven DAL files call the generated client without loose casts ([7e44458](https://github.com/ariefsaid/PMO/commit/7e44458d916c2c38fc696c766c486d21d1fafaae)), closes [#2747](https://github.com/ariefsaid/PMO/issues/2747)
+* **hooks:** finish moving org-scoped reads onto useOrgQuery ([6e27ddf](https://github.com/ariefsaid/PMO/commit/6e27ddf5752e423b0b3be753c3a790f9bfe40bad)), closes [#2754](https://github.com/ariefsaid/PMO/issues/2754)
+* **i18n:** notification copy reads title keys from the one registry ([f88eda8](https://github.com/ariefsaid/PMO/commit/f88eda8667a2c1db219108794d48c3ab7eb47c1c)), closes [#2834](https://github.com/ariefsaid/PMO/issues/2834)
+* one hook for the stock locations the signed-in person keeps ([5343e23](https://github.com/ariefsaid/PMO/commit/5343e23de44863e9f907553e33866606f35bfd8d)), closes [#2749](https://github.com/ariefsaid/PMO/issues/2749)
+* reservation, performance, approvals-count and stock-tab add-ons mount without the query-provider gate ([12822f5](https://github.com/ariefsaid/PMO/commit/12822f55b83939fe79344726bf5f61a11a4e74fe)), closes [#2752](https://github.com/ariefsaid/PMO/issues/2752)
+* work-order, billing, safety, equipment and site-report add-ons mount without the query-provider gate ([21b4784](https://github.com/ariefsaid/PMO/commit/21b47846bd72a56251fbf86f378fecca65105092)), closes [#2752](https://github.com/ariefsaid/PMO/issues/2752)
+
 ## [0.46.0](https://github.com/ariefsaid/PMO/compare/v0.45.0...v0.46.0) (2026-11-27)
 
 

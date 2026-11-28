@@ -1,4 +1,4 @@
-import { useQuery, type UseQueryResult } from '@tanstack/react-query';
+import { useQuery, useQueryClient, type UseQueryResult } from '@tanstack/react-query';
 import { useAuth } from '@/src/auth/useAuth';
 import { SESSION_QUERY_OPTIONS } from '@/src/lib/queryPolicies';
 
@@ -27,6 +27,11 @@ export interface OrgQueryOptions {
   enabled?: boolean;
   /** Named freshness window; omit for react-query's always-fresh default. */
   staleness?: OrgQueryStaleness;
+  /**
+   * Ask in the render that first needs the read (TanStack's `usePrefetchQuery`, behind the same gate) instead of after the
+   * screen commits. For a large screen's small independent reads, which otherwise wait for the whole tree to render.
+   */
+  startOnRender?: boolean;
 }
 
 export function useOrgQuery<T>(
@@ -35,10 +40,13 @@ export function useOrgQuery<T>(
   opts: OrgQueryOptions = {},
 ): UseQueryResult<T> {
   const orgId = useAuth().currentUser?.org_id;
-  return useQuery({
+  const qc = useQueryClient();
+  const options = {
     queryKey: [key[0], orgId, ...key.slice(1)],
     queryFn,
     enabled: (opts.enabled ?? true) && Boolean(orgId),
     ...(opts.staleness === 'session' ? SESSION_QUERY_OPTIONS : opts.staleness === 'live' ? { staleTime: LIVE_STALE_TIME } : {}),
-  });
+  };
+  if (opts.startOnRender && options.enabled && !qc.getQueryState(options.queryKey)) void qc.prefetchQuery(options);
+  return useQuery(options);
 }

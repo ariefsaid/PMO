@@ -26,16 +26,24 @@ type CachedState = ReturnType<QueryClient['getQueryState']>;
 function useCachedStates(keys: CachedKey[], enabledByOrg: boolean): CachedState[] {
   const qc = useQueryClient();
   const cache = qc.getQueryCache();
-  const last = useRef<CachedState[]>([]);
+  // One remembered tuple PER key set: during a navigation the committed render (old route) and the in-progress render
+  // (new route) read different keys at once. A single shared slot made each overwrite the other's tuple, so every cache
+  // event handed the committed render a "changed" snapshot, re-rendered it at sync priority and restarted the navigation
+  // in a loop until React forced it after ~5 s (release run, 28 Nov 2026).
+  const memo = useRef(new Map<string, CachedState[]>());
   const subscribe = useCallback(
     (cb: () => void) => cache.subscribe(() => queueMicrotask(cb)),
     [cache],
   );
+  const id = JSON.stringify([keys, enabledByOrg]);
   return useSyncExternalStore(subscribe, () => {
     const next = keys.map((key) => (key && enabledByOrg ? qc.getQueryState(key) : undefined));
-    const prev = last.current;
-    if (prev.length === next.length && prev.every((state, i) => state === next[i])) return prev;
-    last.current = next;
+    const prev = memo.current.get(id);
+    if (prev && prev.every((state, i) => state === next[i])) return prev;
+    memo.current.delete(id);
+    memo.current.set(id, next);
+    // ponytail: a handful of recent routes; the committed and the in-progress render need two.
+    if (memo.current.size > 4) memo.current.delete(memo.current.keys().next().value as string);
     return next;
   });
 }

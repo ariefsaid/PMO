@@ -20,5 +20,7 @@ export async function createJobRoleUser(db: SupabaseClient, orgId: string, jobRo
   const role = baseLevelOf(jobRole);
   if (!role) throw new Error('Unknown job role: ' + jobRole);
   const actor = await jobRoleUser({ service: db, org: orgId, jobRole, role, displayName: `Journey ${jobRole}` });
-  return { id: actor.id, signIn: actor.signIn, remove: actor.removeLogin };
+  // A disposable job-role holder receives notices other journeys in the same organisation send to every holder (e.g. a
+  // billing step opening); notifications keep their owner, so the login goes the sibling way: notices, profile, then login.
+  return { id: actor.id, signIn: actor.signIn, remove: actor.cleanup };
 }
