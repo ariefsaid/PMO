@@ -38,7 +38,7 @@ test('AC-3023: a Project Manager in a pipeline-off organisation creates a projec
     .insert({ org_id: orgId, name: clientName, type: 'Client' })
     .select('id')
     .single());
-  const pm = await jobRoleUser({ jobRole: 'Project Manager', org: orgId, service: admin, run, displayName: `PM ${run}` });
+  const pm = await jobRoleUser({ jobRole: 'project_manager', org: orgId, service: admin, run, displayName: `PM ${run}` });
 
   let projectId: string | null = null;
   try {
