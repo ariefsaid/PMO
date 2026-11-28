@@ -1,3 +1,5 @@
+import { workOrderStepsQuery } from '@/src/lib/routeQueries/useBillingSteps';
+export { workOrderStepsQuery } from '@/src/lib/routeQueries/useBillingSteps';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { repositories } from '@/src/lib/repositories';
 import { useOrgId } from '@/src/hooks/useOrgId';
@@ -76,7 +78,7 @@ export function useClaimStepMutations(claimId: string, projectId: string) {
 
 /** The viewer's waiting steps (the needs-you pointer). Derived on read: nothing to clear when a step completes. */
 export function useWaitingSteps(enabled: boolean) {
-  return useOrgQuery(['waiting-billing-steps'], () => repositories.billingStages.waitingSteps(), { enabled });
+  return useOrgQuery(['waiting-billing-steps'], () => repositories.billingStages.waitingSteps(), { enabled, startOnRender: true });
 }
 
 /** One overdue current step per claim of a project (the claim list marker). */
@@ -85,11 +87,6 @@ export function useOverdueClaimSteps(projectId: string) {
 }
 
 /** A work order's billing step list (advisory), and the rights-checked writes on it. Every write refreshes the list and the waiting steps. */
-export const workOrderStepsQuery = (orgId: string | undefined, workOrderId: string | undefined) => ({
-  queryKey: ['work-order-billing-steps', orgId, workOrderId ?? ''],
-  queryFn: () => repositories.billingStages.workOrderSteps(workOrderId ?? ''),
-  enabled: Boolean(orgId) && Boolean(workOrderId),
-});
 
 export function useWorkOrderSteps(workOrderId: string | undefined) {
   return useQuery(workOrderStepsQuery(useOrgId(), workOrderId));
@@ -102,7 +99,7 @@ export function useBoardWorkOrderSteps(projectId?: string) {
 
 /** The viewer's waiting work-order steps (the shared needs-you list). Derived on read: nothing to clear when a step is done. */
 export function useWaitingWorkOrderSteps(enabled: boolean) {
-  return useOrgQuery(['waiting-work-order-steps'], () => repositories.billingStages.waitingWorkOrderSteps(), { enabled });
+  return useOrgQuery(['waiting-work-order-steps'], () => repositories.billingStages.waitingWorkOrderSteps(), { enabled, startOnRender: true });
 }
 
 export function useWorkOrderStepMutations() {

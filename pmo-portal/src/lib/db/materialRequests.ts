@@ -266,18 +266,21 @@ export interface MaterialRequestFilter {
   cursor?: { createdAt: string; id: string } | null;
 }
 
+/** A request with its work order's number and title, read in the same request. */
+export type MaterialRequestListRow = MaterialRequestRow & { workOrder: { wo_number: string | null; title: string } | null };
+
 /** FR-MRQ-019: newest first, stable on (created_at, id), one bounded page plus a keyset cursor. */
-export async function listMaterialRequests(f: MaterialRequestFilter): Promise<{ rows: MaterialRequestRow[]; nextCursor: { createdAt: string; id: string } | null }> {
-  let q = supabase.from('material_requests').select(REQUEST_COLUMNS);
+export async function listMaterialRequests(f: MaterialRequestFilter): Promise<{ rows: MaterialRequestListRow[]; nextCursor: { createdAt: string; id: string } | null }> {
+  let q = supabase.from('material_requests').select(`${REQUEST_COLUMNS}, work_order:work_orders(wo_number, title)`);
   if (f.workOrderId) q = q.eq('work_order_id', f.workOrderId);
   if (f.statuses?.length) q = q.in('status', f.statuses);
   if (f.neededFrom) q = q.gte('needed_by', f.neededFrom);
   if (f.neededTo) q = q.lte('needed_by', f.neededTo);
   if (f.cursor) q = q.or(`created_at.lt.${f.cursor.createdAt},and(created_at.eq.${f.cursor.createdAt},id.lt.${f.cursor.id})`);
   const { data, error } = await (q.order('created_at', { ascending: false }).order('id', { ascending: false })
-    .limit(MATERIAL_REQUEST_PAGE_SIZE + 1) as unknown as DbResult<RequestDbRow[]>);
+    .limit(MATERIAL_REQUEST_PAGE_SIZE + 1) as unknown as DbResult<Array<RequestDbRow & { work_order: MaterialRequestListRow['workOrder'] }>>);
   if (error) fail(error);
-  const all = (data ?? []).map(toRow);
+  const all = (data ?? []).map((r) => ({ ...toRow(r), workOrder: r.work_order ?? null }));
   const rows = all.slice(0, MATERIAL_REQUEST_PAGE_SIZE);
   const last = rows[rows.length - 1];
   return { rows, nextCursor: all.length > MATERIAL_REQUEST_PAGE_SIZE && last ? { createdAt: last.createdAt, id: last.id } : null };

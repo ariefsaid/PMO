@@ -480,6 +480,8 @@ _Avoid_: "live connection" unqualified — always name the leg.
 
 **Skipped stage** — an optional billing stage marked not needed by Finance or an Admin, with a date and a reason. It counts as complete for ordering and for the invoice gate, and it is not undone (#2592).
 
+**Invoice step** — the one billing step, if a list names one, at which the claim's invoice is raised. The invoice then waits only for the steps before it; the invoice step and the steps after it (for example tax invoice, submission to the client) stay open and are completed after the invoice. A list with no invoice step needs every step done before the invoice. Set by Finance or an Admin on a template, a project's list or a claim, and fixed once the claim has an invoice. Bahasa Indonesia: Tahap faktur (#3022).
+
 **Billing board** — a read-only screen listing each open claim (not withdrawn, has billing steps, no invoice yet) as a card under its current step, with days on the step and an overdue chip. Each column shows its claim count and exact total by currency; individual cards omit the amount. Nothing is stored for the board, and a claim moves on only by completing its step on the claim. Finance, Executive and Admin can read the board. Bahasa Indonesia: Papan penagihan (#2681).
 
 **Billed month** — a calendar month in the work-order page's "Billed per month" list: the billed work (submitted invoices, excluding tax, no down payments, in the work order's currency) dated in that organisation-local month, the same figure as the work-in-hand screen. The current month reads "to date". Drafts and claims not yet invoiced are not in it. Bahasa Indonesia: Bulan penagihan.
@@ -881,6 +883,24 @@ client's own reference. Append-only; the client withdrawing part of it is a **re
 **Pickup (client material)** (*pengambilan*) - the physical collection of reserved material. It posts one stock receipt at
 no cost into a site, yard or staging location of the work order's project, and cannot exceed what is still to collect.
 Still to collect = reserved minus collected; awaiting reservation = requested minus reserved, never below zero.
+
+### Owner-supplied material stages (#3010)
+
+Each planned material line of a location (a work-order section) shows these stages. Quantities are exact per unit and never totalled across units; percentages come from the server.
+
+**Requested** (*diminta*) - the quantity asked of the owner for the line. **Owner set-aside** (*dicadangkan pemilik*) - the quantity the owner confirms is held for us in an owner warehouse; an external reservation, not **Reservation** (stock), which is internal stock held.
+
+**Received** (*diterima*) - quantity that came in. **Issued** (*dikeluarkan*) - quantity taken out for the work. **Returned** (*dikembalikan*) - unused issued quantity put back. **Transferred** (*dipindahkan*) - quantity moved to or from another location, shown in and out.
+
+**Closing stock** (*stok akhir*) - received plus transferred in, minus issued and transferred out, plus returned.
+
+**Loaded position** - the opening totals loaded from the owner's workbook, standing at an as-of date; live records add on top. Its **source evidence** is the workbook's own text (dates, document numbers), shown as read and never computed on.
+
+**Material reconciliation** (*rekonsiliasi material*) - the location's step with the owner (default Prepared, Checked, Submitted, Agreed, Closed), each with a percentage. A work order shows its lowest location step.
+
+**Renaming the stage words** - an Admin renames these eight words (Requested, Owner set-aside, Received, Issued, Returned, Transferred, Closing stock, Material reconciliation) in Administration, Terminology; the organisation's word then heads the columns and labels of the two material screens and nowhere else, so "received" elsewhere (a purchase receipt) never changes.
+
+**Owner order number** - the number the owner gave the order (the client purchase order number); it is how the people who keep the material record know a work order, so the material rollup shows it first and our own work order number after it.
 
 ### Three-way match (#2525)
 

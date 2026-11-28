@@ -113,6 +113,16 @@ describe('BillingTermsModal', () => {
     expect(h.save.mock.calls[0][0].stages.map((s: { name: string }) => s.name)).toEqual(['Client approval']);
   });
 
+  it('AC-BIS-001 Finance marks the invoice step on the project list; only one step carries it', async () => {
+    const { user } = renderIt();
+    const marks = screen.getAllByRole('checkbox', { name: 'Invoice is raised at this step' });
+    await user.click(marks[1]);
+    await user.click(marks[0]);
+    expect(marks.map((m) => m.getAttribute('aria-checked'))).toEqual(['true', 'false']);
+    await user.click(screen.getByRole('button', { name: 'Save billing terms' }));
+    expect(h.save.mock.calls[0][0].stages.map((s: { invoiceStep?: boolean }) => Boolean(s.invoiceStep))).toEqual([true, false]);
+  });
+
   it('FR-BST-031 an out-of-range deadline day or retention is refused before saving', async () => {
     const { user } = renderIt();
     await user.clear(screen.getByRole('textbox', { name: 'Invoice deadline (day of month)' }));

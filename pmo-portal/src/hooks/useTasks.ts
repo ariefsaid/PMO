@@ -1,6 +1,7 @@
 import { invalidateTaskProjections } from './taskQueryKeys';
 import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { projectTasksQuery } from '@/src/lib/projectRouteQueries';
 import { repositories } from '@/src/lib/repositories';
 import type { TaskWithRefs, TaskInput, TaskPatch, TaskStatus } from '@/src/lib/db/tasks';
 import type { ProfileRow } from '@/src/lib/db/profiles';
@@ -21,8 +22,7 @@ export function useTasks(projectId: string) {
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
   return useQuery<TaskWithRefs[]>({
-    queryKey: ['tasks', orgId, projectId],
-    queryFn: () => repositories.task.list(projectId),
+    ...projectTasksQuery(orgId, projectId),
     enabled: Boolean(orgId) && Boolean(projectId),
   });
 }

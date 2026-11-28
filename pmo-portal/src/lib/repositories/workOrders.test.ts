@@ -39,6 +39,8 @@ describe('workOrderRepository', () => {
     ['update', 'updateWorkOrder', ['wo1', { title: 'WO2' }]],
     ['setValue', 'setWorkOrderValue', [{ id: 'wo1', value: 100 }]],
     ['transition', 'transitionWorkOrder', ['wo1', 'active', { note: 'go' }]],
+    ['cancel', 'cancelWorkOrder', ['wo1', 'Client withdrew']],
+    ['reopen', 'reopenWorkOrder', ['wo1', 'Closed prematurely']],
     ['drawdown', 'getProjectDrawdown', ['p1']],
     ['billing', 'listWorkOrderBilling', ['p1']],
     ['unbilled', 'getUnbilledWorkOrders', [10]],

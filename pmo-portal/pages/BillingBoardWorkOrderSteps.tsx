@@ -1,5 +1,4 @@
 import React, { useContext, useMemo } from 'react';
-import { QueryClientContext } from '@tanstack/react-query';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { AuthContext } from '@/src/auth/AuthContext';
@@ -63,8 +62,7 @@ const Body: React.FC<{ projectId: string | null }> = ({ projectId }) => {
 
 export const BillingBoardWorkOrderSteps: React.FC<{ projectId: string | null }> = ({ projectId }) => {
   const auth = useContext(AuthContext);
-  const queryClient = useContext(QueryClientContext);
-  if (!auth || !queryClient) return null;
+  if (!auth) return null;
   return <Body projectId={projectId} />;
 };
 

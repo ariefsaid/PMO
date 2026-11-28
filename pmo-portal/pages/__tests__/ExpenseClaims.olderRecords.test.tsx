@@ -27,7 +27,7 @@ vi.mock('@/src/hooks/useExpenseClaims', async (importOriginal) => {
     useExpenseClaimMutations: () => ({ create: { mutateAsync: vi.fn(), isPending: false } }),
   };
 });
-vi.mock('@/src/hooks/useProjects', () => ({ useProjects: () => ({ data: [] }) }));
+vi.mock('@/src/hooks/useProjects', () => ({ useProjectPickerOptions: () => ({ data: [] }) }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' } }) }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: 'Finance', effectiveRole: 'Finance' }) }));
 vi.mock('@/src/hooks/useImprest', () => ({ useImprestFloatChoices: () => ({ data: [] }) }));

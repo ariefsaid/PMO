@@ -59,7 +59,7 @@ export function useProjectListModel(effectiveRole: Role | null, currentUser: { i
   // empty, so the Engineer default landed on a blank list). Derive the assigned-project set
   // from the Engineer's own tasks (the same cross-project, RLS-org-scoped read My Tasks uses;
   // cached under the shared 'my-tasks' key). Only consumed for the Engineer branch.
-  const { data: myTasks, isPending: tasksPending, isError: tasksError, refetch: refetchTasks } = useMyTasks();
+  const { data: myTasks, isPending: tasksPending, isError: tasksError, refetch: refetchTasks } = useMyTasks(isEngineer);
   const myProjectIds = useMemo(
     () => new Set((myTasks ?? []).map((t) => t.project_id)),
     [myTasks],

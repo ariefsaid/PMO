@@ -17,7 +17,6 @@ export const qcrKeys = {
   limit: (orgId: string | undefined) => [...root(orgId), 'limit'] as const,
 };
 
-const useOrg = useOrgId;
 const repo = () => repositories.quantityChange;
 
 export function useQuantityChangeRequests(filter: QcrListFilter, page: number) {
@@ -46,7 +45,7 @@ export function useQuantityChangeApproverRoles(enabled = true) {
 }
 
 export function useQuantityChangeMutations() {
-  const orgId = useOrg();
+  const orgId = useOrgId();
   const qc = useQueryClient();
   const refresh = () => qc.invalidateQueries({ queryKey: root(orgId) });
   const opts = { onSuccess: refresh };

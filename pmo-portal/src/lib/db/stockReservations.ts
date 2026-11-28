@@ -7,6 +7,7 @@ import { supabase } from '@/src/lib/supabase/client';
 import { toAppError } from '@/src/lib/appError';
 import { nullableArg } from './nullableArg';
 import type { Enums } from '@/src/lib/supabase/database.types';
+import { readOrgColumnsStrict } from './orgSettingsBatch';
 
 /** A `numeric` quantity goes on the wire as the exact decimal TEXT the caller typed (NFR-STK-007), which the generated
  * argument type cannot state: it says `number`. The cast is the number's text, never a float. */
@@ -31,7 +32,7 @@ const OFF: ReservationSettings = { enabled: false, borrowMode: 'approve', borrow
 
 /** The organisation's reservation settings (default off). */
 export async function getReservationSettings(): Promise<ReservationSettings> {
-  const { data, error } = await supabase.from('organizations').select('stock_reservations, reservation_borrow_mode, reservation_borrow_role, reservation_borrow_label').limit(1).maybeSingle();
+  const { data, error } = await readOrgColumnsStrict<{ stock_reservations: boolean | null; reservation_borrow_mode: string | null; reservation_borrow_role: string | null; reservation_borrow_label: string | null }>(['stock_reservations', 'reservation_borrow_mode', 'reservation_borrow_role', 'reservation_borrow_label'], { limit: true });
   if (error) throw toAppError(error);
   if (!data) return OFF;
   return {

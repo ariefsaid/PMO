@@ -13,7 +13,7 @@ const h = vi.hoisted(() => ({
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => h.may }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'user-1' } }) }));
 vi.mock('./expenses/useOwnAdvanceOptions', () => ({ useOwnAdvanceOptions: () => ({ options: [{ value: 'adv-1', label: 'EXP-1 · Rp 1' }], isPending: h.adv.pending, isError: h.adv.error, refetch: h.adv.refetch }) }));
-vi.mock('@/src/hooks/useProjects', () => ({ useProjects: () => ({ data: h.proj.error || h.proj.pending ? undefined : [{ id: 'p1', name: 'Contractual Project one', short_name: 'North Terminal' }, { id: 'p2', name: 'Project two', short_name: null }], isPending: h.proj.pending, isError: h.proj.error, refetch: h.proj.refetch }) }));
+vi.mock('@/src/hooks/useProjects', () => ({ useProjectPickerOptions: () => ({ data: h.proj.error || h.proj.pending ? undefined : [{ id: 'p1', name: 'Contractual Project one', short_name: 'North Terminal' }, { id: 'p2', name: 'Project two', short_name: null }], isPending: h.proj.pending, isError: h.proj.error, refetch: h.proj.refetch }) }));
 vi.mock('@/src/hooks/useExpenseClaims', () => ({ useExpenseClaims: () => ({ data: { rows: h.claims } }), useExpenseClaimMutations: () => ({ create: { mutateAsync: h.create }, addLine: { mutateAsync: h.addLine } }) }));
 vi.mock('@/src/hooks/useImprest', () => ({
   useImprestFloatChoices: (...a: unknown[]) => { h.choicesArgs.push(a); return { data: h.choices }; },

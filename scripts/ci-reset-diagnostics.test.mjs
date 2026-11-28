@@ -504,7 +504,7 @@ test('ci.yml runs the diagnostics only after that job\'s own reset failure and k
 
   assert.deepEqual(
     resetJobs.sort(),
-    ['browser-chromium', 'integration-lanes', 'pgtap'],
+    ['browser-chromium', 'integration-lanes', 'integration-serial', 'integration-smoke', 'pgtap'],
     'every job that resets the database before/with browser work carries the failure diagnostics',
   );
 

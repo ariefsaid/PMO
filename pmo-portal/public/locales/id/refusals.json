@@ -402,6 +402,7 @@
   "WPVA_SPLIT_SHAPE": "Sebutkan setiap $t(common:terms.clientWorkOrder) satu kali dalam pembagian.",
   "WPVA_SPLIT_SUM": "Persentasenya berjumlah {{sum}}. Jumlahnya harus 100.",
   "WPVA_SPLIT_WORK_ORDERS": "Pembagian harus menyebut setiap $t(common:terms.clientWorkOrder) aktif proyek ini, dan hanya itu.",
+  "WOR_REASON": "Berikan alasan sepanjang 3 sampai 500 karakter.",
   "WRP_AMOUNT": "Nominal nol atau lebih, dengan paling banyak dua desimal.",
   "WRP_DATE": "Isi rentang tanggal yang benar.",
   "WRP_FROZEN": "$t(common:terms.clientWorkOrder) ini sudah ditutup atau dibatalkan, jadi rencananya dibekukan.",

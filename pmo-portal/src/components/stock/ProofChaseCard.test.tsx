@@ -13,7 +13,7 @@ const h = vi.hoisted(() => ({
 }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'me', org_id: 'org-1' } }) }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: h.role, effectiveRole: h.role }) }));
-vi.mock('@/src/hooks/useStock', () => ({ useStockKeepers: () => ({ data: h.keepers }) }));
+vi.mock('@/src/hooks/useStock', () => ({ useMyStockLocations: () => ((rows: { user_id: string; warehouse_id: string }[], me: string) => { const ids = new Set(rows.filter((k) => k.user_id === me).map((k) => k.warehouse_id)); return { ids, keeps: (id?: string | null) => !!id && ids.has(id), keepsAny: ids.size > 0, isError: false, isPending: false, refetch: () => undefined }; })(h.keepers, 'me') }));
 vi.mock('@/src/hooks/useStockTransfers', () => ({
   useTransferSettings: () => ({ data: { mode: 'one_step', proofTiming: h.timing } }),
   useProofStatus: (_s: string, enabled: boolean) => { h.proofEnabled.push(enabled); return { data: enabled ? h.rows : undefined, dataUpdatedAt: Date.UTC(2026, 10, 21, 9, 14) }; },

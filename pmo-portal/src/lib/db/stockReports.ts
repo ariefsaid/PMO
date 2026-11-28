@@ -56,11 +56,10 @@ export interface ProjectConsumption {
 }
 
 type Json = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
-const defined = (o: Json) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined));
 const optional = (o: Json, k: string, to: string, out: Json) => { if (o[k] !== undefined) out[to] = o[k]; };
 
 export async function getStockOnHand(f: { warehouseId?: string; itemId?: string; includeZero?: boolean }, readTags: ReadStockItemTags = listItemTagNames): Promise<StockOnHandRow[]> {
-  const { data, error } = await supabase.rpc('get_stock_on_hand', defined({ p_warehouse_id: f.warehouseId, p_item_id: f.itemId, p_include_zero: f.includeZero }) as never);
+  const { data, error } = await supabase.rpc('get_stock_on_hand', { p_warehouse_id: f.warehouseId, p_item_id: f.itemId, p_include_zero: f.includeZero });
   if (error) throw toAppError(error);
   const rows = ((data ?? []) as Json[]).map((r) => {
     const out: Json = {
@@ -103,11 +102,11 @@ const mapLedger = (r: Json): StockLedgerRow => {
 
 /** One page of the trace, as the database returns it (no tag join: the cursor loop must not pay it per page). */
 async function readStockLedgerPage(f: StockLedgerFilters & { beforeSeq?: number; limit?: number }): Promise<StockLedgerPage> {
-  const args = defined({
+  const args = {
     p_item_id: f.itemId, p_warehouse_id: f.warehouseId, p_project_id: f.projectId, p_boq_item_id: f.boqItemId, p_document_id: f.documentId,
     p_from: f.from, p_to: f.to, p_before_seq: f.beforeSeq, p_limit: f.limit,
-  });
-  const { data, error } = await supabase.rpc('get_stock_ledger', args as never);
+  };
+  const { data, error } = await supabase.rpc('get_stock_ledger', args);
   if (error) throw toAppError(error);
   const d = (data ?? { rows: [], next_before_seq: null }) as { rows: Json[]; next_before_seq: number | null };
   return { rows: d.rows.map(mapLedger), nextBeforeSeq: d.next_before_seq };

@@ -14,6 +14,12 @@ vi.mock('@/src/hooks/useProjectStageEntries', () => ({
 }));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/components/ui/useIsDesktop', () => ({ useIsDesktop: () => true }));
+vi.mock('@/src/auth/useFeature', () => ({
+  // AC-3023: the sales-pipeline entitlement feeding the move list; these tests cover the
+  // feature-on shapes, so the default ON is the contract under test here.
+  useFeature: vi.fn(() => true),
+}));
+
 vi.mock('@/src/hooks/useDashboard', () => ({
   useSalesPipeline: () => ({
     data: {

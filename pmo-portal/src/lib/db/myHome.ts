@@ -1,6 +1,7 @@
 import { fetchAllPages } from '@/src/lib/pagedRead';
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError } from '@/src/lib/appError';
+import { nullableArg } from './nullableArg';
 
 /**
  * The light-account phone home screen's data (#2710, migrations 1205-1209). `my_home()` returns only the caller's own items:
@@ -71,14 +72,14 @@ export interface MyAbsence { reason: AbsenceReason; note: string | null }
 
 /** "I am not coming in today": the caller's own report for today (the database names the person, never the client). */
 export async function reportAbsence(reason: AbsenceReason, note: string): Promise<void> {
-  const { error } = await supabase.rpc('report_absence' as never, { p_reason: reason, p_note: note.trim() || null } as never);
+  const { error } = await supabase.rpc('report_absence', { p_reason: reason, p_note: nullableArg(note.trim() || null) });
   if (error) throw new AppError(error.message, error.code);
 }
 
 /** The caller's report for a date, if any (RLS shows a worker only their own). */
 export async function getMyAbsence(workDate: string): Promise<MyAbsence | null> {
-  const { data, error } = await supabase.from('absence_reports' as never).select('reason, note').eq('work_date', workDate).limit(1);
+  const { data, error } = await supabase.from('absence_reports').select('reason, note').eq('work_date', workDate).limit(1);
   if (error) throw new AppError(error.message, error.code);
-  const row = (data as unknown as MyAbsence[] | null)?.[0];
+  const row = (data as MyAbsence[] | null)?.[0];
   return row ?? null;
 }

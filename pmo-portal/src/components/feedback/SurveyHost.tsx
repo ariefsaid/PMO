@@ -46,8 +46,10 @@ export const SurveyHost: React.FC = () => {
   const { pathname } = useLocation();
   // Read the in-flight save count at tick time. Optional context: the shell tests mount without a client.
   const queryClient = useContext(QueryClientContext);
-  const flowId = useSurveyId('firstFlow');
-  const npsId = useSurveyId('nps');
+  // A prompt never appears in the first week, so those users skip the survey lookups and the poll below.
+  const promptEligible = enabled && isPastFirstWeek(currentUser?.created_at, Date.now());
+  const flowId = useSurveyId('firstFlow', promptEligible);
+  const npsId = useSurveyId('nps', promptEligible);
 
   const live = useRef({ enabled, pathname, queryClient, flowId, npsId, createdAt: currentUser?.created_at });
   live.current = { enabled, pathname, queryClient, flowId, npsId, createdAt: currentUser?.created_at };

@@ -8,15 +8,15 @@ import en from '../../../public/locales/en/stock.json';
 import id from '../../../public/locales/id/stock.json';
 import { AuthContext, type AuthContextValue } from '@/src/auth/AuthContext';
 
-const h = vi.hoisted(() => ({ openCount: vi.fn(), ownership: { value: 'pmo' as 'pmo' | 'external' | 'unknown' } }));
-vi.mock('@/src/lib/repositories/workOrderMaterialAlerts', () => ({ workOrderMaterialAlertsRepository: { openCount: h.openCount } }));
+const h = vi.hoisted(() => ({ openCount: vi.fn(), openCounts: vi.fn(), ownership: { value: 'pmo' as 'pmo' | 'external' | 'unknown' } }));
+vi.mock('@/src/lib/repositories/workOrderMaterialAlerts', () => ({ workOrderMaterialAlertsRepository: { openCount: h.openCount, openCounts: h.openCounts } }));
 vi.mock('@/src/lib/adapterSeam/ownershipCache', () => ({
   isOwnershipCacheSynced: () => h.ownership.value !== 'unknown',
   routeDomainWrite: () => h.ownership.value,
   subscribeOwnershipCache: () => () => undefined,
 }));
 
-import { WorkOrderAheadBadge } from './WorkOrderAheadBadge';
+import { WorkOrderAheadBadge, WorkOrderAlertCountsProvider } from './WorkOrderAheadBadge';
 
 const auth = { currentUser: { org_id: 'org1' } } as unknown as AuthContextValue;
 async function mount(lng: 'en' | 'id', count: number, onOpen = vi.fn()) {
@@ -27,7 +27,7 @@ async function mount(lng: 'en' | 'id', count: number, onOpen = vi.fn()) {
   const view = render(<AuthContext.Provider value={auth}><QueryClientProvider client={client}><I18nextProvider i18n={inst}><WorkOrderAheadBadge workOrderId="wo1" onOpen={onOpen} /></I18nextProvider></QueryClientProvider></AuthContext.Provider>);
   return { view, onOpen };
 }
-beforeEach(() => { h.openCount.mockReset(); h.ownership.value = 'pmo'; });
+beforeEach(() => { h.openCount.mockReset(); h.openCounts.mockReset(); h.ownership.value = 'pmo'; });
 
 describe('WorkOrderAheadBadge', () => {
   it('AC-MVP-011 open alerts show the count in English, and pressing it opens the stock section', async () => {
@@ -70,6 +70,36 @@ describe('WorkOrderAheadBadge', () => {
   it('AC-MVP-011 outside the app providers it renders nothing and reads nothing', () => {
     const { container } = render(<WorkOrderAheadBadge workOrderId="wo1" onOpen={() => undefined} />);
     expect(container.textContent).toBe('');
+    expect(h.openCount).not.toHaveBeenCalled();
+  });
+
+  it('AC-1128-001 many cards under one provider make one batched read, not one request per card', async () => {
+    h.openCounts.mockResolvedValue({ wo1: 2, wo2: 0, wo3: 1 });
+    const inst = i18n.createInstance();
+    await inst.use(initReactI18next).init({ lng: 'en', fallbackLng: 'en', ns: ['stock'], defaultNS: 'stock', resources: { en: { stock: en } }, interpolation: { escapeValue: false } });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(<AuthContext.Provider value={auth}><QueryClientProvider client={client}><I18nextProvider i18n={inst}>
+      <WorkOrderAlertCountsProvider workOrderIds={['wo1', 'wo2', 'wo3']}>
+        <WorkOrderAheadBadge workOrderId="wo1" /><WorkOrderAheadBadge workOrderId="wo2" /><WorkOrderAheadBadge workOrderId="wo3" />
+      </WorkOrderAlertCountsProvider>
+    </I18nextProvider></QueryClientProvider></AuthContext.Provider>);
+    expect((await screen.findByTestId('wo-ahead-badge-wo1')).textContent).toBe('2 items ahead of progress');
+    expect((await screen.findByTestId('wo-ahead-badge-wo3')).textContent).toBe('1 item ahead of progress');
+    expect(screen.queryByTestId('wo-ahead-badge-wo2')).toBeNull();
+    expect(h.openCounts).toHaveBeenCalledTimes(1);
+    expect(h.openCount).not.toHaveBeenCalled();
+  });
+
+  it('AC-1128-001 inventory connected to another system: the batched read is not made either', async () => {
+    h.ownership.value = 'external';
+    const inst = i18n.createInstance();
+    await inst.use(initReactI18next).init({ lng: 'en', fallbackLng: 'en', ns: ['stock'], defaultNS: 'stock', resources: { en: { stock: en } }, interpolation: { escapeValue: false } });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(<AuthContext.Provider value={auth}><QueryClientProvider client={client}><I18nextProvider i18n={inst}>
+      <WorkOrderAlertCountsProvider workOrderIds={['wo1']}><WorkOrderAheadBadge workOrderId="wo1" /></WorkOrderAlertCountsProvider>
+    </I18nextProvider></QueryClientProvider></AuthContext.Provider>);
+    await new Promise((r) => setTimeout(r, 20));
+    expect(h.openCounts).not.toHaveBeenCalled();
     expect(h.openCount).not.toHaveBeenCalled();
   });
 });

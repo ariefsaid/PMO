@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-  Button, Card, CardHead, DateField, EntityFormModal, FormGrid, ListState, ReasonDialog, SelectField, StatusPill, TextArea, useToast, type SubmitError,
+  Button, Card, CardHead, DateField, EntityFormModal, FormGrid, ReadState, ReasonDialog, resolveReadState, SelectField, StatusPill, TextArea, useToast, type SubmitError,
 } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
@@ -65,15 +65,15 @@ export const MedicalReleaseSection: React.FC = () => {
   const canEnter = useCanEnterRelease() && may('create', 'medicalRelease', { record });
   const canDecide = may('decide', 'medicalRelease', { record });
   const releases = useMedicalReleases();
-  const { data } = releases;
   const { decide, withdraw, reassign } = useMedicalReleaseMutations();
   const [deferring, setDeferring] = useState<MedicalReleaseRow | null>(null);
   const [withdrawing, setWithdrawing] = useState<MedicalReleaseRow | null>(null);
   const [opening, setOpening] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
-  const rows = (data ?? []).filter((r) => r.status !== 'Approved');
-  const failed = releases.isError && data === undefined;
-  if (rows.length === 0 && !canEnter && !failed && !releases.isPending) return null;
+  const isEmptyReleases = (all: MedicalReleaseRow[]) => all.filter((r) => r.status !== 'Approved').length === 0;
+  const phase = resolveReadState(releases, { isEmpty: isEmptyReleases });
+  if (phase.status === 'empty' && !canEnter) return null;
+  const count = phase.status === 'ready' ? phase.data.filter((r) => r.status !== 'Approved').length : 0;
   const run = async (fn: () => Promise<unknown>, done: string) => {
     setProblem(null);
     try { await fn(); toast(done, undefined, 'success'); } catch (err) { setProblem(writeError(err)); }
@@ -86,47 +86,53 @@ export const MedicalReleaseSection: React.FC = () => {
     <section aria-label={t('crews:release.sectionLabel', 'Medical releases')} className="mb-4">
       <Card seam>
         <CardHead className="rounded-t-lg" actions={canEnter ? <Button variant="outline" size="sm" onClick={() => setOpening(true)}>{t('crews:release.openButton', 'Open a release')}</Button> : undefined}>
-          {t('crews:release.heading', 'Medical releases ({{count}})', { count: rows.length })}
+          {t('crews:release.heading', 'Medical releases ({{count}})', { count })}
         </CardHead>
         {problem && <p role="alert" className="px-4 py-2 text-sm text-destructive-text">{problem}</p>}
-        {failed ? (
-          <ListState variant="error" title={t('crews:release.error', "Couldn't load medical releases")} onRetry={() => void releases.refetch()} retryLabel={t('crews:retry', 'Retry')} />
-        ) : releases.isPending && data === undefined ? (
-          <ListState variant="loading" rows={2} />
-        ) : rows.length === 0 ? (
-          <p className="px-4 py-3 text-sm text-muted-foreground">{t('crews:release.none', 'No release is waiting. The people team opens one when a worker is ready to return.')}</p>
-        ) : (
-          <ul className="divide-y divide-border">
-            {rows.map((r) => (
-              <li key={r.id} aria-label={r.person_name} className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 text-sm">
-                <div className="min-w-0 basis-full sm:basis-0 sm:flex-1">
-                  <div className="font-medium text-foreground">{r.person_name}</div>
-                  <div className="text-muted-foreground">{t('crews:release.from', 'Return date {{date}}', { date: formatDay(r.release_date) })}</div>
-                  {r.note && <div className="text-muted-foreground">{r.note}</div>}
-                  {r.decision_note && <div className="text-muted-foreground">{t('crews:leave.note', 'Note: {{note}}', { note: r.decision_note })}</div>}
-                  {!r.can_decide && <div className="text-muted-foreground">{t('crews:release.managerDecides', "Their direct manager decides. They cannot be rostered until it is approved.")}</div>}
-                </div>
-                <StatusPill variant={PILL[r.status]}>{statusLabel[r.status]}</StatusPill>
-                {r.can_decide && canDecide && (
-                  <>
-                    <Button variant="primary" size="sm" onClick={() => void run(() => decide.mutateAsync({ id: r.id, decision: 'Approved', note: null }), t('crews:release.approved', 'Release approved'))}>
-                      {t('crews:leave.approve', 'Approve')}
-                    </Button>
-                    <Button variant="outline" size="sm" onClick={() => setDeferring(r)}>{t('crews:release.defer', 'Defer')}</Button>
-                  </>
-                )}
-                {may('reassign', 'medicalRelease', { record: { ...record, status: r.status, decider_active: r.decider_active } }) && (
-                  <Button variant="outline" size="sm" onClick={() => void run(() => reassign.mutateAsync(r.id), t('crews:release.reassigned', 'Release moved to their current manager'))}>
-                    {t('crews:release.reassign', 'Move to current manager')}
-                  </Button>
-                )}
-                {may('withdraw', 'medicalRelease', { record: { ...record, status: r.status, own: r.own } }) && (
-                  <Button variant="ghost" size="sm" onClick={() => setWithdrawing(r)}>{t('crews:release.withdraw', 'Withdraw')}</Button>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
+        <ReadState
+          query={releases}
+          isEmpty={isEmptyReleases}
+          loading={{ rows: 2 }}
+          errorTitle={t('crews:release.error', "Couldn't load medical releases")}
+          retryLabel={t('crews:retry', 'Retry')}
+          empty={<p className="px-4 py-3 text-sm text-muted-foreground">{t('crews:release.none', 'No release is waiting. The people team opens one when a worker is ready to return.')}</p>}
+        >
+          {(all) => {
+            const rows = all.filter((r) => r.status !== 'Approved');
+            return (
+              <ul className="divide-y divide-border">
+                {rows.map((r) => (
+                  <li key={r.id} aria-label={r.person_name} className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 text-sm">
+                    <div className="min-w-0 basis-full sm:basis-0 sm:flex-1">
+                      <div className="font-medium text-foreground">{r.person_name}</div>
+                      <div className="text-muted-foreground">{t('crews:release.from', 'Return date {{date}}', { date: formatDay(r.release_date) })}</div>
+                      {r.note && <div className="text-muted-foreground">{r.note}</div>}
+                      {r.decision_note && <div className="text-muted-foreground">{t('crews:leave.note', 'Note: {{note}}', { note: r.decision_note })}</div>}
+                      {!r.can_decide && <div className="text-muted-foreground">{t('crews:release.managerDecides', "Their direct manager decides. They cannot be rostered until it is approved.")}</div>}
+                    </div>
+                    <StatusPill variant={PILL[r.status]}>{statusLabel[r.status]}</StatusPill>
+                    {r.can_decide && canDecide && (
+                      <>
+                        <Button variant="primary" size="sm" onClick={() => void run(() => decide.mutateAsync({ id: r.id, decision: 'Approved', note: null }), t('crews:release.approved', 'Release approved'))}>
+                          {t('crews:leave.approve', 'Approve')}
+                        </Button>
+                        <Button variant="outline" size="sm" onClick={() => setDeferring(r)}>{t('crews:release.defer', 'Defer')}</Button>
+                      </>
+                    )}
+                    {may('reassign', 'medicalRelease', { record: { ...record, status: r.status, decider_active: r.decider_active } }) && (
+                      <Button variant="outline" size="sm" onClick={() => void run(() => reassign.mutateAsync(r.id), t('crews:release.reassigned', 'Release moved to their current manager'))}>
+                        {t('crews:release.reassign', 'Move to current manager')}
+                      </Button>
+                    )}
+                    {may('withdraw', 'medicalRelease', { record: { ...record, status: r.status, own: r.own } }) && (
+                      <Button variant="ghost" size="sm" onClick={() => setWithdrawing(r)}>{t('crews:release.withdraw', 'Withdraw')}</Button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            );
+          }}
+        </ReadState>
       </Card>
       {opening && <OpenReleaseForm onClose={() => setOpening(false)} />}
       <ReasonDialog open={deferring !== null} kind="return" subject={t('crews:release.subject', 'medical release')}

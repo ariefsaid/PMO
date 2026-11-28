@@ -1,20 +1,13 @@
+import { orgSwitchKey, orgSwitchQuery } from '@/src/lib/routeQueries/useOrgSwitch';
+export { orgSwitchKey, orgSwitchQuery } from '@/src/lib/routeQueries/useOrgSwitch';
 import { useContext } from 'react';
 import { QueryClient, QueryClientContext, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AuthContext } from '@/src/auth/AuthContext';
 import { useAuth } from '@/src/auth/useAuth';
 import { useStockOwnedByErp } from '@/src/hooks/useStockOwnedByErp';
-import { SERVER_SESSION_QUERY_OPTIONS } from '@/src/lib/queryPolicies';
 import { orgSwitch, orgSwitchRepository, type OrgModuleKey, type OrgSwitchKey } from '@/src/lib/repositories/orgSwitches';
 
 /** Organisation switches (#2746, ADR-0121): one cached value per org and key, refreshed on focus and every 5 minutes. */
-export const orgSwitchKey = (orgId: string | undefined, key: OrgSwitchKey) => ['org-setting', orgId, key] as const;
-
-export const orgSwitchQuery = (orgId: string | undefined, key: OrgSwitchKey, enabled = true) => ({
-  queryKey: orgSwitchKey(orgId, key),
-  queryFn: () => orgSwitchRepository.read(key),
-  enabled: enabled && Boolean(orgId),
-  ...SERVER_SESSION_QUERY_OPTIONS,
-});
 
 // The module read sits under shared chrome (rail, nav) and feature hooks that render without a session or a query provider: there it
 // simply makes no request and the module counts as on.

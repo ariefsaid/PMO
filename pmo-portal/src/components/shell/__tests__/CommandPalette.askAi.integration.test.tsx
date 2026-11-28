@@ -65,8 +65,11 @@ const renderShell = (ui: React.ReactNode) =>
       </MemoryRouter>,
     ),
   );
-// The slot imports the panel chunk on first open; warm it so the cold jsdom import is not inside findByRole's 1 s.
-beforeAll(async () => { await import('@/src/components/panel/AssistantPanel'); }, 60_000);
+// Cold dynamic imports block the jsdom thread for ~1 s wherever they land. The lazy chunks that load during these shell
+// renders (panel, palette, and the dashboard the shell mounts at `/`) are warmed here so none finishes inside a case's 1 s findByRole.
+beforeAll(async () => {
+  await Promise.all([import('@/src/components/panel/AssistantPanel'), import('@/src/components/shell/CommandPalette'), import('@/pages/ExecutiveDashboard')]);
+}, 60_000);
 beforeEach(() => { roleState.value = null; });
 
 describe('Ask AI palette integration', () => {
@@ -82,7 +85,7 @@ describe('Ask AI palette integration', () => {
     renderShell(<ShellChrome />);
     const query = 'show me vendor concentration risk';
     await user.keyboard('{Control>}k{/Control}');
-    await user.type(screen.getByRole('combobox'), query);
+    await user.type(await screen.findByRole('combobox'), query);
     await user.click(await screen.findByRole('option', { name: /ask ai/i }));
     expect(screen.queryByRole('dialog', { name: /command palette/i })).not.toBeInTheDocument();
     // The panel is lazy-loaded (#1978): wait for it to mount; the oracle is unchanged.
@@ -103,7 +106,7 @@ describe('UXS-007 command palette discovery', () => {
     const user = userEvent.setup();
     renderShell(<><ShellChrome /><LocationProbe /></>);
     await user.keyboard('{Control>}k{/Control}');
-    await user.type(screen.getByRole('combobox'), 'my tasks');
+    await user.type(await screen.findByRole('combobox'), 'my tasks');
     const option = await screen.findByRole('option', { name: /my tasks/i });
     expect(option).toHaveTextContent('Your assigned work across projects');
     await user.keyboard('{Enter}');
@@ -117,7 +120,7 @@ describe('UXS-007 command palette discovery', () => {
     renderShell(<ShellChrome />);
     await user.keyboard('{Control>}k{/Control}');
     expect(screen.getByRole('dialog', { name: /command palette/i })).toBeVisible();
-    await user.type(screen.getByRole('combobox'), 'my tasks');
+    await user.type(await screen.findByRole('combobox'), 'my tasks');
     await screen.findByRole('option', { name: /ask ai/i });
     expect(screen.queryByRole('option', { name: /^my tasks/i })).not.toBeInTheDocument();
   });

@@ -14,7 +14,7 @@ import { canRecordBillAtStatus } from '@/src/lib/procurement/mainAction';
 export const NewVendorBillDialog: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const purchases = useProcurements({ lean: true, withoutRoutes: true });
+  const purchases = useProcurements({ lean: true });
   const [purchaseId, setPurchaseId] = useState<string | null>(null);
   const options = useMemo(() => (purchases.data ?? [])
     .filter((p) => canRecordBillAtStatus(p.status))

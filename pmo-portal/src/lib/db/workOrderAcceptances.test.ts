@@ -11,7 +11,7 @@ const h = vi.hoisted(() => {
 });
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { rpc: h.rpc, from: h.from } }));
 import {
-  confirmWorkOrderAcceptance, createWorkOrderLine, deleteWorkOrderLine, listAcceptancesAwaitingConfirmation, listProjectAcceptances, listWorkOrderLines,
+  confirmWorkOrderAcceptance, createWorkOrderLine, deleteWorkOrderLine, listAcceptancesAwaitingConfirmation, listProjectAcceptances, listWorkOrderAcceptances, listWorkOrderLines,
   prepareWorkOrderAcceptance, updateWorkOrderLine, withdrawWorkOrderAcceptance,
 } from './workOrderAcceptances';
 
@@ -179,5 +179,16 @@ describe('acceptances awaiting my confirmation (caller-filtered waiting read, 15
     rpcPages([page([awaiting('b', '2026-11-21T00:00:00Z'), awaiting('c', '2026-11-20T00:00:00Z'), awaiting('a', '2026-11-21T00:00:00Z')])]);
     const rows = await listAcceptancesAwaitingConfirmation();
     expect(rows.map((row) => row.id)).toEqual(['c', 'a', 'b']);
+  });
+});
+
+describe('one work order\'s acceptances', () => {
+  it('AC-CQ-004 reads only that work order\'s acceptances (project and work order filters), same lines and order as the project read', async () => {
+    h.result.data = [{ id: 'a1', work_order_id: 'wo-1', lines: [] }];
+    expect(await listWorkOrderAcceptances('p1', 'wo-1')).toEqual([{ id: 'a1', work_order_id: 'wo-1', lines: [] }]);
+    expect(h.from).toHaveBeenCalledWith('work_order_acceptances');
+    expect(h.chain.select).toHaveBeenCalledWith('*, lines:work_order_acceptance_lines(*)');
+    expect(h.chain.eq.mock.calls).toEqual([['project_id', 'p1'], ['work_order_id', 'wo-1']]);
+    expect(h.chain.order.mock.calls).toEqual([['prepared_at', { ascending: false }], ['id', { ascending: false }]]);
   });
 });

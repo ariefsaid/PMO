@@ -80,11 +80,13 @@ export type Action =
   | 'recordReservation'
   | 'recordRelease'
   | 'recordPickup'
+  | 'recordReconciliation'
   | 'return'
   | 'attribute'
   | 'toggleRole'
   | 'setPaymentChannel'
-  | 'review';
+  | 'review'
+  | 'reopen';
 
 export type Entity =
   | 'project'
@@ -192,6 +194,7 @@ export type Entity =
   | 'orderReceiving'
   | 'materialRequest'
   | 'clientRequisition'
+  | 'ownerMaterial'
   | 'approvalChain'
   | 'purchaseType'
   | 'equipmentPlan'
@@ -505,6 +508,7 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     edit: (role, ctx) => has(MASTER_DATA, role) && ctx.record?.status === 'Draft',
     setValue: (role, ctx) => has(MASTER_DATA, role) && ctx.record?.status === 'Draft',
     transition: allow(MASTER_DATA),
+    reopen: (role, ctx) => role === 'Admin' && ctx.record?.status === 'Closed' && !ctx.record?.closing_acceptance_id,
   },
   /** Bulk work-order import is deliberately narrower than ordinary create: Admin or the project's own PM only. */
   workOrderImport: {
@@ -699,6 +703,14 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     recordRelease: (role, ctx) => (has(MASTER_DATA, role) || holds(ctx, 'material_coordinator')) && ctx.record?.viewOnly !== true && ctx.record?.status === 'open',
     recordPickup: (role, ctx) =>
       has(ALL, role) && ctx.record?.viewOnly !== true && ctx.record?.status === 'open' && (ctx.record?.isKeeper === true || role === 'Admin'),
+  },
+  /**
+   * Owner-supplied material stages (#3010). Everyone reads; recording a section's reconciliation step is the Material
+   * Coordinator job or approval rank and above (mirrors om_material_set_reconciliation); view-as is view-only. UX only.
+   */
+  ownerMaterial: {
+    view: allow(ALL),
+    recordReconciliation: (role, ctx) => (has(MASTER_DATA, role) || holds(ctx, 'material_coordinator')) && ctx.record?.viewOnly !== true,
   },
   /** The org's approval chain and daily cut-off (FR-MRQ-005/014): Admin only, mirroring mrq_set_chain / mrq_set_cutoff. */
   approvalChain: { view: allow(ALL), manage: allowUnlessViewOnly(ADMIN) },

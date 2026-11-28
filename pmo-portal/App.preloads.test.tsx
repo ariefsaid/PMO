@@ -1,3 +1,4 @@
+import { setHidePricesActive, setPricesHidden } from '@/src/lib/priceReadPath';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup } from '@testing-library/react';
 import { createMemoryRouter } from 'react-router';
@@ -17,13 +18,30 @@ vi.mock('@/src/lib/lazyWithPreload', () => {
 
 import { preloadsForPath, namespacesForPath, preloadForPath, subscribeToRoutePreloads } from './App';
 import { ProjectSCurve } from './pages/project-detail/lazyProjectChunks';
+import { QueryClient } from '@tanstack/react-query';
 
-it('#2972 downloads the overview chart only for overview destinations', () => {
+it('starts overview reads from route navigation with resolved hook access', () => {
+  setHidePricesActive(false);
+  setPricesHidden(false, true);
+  const client = new QueryClient();
+  const prefetch = vi.spyOn(client, 'prefetchQuery').mockResolvedValue();
+  preloadForPath('/projects/p1', { orgId: 'org', client, overviewAccess: { may: () => false, realRole: 'Engineer' } });
+  const keys = prefetch.mock.calls.map(([query]) => query.queryKey);
+  expect(keys).toContainEqual(['project-overview-read', 'org', 'p1', { money: false, commitments: false, budget: false }]);
+  expect(keys.some((key) => key[0] === 'tasks')).toBe(false);
+  expect(keys.some((key) => key[0] === 'project-budget-positions')).toBe(false);
+  prefetch.mockClear();
+  preloadForPath('/sales/p1', { orgId: 'org', client, overviewAccess: { may: () => true, realRole: 'Finance' } });
+  expect(prefetch).not.toHaveBeenCalled();
+  client.clear();
+});
+
+it('#2972 keeps the chart out of navigation preloads', () => {
   for (const tab of ['documents', 'tasks', 'budget', 'contract', 'orders', 'activity']) {
     expect(preloadsForPath(`/projects/p1/${tab}`)).not.toContain(ProjectSCurve);
   }
-  expect(preloadsForPath('/projects/p1')).toContain(ProjectSCurve);
-  expect(preloadsForPath('/projects/p1/overview')).toContain(ProjectSCurve);
+  expect(preloadsForPath('/projects/p1')).not.toContain(ProjectSCurve);
+  expect(preloadsForPath('/projects/p1/overview')).not.toContain(ProjectSCurve);
 });
 import { i18next } from '@/src/lib/i18n';
 import { queryClient } from '@/src/lib/queryClient';
@@ -124,8 +142,8 @@ describe('preloadsForPath (#1834 route-entry preload rules)', () => {
     expect(detail[1].preload).toBe(create[1].preload);
   });
 
-  it('project detail preloads the overview S-curve alongside the page chunk', () => {
-    expect(preloadsForPath('/projects/41000000-0000-0000-0000-000000000001')).toHaveLength(2);
+  it('project detail navigation loads only the page chunk', () => {
+    expect(preloadsForPath('/projects/41000000-0000-0000-0000-000000000001')).toHaveLength(1);
   });
 
   it('a deep-linked lazy tab pulls the tab chunks in the same batch', () => {

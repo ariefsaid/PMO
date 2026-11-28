@@ -1,5 +1,4 @@
 import React, { useContext } from 'react';
-import { QueryClientContext } from '@tanstack/react-query';
 import { AuthContext } from '@/src/auth/AuthContext';
 import { ProjectMoneyScopeContext } from '@/src/hooks/useProjectMoneyScope';
 
@@ -37,7 +36,6 @@ const WorkOrderProjectPanelsBody: React.FC<{ projectId: string }> = ({ projectId
 /** Renders nothing outside the auth and query providers (bare renders of the page in unit tests). */
 export const WorkOrderProjectPanels: React.FC<{ projectId: string }> = (props) => {
   const auth = useContext(AuthContext);
-  const queryClient = useContext(QueryClientContext);
-  if (!auth || !queryClient) return null;
+  if (!auth) return null;
   return <WorkOrderProjectPanelsBody {...props} />;
 };

@@ -7,11 +7,11 @@ import type { Role } from '@/src/auth/AuthContext';
 import { ToastProvider } from '@/src/components/ui';
 
 const h = vi.hoisted(() => ({
-  role: 'Project Manager' as string, viewAs: null as string | null, canEnter: false, rows: [] as unknown[],
+  role: 'Project Manager' as string, viewAs: null as string | null, canEnter: false, rows: [] as unknown[], keepDataOnError: false,
   decide: vi.fn(), create: vi.fn(), withdraw: vi.fn(), reassign: vi.fn(), state: { isError: false, isPending: false, refetch: vi.fn() },
 }));
 vi.mock('@/src/hooks/useMedicalRelease', () => ({
-  useMedicalReleases: () => ({ data: h.state.isError || h.state.isPending ? undefined : h.rows, ...h.state }),
+  useMedicalReleases: () => ({ data: (h.state.isError && !h.keepDataOnError) || h.state.isPending ? undefined : h.rows, ...h.state }),
   useCanEnterRelease: () => h.canEnter,
   useReleasePeople: () => ({ data: [{ id: 'p1', name: 'Ana' }] }),
   useMedicalReleaseMutations: () => ({
@@ -34,7 +34,7 @@ const page = () => render(<MemoryRouter><ToastProvider><MedicalReleaseSection />
 
 describe('medical release section (AC-MR-009)', () => {
   beforeEach(() => {
-    h.role = 'Project Manager'; h.viewAs = null; h.canEnter = false; h.rows = []; h.state = { isError: false, isPending: false, refetch: vi.fn() };
+    h.role = 'Project Manager'; h.viewAs = null; h.canEnter = false; h.rows = []; h.keepDataOnError = false; h.state = { isError: false, isPending: false, refetch: vi.fn() };
     h.decide = vi.fn().mockResolvedValue(undefined); h.create = vi.fn().mockResolvedValue('r9');
     h.withdraw = vi.fn().mockResolvedValue(undefined); h.reassign = vi.fn().mockResolvedValue(undefined);
   });
@@ -68,6 +68,20 @@ describe('medical release section (AC-MR-009)', () => {
     expect(screen.getByRole('region', { name: 'Medical releases' })).toBeInTheDocument();
     await userEvent.setup().click(screen.getByRole('button', { name: 'Retry' }));
     expect(h.state.refetch).toHaveBeenCalled();
+  });
+
+  it('#2976 a failed refresh keeps loaded medical releases visible alongside Retry', async () => {
+    const refetch = vi.fn();
+    h.rows = [row({ can_decide: true })];
+    // Simulate TanStack Query keeping prior data on a failed background refetch
+    h.state = { isError: true, isPending: false, refetch };
+    // Override mock data behavior for refresh-error case: data stays populated while isError is true
+    h.keepDataOnError = true;
+    page();
+    expect(screen.getByText("Couldn't load medical releases").closest('[role="alert"]')).toBeInTheDocument();
+    expect(screen.getByText('Ana')).toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Retry' }));
+    expect(refetch).toHaveBeenCalledOnce();
   });
 
   it('while the read is loading the section shows the loading state, not nothing', () => {

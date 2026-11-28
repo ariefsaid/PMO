@@ -1,3 +1,4 @@
+import BalancedSequencer from './unit-sequencer.mjs';
 import path from 'path';
 import { execSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
@@ -5,6 +6,8 @@ import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { routeRepositoryPreload } from './src/lib/build/routeRepositoryPreload';
+import { catalogueBase, versionedCatalogues } from './src/lib/build/catalogueVersion';
+import { apiPreconnect } from './src/lib/build/apiPreconnect';
 import { vendorChunkFor } from './src/lib/build/vendorChunk';
 import { isDeployBuild } from '../scripts/sourcemapPolicy.mjs';
 
@@ -154,12 +157,17 @@ export default defineConfig({
     __APP_VERSION__: JSON.stringify(pkgVersion),
     __GIT_SHA__: JSON.stringify(gitSha),
     __BUILD_TIME__: JSON.stringify(buildTime),
+    // Unit tests keep the unversioned `/locales` address (their fetch mocks key on it) and drive the
+    // versioned one through `vi.stubEnv`.
+    ...(process.env.VITEST
+      ? {}
+      : { 'import.meta.env.VITE_CATALOGUE_BASE': JSON.stringify(catalogueBase(path.resolve(__dirname, 'public/locales'))) }),
   },
   server: {
     port: 3000,
     host: '0.0.0.0',
   },
-  plugins: [routeRepositoryPreload(path.resolve(__dirname)), react(), tailwindcss()],
+  plugins: [routeRepositoryPreload(path.resolve(__dirname)), versionedCatalogues(path.resolve(__dirname)), apiPreconnect(), react(), tailwindcss()],
   resolve: {
     alias: {
       '@': path.resolve(__dirname, '.'),
@@ -183,6 +191,7 @@ export default defineConfig({
     },
   },
   test: {
+    sequence: { sequencer: BalancedSequencer },
     // The Mac is shared by several sessions (PMO + MOS) and CI runs the full suite on every PR, so a
     // local run defaults to 2 workers; CI keeps Vitest's default (all cores of its dedicated runner).
     maxWorkers: process.env.CI ? undefined : 2,

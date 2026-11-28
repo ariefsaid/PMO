@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import type { Role } from '@/src/auth/AuthContext';
 import { ToastProvider } from '@/src/components/ui';
@@ -99,5 +100,37 @@ describe('work-order roster for a date (#2528)', () => {
   it('asks for a work order first', () => {
     renderAt('/crews?view=roster');
     expect(screen.getByText('Choose a work order to see who serves it')).toBeInTheDocument();
+  });
+
+  it('#2976 a failed placements read shows retry instead of claiming no crew is rostered', async () => {
+    const refetch = vi.fn();
+    h.placements = { data: undefined as unknown as unknown[], isPending: false, isError: true, refetch };
+    renderAt('/crews?view=roster&wo=wo1&date=2026-11-05');
+    expect(screen.getByText("Couldn't load roster placements").closest('[role="alert"]')).toBeInTheDocument();
+    expect(screen.queryByText('No crew has been rostered here')).toBeNull();
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Retry' }));
+    expect(refetch).toHaveBeenCalledOnce();
+  });
+
+  it('#2976 a successful empty placements read keeps the genuine empty message', () => {
+    h.placements = { data: [], isPending: false, isError: false, refetch: vi.fn() };
+    renderAt('/crews?view=roster&wo=wo1&date=2026-11-05');
+    expect(screen.getByText('No crew has been rostered here')).toBeInTheDocument();
+    expect(screen.queryByText("Couldn't load roster placements")).toBeNull();
+  });
+
+  it('#2976 a failed placements refresh keeps loaded rows visible alongside Retry', async () => {
+    const refetch = vi.fn();
+    h.placements = {
+      data: [{ id: 'p1', crew_id: 'c1', work_order_id: 'wo1', valid_from: '2026-11-01', valid_to: null, version: 1 }],
+      isPending: false,
+      isError: true,
+      refetch,
+    };
+    renderAt('/crews?view=roster&wo=wo1&date=2026-11-05');
+    expect(screen.getByText("Couldn't load roster placements").closest('[role="alert"]')).toBeInTheDocument();
+    expect(screen.getByRole('row', { name: /Crew one/ })).toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Retry' }));
+    expect(refetch).toHaveBeenCalledOnce();
   });
 });

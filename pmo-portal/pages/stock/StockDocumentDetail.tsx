@@ -11,7 +11,7 @@ import { usePermission } from '@/src/auth/usePermission';
 import { routeDomainWrite } from '@/src/lib/adapterSeam/ownershipCache';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useAuth } from '@/src/auth/useAuth';
-import { STOCK_COMMAND_IN_FLIGHT, useProjectConsumption, useStockDocument, useStockErpState, useStockDocumentCosts, useStockDocumentEntries, useStockDocumentMutations, useStockKeepers, useStockOnHand } from '@/src/hooks/useStock';
+import { STOCK_COMMAND_IN_FLIGHT, useProjectConsumption, useStockDocument, useStockErpState, useStockDocumentCosts, useStockDocumentEntries, useStockDocumentMutations, useMyStockLocations, useStockOnHand } from '@/src/hooks/useStock';
 import { useWorkOrder } from '@/src/hooks/useWorkOrderRecord';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { formatQuantity, formatStockValue, stockValuePreview, subtractDecimal } from '@/src/lib/stockFormat';
@@ -73,7 +73,7 @@ const StockDocumentDetail: React.FC = () => {
   const notify = useStockFailureNotice();
   const doc = useStockDocument(documentId);
   const entries = useStockDocumentEntries(documentId);
-  const keepers = useStockKeepers();
+  const mine = useMyStockLocations();
   const m = useStockDocumentMutations();
   const [filesOpen, setFilesOpen] = useState(false);
   const [confirmCancel, setConfirmCancel] = useState(false);
@@ -104,13 +104,13 @@ const StockDocumentDetail: React.FC = () => {
   // The valuation is the project's material cost: the database answers it only to the roles that see stock costs.
   const value = maySeePrices ? evidence?.completedValue ?? null : null;
   const awaitingEvidence = connected && d?.status === 'Posted' && erp.isPending;
-  const isKeeper = (keepers.data ?? []).some((k) => k.warehouse_id === d?.warehouse_id && k.user_id === me);
+  const isKeeper = mine.keeps(d?.warehouse_id);
   const record = { kind: d?.kind, status: d?.status, created_by: d?.created_by, isKeeper, viewOnly: realRole !== effectiveRole };
   const ctx = { currentUserId: me, record };
   const canCancel = may('withdraw', 'stockDocument', ctx);
   const canPost = d?.status === 'Draft' && !held && !settling && may('post', 'stockDocument', ctx);
   const canRelease = held && may('manage', 'pushHold');
-  const keeperReadBlocksPost = Boolean(d?.status === 'Draft' && keepers.isError && !canPost && may('post', 'stockDocument', { ...ctx, record: { ...record, isKeeper: true } }));
+  const keeperReadBlocksPost = Boolean(d?.status === 'Draft' && mine.isError && !canPost && may('post', 'stockDocument', { ...ctx, record: { ...record, isKeeper: true } }));
   const writeOff = d?.kind === 'adjustment' || d?.kind === 'count';
   const isAuthor = !!me && d?.created_by === me;
   // FR-STK-062: the author of a write-off Draft reopens it; another person (rank >= 20) posts it.
@@ -268,7 +268,7 @@ const StockDocumentDetail: React.FC = () => {
           {keeperReadBlocksPost && <ListState
             variant="error"
             title={t('detail.keepersError', 'Could not load stock keepers, so Post is unavailable.')}
-            onRetry={() => void keepers.refetch()}
+            onRetry={() => void mine.refetch()}
           />}
           {d.kind === 'issue' && d.status === 'Posted' && d.project_id && <OverAllowanceNotice projectId={d.project_id} on={d.occurred_on} lines={d.lines} />}
           {writeOff && d.status === 'Draft' && isAuthor && <p className="text-sm text-muted-foreground">{t('count.anotherPerson')}</p>}
@@ -298,7 +298,7 @@ const StockDocumentDetail: React.FC = () => {
             )}
           </section>
           <div><Button variant="outline" aria-expanded={filesOpen} onClick={() => setFilesOpen(!filesOpen)}>{t('siteWork.files.title')}</Button>
-            {filesOpen && currentUser?.org_id && <StockDocumentAttachments orgId={currentUser.org_id} documentId={d.id} status={d.status} canWrite={realRole === effectiveRole && (d.status === 'Draft' || d.status === 'Posted') && (isAuthor || may('manage', 'warehouse', ctx) || (keepers.data ?? []).some((k) => k.user_id === me && (k.warehouse_id === d.warehouse_id || k.warehouse_id === d.to_warehouse_id)))} />}
+            {filesOpen && currentUser?.org_id && <StockDocumentAttachments orgId={currentUser.org_id} documentId={d.id} status={d.status} canWrite={realRole === effectiveRole && (d.status === 'Draft' || d.status === 'Posted') && (isAuthor || may('manage', 'warehouse', ctx) || (mine.keeps(d.warehouse_id) || mine.keeps(d.to_warehouse_id)))} />}
           </div>
           <section aria-labelledby="entries-h">
             <h2 id="entries-h" className="mb-2 text-group font-semibold">{t('detail.entries')}</h2>

@@ -1,5 +1,4 @@
 import React, { useContext, useState } from 'react';
-import { QueryClientContext } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { Button, DateField, ListState, RecordSection, StatusPill, useToast } from '@/src/components/ui';
@@ -27,8 +26,7 @@ const addDays = (iso: string, n: number) => new Date(Date.parse(`${iso}T00:00:00
 export const SafetySection: React.FC<{ workOrderId: string; projectId: string; status: string }> = (props) => {
   // Rendered outside the app's auth and query providers (an isolated page test), the section is simply omitted.
   const auth = useContext(AuthContext);
-  const queries = useContext(QueryClientContext);
-  return auth && queries ? <SafetySectionGate {...props} /> : null;
+  return auth ? <SafetySectionGate {...props} /> : null;
 };
 
 const SafetySectionGate: React.FC<{ workOrderId: string; projectId: string; status: string }> = ({ workOrderId, projectId, status }) => {
@@ -108,8 +106,7 @@ const SafetySectionBody: React.FC<{ workOrderId: string; projectId: string; stat
  */
 export const SafetyTodayLink: React.FC<{ workOrderId: string; projectId: string; status: string }> = (props) => {
   const auth = useContext(AuthContext);
-  const queries = useContext(QueryClientContext);
-  return auth && queries ? <SafetyTodayGate {...props} /> : null;
+  return auth ? <SafetyTodayGate {...props} /> : null;
 };
 
 const SafetyTodayGate: React.FC<{ workOrderId: string; projectId: string; status: string }> = (props) => {

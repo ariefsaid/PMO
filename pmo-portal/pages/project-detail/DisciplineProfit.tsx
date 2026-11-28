@@ -7,6 +7,7 @@ import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import { useProjectPlanVsActual } from '@/src/hooks/useWorkOrderPlanVsActual';
 import { useCostDisciplines } from '@/src/hooks/useWorkOrderCosts';
 import { useDisciplineRevenue } from '@/src/hooks/useDisciplineProfit';
+import { useReAskRestricted } from '@/src/hooks/useReAskRestricted';
 import { useOrgSwitch } from '@/src/hooks/useOrgSwitch';
 import { disciplineProfit, type ProfitFigure, type ProfitRow } from '@/src/lib/disciplineProfit';
 import { moneyUnits } from '@/src/lib/projectFinances';
@@ -33,6 +34,11 @@ const DisciplineProfit: React.FC<Props> = ({ projectId }) => {
     const m = new Map((disciplines.data ?? []).map((d) => [d.id, d.name]));
     return (id: string | null) => (id === null ? t('profit.noDiscipline', 'No discipline') : m.get(id) ?? t('profit.archivedDiscipline', 'Archived discipline'));
   }, [disciplines.data, t]);
+
+  useReAskRestricted(projectId, [
+    { restricted: pva.data?.rollup.restricted === true, isFetching: pva.isFetching, refetch: pva.refetch },
+    { restricted: revenue.data === 'restricted', isFetching: revenue.isFetching, refetch: revenue.refetch },
+  ]);
 
   if (!on) return null;
   const title = t('profit.title', 'Profit per discipline');

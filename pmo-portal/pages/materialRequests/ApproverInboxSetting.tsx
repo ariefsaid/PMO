@@ -1,5 +1,4 @@
-import React, { useContext, useState } from 'react';
-import { QueryClientContext } from '@tanstack/react-query';
+import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Checkbox, ListState, RecordSection, useToast } from '@/src/components/ui';
 import { FormErrorStrip } from '@/src/components/ui/FormFields';
@@ -31,8 +30,5 @@ const Editor: React.FC = () => {
   );
 };
 
-/** Admin-only toggle (#2685 FR-MRI-013). Renders nothing outside a query client, so a bare render of the settings page is unaffected. */
-export const ApproverInboxSetting: React.FC = () => {
-  const client = useContext(QueryClientContext);
-  return client ? <Editor /> : null;
-};
+/** Admin-only toggle (#2685 FR-MRI-013). */
+export const ApproverInboxSetting: React.FC = () => <Editor />;

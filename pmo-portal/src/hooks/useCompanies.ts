@@ -124,6 +124,28 @@ export function useCompany(id: string | undefined) {
 }
 
 /**
+ * #3025 slice 2: a vendor's tax number (its own side table; RLS returns no row to roles that may
+ * not read it). `save` writes it and refreshes the read. Callers treat an unsuccessful read as
+ * unknown, never as empty.
+ */
+export function useCompanyTaxNumber(companyId: string | undefined, enabled: boolean) {
+  const { currentUser } = useAuth();
+  const orgId = currentUser?.org_id;
+  const queryClient = useQueryClient();
+  const queryKey = ['company-tax-number', orgId, companyId];
+  const query = useQuery<string | null>({
+    queryKey,
+    queryFn: () => repositories.company.getTaxNumber(companyId!),
+    enabled: enabled && Boolean(orgId && companyId),
+  });
+  const save = async (id: string, value: string | null) => {
+    await repositories.company.setTaxNumber(id, value);
+    await queryClient.invalidateQueries({ queryKey });
+  };
+  return { query, save };
+}
+
+/**
  * Related projects for a company (as client) — AC-IFW-COMPANY-01. Fetches all projects where
  * `client_id = companyId`. queryKey includes org_id so cache is tenant-scoped; disabled until
  * both org and company id are present.

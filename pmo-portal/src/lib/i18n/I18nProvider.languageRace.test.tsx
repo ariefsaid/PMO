@@ -13,7 +13,12 @@ vi.mock('i18next', async (importOriginal) => {
 });
 
 const state = vi.hoisted(() => ({ locale: 'en' }));
-vi.mock('@/src/hooks/useResolvedLocale', () => ({ useResolvedLocale: () => ({ locale: state.locale, numberLocale: state.locale === 'id' ? 'id-ID' : 'en-US', timezone: 'UTC' }), useOrgBusinessTimezone: () => 'UTC' }));
+vi.mock('@/src/hooks/useResolvedLocale', () => ({
+  useResolvedLocale: () => ({ locale: state.locale, numberLocale: state.locale === 'id' ? 'id-ID' : 'en-US', timezone: 'UTC' }),
+  useOrgBusinessTimezone: () => 'UTC',
+  useLocaleReady: () => true,
+  useHasSignedInShell: () => false,
+}));
 vi.mock('@/src/hooks/useOrgTerminology', () => ({ useApplyOrgTerminology: () => {} }));
 vi.mock('@/src/hooks/useOrgRoleNames', () => ({ useApplyOrgRoleNames: () => {} }));
 vi.mock('@/src/hooks/useOrgStageNames', () => ({ useApplyOrgStageNames: () => {} }));

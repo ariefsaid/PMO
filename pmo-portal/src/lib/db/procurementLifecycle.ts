@@ -1,6 +1,6 @@
 import { getPlanPurchaseSubmitContext, type PlanPurchaseSubmitContext } from './equipmentPlans';
 import { supabase } from '@/src/lib/supabase/client';
-import { arePricesHidden, maskSelection, priceSource } from '@/src/lib/priceReadPath';
+import { arePricesHidden, maskSelection, priceSource, waitForPriceVisibility } from '@/src/lib/priceReadPath';
 import type { Tables } from '@/src/lib/supabase/database.types';
 import type { ProcurementRow, ProcurementWithRefs } from './procurements';
 import { attachApprovalRoutes } from './approvalRoutes';
@@ -205,6 +205,7 @@ const detailSelect = (includeQuotations: boolean) => [
  * org_id is NEVER sent — RLS scopes via auth_org_id().
  */
 export async function getProcurementDetail(id: string): Promise<ProcurementDetail> {
+  await waitForPriceVisibility(undefined, true);
   const pricesHidden = arePricesHidden();
   const { data, error } = await supabase
     .from(priceSource('procurements') as 'procurements')

@@ -12,6 +12,7 @@ import type { CostDiscipline } from '@/src/lib/db/workOrderCosts';
 import { OtherCurrencyNote } from './AreaHelp';
 import { LabourByClass } from './LabourByClass';
 import { IdleCostBlock } from './IdleCostBlock';
+import { CostLeftOutBlock } from './CostLeftOutBlock';
 
 interface Props {
   workOrderId: string;
@@ -108,6 +109,7 @@ export const PlanVsActualSection: React.FC<Props> = ({ workOrderId, query, disci
         legRow('direct', t('col.direct', 'Direct cost'), f.plan.direct_budget, f.direct, 'wo-page-pva-plan-direct', 'wo-page-pva-direct'),
         legRow('shared', t('col.shared', 'Shared cost'), f.plan.indirect_budget, f.allocated, 'wo-page-pva-plan-indirect', 'wo-page-pva-allocated'),
       ]} />
+      <CostLeftOutBlock workOrderId={workOrderId} />
       <dl className="mt-4 grid grid-cols-1 gap-x-6 gap-y-4 border-t border-border pt-4 text-control sm:grid-cols-3">
         {figure('wo-page-pva-revenue', t('col.revenue', 'Billed revenue'), w.revenue === null || !w.revenueComplete ? '—' : revenue, w.revenue === null || !w.revenueComplete ? 'font-normal text-muted-foreground' : '')}
         {figure('wo-page-pva-direct-margin', t('col.directMargin', 'Direct margin'), f.directMargin.amount === null ? '—' : marginText(f.directMargin), tone(f.directMargin))}

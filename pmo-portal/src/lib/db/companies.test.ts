@@ -13,6 +13,7 @@ const h = vi.hoisted(() => {
     gt: [] as unknown[],
     limit: [] as unknown[],
     insert: [] as unknown[],
+    upsert: [] as unknown[],
     update: [] as unknown[],
     delete: 0,
     single: 0,
@@ -37,6 +38,7 @@ const h = vi.hoisted(() => {
   builder.gt = chain('gt');
   builder.limit = chain('limit');
   builder.insert = chain('insert');
+  builder.upsert = chain('upsert');
   builder.update = chain('update');
   builder.delete = chain('delete');
   builder.single = chain('single');
@@ -61,6 +63,8 @@ import {
   archiveCompany,
   deleteCompany,
   setCompanyProjectNumberSegment,
+  getCompanyTaxNumber,
+  setCompanyTaxNumber,
 } from './companies';
 import { AppError } from '@/src/lib/appError';
 
@@ -270,5 +274,89 @@ describe('AC-CO-006 deleteCompany (hard-delete; FK RESTRICT surfaces 23503)', ()
     await expect(deleteCompany('c1')).rejects.toBeInstanceOf(AppError);
     await expect(deleteCompany('c1')).rejects.toMatchObject({ code: '42501' });
     expect(h.calls.delete).toBeGreaterThan(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// AC-3025 — the PMO-native vendor master data (vendor code, address, payment
+// terms). The payload shapes mirror short_name's: present when supplied (a
+// blank trims to null so clearing works), omitted entirely when not.
+// ---------------------------------------------------------------------------
+
+describe('AC-3025 vendor fields in createCompany', () => {
+  it('inserts the vendor fields it is given, trimming blanks to null, and never org_id', async () => {
+    h.result.value = { data: { id: 'new', name: 'Globex', type: 'Vendor' }, error: null };
+    await createCompany({
+      name: 'Globex', type: 'Vendor',
+      vendor_code: ' VEN-0077 ', address: ' Jl. Raya 12 ', payment_terms_days: 30,
+    });
+    expect(h.calls.insert).toEqual([{
+      name: 'Globex', type: 'Vendor',
+      vendor_code: 'VEN-0077', address: 'Jl. Raya 12', payment_terms_days: 30,
+    }]);
+    expect(JSON.stringify(h.calls.insert)).not.toContain('org_id');
+  });
+
+  it('omits the vendor keys when they are not supplied', async () => {
+    h.result.value = { data: { id: 'new', name: 'Globex', type: 'Client' }, error: null };
+    await createCompany({ name: 'Globex', type: 'Client' });
+    expect(h.calls.insert).toEqual([{ name: 'Globex', type: 'Client' }]);
+  });
+
+  it('clears a supplied-but-blank vendor field to null', async () => {
+    h.result.value = { data: { id: 'new', name: 'Globex', type: 'Vendor' }, error: null };
+    await createCompany({ name: 'Globex', type: 'Vendor', vendor_code: '   ', payment_terms_days: null });
+    expect(h.calls.insert).toEqual([{ name: 'Globex', type: 'Vendor', vendor_code: null, payment_terms_days: null }]);
+  });
+});
+
+describe('AC-3025 vendor fields in updateCompany', () => {
+  it('updates the vendor fields by id, never org_id', async () => {
+    h.result.value = { data: [{ id: 'c1' }], error: null };
+    await updateCompany('c1', { name: 'Renamed', type: 'Vendor', vendor_code: 'VEN-1', address: 'Jakarta', payment_terms_days: 14 });
+    expect(h.calls.update).toEqual([{
+      name: 'Renamed', type: 'Vendor', vendor_code: 'VEN-1', address: 'Jakarta', payment_terms_days: 14,
+    }]);
+    expect(JSON.stringify(h.calls.update)).not.toContain('org_id');
+  });
+
+  it('omits the vendor keys for an input that does not carry them', async () => {
+    h.result.value = { data: [{ id: 'c1' }], error: null };
+    await updateCompany('c1', { name: 'Renamed', type: 'Client' });
+    expect(h.calls.update).toEqual([{ name: 'Renamed', type: 'Client' }]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// AC-3025 slice 2 — the vendor's tax number rides its own side table
+// (company_tax_numbers): reads and writes are the four vendor-edit roles'
+// business; this layer only pins the payload shapes.
+// ---------------------------------------------------------------------------
+
+describe('AC-3025 slice 2 companyTaxNumber DAL', () => {
+  it('reads the single row for the company', async () => {
+    h.result.value = { data: { tax_number: '01.234.567.8-901.000' }, error: null };
+    await expect(getCompanyTaxNumber('v1')).resolves.toBe('01.234.567.8-901.000');
+    expect(h.calls.from).toEqual(['company_tax_numbers']);
+    expect(h.calls.eq).toContainEqual(['company_id', 'v1']);
+  });
+
+  it('upserts by company_id and trims the value, never sending org_id', async () => {
+    h.result.value = { data: null, error: null };
+    await setCompanyTaxNumber('v1', ' 01.234.567.8-901.000 ');
+    expect((h.calls.upsert[0] as unknown[])[0]).toEqual({ company_id: 'v1', tax_number: '01.234.567.8-901.000' });
+    expect(JSON.stringify(h.calls.upsert)).not.toContain('org_id');
+  });
+
+  it('clearing deletes the row for the company; nothing to clear is a no-op', async () => {
+    h.result.value = { data: { tax_number: 'x' }, error: null };
+    await setCompanyTaxNumber('v1', null);
+    expect(h.calls.delete).toBeGreaterThan(0);
+    expect(h.calls.eq).toContainEqual(['company_id', 'v1']);
+
+    h.calls.delete = 0;
+    h.result.value = { data: null, error: null };
+    await setCompanyTaxNumber('v1', null);
+    expect(h.calls.delete).toBe(0);
   });
 });

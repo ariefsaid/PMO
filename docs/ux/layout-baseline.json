@@ -1220,5 +1220,7 @@
   "/update-password@390@exec@acme.test#reads-failing": [
     "leftEdges|main>div.w-full.max-w-sm>div.panel-card|main>div.panel-card>div.space-y-4>div.flex.items-start[alert]>span.text-destructive-text|+37",
     "leftEdges|main>div.w-full.max-w-sm>div.panel-card|main>div.w-full.max-w-sm>div.panel-card>div.space-y-4>a.touch-target.flex|+110"
-  ]
+  ],
+  "/work-orders?view=materials@1440@admin@mp-pmo.test~id": [],
+  "/work-orders?view=materials@390@admin@mp-pmo.test~id": []
 }

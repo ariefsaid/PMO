@@ -1,5 +1,4 @@
 import React, { useContext } from 'react';
-import { QueryClientContext } from '@tanstack/react-query';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { AuthContext } from '@/src/auth/AuthContext';
@@ -35,8 +34,7 @@ const Body: React.FC<{ workOrderId: string }> = ({ workOrderId }) => {
 
 export const ClaimWorkOrderSteps: React.FC<{ workOrderId: string | null | undefined }> = ({ workOrderId }) => {
   const auth = useContext(AuthContext);
-  const queryClient = useContext(QueryClientContext);
-  if (!auth || !queryClient || !workOrderId) return null;
+  if (!auth || !workOrderId) return null;
   return <Body workOrderId={workOrderId} />;
 };
 

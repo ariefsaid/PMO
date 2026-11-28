@@ -10,12 +10,16 @@ import type { Entity } from '@/src/auth/policy';
 import type { Role } from '@/src/auth/AuthContext';
 import { getVisibleOrganizationId } from '@/src/lib/db/organizations';
 import { wrap } from './repositoryErrors';
-import { crewLoanRepository } from './crews';
-import { builtInRolesRepository } from './builtInRoles';
-import { disciplineProfitRepository } from './disciplineProfit';
-import { safetyDayRepository } from './safetyDays';
-import { stockWorkOrderTransferRepository } from './stockWorkOrderTransfer';
-import { billingStagesRepository } from './billingStages';
+import { readOrgColumns } from '@/src/lib/db/orgSettingsBatch';
+
+// The repositories behind a switch load on first read/write, not with the shell: this module sits in the entry chunk
+// (Rail hooks), and six whole domain repositories would ride along with it. Same functions, same registry data.
+const crews = () => import('./crews').then((m) => m.crewLoanRepository);
+const builtInRoles = () => import('./builtInRoles').then((m) => m.builtInRolesRepository);
+const disciplineProfit = () => import('./disciplineProfit').then((m) => m.disciplineProfitRepository);
+const safetyDays = () => import('./safetyDays').then((m) => m.safetyDayRepository);
+const stockWoTransfer = () => import('./stockWorkOrderTransfer').then((m) => m.stockWorkOrderTransferRepository);
+const billingStages = () => import('./billingStages').then((m) => m.billingStagesRepository);
 
 // ponytail: a literal until database.types.ts is regenerated (typed-client ticket); then derive it from the organizations Row.
 type OrgColumn =
@@ -40,13 +44,13 @@ export const ORG_SWITCHES = {
   qsReportRevenue: { source: { column: 'qs_report_revenue_enabled' }, manage: 'siteReportLists', writers: ['Admin'], refreshes: ['daily-site-reports'] },
   pcmScheduledReports: { source: { column: 'pcm_scheduled_reports_enabled' }, manage: 'orgEmailNotifications', writers: ['Admin'], refreshes: ['scheduledReports'] },
   managementViews: { source: { column: 'management_views_enabled' }, manage: 'orgAccounting', writers: ['Admin'] },
-  crewLoans: { source: { read: crewLoanRepository.enabled, write: crewLoanRepository.setEnabled }, module: 'modulePeopleCrews', manage: 'orgAccounting', writers: ['Admin'] },
+  crewLoans: { source: { read: () => crews().then((r) => r.enabled()), write: (on) => crews().then((r) => r.setEnabled(on)) }, module: 'modulePeopleCrews', manage: 'orgAccounting', writers: ['Admin'] },
   clearance: { source: { column: 'clearance_checklist_enabled' }, module: 'modulePeopleCrews', manage: 'clearanceItem', writers: ['Admin'], refreshes: ['clearance'] },
-  builtInRoles: { source: { read: builtInRolesRepository.getEnabled, write: builtInRolesRepository.setEnabled }, module: 'modulePeopleCrews', manage: 'orgAccounting', writers: ['Admin'] },
-  disciplineProfit: { source: { read: disciplineProfitRepository.isEnabled, write: disciplineProfitRepository.setEnabled }, module: 'moduleBillingExtras', manage: 'orgAccounting', writers: ['Admin'] },
-  safetyRecords: { source: { read: safetyDayRepository.isEnabled, write: safetyDayRepository.setEnabled }, module: 'moduleSiteDay', manage: 'safetyLists', writers: ['Admin'], refreshes: ['safety-days'] },
-  stockWoTransfers: { source: { read: stockWorkOrderTransferRepository.enabled, write: stockWorkOrderTransferRepository.setEnabled }, module: 'moduleStock', pmoStockOnly: true, manage: 'warehouse', writers: ['Admin'] },
-  workOrderChecklist: { source: { read: billingStagesRepository.workOrderChecklistEnabled, write: billingStagesRepository.setWorkOrderChecklistEnabled }, manage: 'orgAccounting', writers: ['Admin'] },
+  builtInRoles: { source: { read: () => builtInRoles().then((r) => r.getEnabled()), write: (on) => builtInRoles().then((r) => r.setEnabled(on)) }, module: 'modulePeopleCrews', manage: 'orgAccounting', writers: ['Admin'] },
+  disciplineProfit: { source: { read: () => disciplineProfit().then((r) => r.isEnabled()), write: (on) => disciplineProfit().then((r) => r.setEnabled(on)) }, module: 'moduleBillingExtras', manage: 'orgAccounting', writers: ['Admin'] },
+  safetyRecords: { source: { read: () => safetyDays().then((r) => r.isEnabled()), write: (on) => safetyDays().then((r) => r.setEnabled(on)) }, module: 'moduleSiteDay', manage: 'safetyLists', writers: ['Admin'], refreshes: ['safety-days'] },
+  stockWoTransfers: { source: { read: () => stockWoTransfer().then((r) => r.enabled()), write: (on) => stockWoTransfer().then((r) => r.setEnabled(on)) }, module: 'moduleStock', pmoStockOnly: true, manage: 'warehouse', writers: ['Admin'] },
+  workOrderChecklist: { source: { read: () => billingStages().then((r) => r.workOrderChecklistEnabled()), write: (on) => billingStages().then((r) => r.setWorkOrderChecklistEnabled(on)) }, manage: 'orgAccounting', writers: ['Admin'] },
   // The five modules (#2746): UI only, one check per module; no database guard reads them.
   modulePeopleCrews: { source: { column: 'module_people_crews' }, manage: 'orgAccounting', writers: ['Admin'] },
   moduleSiteDay: { source: { column: 'module_site_day' }, manage: 'orgAccounting', writers: ['Admin'] },
@@ -64,9 +68,9 @@ export const orgSwitch = (key: OrgSwitchKey): OrgSwitch => ORG_SWITCHES[key];
 const organizations = (): any => supabase.from('organizations' as never);
 
 async function readColumn(column: OrgColumn): Promise<boolean> {
-  const { data, error } = await organizations().select(column).limit(1);
+  const { data, error } = await readOrgColumns([column]);
   if (error) throw new AppError(error.message, error.code);
-  return data?.[0]?.[column] === true;
+  return data?.[column] === true;
 }
 
 async function writeColumn(column: OrgColumn, on: boolean): Promise<void> {

@@ -171,3 +171,19 @@ describe('useInvoiceProjectOptions — the sales-invoice project picker (#784)',
     ]);
   });
 });
+
+describe('project option hooks share one project read', () => {
+  it('useProjects, useProjectOptions and useInvoiceProjectOptions fetch the project list once', async () => {
+    repo.project.list.mockReset().mockResolvedValue([
+      { id: 'p1', name: 'Alpha', code: 'A-1', client_id: 'c1', archived_at: null, subject_to_vat: false, tax_rate: null },
+    ]);
+    const { useProjects } = await import('./useProjects');
+    const { result } = renderHook(() => ({ all: useProjects(), options: useProjectOptions(), invoice: useInvoiceProjectOptions() }), { wrapper: wrapper() });
+    await waitFor(() => {
+      expect(result.current.all.isSuccess && result.current.options.isSuccess && result.current.invoice.isSuccess).toBe(true);
+    });
+    expect(repo.project.list).toHaveBeenCalledTimes(1);
+    expect(result.current.options.data).toHaveLength(1);
+    expect(result.current.invoice.data?.[0]).toMatchObject({ value: 'p1', clientId: 'c1' });
+  });
+});

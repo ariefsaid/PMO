@@ -244,3 +244,28 @@ describe('AC-OVERFETCH-001 the passive cache read never poisons the page\'s own 
     expect(result.current.shell.lists.projects).toEqual([{ id: 'p1' }]);
   });
 });
+
+describe('shell perf: the record-list hook watches the query cache through one subscription', () => {
+  it('subscribes once to the query cache, not once per watched list', () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const subscribe = vi.spyOn(qc.getQueryCache(), 'subscribe');
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <QueryClientProvider client={qc}>{children}</QueryClientProvider>
+    );
+    renderHook(() => useCachedRecordLists('/projects/p1'), { wrapper });
+    expect(subscribe).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not re-render when an unrelated query changes', async () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <QueryClientProvider client={qc}>{children}</QueryClientProvider>
+    );
+    let renders = 0;
+    renderHook(() => { renders += 1; return useCachedRecordLists('/projects/p1'); }, { wrapper });
+    const before = renders;
+    act(() => { qc.setQueryData(['something-else', 'org-1'], { a: 1 }); });
+    await act(async () => { await Promise.resolve(); });
+    expect(renders).toBe(before);
+  });
+});

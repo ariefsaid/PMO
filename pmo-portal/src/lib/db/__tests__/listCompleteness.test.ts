@@ -7,7 +7,7 @@ import { getMyDeliveries } from '../myHome';
 import { listReleasePeople } from '../medicalRelease';
 import { listResponsibleCandidates } from '../workOrderResponsible';
 import { listBoardWorkOrderSteps } from '../workOrderBillingSteps';
-import { getOpenMaterialAlertCount } from '../workOrderMaterialAlerts';
+import { getOpenMaterialAlertCount, getOpenMaterialAlertCounts } from '../workOrderMaterialAlerts';
 import { listPriorRequestLines } from '../materialRequests';
 import { withSurveyFigures } from '../progressBilling';
 import type { ProjectBillingFacts } from '@/src/lib/progressBilling';
@@ -75,6 +75,16 @@ describe('complete list and picker reads', () => {
   it('AC-2811-002: the open material alert count includes all 501 items', async () => {
     seed(Array.from({ length: 501 }, (_, index) => ({ item_id: String(index) })));
     await expect(getOpenMaterialAlertCount('work-order')).resolves.toEqual({ workOrderId: 'work-order', itemCount: 501 });
+  });
+
+  it('AC-1128-001: open alert counts for 101 work orders are read in bounded requests and counted per work order', async () => {
+    const ids = Array.from({ length: 101 }, (_, index) => String(index));
+    seed([{ work_order_id: '0', item_id: 'a' }, { work_order_id: '0', item_id: 'b' }, { work_order_id: '100', item_id: 'c' }]);
+    const counts = await getOpenMaterialAlertCounts(ids);
+    expect(counts['0']).toBe(2);
+    expect(counts['100']).toBe(1);
+    expect(counts['50']).toBe(0);
+    expect(from).toHaveBeenCalledTimes(2);
   });
 
   it('AC-2811-003: a survey read pages past 5000 lines and bounds the work orders in each request', async () => {

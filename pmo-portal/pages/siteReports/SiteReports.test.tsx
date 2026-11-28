@@ -3,6 +3,7 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
+import { QueryClientTestProvider } from '@/test/QueryClientTestProvider';
 
 /** #1522 site reports list: the QS queue first (FR-DSR-017), then the filtered, paged list (AC-DSR-015). */
 const h = vi.hoisted(() => ({
@@ -30,7 +31,7 @@ vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole
 import SiteReports from './SiteReports';
 
 const row = (id: string, status: string, crew_name: string | null = null, person_name: string | null = null) => ({ id, work_date: '2026-03-10', work_order_label: `WO ${id}`, author_name: 'Field One', status, crew_name, person_name });
-const renderAt = (url = '/site-reports') => render(<MemoryRouter initialEntries={[url]}><SiteReports /></MemoryRouter>);
+const renderAt = (url = '/site-reports') => render(<QueryClientTestProvider><MemoryRouter initialEntries={[url]}><SiteReports /></MemoryRouter></QueryClientTestProvider>);
 
 beforeEach(() => { h.queueError = false; h.realRole = 'Finance'; h.builtInRole = null; h.validateRoles = []; h.rows = []; h.hasMore = false; h.queue = []; h.calls.length = 0; h.crews = [{ id: 'c1', code: 'CR-1', name: 'Pipe crew' }]; });
 

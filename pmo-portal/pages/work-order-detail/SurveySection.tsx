@@ -1,6 +1,5 @@
 import React, { useContext, useMemo, useState } from 'react';
 import { useAreaHelp } from './useAreaHelp';
-import { QueryClientContext } from '@tanstack/react-query';
 import { AuthContext } from '@/src/auth/AuthContext';
 import { useAuth } from '@/src/auth/useAuth';
 import { Link } from 'react-router';
@@ -154,8 +153,7 @@ const SurveyBody: React.FC<SurveySectionProps> = ({ workOrderId, projectId, stat
 /** Renders nothing outside the auth and query providers (the page's own read-only tests mount it bare). */
 export const SurveySection: React.FC<SurveySectionProps> = (props) => {
   const auth = useContext(AuthContext);
-  const queryClient = useContext(QueryClientContext);
-  if (!auth || !queryClient) return null;
+  if (!auth) return null;
   return <SurveyBody {...props} />;
 };
 

@@ -6,7 +6,7 @@ import type { CanonicalBudgetReading } from '@/src/lib/db/projectMoney';
 import { useProjectListModel } from './useProjectListModel';
 
 const { state } = vi.hoisted(() => ({ state: {
-  projects: [] as unknown[], money: {} as Record<string, unknown>, pending: false, error: false, filter: 'All', tasks: [] as unknown[], tasksPending: false, lastOptions: undefined as unknown,
+  projects: [] as unknown[], money: {} as Record<string, unknown>, pending: false, error: false, filter: 'All', tasks: [] as unknown[], tasksPending: false, lastOptions: undefined as unknown, tasksEnabled: undefined as unknown,
 } }));
 vi.mock('@/src/hooks/useProjects', () => ({
   useProjects: () => ({ data: state.projects, isPending: false, isError: false }),
@@ -14,7 +14,7 @@ vi.mock('@/src/hooks/useProjects', () => ({
   useProjectsMilestoneDates: () => ({ data: [], isPending: false, isError: false }),
 }));
 vi.mock('@/src/hooks/useCompanies', () => ({ useCompanyOptions: () => ({ data: [] }) }));
-vi.mock('@/src/hooks/useMyTasks', () => ({ useMyTasks: () => ({ data: state.tasks, isPending: state.tasksPending, isError: false }) }));
+vi.mock('@/src/hooks/useMyTasks', () => ({ useMyTasks: (enabled?: boolean) => (state.tasksEnabled = enabled, { data: state.tasks, isPending: state.tasksPending, isError: false }) }));
 vi.mock('@/src/hooks/useProjectsDelivery', () => ({ useProjectsDeliverySummary: () => ({ data: {}, isPending: false, isError: false }) }));
 vi.mock('@/src/hooks/useProjectsMoneyCollection', () => ({ useProjectsMoneyCollection: () => ({ data: state.money, isPending: state.pending, isError: state.error }) }));
 vi.mock('@/src/hooks/useListWorkingSet', () => ({
@@ -34,7 +34,7 @@ const money = { ledgerBasis: 'pmo', actuals: { currency: 'USD', total: '950', co
   activeBudgetAmount: '1000', activeBudgetCurrency: 'USD', hasActiveBudget: true, budgetPosition: position('pmo') };
 const t = ((key: string, fallback: string) => fallback || key) as TFunction;
 
-beforeEach(() => { state.projects = [safe, risky]; state.money = { risk: money }; state.pending = false; state.error = false; state.filter = 'All'; state.tasks = []; state.tasksPending = false; state.lastOptions = undefined; });
+beforeEach(() => { state.projects = [safe, risky]; state.money = { risk: money }; state.pending = false; state.error = false; state.filter = 'All'; state.tasks = []; state.tasksPending = false; state.lastOptions = undefined; state.tasksEnabled = undefined; });
 
 describe('project risk classification', () => {
   it.each(['error', 'pending'] as const)('does not sort or filter retained data as risk when the read is %s', (flag) => {
@@ -121,4 +121,14 @@ describe('the Engineer default tab', () => {
     renderHook(() => useProjectListModel('Project Manager', null, t));
     expect(defaultFilter()).toBe('All');
   });
+});
+
+describe('own-tasks read', () => {
+  it.each([['Engineer', true], ['Project Manager', false], ['Admin', false]] as const)(
+    'runs the cross-project tasks read only for an Engineer (%s -> %s)',
+    (role, expected) => {
+      renderHook(() => useProjectListModel(role, null, t));
+      expect(state.tasksEnabled).toBe(expected);
+    },
+  );
 });

@@ -75,3 +75,4 @@ for rw in "${HEAVY[@]}"; do
 done
 [ "$dry" -eq 1 ] && coordinator+=(--dry-run)
 exec "${coordinator[@]}"
+# After the run: `node scripts/ci-failed-journeys.mjs <run-id>` prints the failed journeys per lane.

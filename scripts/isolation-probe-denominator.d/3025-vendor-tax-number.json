@@ -1,0 +1,12 @@
+{
+  "tables": [
+    {
+      "table": "company_tax_numbers",
+      "has_org": true,
+      "pk": "company_id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    }
+  ]
+}

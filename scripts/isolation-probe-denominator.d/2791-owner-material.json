@@ -1,0 +1,90 @@
+{
+  "definer_functions": [
+    "om_material_catalogue_entity(jsonb)",
+    "om_material_import(text,integer,jsonb,boolean)",
+    "om_material_set_reconciliation(uuid,uuid,text)",
+    "om_material_set_scale(jsonb)"
+  ],
+  "tables": [
+    {
+      "table": "stock_material_categories",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "owner_material_warehouses",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "owner_material_import_batches",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "none",
+      "by_id": "applicable"
+    },
+    {
+      "table": "owner_material_import_rows",
+      "has_org": true,
+      "pk": "batch_id",
+      "columns": "*",
+      "b_read": "none",
+      "by_id": "applicable"
+    },
+    {
+      "table": "owner_material_openings",
+      "has_org": true,
+      "pk": "section_material_plan_id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "owner_material_reconciliation_steps",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "owner_material_reconciliation",
+      "has_org": true,
+      "pk": "section_id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "owner_material_reconciliation_events",
+      "has_org": true,
+      "pk": "id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "owner_material_movement_links",
+      "has_org": true,
+      "pk": "document_id",
+      "columns": "*",
+      "b_read": "own-org-only",
+      "by_id": "applicable"
+    },
+    {
+      "table": "owner_material_import_witness",
+      "has_org": true,
+      "pk": "transaction_id",
+      "columns": "*",
+      "b_read": "none",
+      "by_id": "n/a: private transaction capability"
+    }
+  ]
+}

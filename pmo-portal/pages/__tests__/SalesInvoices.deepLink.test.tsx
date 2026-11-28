@@ -286,6 +286,70 @@ it('publishes the invoice number for the record breadcrumb without dropping list
   expect(screen.getByTestId('list-path')).toHaveTextContent(listPath);
 });
 
+it('does not cancel Back to Receivables when project options finish loading during a suspended route transition', async () => {
+  const user = userEvent.setup();
+  salesInvoicesState.data[0] = {
+    ...salesInvoicesState.data[0],
+    si_number: null,
+    status: 'Draft',
+    pmo_native: true,
+    project_id: 'project-1',
+    customer_name: 'NAR-003 Client',
+  };
+  const savedProjectOptions = hoisted.projectOptions;
+  hoisted.projectOptions = [];
+
+  let resolveReceivables!: (mod: { default: React.ComponentType }) => void;
+  const LazyReceivables = React.lazy(() => new Promise<{ default: React.ComponentType }>((resolve) => {
+    resolveReceivables = resolve;
+  }));
+
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+  const Wrapper = ({ tick: _tick }: { tick: number }) => (
+    <QueryClientProvider client={queryClient}>
+      <ImpersonationProvider realRole="Finance">
+        <MemoryRouter initialEntries={[{
+          pathname: '/sales-invoices/inv-1',
+          search: '?q=NAR-003',
+          state: { recordContext: { listPath: '/finance/receivables?q=NAR-003' } },
+        }]}>
+          <ToastProvider>
+            <Location />
+            <React.Suspense fallback={<div data-testid="route-loading">Loading route</div>}>
+              <Routes>
+                <Route path="/finance/receivables" element={<LazyReceivables />} />
+                <Route path="/sales-invoices/:invoiceId" element={<SalesInvoices />} />
+              </Routes>
+            </React.Suspense>
+          </ToastProvider>
+        </MemoryRouter>
+      </ImpersonationProvider>
+    </QueryClientProvider>
+  );
+
+  try {
+    const view = render(<Wrapper tick={0} />);
+    expect(await screen.findByRole('heading', { name: 'Draft invoice · NAR-003 Client' })).toBeInTheDocument();
+
+    // Click Back to Receivables — React Router starts a transition to /finance/receivables, which suspends.
+    await user.click(screen.getByRole('button', { name: 'Back to Receivables' }));
+
+    // While the target route is still suspended, project options resolve and change invoiceRecordLabel.
+    hoisted.projectOptions = savedProjectOptions;
+    view.rerender(<Wrapper tick={1} />);
+
+    // Now the lazy Receivables chunk finishes loading.
+    await act(async () => {
+      resolveReceivables({ default: () => <div data-testid="receivables-landed">Receivables</div> });
+    });
+
+    expect(await screen.findByTestId('receivables-landed')).toBeInTheDocument();
+    expect(screen.getByTestId('location')).toHaveTextContent('/finance/receivables?q=NAR-003');
+  } finally {
+    hoisted.projectOptions = savedProjectOptions;
+  }
+});
+
 describe('SalesInvoices — deep link (#787)', () => {
   it('loads incoming receipts for the standalone ERP invoice list so pending receipt status is visible', () => {
     hoisted.revenueMode = 'erp';

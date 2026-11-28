@@ -6,6 +6,7 @@
 import { supabase } from '@/src/lib/supabase/client';
 import { nullableArg } from './nullableArg';
 import { toAppError } from '@/src/lib/appError';
+import { wireValidator } from '@/src/lib/wireDoc';
 
 export interface MaterialProgressItem {
   itemId: string; itemCode: string; itemName: string; unitCode: string;
@@ -24,21 +25,31 @@ export interface MaterialProgress {
   items: MaterialProgressItem[];
 }
 
-type Json = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
-const num = (v: unknown): number | null => (v === null || v === undefined ? null : Number(v));
+const v = wireValidator('Work order material progress', 'material-progress-malformed');
 
 export async function getWorkOrderMaterialProgress(workOrderId: string): Promise<MaterialProgress> {
   const { data, error } = await supabase.rpc('get_work_order_material_vs_progress', { p_work_order_id: workOrderId });
   if (error) throw toAppError(error);
-  const r = (data ?? {}) as Json;
+  const r = v.rec(data, 'response');
   return {
-    thresholdPct: num(r.threshold_pct),
-    progressPct: num(r.progress_pct),
-    items: ((r.items ?? []) as Json[]).map((i) => ({
-      itemId: i.item_id, itemCode: i.item_code, itemName: i.item_name, unitCode: i.unit_code,
-      plannedQty: i.planned_qty, issuedQty: i.issued_qty,
-      issuedPct: num(i.issued_pct), gapPp: num(i.gap_pp), unplanned: i.unplanned === true, warn: i.warn === true,
-    })),
+    thresholdPct: v.numOrNull(r.threshold_pct, 'threshold_pct'),
+    progressPct: v.numOrNull(r.progress_pct, 'progress_pct'),
+    items: v.arr(r.items, 'items').map((item, idx) => {
+      const p = `items[${idx}]`;
+      const i = v.rec(item, p);
+      return {
+        itemId: v.str(i.item_id, `${p}.item_id`),
+        itemCode: v.str(i.item_code, `${p}.item_code`),
+        itemName: v.str(i.item_name, `${p}.item_name`),
+        unitCode: v.str(i.unit_code, `${p}.unit_code`),
+        plannedQty: v.decimal(i.planned_qty, `${p}.planned_qty`),
+        issuedQty: v.decimal(i.issued_qty, `${p}.issued_qty`),
+        issuedPct: v.numOrNull(i.issued_pct, `${p}.issued_pct`),
+        gapPp: v.numOrNull(i.gap_pp, `${p}.gap_pp`),
+        unplanned: v.bool(i.unplanned, `${p}.unplanned`),
+        warn: v.bool(i.warn, `${p}.warn`),
+      };
+    }),
   };
 }
 
@@ -47,12 +58,12 @@ export async function setWorkOrderIssueThreshold(thresholdPct: number | null): P
   // Null clears the threshold; the SQL parameter accepts it, but the generated argument type is `number`.
   const { data, error } = await supabase.rpc('set_work_order_issue_threshold', { p_threshold_pct: nullableArg(thresholdPct) });
   if (error) throw toAppError(error);
-  return num(data);
+  return v.numOrNull(data, 'threshold_pct');
 }
 
 /** The organisation's current threshold, or null when it is unset (RLS shows only the caller's own row). */
 export async function getWorkOrderIssueThreshold(): Promise<number | null> {
   const { data, error } = await supabase.from('work_order_stock_settings').select('issue_progress_threshold_pct').maybeSingle();
   if (error) throw toAppError(error);
-  return num(data?.issue_progress_threshold_pct);
+  return v.numOrNull(data?.issue_progress_threshold_pct, 'issue_progress_threshold_pct');
 }

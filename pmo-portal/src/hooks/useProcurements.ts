@@ -14,18 +14,17 @@ export { procurementsKey } from './approvalsQueryKeys';
  * adds the batched money/stage inputs needed by the shared procurement block under a third cache key.
  * `status: 'Requested'` is the approvals queue (Approvals page, nav count, approval tiles): the default row, server-filtered, under its own key.
  */
-export function useProcurements(opts?: { withRefs?: boolean; withSharedDetails?: boolean; lean?: boolean; withoutRoutes?: boolean; status?: 'Requested'; enabled?: boolean }) {
+export function useProcurements(opts?: { withRefs?: boolean; withSharedDetails?: boolean; lean?: boolean; status?: 'Requested'; enabled?: boolean; scopeUserId?: string }) {
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
   const withRefs = opts?.withRefs === true;
   const withSharedDetails = opts?.withSharedDetails === true;
   const lean = opts?.lean === true;
-  const withoutRoutes = lean && opts?.withoutRoutes === true;
   const requested = opts?.status === 'Requested';
   return useQuery<ProcurementWithRefs[]>({
-    queryKey: requested ? requestedProcurementsKey(orgId) : procurementsKey(orgId, withRefs, withSharedDetails, lean, withoutRoutes),
-    queryFn: () => repositories.procurement.list(requested ? { status: 'Requested' } : lean ? (withoutRoutes ? { lean: true, withoutRoutes: true } : { lean: true }) : withSharedDetails
-      ? { withRefs: true, withSharedDetails: true }
+    queryKey: requested ? requestedProcurementsKey(orgId) : procurementsKey(orgId, withRefs, withSharedDetails, lean, opts?.scopeUserId),
+    queryFn: () => repositories.procurement.list(requested ? { status: 'Requested' } : lean ? { lean: true } : withSharedDetails
+      ? { withRefs: true, withSharedDetails: true, ...(opts?.scopeUserId ? { scope: { userId: opts.scopeUserId } } : {}) }
       : withRefs ? { withRefs: true } : undefined),
     enabled: Boolean(orgId) && opts?.enabled !== false,
   });

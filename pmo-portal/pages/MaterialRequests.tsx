@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { Button, Card, DataTable, Icon, ListPage, ListState, SelectField, useUrlFilters, type Column } from '@/src/components/ui';
 import { CanWrite } from '@/src/auth/usePermission';
 import { useMaterialRequestHeaders, useMaterialRequests, useWaitingForMe } from '@/src/hooks/useMaterialRequests';
-import type { MaterialRequestRow, MaterialRequestStatus, WaitingStep } from '@/src/lib/repositories/materialRequests';
+import type { MaterialRequestListRow, MaterialRequestStatus, WaitingStep } from '@/src/lib/repositories/materialRequests';
 import { formatDay } from '@/src/lib/format';
 import { RequestStatusPill, RequestWorkOrder } from './materialRequests/shared';
 import { useLabels } from './materialRequests/useMaterialRequestText';
@@ -44,9 +44,9 @@ const MaterialRequestsPage: React.FC = () => {
     } },
     { key: 'sent', header: t('list.columns.submitted', 'Sent'), cell: (w) => formatDay(w.submittedAt) },
   ];
-  const columns: Column<MaterialRequestRow>[] = [
+  const columns: Column<MaterialRequestListRow>[] = [
     { key: 'number', header: t('list.columns.number', 'Request'), rowHeader: true, cell: (r) => <span className="font-semibold">{r.number}</span> },
-    { key: 'workOrder', header: t('list.columns.workOrder', 'Work order'), cell: (r) => <RequestWorkOrder workOrderId={r.workOrderId} projectId={r.projectId} /> },
+    { key: 'workOrder', header: t('list.columns.workOrder', 'Work order'), cell: (r) => <RequestWorkOrder workOrderId={r.workOrderId} projectId={r.projectId} workOrder={r.workOrder} /> },
     { key: 'status', header: t('list.columns.status', 'Status'), cell: (r) => <span className="flex flex-wrap items-center gap-2">
       <RequestStatusPill status={r.status} />
       {waitingIds.has(r.id) && <span className="text-control text-primary-text">{t('list.waitingForYou', 'Waiting for you')}</span>}</span> },
@@ -99,7 +99,7 @@ const MaterialRequestsPage: React.FC = () => {
         )}
         {list.data && (list.data.rows.length === 0
           ? <Card clip><ListState variant="empty" title={t('list.empty', 'No material requests yet')} /></Card>
-          : <DataTable<MaterialRequestRow> rows={list.data.rows} columns={columns} rowKey={(r) => r.id}
+          : <DataTable<MaterialRequestListRow> rows={list.data.rows} columns={columns} rowKey={(r) => r.id}
               onActivate={(r) => navigate(`/material-requests/${r.id}`)}
               rowLabel={(r) => t('list.rowLabel', 'Open {{number}}', { number: r.number })} tableId="material-requests-table" />)}
       </>}

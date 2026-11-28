@@ -260,7 +260,7 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
       // 'projectStage' from stage history (#1638).
       // 'timeAndMaterials' from time-and-materials claims (#1514 T7): rate card, assembly, sign-off and the reads.
       // 'stockOpening' from the opening-stock history load (ADR-0017): preview and load over the movement history.
-      ['agentAttachment', 'agentRun', 'billingStages', 'budget', 'closeoutChecklist', 'comment', 'company', 'companyCollections', 'contact', 'credits', 'dailySiteReport', 'dashboard', 'document', 'documentCategory', 'documentExpiry', 'equipment', 'equipmentAvailability', 'erpJournalLines', 'erpPurchases', 'erpSnapshots', 'expenseClaim', 'expensePostings', 'expenseReceipts', 'externalDomainOwnership', 'financialStatements', 'fxRates', 'imprest', 'incident', 'incidentType', 'integrations', 'issueClosingReport', 'journal', 'm365DocumentSettings', 'm365RecordFolders', 'meeting', 'milestone', 'notification', 'odoo', 'odooLedger', 'openingBalances', 'operator', 'orgFeature', 'orgSettings', 'people', 'procurement', 'procurementFiles', 'profile', 'progressBilling', 'project', 'projectMoney', 'projectOverview', 'projectStage', 'quantityChange', 'rateCatalogue', 'recordHistory', 'reports', 'revenue', 'safetyDay', 'stock', 'stockOpening', 'subcontractCertificates', 'subcontracts', 'surveyRecord', 'supplyRisk', 'task', 'taskProof', 'thirdPartyInspection', 'timeAndMaterials', 'timesheet', 'usage', 'userView', 'vendorWithholdingSlips', 'workInHand', 'workOrder', 'workOrderAcceptance', 'workOrderCheckTemplate'].sort(),
+      ['agentAttachment', 'agentRun', 'billingStages', 'budget', 'closeoutChecklist', 'comment', 'company', 'companyCollections', 'contact', 'credits', 'dailySiteReport', 'dashboard', 'document', 'documentCategory', 'documentExpiry', 'equipment', 'equipmentAvailability', 'erpJournalLines', 'erpPurchases', 'erpSnapshots', 'expenseClaim', 'expensePostings', 'expenseReceipts', 'externalDomainOwnership', 'financialStatements', 'fxRates', 'imprest', 'incident', 'incidentType', 'integrations', 'issueClosingReport', 'journal', 'm365DocumentSettings', 'm365RecordFolders', 'meeting', 'milestone', 'notification', 'odoo', 'odooLedger', 'openingBalances', 'operator', 'orgDefaults', 'orgFeature', 'orgSettings', 'people', 'procurement', 'procurementFiles', 'profile', 'progressBilling', 'project', 'projectMoney', 'projectOverview', 'projectStage', 'quantityChange', 'rateCatalogue', 'recordHistory', 'reports', 'revenue', 'safetyDay', 'stock', 'stockOpening', 'subcontractCertificates', 'subcontracts', 'surveyRecord', 'supplyRisk', 'task', 'taskProof', 'thirdPartyInspection', 'timeAndMaterials', 'timesheet', 'usage', 'userView', 'vendorWithholdingSlips', 'workInHand', 'workOrder', 'workOrderAcceptance', 'workOrderCheckTemplate'].sort(),
     );
   });
 
@@ -328,7 +328,7 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
     expect(Object.keys(repositories.company).sort()).toEqual(
       // #1989: count/listAll/listOptions/listPage — the server-paged directory read, its head
       // count, the whole-directory picker rows, and the full-set export read.
-      ['archive', 'count', 'create', 'delete', 'get', 'getMany', 'list', 'listAll', 'listClients', 'listOptions', 'listPage', 'setProjectNumberSegment', 'setTaxDefaults', 'update'].sort(),
+      ['archive', 'count', 'create', 'delete', 'get', 'getMany', 'getTaxNumber', 'list', 'listAll', 'listClients', 'listOptions', 'listPage', 'setProjectNumberSegment', 'setTaxDefaults', 'setTaxNumber', 'update'].sort(),
     );
     expect(Object.keys(repositories.document).sort()).toEqual(
       [
@@ -341,6 +341,7 @@ describe('repositories object shape (ADR-0017 API seam)', () => {
         'get',
         'getChild',
         'getSignedUrl',
+        'listForWorkOrder',
         'linkMicrosoftDocument',
         'list',
         'prepareUpload',

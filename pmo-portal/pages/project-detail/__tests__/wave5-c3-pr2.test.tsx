@@ -20,6 +20,7 @@ import { ToastProvider } from '@/src/components/ui';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 import type { Role } from '@/src/auth/AuthContext';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
+vi.mock('@/src/auth/useFeature', () => ({ useFeature: () => true })); // #3023: the status control and deal actions read the sales-pipeline entitlement; on = the behaviour this test pins
 vi.mock('@/src/hooks/useProjectStageEntries', () => ({
   useProjectStageEntries: () => ({ data: [], isLoading: false, error: null }),
   useStageEntryMutations: () => ({ redate: { mutateAsync: vi.fn() }, addSkipped: { mutateAsync: vi.fn() } }),

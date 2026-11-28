@@ -968,10 +968,10 @@ test('AC-CLI-009: RPCs outside the allow-list are refused — no money, transiti
 // ── AC-CLI-014: profiles, read-only and narrowed ─────────────────────────────────────────────────
 
 test('AC-CLI-014: profiles is readable only, through a fixed set of non-sensitive columns', () => {
-  const sweepsOnly = ['m365_record_folder_sweeps']; // read by `pmo m365 status` with a fixed select, not through `pmo get`
+  const commandOnly = ['m365_record_folder_sweeps', 'work_orders']; // read by dedicated commands (`pmo m365 status`, `pmo material load`) with fixed selects, not through `pmo get`
   assert.deepEqual(
     Object.keys(READ_ONLY_TABLES).sort(),
-    ['profiles', 'external_domain_ownership', ...OPERATOR_READ_TABLES.filter((t) => !sweepsOnly.includes(t))].sort());
+    ['profiles', 'external_domain_ownership', ...OPERATOR_READ_TABLES.filter((t) => !commandOnly.includes(t))].sort());
   assert.deepEqual(READ_ONLY_TABLES.profiles, ['id', 'full_name', 'role', 'title', 'status']);
   assert.equal(ALLOWED_TABLES.includes('profiles'), false, 'profiles is not writable');
 });
@@ -1042,7 +1042,7 @@ test('AC-CLI-014: profiles cannot be created or updated from the CLI', async () 
 // ── AC-CLI-007: no delete ────────────────────────────────────────────────────────────────────────
 
 test('AC-CLI-007: the CLI offers no delete — no verb, no DELETE request, a clear refusal', async () => {
-  assert.deepEqual([...COMMANDS].sort(), ['accounts', 'attribution', 'bid', 'budgets', 'connect', 'correct', 'create', 'documents', 'equipment', 'erp', 'get', 'load', 'login', 'logout', 'm365', 'org', 'purchases', 'rpc', 'stage-date', 'stages', 'tm', 'update', 'whoami']);
+  assert.deepEqual([...COMMANDS].sort(), ['accounts', 'attribution', 'bid', 'budgets', 'connect', 'correct', 'create', 'documents', 'equipment', 'erp', 'get', 'load', 'login', 'logout', 'm365', 'material', 'org', 'purchases', 'rpc', 'stage-date', 'stages', 'tm', 'update', 'whoami']);
   const fake = await fakeSupabase();
   const configDir = tmpDir();
   try {
@@ -1166,7 +1166,7 @@ test('AC-DOC-CLI-019: the CLI document-register write tier matches the guard tie
 
 test('AC-TVC-007: the CLI active-Admin rpc tier matches the guard tier', () => {
   assert.deepEqual(guardList('admin_cli_rpcs'), [...ADMIN_RPCS].sort());
-  assert.deepEqual([...ADMIN_RPCS], ['recategorise_budget_lines', 'list_account_reconciliation', 'dispose_account_reconciliation', 'load_work_order_opening', 'load_stock_opening', 'reverse_opening_balance', 'opening_balance_report', 'preview_stock_opening_history', 'load_stock_opening_history']);
+  assert.deepEqual([...ADMIN_RPCS], ['recategorise_budget_lines', 'list_account_reconciliation', 'dispose_account_reconciliation', 'load_work_order_opening', 'load_stock_opening', 'reverse_opening_balance', 'opening_balance_report', 'preview_stock_opening_history', 'load_stock_opening_history', 'import_work_orders', 'om_material_config', 'om_material_import', 'om_material_set_scale']);
   for (const name of ADMIN_RPCS) {
     assert.equal(ALLOWED_RPCS.includes(name), false, `${name} is Admin-only, not in the ordinary tier`);
     assert.equal(LOAD_RPCS.includes(name), false, `${name} is not a load-only RPC`);

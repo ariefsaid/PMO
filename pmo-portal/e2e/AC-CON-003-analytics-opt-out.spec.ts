@@ -60,7 +60,13 @@ test('AC-CON-003 (in-session): opting out immediately flips the REAL SDK\'s own 
   // direction. The consent flag, in contrast, is a synchronous state write `opt_out_capturing()`
   // makes immediately and does not depend on anything reaching the network — and it is exactly the
   // mechanism spec/ADR-0067 relies on to say "capture stops now, in this session".
-  await page.goto('/privacy');
+  // The SDK now loads after the first screen (deferred start), so "live in this tab" is waited for, as
+  // the CONTROL proves it: the SDK's own startup requests. An opt-out before that skips init entirely.
+  const hits = await countPosthogRequests(page, async (hits) => {
+    await page.goto('/privacy');
+    await expect.poll(() => hits.length, { message: 'the SDK must be live before this in-session test opts out' }).toBeGreaterThan(0);
+  });
+  expect(hits.length).toBeGreaterThan(0);
   const toggle = page.getByRole('checkbox', { name: /usage analytics/i });
 
   // Baseline: an opted-in session has NOT denied consent at the SDK level (granted or pending).

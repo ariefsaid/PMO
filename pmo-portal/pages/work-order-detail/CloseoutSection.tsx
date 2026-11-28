@@ -1,5 +1,4 @@
 import React, { useContext, useState } from 'react';
-import { QueryClientContext } from '@tanstack/react-query';
 import { AuthContext } from '@/src/auth/AuthContext';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
@@ -188,8 +187,7 @@ const CloseoutBody: React.FC<CloseoutSectionProps> = ({ workOrderId, projectId, 
  */
 export const CloseoutSection: React.FC<CloseoutSectionProps> = (props) => {
   const auth = useContext(AuthContext);
-  const queryClient = useContext(QueryClientContext);
-  if (!auth || !queryClient) return null;
+  if (!auth) return null;
   return <CloseoutBody {...props} />;
 };
 

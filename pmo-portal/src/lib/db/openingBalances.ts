@@ -1,5 +1,6 @@
 import { supabase } from '@/src/lib/supabase/client';
 import { AppError } from '@/src/lib/appError';
+import { wireValidator } from '@/src/lib/wireDoc';
 
 /**
  * Opening balances (FR-OBS-001, migration 2161): what the CLI loaders put in at go-live, read-only. One security-definer read
@@ -27,15 +28,8 @@ export interface OpeningStock extends OpeningBase { kind: 'stock'; quantity: num
 export interface OpeningWorkOrder extends OpeningBase { kind: 'work_order'; certifiedValue: number; claimedValue: number; lines: OpeningWorkOrderLine[] }
 export type OpeningBalance = OpeningStock | OpeningWorkOrder;
 
-const num = (v: unknown, what: string): number => {
-  const n = typeof v === 'string' ? Number(v) : v;
-  if (typeof n !== 'number' || !Number.isFinite(n)) throw new AppError(`Opening balances: ${what} is missing or not a number.`, 'invalid');
-  return n;
-};
-const str = (v: unknown, what: string): string => {
-  if (typeof v !== 'string') throw new AppError(`Opening balances: ${what} is missing.`, 'invalid');
-  return v;
-};
+const v = wireValidator('Opening balances', 'invalid');
+const { num, text: str } = v;
 
 export async function listOpeningBalances(): Promise<OpeningBalance[]> {
   const { data, error } = await supabase.rpc('opening_balances_overview');

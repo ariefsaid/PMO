@@ -3,11 +3,20 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ToastProvider } from '@/src/components/ui';
 
-const h = vi.hoisted(() => ({ may: true, transition: vi.fn(), cancel: vi.fn(), checks: [] as { name: string; status: string }[] }));
-vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => h.may }));
+const h = vi.hoisted(() => ({ may: true, mayReopen: true, transition: vi.fn(), cancel: vi.fn(), reopen: vi.fn(), checks: [] as { name: string; status: string }[] }));
+vi.mock('@/src/auth/usePermission', () => ({
+  usePermission: () => (action: string, _entity: string, ctx?: { record?: { status?: string; closing_acceptance_id?: string | null } }) =>
+    action === 'reopen'
+      ? h.mayReopen && ctx?.record?.status === 'Closed' && !ctx?.record?.closing_acceptance_id
+      : h.may,
+}));
 vi.mock('@/src/hooks/useWorkOrderChecks', () => ({ useWorkOrderChecks: () => ({ data: h.checks }) }));
 vi.mock('@/src/hooks/useWorkOrders', () => ({
-  useWorkOrderMutations: () => ({ transition: { mutate: h.transition, isPending: false }, cancel: { mutate: h.cancel, isPending: false } }),
+  useWorkOrderMutations: () => ({
+    transition: { mutate: h.transition, isPending: false },
+    cancel: { mutate: h.cancel, isPending: false },
+    reopen: { mutate: h.reopen, isPending: false },
+  }),
 }));
 
 import { useWorkOrderDecision } from './WorkOrderDecision';
@@ -21,7 +30,7 @@ const draft = { id: 'wo-1', project_id: 'p-1', status: 'Draft' as const, title: 
 const renderWith = (row: Row) => render(<ToastProvider><Harness row={row} /></ToastProvider>);
 
 describe('AC-WOC-002 issue or cancel a work order on its own page', () => {
-  beforeEach(() => { h.may = true; h.checks = []; h.transition.mockClear(); h.cancel.mockClear(); });
+  beforeEach(() => { h.may = true; h.mayReopen = true; h.checks = []; h.transition.mockClear(); h.cancel.mockClear(); h.reopen.mockClear(); });
 
   it('issues a Draft the reader may issue, after a confirm', async () => {
     renderWith(draft);
@@ -62,9 +71,28 @@ describe('AC-WOC-002 issue or cancel a work order on its own page', () => {
     expect(screen.queryByRole('button', { name: 'Issue' })).toBeNull();
     expect(screen.getByRole('button', { name: 'Cancel work order' })).toBeInTheDocument();
   });
-  it('offers nothing on a closed or cancelled work order', () => {
+  it('offers nothing on a cancelled work order', () => {
     renderWith({ ...draft, status: 'Cancelled', issue_eligibility: 'unavailable' });
     expect(screen.queryByRole('button', { name: 'Issue' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Cancel work order' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Reopen work order' })).toBeNull();
+  });
+
+  it('AC-WOR-001 Admin reopens a Closed work order without a confirmed final acceptance with a reason', async () => {
+    renderWith({ ...draft, status: 'Closed', closing_acceptance_id: null });
+    await userEvent.click(screen.getByRole('button', { name: 'Reopen work order' }));
+    await userEvent.type(screen.getByLabelText(/Reason for reopening/), 'Closed prematurely before late material');
+    const confirms = screen.getAllByRole('button', { name: 'Reopen work order' });
+    await userEvent.click(confirms[confirms.length - 1]);
+    expect(h.reopen).toHaveBeenCalledWith({ id: 'wo-1', reason: 'Closed prematurely before late material' }, expect.anything());
+  });
+
+  it('AC-WOR-001 hides Reopen when closed by final acceptance or when caller lacks reopen permission', () => {
+    const { unmount } = renderWith({ ...draft, status: 'Closed', closing_acceptance_id: 'bast-1' });
+    expect(screen.queryByRole('button', { name: 'Reopen work order' })).toBeNull();
+    unmount();
+    h.mayReopen = false;
+    renderWith({ ...draft, status: 'Closed', closing_acceptance_id: null });
+    expect(screen.queryByRole('button', { name: 'Reopen work order' })).toBeNull();
   });
 });

@@ -32,6 +32,8 @@ export interface StepInput {
   targetOn?: string | null;
   clientSide?: boolean;
   optional?: boolean;
+  /** The step at which the invoice is raised (#3022): the invoice waits only for the steps before it; at most one per list. */
+  invoiceStep?: boolean;
   documents?: Array<{ name: string; required: boolean }>;
   /** The built-in role key that owns this step on a work order's list (migration 1771); null = nobody in particular. */
   ownerRoleKey?: string | null;
@@ -79,6 +81,7 @@ const stepPayload = (s: StepInput) => ({
   ...(s.targetOn !== undefined ? { target_on: s.targetOn } : {}),
   ...(s.clientSide ? { client_side: true } : {}),
   ...(s.optional ? { optional: true } : {}),
+  ...(s.invoiceStep ? { invoice_step: true } : {}),
   ...(s.documents ? { documents: s.documents.map((d) => ({ name: d.name, required: d.required })) } : {}),
 });
 
@@ -95,7 +98,7 @@ function patchPayload(p: StepPatch) {
 
 export async function listStepTemplates(): Promise<StepTemplate[]> {
   const { data, error } = await supabase.from('billing_step_templates')
-    .select('id,name,steps:billing_step_template_steps(id,position,name,owner_role,owner_role_key,hidden_from_role_keys,target_days,client_side,optional,claim_evidence_enabled,documents:billing_step_template_documents(position,name,required))')
+    .select('id,name,steps:billing_step_template_steps(id,position,name,owner_role,owner_role_key,hidden_from_role_keys,target_days,client_side,optional,invoice_step,claim_evidence_enabled,documents:billing_step_template_documents(position,name,required))')
     .is('archived_at', null).order('name').limit(TEMPLATE_LIMIT);
   if (error) fail(error);
   return (data ?? []).map((t) => ({
@@ -112,6 +115,7 @@ export async function listStepTemplates(): Promise<StepTemplate[]> {
       targetDays: s.target_days,
       clientSide: s.client_side,
       optional: s.optional,
+      invoiceStep: s.invoice_step,
       documents: [...(s.documents ?? [])].sort((a, b) => a.position - b.position).map((d) => ({ name: d.name, required: d.required })),
     })),
   }));

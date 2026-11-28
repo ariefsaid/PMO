@@ -95,7 +95,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
   // Finance's billing chart grows to the ageing list beside it on a wide screen; on a phone it is the usual chart height.
   const wide = useIsDesktop(900);
   const unpaidOf = useSupplierUnpaid(finance);
-  const financePosition = useFinancePosition(finance, { withRoutes: true });
+  const financePosition = useFinancePosition(finance);
   // Same query key as the figure hooks, so no extra request; present so Retry can re-run it.
   const erpPurchases = useErpPurchases();
   const [refreshToken, setRefreshToken] = React.useState(0);

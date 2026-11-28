@@ -29,6 +29,8 @@ export const crewRepository = {
   workerRefs: () => wrap(() => crews.listCrewWorkerRefs()),
   allRoles: () => wrap(() => crews.listAllStandardRoles()),
   allMembers: () => wrap(() => crews.listAllCrewMembers()),
+  placementsOn: (date: string) => wrap(() => crews.listCrewPlacementsOn(date)),
+  workersByIds: (ids: readonly string[]) => wrap(() => crews.listCrewWorkersByIds(ids)),
   createWorker: (input: crews.CrewWorkerInput) => wrap(() => crews.createCrewWorker(input)),
   placeNewWorker: (person: crews.CrewWorkerInput, placement: Omit<crews.PlacementInput, 'worker_id'>) =>
     wrap(() => crews.placeNewCrewWorker(person, placement)),

@@ -221,6 +221,8 @@
     "src/lib/agent/types.ts",
     "src/lib/analytics/eventCallSites.ts",
     "src/lib/auth/verifyCallerJwt.ts",
+    "src/lib/build/apiPreconnect.ts",
+    "src/lib/build/catalogueVersion.ts",
     "src/lib/build/routeRepositoryPreload.ts",
     "src/lib/build/vendorChunk.ts",
     "src/lib/db/openingBalances.concurrent.integration.mjs",
@@ -232,7 +234,9 @@
     "src/lib/m365/graphPkce.ts",
     "src/lib/m365/graphTokenCrypto.ts",
     "src/lib/projectManagerDefault.d.mts",
-    "src/vite-env.d.ts"
+    "src/vite-env.d.ts",
+    "unit-sequencer.mjs",
+    "unit-shard-balance.mjs"
   ],
   "references": [
     {

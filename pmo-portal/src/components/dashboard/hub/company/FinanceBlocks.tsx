@@ -10,7 +10,7 @@ import { ExportButton } from '@/src/components/export/ExportButton';
 import { useActualsSnapshot, useApAgingSnapshot, useArAgingSnapshot } from '@/src/hooks/useErpSnapshots';
 import { useCompanyOptions } from '@/src/hooks/useCompanies';
 import { useCompanyCollections } from '@/src/hooks/useCompanyCollections';
-import { useProjects } from '@/src/hooks/useProjects';
+import { useProjectPickerOptions } from '@/src/hooks/useProjects';
 import { useFinancePosition } from '@/src/hooks/useFinancePosition';
 import { usePayablesPosition } from '@/src/lib/finance/payablesPosition';
 import { AccountingSnapshotsSection } from '@/src/components/dashboard/AccountingSnapshotsSection';
@@ -102,7 +102,7 @@ const snapshotEmpty = (query: { data?: unknown[]; isPending: boolean; isError: b
 
 function ClientAgingBlock() {
   const arAging = useArAgingSnapshot();
-  const finance = useFinancePosition(true, { withRoutes: true });
+  const finance = useFinancePosition(true);
   const { data: clientCompanies } = useCompanyOptions(undefined, 'Client');
   const clientCompanyIds = React.useMemo(() => (clientCompanies ?? []).map((company) => company.id), [clientCompanies]);
   const { customerLinks } = useCompanyCollections(clientCompanyIds);
@@ -115,8 +115,8 @@ function ClientAgingBlock() {
 function PayablesAndActuals() {
   const actuals = useActualsSnapshot();
   const apAging = useApAgingSnapshot();
-  const finance = useFinancePosition(true, { withRoutes: true });
-  const projects = useProjects();
+  const finance = useFinancePosition(true);
+  const projects = useProjectPickerOptions();
   const projectNames = React.useMemo(() => new Map((projects.data ?? []).map((project) => [project.id, projectDisplayName(project)])), [projects.data]);
   // L12(b): the same payables ageing as the finance hub — linked accounting documents read, unknown balances counted by age.
   const payables = usePayablesPosition(finance.position, true);

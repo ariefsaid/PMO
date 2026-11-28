@@ -393,6 +393,8 @@
         "deadline_other": "Batas invoice {{date}} · sisa {{count}} hari",
         "retentionHeld": "Retensi ditahan: {{amount}} ({{pct}}%)",
         "gate": "Selesaikan semua tahap sebelum menerbitkan invoice.",
+        "gateBefore": "Selesaikan tahap sebelum {{stage}} untuk menerbitkan invoice.",
+        "invoiceStep": "Tahap invoice",
         "clientSide": "Di sistem klien",
         "age_one": "{{count}} hari",
         "age_other": "{{count}} hari",
@@ -551,7 +553,8 @@
         "retentionHelp": "Retensi ditahan dari setiap klaim progres baru; invoice dan PPN-nya tetap bernilai penuh.",
         "targetDays": "Target (hari)",
         "targetInvalid": "Masukkan 1 sampai 365 hari, atau kosongkan.",
-        "optionalStage": "Tahap opsional"
+        "optionalStage": "Tahap opsional",
+        "invoiceStep": "Invoice dibuat pada tahap ini"
       },
       "reconciliation": {
         "title": "Rekonsiliasi penagihan",

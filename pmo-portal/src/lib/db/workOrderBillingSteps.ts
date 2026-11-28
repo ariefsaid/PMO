@@ -3,6 +3,7 @@ import { supabase } from '@/src/lib/supabase/client';
 import { nullableArg } from './nullableArg';
 import { AppError } from '@/src/lib/appError';
 import type { StepInput } from './billingSteps';
+import { readOrgColumns } from './orgSettingsBatch';
 
 /**
  * A work order's billing step list (migrations 1770-1774; docs/specs/billing-steps.spec.md). Advisory: nothing here reads or writes
@@ -150,9 +151,9 @@ export async function addWorkOrderStep(
 
 /** The per-organisation gate for editing an issued work order's checklist (migration 2181); a missing row is off. */
 export async function getWorkOrderChecklistEnabled(): Promise<boolean> {
-  const { data, error } = await supabase.from('organizations').select('work_order_checklist_enabled').limit(1);
+  const { data, error } = await readOrgColumns(['work_order_checklist_enabled']);
   if (error) fail(error);
-  return data?.[0]?.work_order_checklist_enabled === true;
+  return data?.work_order_checklist_enabled === true;
 }
 
 /** Only an Admin may change the checklist-edit switch; the database writes and audits the organisation setting. */

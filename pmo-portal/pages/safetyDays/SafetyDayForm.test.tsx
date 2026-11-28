@@ -24,6 +24,9 @@ const h = vi.hoisted(() => {
     },
     role: 'Admin',
     userId: 'u1',
+    attendance: [{ worker_id: 'w1', status: 'present' }, { worker_id: 'w2', status: 'present' }] as { worker_id: string; status: string }[],
+    // the server's own missing-rule for the day (safety_work_order_days); null = not answered
+    serverMissing: ['fitness_check'] as string[] | null,
   };
 });
 vi.mock('@/src/hooks/useSafetyDays', () => ({
@@ -31,8 +34,10 @@ vi.mock('@/src/hooks/useSafetyDays', () => ({
   useSafetyRoster: () => ({ data: h.roster, isError: h.rosterError, refetch: h.retryRoster }),
   useSafetyList: (kind: string) => ({ data: h.lists[kind] ?? [] }),
   useSafetyMutations: () => h.m,
+  useSafetyWorkOrderDays: () => ({ data: h.serverMissing ? [{ work_date: '2026-03-10', missing: h.serverMissing }] : undefined, isPending: false, isError: !h.serverMissing }),
 }));
 vi.mock('@/src/hooks/useProjects', () => ({ useProject: () => ({ data: { id: 'p1', project_manager_id: 'pm1' } }) }));
+vi.mock('@/src/hooks/useCrews', () => ({ useAttendanceDay: () => ({ data: h.attendance, isPending: false, isError: false }) }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: h.userId, org_id: 'o1', role: h.role } }) }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: h.role, effectiveRole: h.role }) }));
 vi.mock('@/src/lib/repositories', () => ({ repositories: { safetyDay: { photoUrl: vi.fn(async () => 'https://photo') } } }));
@@ -67,8 +72,9 @@ const view = () => render(
 );
 
 beforeEach(() => { h.rosterError = false;
+  h.attendance = [{ worker_id: 'w1', status: 'present' }, { worker_id: 'w2', status: 'present' }];
   act(() => { sonnerToast.dismiss(); }); // Sonner's store replays still-active toasts into the next Toaster — clear them.
-  h.role = 'Admin';
+  h.role = 'Admin'; h.serverMissing = ['fitness_check'];
   h.query = { data: detail(), isPending: false, isError: false, refetch: vi.fn() };
   Object.values(h.m).forEach((x) => x.mutateAsync.mockReset().mockResolvedValue(undefined));
 });
@@ -111,7 +117,15 @@ describe('SafetyDayForm', () => {
   });
 
   it('names the missing parts nothing once the checklist is answered and a photographed talk exists', () => {
-    h.query = { ...h.query, data: detail({}, { checklist: [{ id: 'c1', label: 'Harnesses inspected', position: 1, answer: 'yes', note: null }], talks: [{ id: 't1', topic: 'PPE', presenter: 'Budi', held_at: '2026-03-10T01:00:00Z', attendees: [], photos: [{ id: 'p1', file_path: 'a/b.png' }] }] }) };
+    // Both present workers have their fitness check, so no part is missing.
+    h.query = { ...h.query, data: detail({}, {
+      checklist: [{ id: 'c1', label: 'Harnesses inspected', position: 1, answer: 'yes', note: null }],
+      talks: [{ id: 't1', topic: 'PPE', presenter: 'Budi', held_at: '2026-03-10T01:00:00Z', attendees: [], photos: [{ id: 'p1', file_path: 'a/b.png' }] }],
+      fitness: [
+        { id: 'f1', worker_id: 'w1', visitor_name: null, check_type_id: null, result: 'fit' as const, note: null },
+        { id: 'f2', worker_id: 'w2', visitor_name: null, check_type_id: null, result: 'fit' as const, note: null },
+      ],
+    }) };
     view();
     expect(screen.queryByTestId('safety-missing')).not.toBeInTheDocument();
   });
@@ -135,6 +149,35 @@ describe('SafetyDayForm', () => {
     view();
     expect(screen.getByText(/Version 2/)).toBeInTheDocument();
     expect(screen.getByText(/Correction: Wrong headcount/)).toBeInTheDocument();
+  });
+
+  it('#2998 names the fitness gap from the workers present, the same set the lock dialog names', async () => {
+    h.attendance = [{ worker_id: 'w1', status: 'present' }]; // Budi on site; Sari rostered but absent
+    const user = userEvent.setup();
+    view();
+    expect(screen.getByTestId('safety-missing')).toHaveTextContent('Fitness check');
+    await user.click(screen.getByTestId('safety-submit'));
+    expect(await screen.findByTestId('safety-lock-unchecked')).toHaveTextContent('Not yet checked: Budi');
+    expect(screen.getByTestId('safety-lock-unchecked')).not.toHaveTextContent('Sari');
+  });
+
+  it('#2998 an Engineer who cannot read attendance (zero rows) still sees the fitness gap, header and dialog naming the same set', async () => {
+    h.role = 'Engineer'; h.attendance = []; // row rules return nothing, no error
+    const user = userEvent.setup();
+    view();
+    expect(screen.getByTestId('safety-missing')).toHaveTextContent('Fitness check');
+    await user.click(screen.getByTestId('safety-submit'));
+    expect(await screen.findByTestId('safety-lock-unchecked')).toHaveTextContent('Not yet checked: Budi, Sari');
+  });
+
+  it('#2998 the server says no fitness check is missing: neither header nor dialog names one', async () => {
+    h.serverMissing = [];
+    const user = userEvent.setup();
+    view();
+    expect(screen.getByTestId('safety-missing')).not.toHaveTextContent('Fitness check');
+    await user.click(screen.getByTestId('safety-submit'));
+    await screen.findByRole('dialog');
+    expect(screen.queryByTestId('safety-lock-unchecked')).not.toBeInTheDocument();
   });
 
   const confirmLock = async (user: ReturnType<typeof userEvent.setup>) => {

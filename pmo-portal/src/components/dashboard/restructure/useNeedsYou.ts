@@ -377,7 +377,7 @@ export function useNeedsYou(role: Role | null): NeedsYouResult {
     enabled: Boolean(orgId && companyRole),
   });
   const salesInvoiceQuery = useOverdueInvoiceFacts(Boolean(orgId && companyRole));
-  const procurementsQuery = useProcurements({ lean: true, enabled: Boolean(orgId && (companyRole || role === 'Project Manager')) });
+  const procurementsQuery = useProcurements({ lean: true, enabled: Boolean(orgId && companyRole) });
   const workOrdersQuery = useUnbilledWorkOrders(Boolean(orgId && companyRole));
   const budgetReviewQuery = useQuery({
     queryKey: ['finance-budget-review', orgId],

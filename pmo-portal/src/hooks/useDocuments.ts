@@ -25,6 +25,22 @@ export function useDocuments(projectId: string) {
   });
 }
 
+/**
+ * One work order's slice of its project's register: the documents filed on the order plus the named linked ones
+ * (acceptance and claim documents). The key extends the project register's key, so every existing
+ * `['project-documents', orgId, projectId]` invalidation refreshes it too.
+ */
+export function useWorkOrderDocuments(projectId: string, workOrderId: string | undefined, linkedIds: string[], enabled = true) {
+  const { currentUser } = useAuth();
+  const orgId = currentUser?.org_id;
+  const linked = [...new Set(linkedIds)].sort();
+  return useQuery<ProjectDocumentRow[]>({
+    queryKey: ['project-documents', orgId, projectId, 'work-order', workOrderId, linked],
+    queryFn: () => repositories.document.listForWorkOrder(projectId, workOrderId as string, linked),
+    enabled: Boolean(orgId && projectId && workOrderId) && enabled,
+  });
+}
+
 export interface UpdateDocumentArgs {
   id: string;
   input: ProjectDocumentInput;

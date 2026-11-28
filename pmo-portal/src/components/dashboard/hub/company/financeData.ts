@@ -11,7 +11,7 @@ import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
  * figure. `null` = unknown (never 0).
  */
 export function useSupplierUnpaid(enabled: boolean): (row: ProcurementWithRefs) => number | null {
-  const finance = useFinancePosition(enabled, { withRoutes: true });
+  const finance = useFinancePosition(enabled);
   const payables = usePayablesPosition(finance.position, enabled);
   const byId = React.useMemo(() => new Map(payables.payables.map((p) => [p.procurement.id, p.amount])), [payables.payables]);
   return React.useCallback((row: ProcurementWithRefs) => {

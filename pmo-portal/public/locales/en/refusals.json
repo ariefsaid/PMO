@@ -415,6 +415,7 @@
   "ORDER_NEEDS_SUPPLIER_detail": "An order needs its supplier. Choose it, then record the order.",
   "WO_AREA": "That check-in area is not valid",
   "WO_AREA_detail": "Give a latitude from -90 to 90, a longitude from -180 to 180 and a radius above 0 up to 50,000 metres, or leave all three empty.",
+  "WOR_REASON": "Give a reason of 3 to 500 characters.",
   "MR_NO_MANAGER": "This person has no direct manager, so nobody can decide a release. Set their direct manager first, then open the release.",
   "ATT_FOLLOW_LOCKED": "These hours are already submitted or approved. Correct them through the timesheet correction path.",
   "ATT_FOLLOW_NONE": "No follow is recorded for this person that day. Reload to see the current roster.",

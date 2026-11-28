@@ -11,9 +11,9 @@ import { usePermission } from '@/src/auth/usePermission';
 import { useFeature } from '@/src/auth/useFeature';
 import { useProject } from '@/src/hooks/useProjects';
 import { useBoqItems } from '@/src/hooks/useProgressBilling';
-import { useWorkOrderAcceptanceMutations, useWorkOrderAcceptances } from '@/src/hooks/useWorkOrderAcceptances';
+import { useWorkOrderAcceptanceMutations, useWorkOrderAcceptancesFor } from '@/src/hooks/useWorkOrderAcceptances';
 import { useWorkOrderBilledMonths, useWorkOrderBilling } from '@/src/hooks/useWorkOrderBilling';
-import { useDocuments } from '@/src/hooks/useDocuments';
+import { useWorkOrderDocuments } from '@/src/hooks/useDocuments';
 import { useCostDisciplines, useWorkOrderCostLines, useWorkOrderCostMoney, useWorkOrderCostLinks, useWorkOrderTimesheetLabels } from '@/src/hooks/useWorkOrderCosts';
 import { useProjectPlanVsActual } from '@/src/hooks/useWorkOrderPlanVsActual';
 import { useWorkOrder, useWorkOrderAllocations, useWorkOrderClaimDocuments, useWorkOrderIssues, useWorkOrderOpenTasks } from '@/src/hooks/useWorkOrderRecord';
@@ -107,7 +107,7 @@ const WorkOrderDetail: React.FC = () => {
   const allocations = useWorkOrderAllocations(id);
   const claimDocs = useWorkOrderClaimDocuments(id);
   const boq = useBoqItems(projectId);
-  const bastList = useWorkOrderAcceptances(projectId);
+  const bastList = useWorkOrderAcceptancesFor(projectId, id);
   const bastMutations = useWorkOrderAcceptanceMutations(projectId);
   const { currentUser } = useAuth();
   const { toast } = useToast();
@@ -115,7 +115,6 @@ const WorkOrderDetail: React.FC = () => {
   const canBilling = may('view', 'salesInvoice');
   const billing = useWorkOrderBilling(projectId, canBilling && Boolean(wo.data));
   const billedMonths = useWorkOrderBilledMonths(id, canBilling);
-  const docs = useDocuments(projectId);
   const costLines = useWorkOrderCostLines(id ?? null);
   const flatLines = useMemo(() => Object.values(costLines.data ?? {}).flat(), [costLines.data]);
   const labels = useWorkOrderTimesheetLabels(id ?? null, flatLines);
@@ -155,6 +154,13 @@ const WorkOrderDetail: React.FC = () => {
   const goBack = () => navigate(projectId ? `/projects/${projectId}/work-orders` : '/work-orders');
 
   const acceptances = useMemo(() => (bastList.data ?? []).filter((a) => a.work_order_id === id), [bastList.data, id]);
+  // The register slice waits for the two reads that name its linked documents (settled, success or error), then reads only
+  // this order's rows plus those documents — never the project's whole register.
+  const linkedDocIds = useMemo(
+    () => [...acceptances.map((a) => a.document_id).filter((d): d is string => Boolean(d)), ...(claimDocs.data ?? [])],
+    [acceptances, claimDocs.data],
+  );
+  const docs = useWorkOrderDocuments(projectId, id, linkedDocIds, !bastList.isPending && !claimDocs.isPending);
   const progress = useMemo(
     () => (allocations.data && boq.data ? deriveScopeProgress(allocations.data, boq.data, acceptances) : null),
     [allocations.data, boq.data, acceptances],

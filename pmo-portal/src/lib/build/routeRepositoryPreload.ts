@@ -23,7 +23,7 @@ export class RouteRepositoryGraph {
   private readonly index: string;
   private readonly files = new Map<string, { imports: { file: string; names?: string[] }[]; domains: string[] }>();
   private readonly trees = new Map<string, ts.SourceFile>();
-  private domains: Map<string, string> | undefined;
+  private domains: { lazy: Map<string, string>; eager: Set<string> } | undefined;
 
   constructor(readonly root: string) {
     this.index = path.join(root, 'src/lib/repositories/index.ts');
@@ -50,23 +50,38 @@ export class RouteRepositoryGraph {
     return source;
   }
 
-  private domainModules(): Map<string, string> {
+  private domainModules(): { lazy: Map<string, string>; eager: Set<string> } {
     if (this.domains) return this.domains;
-    const result = new Map<string, string>();
-    visit(this.source(this.index), (node) => {
+    const lazy = new Map<string, string>();
+    const eager = new Set<string>();
+    const source = this.source(this.index);
+    const staticImports = new Set<string>();
+    for (const statement of source.statements) {
+      if (ts.isImportDeclaration(statement) && runtimeImport(statement) && statement.importClause?.namedBindings && ts.isNamedImports(statement.importClause.namedBindings)) {
+        for (const element of statement.importClause.namedBindings.elements) {
+          if (!element.isTypeOnly) staticImports.add(element.name.text);
+        }
+      }
+    }
+    visit(source, (node) => {
       if (!ts.isVariableDeclaration(node) || node.name.getText() !== 'repositories' || !node.initializer || !ts.isObjectLiteralExpression(node.initializer)) return;
       for (const property of node.initializer.properties) {
         if (!ts.isPropertyAssignment(property)) continue;
+        const domainName = property.name.getText().replaceAll(/['"]/g, '');
+        if (ts.isIdentifier(property.initializer) && staticImports.has(property.initializer.text)) {
+          eager.add(domainName);
+          continue;
+        }
         visit(property.initializer, (child) => {
           if (ts.isCallExpression(child) && child.expression.kind === ts.SyntaxKind.ImportKeyword && child.arguments[0] && ts.isStringLiteral(child.arguments[0])) {
             const file = this.resolve(child.arguments[0].text, this.index);
-            if (file) result.set(property.name.getText().replaceAll(/['"]/g, ''), '/' + path.relative(this.root, file).split(path.sep).join('/'));
+            if (file) lazy.set(domainName, '/' + path.relative(this.root, file).split(path.sep).join('/'));
           }
         });
       }
     });
-    this.domains = result;
-    return result;
+    this.domains = { lazy, eager };
+    return this.domains;
   }
 
   private read(file: string, wanted?: string[]): { imports: { file: string; names?: string[] }[]; domains: string[] } {
@@ -123,8 +138,10 @@ export class RouteRepositoryGraph {
       seen.add(key);
       const source = this.read(current.file, current.names);
       pending.push(...source.imports);
+      const { lazy, eager } = this.domainModules();
       for (const domain of source.domains) {
-        const module = this.domainModules().get(domain);
+        if (eager.has(domain)) continue;
+        const module = lazy.get(domain);
         if (!module) throw new Error('No implementation module for repository ' + domain);
         modules.add(module);
       }

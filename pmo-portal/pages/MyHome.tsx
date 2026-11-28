@@ -1,6 +1,6 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { ListState } from '@/src/components/ui';
+import { ReadState } from '@/src/components/ui';
 import { useAuth } from '@/src/auth/useAuth';
 import { useMyDeliveries, useMyHome, useMyTaskStatus } from '@/src/hooks/useMyHome';
 import { AbsentTodaySection, ClockInSection, DeliveriesSection, MyIssues, MyNotices, MyTasks, MyWorkOrders } from '@/src/components/my';
@@ -22,21 +22,29 @@ const MyHome: React.FC = () => {
   return (
     <main className="mx-auto w-full max-w-xl space-y-4 p-4" aria-label={t('myHome:title', 'My work')}>
       <h1 className="text-page font-semibold tracking-[-0.01em]">{t('myHome:title', 'My work')}</h1>
-      {home.isPending ? <ListState variant="loading" rows={4} />
-        : home.isError ? <ListState variant="error" title={t('myHome:error', "Couldn't load your work")} onRetry={() => void home.refetch()} />
-        : (
+      <ReadState query={home} loading={{ rows: 4 }} errorTitle={t('myHome:error', "Couldn't load your work")}>
+        {(data) => (
           <>
-            <ClockInSection today={home.data.today} workOrders={home.data.work_orders} deciderRole={home.data.decider_role} />
+            <ClockInSection today={data.today} workOrders={data.work_orders} deciderRole={data.decider_role} />
             <MyNotices />
-            <MyTasks tasks={home.data.tasks} busyId={status.isPending ? (status.variables?.id ?? null) : null}
+            <MyTasks tasks={data.tasks} busyId={status.isPending ? (status.variables?.id ?? null) : null}
               onSetStatus={(id, s) => status.mutate({ id, status: s })} />
-            {home.data.work_orders.length === 0 && <MyWorkOrders workOrders={home.data.work_orders} />}
-            <AbsentTodaySection today={home.data.today} workOrders={home.data.work_orders} />
-            {isForeman && <CrewRoster today={home.data.today} workOrders={home.data.work_orders} />}
-            <DeliveriesSection deliveries={deliveries.data ?? []} />
-            <MyIssues issues={home.data.issues} />
+            {data.work_orders.length === 0 && <MyWorkOrders workOrders={data.work_orders} />}
+            <AbsentTodaySection today={data.today} workOrders={data.work_orders} />
+            {isForeman && <CrewRoster today={data.today} workOrders={data.work_orders} />}
+            <ReadState
+              query={deliveries}
+              renderLoading={() => null}
+              quiet
+              errorTitle={t('myHome:deliveries.error', "Couldn't load deliveries")}
+              empty={null}
+            >
+              {(rows) => <DeliveriesSection deliveries={rows} />}
+            </ReadState>
+            <MyIssues issues={data.issues} />
           </>
         )}
+      </ReadState>
     </main>
   );
 };

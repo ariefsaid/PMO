@@ -7,7 +7,7 @@
 -- version pinned exactly one per project, which was the 500-project list defect: 9.9 s of SQL at 500 rows).
 begin;
 create extension if not exists pgtap;
-select plan(21);
+select plan(22);
 
 create or replace function public.t12_old_money_collection(p_project_ids uuid[])
 returns table(project_id uuid, actuals jsonb, ledger_basis text, active_budget_amount text, active_budget_currency text, has_active_budget boolean)
@@ -192,7 +192,7 @@ select is((select (actuals->>'complete')::boolean from public.get_projects_money
   'T12 a Project Manager sees the same complete Actual as an Admin');
 reset role;
 
--- Single read: one org-wide actuals pass for the whole collection, no per-project call at any id count.
+-- Single read: one actuals pass for the requested projects (2797), no per-project call at any id count.
 -- Each probe runs in a fresh function-stat baseline (stats are cumulative inside the transaction).
 create temp table t12_calls (label text, fn text, calls bigint);
 grant all on t12_calls to authenticated;
@@ -202,14 +202,16 @@ create temp table t12_before as select funcname, calls from pg_stat_xact_user_fu
 select count(*) from public.get_projects_money_collection(array['04930000-0000-0000-0000-0000000000d2'::uuid]);
 insert into t12_calls select 'new', n.funcname, n.calls - coalesce(b.calls,0)
   from pg_stat_xact_user_functions n left join t12_before b using (funcname)
-  where n.funcname in ('get_project_finances','project_mapped_actuals','project_mapped_actuals_all');
+  where n.funcname in ('get_project_finances','project_mapped_actuals','project_mapped_actuals_all','project_mapped_actuals_for');
 reset role;
 select is(coalesce((select calls from t12_calls where label='new' and fn='get_project_finances'),0),0::bigint,
   'T12 #2480: the collection makes no per-project finances call');
 select is(coalesce((select calls from t12_calls where label='new' and fn='project_mapped_actuals'),0),0::bigint,
   'T12 #2480: the collection makes no per-project mapped-actuals call');
-select is((select calls from t12_calls where label='new' and fn='project_mapped_actuals_all'),1::bigint,
-  'T12 #2480: mapped actuals are read once for the whole collection');
+select is((select calls from t12_calls where label='new' and fn='project_mapped_actuals_for'),1::bigint,
+  'T12 #2480: mapped actuals are read once for the whole collection, for the requested projects only (2797)');
+select is(coalesce((select calls from t12_calls where label='new' and fn='project_mapped_actuals_all'),0),0::bigint,
+  'T12 2797: the collection no longer reads mapped actuals for the whole organisation');
 
 -- PMO-owned org: same equivalence with the committed-procurement basis.
 update public.external_org_bindings set status='disconnected' where org_id='04930000-0000-0000-0000-000000000001';

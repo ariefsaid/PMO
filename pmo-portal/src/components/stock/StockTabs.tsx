@@ -3,7 +3,6 @@ import { NavLink, useLocation } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { usePermission } from '@/src/auth/usePermission';
 import { cn } from '@/src/components/ui';
-import { QueryClientContext } from '@tanstack/react-query';
 import { AuthContext } from '@/src/auth/AuthContext';
 import { useIsTwoStep } from '@/src/hooks/useStockTransfers';
 
@@ -31,8 +30,7 @@ export const StockTabs: React.FC = () => {
   const may = usePermission();
   const { pathname } = useLocation();
   const auth = React.useContext(AuthContext);
-  const queryClient = React.useContext(QueryClientContext);
-  const hasProviders = Boolean(auth) && Boolean(queryClient); // the Transfers tab reads the organisation's setting
+  const hasProviders = Boolean(auth); // the Transfers tab reads the organisation's setting
   const tabs = [
     { to: '/stock', label: t('tabs.onHand'), end: true },
     { to: '/stock/documents', label: t('tabs.documents'), end: false },

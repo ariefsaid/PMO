@@ -1,4 +1,5 @@
 import { supabase } from '@/src/lib/supabase/client';
+import { nullableArg } from './nullableArg';
 import { fetchAllPages } from '@/src/lib/pagedRead';
 import { AppError } from '@/src/lib/appError';
 
@@ -23,53 +24,46 @@ export interface CatalogueItemInput {
   stages: { stage: string; weightPct: number }[];
 }
 
-type Err = { message: string; code?: string } | null;
-interface Loose {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the PostgREST builder chain; generated types predate 0955
-  from(table: string): { select(cols: string): any };
-  rpc(fn: string, args: Record<string, unknown>): PromiseLike<{ data: unknown; error: Err }>;
-}
-const db = supabase as unknown as Loose;
 const fail = (error: { message: string; code?: string }): never => { throw new AppError(error.message, error.code); };
 
 export async function listVariants(projectId: string): Promise<CatalogueVariant[]> {
   return fetchAllPages<CatalogueVariant>((from, to) =>
-    db.from('rate_catalogue_variants').select('id, project_id, name, is_default').eq('project_id', projectId).order('name').order('id').range(from, to));
+    supabase.from('rate_catalogue_variants').select('id, project_id, name, is_default').eq('project_id', projectId).order('name').order('id').range(from, to));
 }
 
 export async function listItems(projectId: string): Promise<CatalogueItem[]> {
   return fetchAllPages<CatalogueItem>((from, to) =>
-    db.from('rate_catalogue_items').select('id, project_id, category, class, item_code, description, unit, work_method, test_type')
+    supabase.from('rate_catalogue_items').select('id, project_id, category, class, item_code, description, unit, work_method, test_type')
       .eq('project_id', projectId).order('category').order('class').order('item_code').order('id').range(from, to));
 }
 
 /** Every rate of the contract's items, oldest first: the whole history, so a screen can show "as of" any date. */
 export async function listRates(projectId: string): Promise<CatalogueRate[]> {
   const rows = await fetchAllPages<CatalogueRate & { rate_catalogue_items: { project_id: string } }>((from, to) =>
-    db.from('rate_catalogue_rates').select('item_id, variant_id, rate, effective_from, rate_catalogue_items!inner(project_id)')
+    supabase.from('rate_catalogue_rates').select('item_id, variant_id, rate, effective_from, rate_catalogue_items!inner(project_id)')
       .eq('rate_catalogue_items.project_id', projectId).order('effective_from').order('id').range(from, to));
   return rows.map((r) => ({ item_id: r.item_id, variant_id: r.variant_id, rate: Number(r.rate), effective_from: r.effective_from }));
 }
 
 export async function addVariants(projectId: string, names: string[]): Promise<number> {
-  const { data, error } = await db.rpc('rate_catalogue_add_variants', { p_project: projectId, p_names: names });
+  const { data, error } = await supabase.rpc('rate_catalogue_add_variants', { p_project: projectId, p_names: names });
   if (error) fail(error);
   return Number(data);
 }
 
 export async function setDefaultVariant(projectId: string, variantId: string | null): Promise<void> {
-  const { error } = await db.rpc('rate_catalogue_set_default_variant', { p_project: projectId, p_variant: variantId });
+  const { error } = await supabase.rpc('rate_catalogue_set_default_variant', { p_project: projectId, p_variant: nullableArg(variantId) });
   if (error) fail(error);
 }
 
 export async function savePricedLine(projectId: string, lineId: string | null, input: { itemCode: string; description: string; unit: string; quantity: number; earningBasis: string; lineNo: number | null }, itemId: string, variantId: string, asOf: string): Promise<string> {
-  const { data, error } = await db.rpc('save_boq_line_from_catalogue', { p_project: projectId, p_line: lineId, p_fields: { item_code: input.itemCode, description: input.description, unit: input.unit, quantity: input.quantity, earning_basis: input.earningBasis, line_no: input.lineNo }, p_item: itemId, p_variant: variantId, p_as_of: asOf });
+  const { data, error } = await supabase.rpc('save_boq_line_from_catalogue', { p_project: projectId, p_line: nullableArg(lineId), p_fields: { item_code: input.itemCode, description: input.description, unit: input.unit, quantity: input.quantity, earning_basis: input.earningBasis, line_no: input.lineNo }, p_item: itemId, p_variant: variantId, p_as_of: asOf });
   if (error) fail(error);
   return String(data);
 }
 
 export async function upsertItem(projectId: string, input: CatalogueItemInput): Promise<{ itemId: string; created: boolean; ratesAdded: number }> {
-  const { data, error } = await db.rpc('rate_catalogue_upsert_item', {
+  const { data, error } = await supabase.rpc('rate_catalogue_upsert_item', {
     p_project: projectId,
     p_item: {
       category: input.category, class: input.class, item_code: input.itemCode, description: input.description, unit: input.unit,
@@ -84,7 +78,7 @@ export async function upsertItem(projectId: string, input: CatalogueItemInput): 
 
 /** Price one contract line from the catalogue at a location variant; returns the rate the line now carries. */
 export async function priceBoqLine(boqItemId: string, catalogueItemId: string, variantId: string, asOf: string): Promise<number> {
-  const { data, error } = await db.rpc('price_boq_line_from_catalogue', {
+  const { data, error } = await supabase.rpc('price_boq_line_from_catalogue', {
     p_boq_item: boqItemId, p_catalogue_item: catalogueItemId, p_variant: variantId, p_as_of: asOf,
   });
   if (error) fail(error);

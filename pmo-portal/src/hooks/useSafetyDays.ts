@@ -20,7 +20,6 @@ export const safetyKeys = {
   summary: (orgId: string | undefined, project: string | null, month: string | null) => [...root(orgId), 'summary', project, month] as const,
   summaryDetail: (orgId: string | undefined, kind: string, project: string | null, month: string | null) => [...root(orgId), 'summary-detail', kind, project, month] as const,
 };
-const useOrg = useOrgId;
 const repo = () => repositories.safetyDay;
 
 // The menu sits on shared chrome: outside a query provider or a session the safety switch is simply off (no throw, no request).
@@ -51,7 +50,7 @@ export function useSafetySummaryDetail(kind: SafetyDetailKind | null, project: s
 }
 
 export function useSafetyMutations() {
-  const orgId = useOrg();
+  const orgId = useOrgId();
   const qc = useQueryClient();
   const onSuccess = () => qc.invalidateQueries({ queryKey: safetyKeys.root(orgId) });
   return {
