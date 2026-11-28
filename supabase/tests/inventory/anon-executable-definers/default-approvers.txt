@@ -1,0 +1,1 @@
+purchase_default_approver_ids  # called by the purchase approval route (spend_approval_route_from_figures) as the signed-in decider; returns the project deputy/manager or Procurement Managers, empty for a field account; default_purchase_routes pgTAP

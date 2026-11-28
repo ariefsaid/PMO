@@ -1,0 +1,5 @@
+{
+  "definer_functions": [
+    "purchase_default_approver_ids(uuid,uuid,uuid,uuid)"
+  ]
+}
