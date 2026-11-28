@@ -177,6 +177,8 @@ to `main`; a red run there is fixed on `dev`. `scripts/ci-e2e.sh` on a dev branc
 
 **Hotfixes to main (owner, 2026-11-04):** a hotfix with no frontend change (no `pmo-portal/**` app code) merges on `verify` + affected `unit` + `pgtap` (as a dev PR); admin-merge without waiting for `integration`. Frontend hotfixes keep the full run. The next release runs the full suite.
 
+**Read the rules before every push CI will test (owner, 2026-11-28, after seven rounds on one PR):** run `scripts/ci-round.sh ack` (prints `docs/ci-push-rules.md`, stamps the commit); `.githooks/pre-push` refuses the push without it, and refuses a fourth CI round on a branch without the owner's quoted OK (`CI_ROUND_OK`).
+
 **Don't waste CI minutes (owner, 2026-11-02; v0.30.0 spent 3 release runs on one test):** a red release test is fixed only
 after its root cause is stated from the run's trace and video (`gh run download <run>`). A workaround that doesn't explain
 the failure is rejected, and a local green is not proof. Same test red twice: stop and re-diagnose; don't patch again.

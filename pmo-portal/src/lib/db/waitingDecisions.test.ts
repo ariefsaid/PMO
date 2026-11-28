@@ -65,6 +65,16 @@ describe('listWaitingDecisions pagination (#1122)', () => {
     });
   });
 
+  it('runs the database function once when the list fits in one page', async () => {
+    h.pages.push({ data: [rawRow('record-0001'), rawRow('record-0002')], error: null });
+
+    const rows = await listWaitingDecisions();
+
+    expect(rows.map((row) => row.recordId)).toEqual(['record-0001', 'record-0002']);
+    expect(h.rpc).toHaveBeenCalledTimes(1);
+    expect(h.ranges).toEqual([[0, PAGE_SCAN_SIZE - 1]]);
+  });
+
   it('requests an empty page after an exact-full-page result before treating the list as complete', async () => {
     const first = pageRows();
     h.pages.push({ data: first, error: null }, { data: [], error: null });

@@ -200,6 +200,10 @@ Heavy local processes (the Supabase stack, vitest, browsers) are the Mac's real 
 - **Start:** `claude --cloud "<brief>" [--environment <id>]` from the repo, on a pushed branch. One
   command per session; they show in the owner's session list. Never create a routine for one-off
   work (`.claude/hooks/cloud-launch-gate.sh` denies it): routines are for work that recurs.
+- **`--cloud` needs an interactive terminal.** From an agent's shell (no terminal) it exits with an error and
+  starts nothing; `script(1)` on macOS fails there too. Give it a pseudo-terminal, for example Python's
+  `pty.spawn`, send its output to a log, and read the `session_…` id from the log. No id in the log within a
+  minute means it did not start: run it once in the foreground and read the error before guessing at limits.
 - **Message a running session:** `claude -p "<message>" --cloud session_<id> < /dev/null`. The
   Director sends mid-run changes itself; never ask the owner to paste.
 - **Watch:** done refs (`git ls-remote origin 'refs/heads/cloud/done/*'`) and pushed branches.
