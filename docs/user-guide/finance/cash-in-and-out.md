@@ -13,8 +13,8 @@ on real invoices, not a forecast — so every figure can be opened to the docume
 
 ## Where to find it
 
-- Money coming in: **Finance** → **Receivables** — the **Due in next 30 days** figure and the **Due
-  date** column of the invoice list.
+- Money coming in: **Finance** → **Receivables** — the **Due in next 30 days** figure and the **Due Date**
+  column of the invoice list.
 - Money going out: **Finance** → **Payables** — **To pay suppliers**, **Oldest invoice age** and the
   **Invoice age** of each supplier invoice.
 
@@ -25,10 +25,11 @@ on real invoices, not a forecast — so every figure can be opened to the docume
 1. Open **Receivables**.
 2. Read **Due in next 30 days**: the total of open invoices with a due date from today to 30 days
    from today, and *next due ⟨date⟩* for the nearest one.
-3. Open the **Invoices** list and sort your attention by the **Due date** column. **Overdue only**
-   shows what is already late, oldest first.
+3. Open the **Invoices** list and read the **Due Date** column. **Overdue only** shows what is
+   already late, oldest first.
 4. Read **Owed to you** for the whole outstanding balance, and the **Client balances by age** strip
-   to see how much of it is already late.
+   (**Not yet due**, **No due date**, **1–30 days**, **31–60 days**, **61–90 days**, **Over 90
+   days**) to see how much of it is already late.
 5. Click a row to open the invoice and check its customer, amount and due date before you rely on it.
 
 ### What is going out
@@ -40,14 +41,15 @@ on real invoices, not a forecast — so every figure can be opened to the docume
    The age counts days since the supplier's invoice date.
 4. Read the table's **Amount** column and its per-currency **Total**, and open a row to see the
    purchase behind it.
-5. Where your organisation uses payment channels, the **Payment channel** column tells you which
-   account each payment will leave from.
+5. **New vendor bill** (for Admin and Finance) starts a supplier invoice for a purchase. **Overdue only** keeps the supplier invoices more
+   than 90 days old. Where your organisation uses payment channels, a **Payment channel** column
+   is added.
 
 ## What the result looks like
 
-- **Receivables** gives you money due to arrive, with the dates the invoices carry. **Retention
-  held, not due until released** is money the client holds back later, so it is not in the coming
-  weeks.
+- **Receivables** gives you money due to arrive, with the dates the invoices carry. The line
+  **Retention held, not due until released** is money the client holds back, so it is not in the
+  coming weeks.
 - **Payables** gives you money to send, ordered by how long it has waited rather than by a due date:
   PMO counts each supplier invoice's age from its invoice date.
 - Amounts in different currencies are shown separately, never added into one number.
@@ -55,16 +57,15 @@ on real invoices, not a forecast — so every figure can be opened to the docume
 ## Common errors and what to do
 
 - **A figure says some balances are unknown** — the accounting system has not reported those
-  balances. Open the invoices to check them, or ask an Admin to refresh the connection. Unknown is
-  not zero.
+  balances yet, so they are counted but not added. Unknown is not zero.
 - **"Overdue results are unavailable"** — the business day could not be read. Use **Retry business
   day**.
 - **An invoice you expect is not in the 30-day figure** — it has no due date yet, or it is a draft.
   **Record delivery** on the invoice sets the due date.
-- **A supplier invoice shows no amount** — the bill has no amount recorded yet. Complete it on the
-  purchase.
+- **A supplier invoice has no amount** — the page says how many invoices have no amount and are left
+  out of the total.
 - **The totals look low** — partly paid invoices count only what is left, and cancelled invoices are
-  left out of both figures.
+  left out of **Receivables**.
 
 ---
 
@@ -97,11 +98,12 @@ dokumen di baliknya.
 
 1. Buka **Piutang**.
 2. Baca **Jatuh tempo dalam 30 hari**: total invoice terbuka dengan tanggal jatuh tempo hari ini
-   sampai 30 hari ke depan, serta *next due ⟨date⟩* untuk yang terdekat.
-3. Buka daftar **Invoice** dan arahkan perhatian pada kolom **Tanggal jatuh tempo**. **Overdue only**
+   sampai 30 hari ke depan, serta *jatuh tempo berikutnya ⟨tanggal⟩* untuk yang terdekat.
+3. Buka daftar **Invoice** dan baca kolom **Tanggal jatuh tempo**. **Hanya yang terlambat**
    menampilkan yang sudah terlambat, dari yang tertua.
-4. Baca **Piutang kepada Anda** untuk seluruh saldo terutang, dan strip **Client balances by age**
-   untuk melihat berapa banyak yang sudah terlambat.
+4. Baca **Piutang kepada Anda** untuk seluruh saldo terutang, dan strip **Saldo klien menurut umur**
+   (**Belum jatuh tempo**, **Tanpa tanggal jatuh tempo**, **1–30 hari**, **31–60 hari**, **61–90
+   hari**, **Lebih dari 90 hari**) untuk melihat berapa banyak yang sudah terlambat.
 5. Klik barisnya untuk membuka invoice dan memeriksa pelanggan, jumlah, serta tanggal jatuh
    temponya sebelum Anda memakainya.
 
@@ -114,13 +116,14 @@ dokumen di baliknya.
    Umurnya dihitung sejak tanggal invoice supplier.
 4. Baca kolom **Jumlah** pada tabel beserta **Total** per mata uangnya, dan buka barisnya untuk
    melihat pengadaan di baliknya.
-5. Bila organisasi Anda memakai kanal pembayaran, kolom **Kanal pembayaran** menunjukkan dari akun
-   mana tiap pembayaran keluar.
+5. **Invoice supplier baru** (untuk Admin dan Keuangan) memulai invoice supplier untuk sebuah pembelian. **Hanya yang terlambat** menyaring invoice supplier
+   yang lebih dari 90 hari. Bila organisasi Anda memakai kanal pembayaran, kolom **Kanal pembayaran**
+   ditambahkan.
 
 ## Bagaimana hasilnya
 
 - **Piutang** memberi Anda uang yang akan masuk, dengan tanggal yang tercantum pada invoice-nya.
-  **Retensi ditahan, belum jatuh tempo sampai dilepas** adalah uang yang ditahan klien nanti,
+  Baris **Retensi ditahan, belum jatuh tempo sampai dilepas** adalah uang yang ditahan klien,
   sehingga tidak termasuk minggu-minggu terdekat.
 - **Utang** memberi Anda uang yang akan dikirim, diurutkan menurut berapa lama menunggu, bukan
   menurut tanggal jatuh tempo: PMO menghitung umur tiap invoice supplier sejak tanggal invoice-nya.
@@ -129,13 +132,12 @@ dokumen di baliknya.
 ## Kesalahan umum dan cara mengatasinya
 
 - **Sebuah angka menyebut sebagian saldo tidak diketahui** — sistem akuntansi belum melaporkan saldo
-  itu. Buka invoice-nya untuk memeriksanya, atau minta Admin memperbarui koneksinya. Tidak diketahui
-  bukan berarti nol.
-- **"Overdue results are unavailable"** — hari kerja organisasi tidak dapat dibaca. Gunakan
-  **Retry business day**.
+  itu, sehingga dihitung tetapi tidak dijumlahkan. Tidak diketahui bukan berarti nol.
+- **"Hasil jatuh tempo tidak tersedia"** — hari kerja organisasi tidak dapat dibaca. Gunakan
+  **Coba lagi hari kerja**.
 - **Invoice yang Anda harapkan tidak masuk angka 30 hari** — invoice belum punya tanggal jatuh tempo,
   atau masih draf. **Catat pengiriman** pada invoice menetapkan tanggal jatuh temponya.
-- **Invoice supplier tidak menampilkan nilai** — tagihannya belum bernilai. Lengkapi pada
-  pengadaannya.
+- **Sebuah invoice supplier tidak punya nilai** — halaman menyebut berapa invoice yang tidak punya
+  nilai dan tidak dimasukkan ke total.
 - **Totalnya terlihat rendah** — invoice yang dibayar sebagian hanya dihitung sisanya, dan invoice
-  yang dibatalkan tidak masuk kedua angka.
+  yang dibatalkan tidak masuk ke **Piutang**.

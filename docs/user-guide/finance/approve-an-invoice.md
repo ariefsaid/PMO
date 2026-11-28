@@ -11,8 +11,9 @@ approver's side of that step.
 - **Approve an invoice**: Admin, Finance — but never the person who wrote it.
 - **Read drafts and their approval state**: Admin, Executive, Finance.
 
-The app enforces this: a draft you wrote yourself does not offer you **Approve**. It is marked
-**Draft · needs a second approver** and waits for someone else.
+A draft you wrote yourself does not offer you **Approve**. It is marked
+**Draft · needs a second approver** and waits for someone else. On the invoice's page, next to the
+status, a line says who it is waiting for.
 
 ## Where to find it
 
@@ -23,10 +24,12 @@ The app enforces this: a draft you wrote yourself does not offer you **Approve**
 ## Steps
 
 1. Open the draft. Either click its row and choose **View invoice**, or open **Approvals** →
-   **Customer invoices** and choose the invoice there.
+   **Customer invoices**, open the invoice's details with the arrow and choose **Approve** at the
+   foot.
 2. Check the customer, the project, the lines, the tax and the total.
 3. Choose **Approve**. On the invoice's own page it is the main button at the top; from the list's
-   row menu the item reads **Approve** and opens the invoice for you.
+   row menu the item reads **Approve** and opens the invoice for you. In **Approvals** the same
+   button opens the confirm window.
 4. In the confirm window, check the sentence — *Approving issues the invoice: it gets its number,
    becomes Unpaid and can receive payments* — and choose **Approve invoice**.
 
@@ -36,8 +39,8 @@ one, or ask its author to correct it.
 ## What the result looks like
 
 - The invoice leaves the draft state: it gets its number and its status becomes **Unpaid**.
-- The person who wrote it is recorded as **Raised by**, and you are recorded as the approver, with
-  the date. The status timeline moves from **Draft** to **Submitted**.
+- The person who wrote it stays shown as **Raised by**. The status timeline moves from **Draft**
+  to **Submitted**, and a message **Invoice approved** appears.
 - The invoice can now receive a payment. See
   [Record a customer payment](record-a-customer-payment.md).
 - The draft disappears from **Waiting for your decision** and from **Approvals**.
@@ -46,16 +49,12 @@ one, or ask its author to correct it.
 
 - **You see no Approve action on a draft** — you wrote that invoice. Another Admin or Finance user
   must approve it.
-- **"No other Finance or Admin can approve this invoice right now."** — there is no second eligible
-  person in the organisation. Ask an Admin to add one, or to check who is active.
+- **"No other Finance or Admin can approve this invoice right now."** — shown beside the status:
+  there is no second eligible person in the organisation. Ask an Admin to add one.
 - **"This invoice has no recorded author, so it cannot be approved yet."** — the invoice does not
-  say who wrote it, so the check cannot be made. Ask an Admin to look at it.
-- **The invoice is already unpaid and still shows on your list** — refresh the page. If it stays
-  there, check that it is the same invoice: another approver may have approved a paired copy.
-- **Approving is refused** — read the sentence in the window. A refusal names what is missing; the
-  usual cause is that you are also recorded as one of the invoice's authors.
-- **The invoice was approved but the number is missing** — refresh. The number is given at the
-  moment of approval.
+  say who wrote it, so it cannot be approved. Ask an Admin to look at it.
+- **A message says "You raised this invoice. A different person must approve it"** — you are one of
+  the people who wrote the invoice. Ask another Admin or Finance user to approve it.
 
 ---
 
@@ -74,33 +73,35 @@ menyetujuinya. Halaman ini adalah sisi penyetuju dari langkah itu.
 - **Menyetujui invoice**: Admin, Keuangan — tetapi tidak pernah orang yang menulisnya.
 - **Membaca draf dan status persetujuannya**: Admin, Eksekutif, Keuangan.
 
-Aplikasi menjaganya: draf yang Anda tulis sendiri tidak menawarkan **Setujui**. Draf itu bertanda
-**Draf · perlu penyetuju kedua** dan menunggu orang lain.
+Draf yang Anda tulis sendiri tidak menawarkan **Setujui**. Draf itu bertanda
+**Draf · perlu penyetuju kedua** dan menunggu orang lain. Di halaman invoice, di samping status,
+sebuah baris menyebut siapa yang ditunggu.
 
 ## Di mana menemukannya
 
 - **Keuangan** → **Piutang** → tab **Invoice**.
 - Halaman utama **Keuangan** → **Menunggu keputusan Anda** memuat draf yang menunggu Anda.
-- **Persetujuan** → **Customer invoices**, yang memuat semua invoice pelanggan yang menunggu Anda.
+- **Persetujuan** → **Invoice pelanggan**, yang memuat semua invoice pelanggan yang menunggu Anda.
 
 ## Langkah-langkah
 
-1. Buka drafnya. Klik barisnya lalu pilih **View invoice**, atau buka **Persetujuan** →
-   **Customer invoices** dan pilih invoice di sana.
+1. Buka drafnya. Klik barisnya lalu pilih **Lihat invoice**, atau buka **Persetujuan** →
+   **Invoice pelanggan**, buka rincian invoice dengan panah, lalu pilih **Setujui** di bagian bawah.
 2. Periksa pelanggan, proyek, baris, pajak, dan totalnya.
 3. Pilih **Setujui**. Di halaman invoice sendiri, itu tombol utama di bagian atas; dari menu baris
-   daftar, pilihannya berbunyi **Setujui** dan membuka invoice untuk Anda.
-4. Di jendela konfirmasi, periksa kalimatnya — *Menyetujui menerbitkan invoice: invoice mendapat
-   nomornya, menjadi Belum dibayar, dan dapat menerima pembayaran* — lalu pilih **Approve invoice**.
+   daftar, pilihannya berbunyi **Setujui** dan membuka invoice untuk Anda. Di **Persetujuan**,
+   tombol yang sama membuka jendela konfirmasi.
+4. Di jendela konfirmasi, periksa kalimatnya — *Persetujuan menerbitkan invoice: invoice mendapat
+   nomor, menjadi Belum Dibayar, dan dapat menerima pembayaran* — lalu pilih **Setujui invoice**.
 
-Bila Anda tidak setuju dengan drafnya, jangan setujui. Batalkan dengan **Cancel** dan minta invoice
+Bila Anda tidak setuju dengan drafnya, jangan setujui. Batalkan dengan **Batal** dan minta invoice
 baru, atau minta penulisnya memperbaikinya.
 
 ## Bagaimana hasilnya
 
 - Invoice keluar dari keadaan draf: mendapat nomornya dan statusnya menjadi **Belum dibayar**.
-- Penulisnya tercatat sebagai **Raised by**, dan Anda tercatat sebagai penyetuju beserta tanggalnya.
-  Langkah status berpindah dari **Draft** ke **Submitted**.
+- Penulisnya tetap tampil sebagai **Dibuat oleh**. Linimasa status berpindah dari **Draf** ke
+  **Diajukan**, dan pesan **Invoice disetujui** muncul.
 - Invoice kini dapat menerima pembayaran. Lihat
   [Mencatat pembayaran pelanggan](record-a-customer-payment.md).
 - Drafnya hilang dari **Menunggu keputusan Anda** dan dari **Persetujuan**.
@@ -109,14 +110,10 @@ baru, atau minta penulisnya memperbaikinya.
 
 - **Tidak ada tombol Setujui pada sebuah draf** — Anda yang menulis invoice itu. Admin atau
   pengguna Keuangan lain yang harus menyetujuinya.
-- **"No other Finance or Admin can approve this invoice right now."** — tidak ada orang kedua yang
-  memenuhi syarat di organisasi. Minta Admin menambahkannya, atau memeriksa siapa yang aktif.
-- **"This invoice has no recorded author, so it cannot be approved yet."** — invoice tidak
-  menyebutkan siapa penulisnya, sehingga pemeriksaannya tidak dapat dilakukan. Minta Admin
-  memeriksanya.
-- **Invoice sudah belum dibayar tetapi masih ada di daftar Anda** — muat ulang halaman. Bila
-  tetap ada, pastikan itu invoice yang sama: penyetuju lain mungkin sudah menyetujui salinannya.
-- **Persetujuan ditolak** — baca kalimat di jendelanya. Penolakan menyebut apa yang kurang;
-  penyebab umumnya Anda juga tercatat sebagai salah satu penulis invoice.
-- **Invoice sudah disetujui tetapi nomornya belum ada** — muat ulang. Nomor diberikan pada saat
-  persetujuan.
+- **"Saat ini tidak ada Keuangan atau Admin lain yang dapat menyetujui invoice ini."** — tampil di
+  samping status: tidak ada orang kedua yang memenuhi syarat di organisasi. Minta Admin
+  menambahkannya.
+- **"Invoice ini tidak memiliki pembuat tercatat, sehingga belum dapat disetujui."** — invoice tidak
+  menyebutkan siapa penulisnya, sehingga tidak dapat disetujui. Minta Admin memeriksanya.
+- **Pesan "Anda membuat invoice ini. Orang lain harus menyetujuinya"** — Anda termasuk orang yang
+  menulis invoice itu. Minta Admin atau pengguna Keuangan lain menyetujuinya.

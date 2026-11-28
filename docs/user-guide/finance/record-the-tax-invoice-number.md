@@ -13,10 +13,9 @@ in the export, so anyone checking the tax paperwork finds them in one place.
 
 ## Where to find it
 
-- **Finance** → **Receivables** → the **Invoices** tab. Each row has an **e-Faktur** column, and the
-  row menu has **Record e-Faktur**.
+- **Finance** → **Receivables** → the **Invoices** list. The row menu has **Record e-Faktur**.
 - The invoice's own page shows the recorded number and date at the foot of its **Bill evidence**
-  panel.
+  section.
 
 ## Steps
 
@@ -32,7 +31,7 @@ says so — *leave both empty for a non-VAT document*.
 
 ## What the result looks like
 
-- The invoice's **e-Faktur** column shows the number, with its date.
+- The message **e-Faktur details saved** appears.
 - The invoice's own page shows **e-Faktur** with the number and the date under **Bill evidence**.
 - Both facts are carried in the list's **Export** download, under **e-Faktur number** and
   **e-Faktur date**.
@@ -44,9 +43,8 @@ says so — *leave both empty for a non-VAT document*.
 - **"Use up to 32 digits, dots, or dashes."** — the number has a character that does not belong.
   Copy it again from the tax document.
 - **"The e-Faktur date cannot be in the future."** — correct the date.
-- **"This invoice has been cancelled, so its e-Faktur can no longer be recorded."** — a cancelled
-  invoice keeps no tax document. If the work is still to be billed, raise a new invoice (see
-  [Cancel an invoice and bill again](cancel-an-invoice-and-bill-again.md)).
+- **"This invoice has been cancelled, so its e-Faktur can no longer be recorded."** — the invoice
+  was cancelled (see [Cancel an invoice and bill again](cancel-an-invoice-and-bill-again.md)).
 - **There is no Record e-Faktur in the row menu** — a draft has no issued tax document yet, so the
   action appears only after the invoice is approved. It is also absent on a project that is not
   subject to VAT, because such a sale has no VAT document to record.
@@ -71,43 +69,41 @@ ekspor, sehingga siapa pun yang memeriksa dokumen pajaknya menemukannya di satu 
 
 ## Di mana menemukannya
 
-- **Keuangan** → **Piutang** → tab **Invoice**. Tiap baris punya kolom **e-Faktur**, dan menu baris
-  memuat **Record e-Faktur**.
-- Halaman invoice sendiri menampilkan nomor dan tanggal yang tercatat di bagian bawah panel
-  **Bill evidence**.
+- **Keuangan** → **Piutang** → daftar **Invoice**. Menu baris memuat **Catat e-Faktur**.
+- Halaman invoice sendiri menampilkan nomor dan tanggal yang tercatat di bagian bawah bagian
+  **Bukti invoice**.
 
 ## Langkah-langkah
 
 1. Buka **Piutang** dan temukan invoice-nya.
-2. Buka menu baris (⋯ di ujung baris) dan pilih **Record e-Faktur**.
-3. Di **Record e-Faktur details**, masukkan **e-Faktur number** persis seperti pada dokumen pajak —
+2. Buka menu baris (⋯ di ujung baris) dan pilih **Catat e-Faktur**.
+3. Di **Catat detail e-Faktur**, masukkan **Nomor e-Faktur** persis seperti pada dokumen pajak —
    sampai 32 digit, titik, atau tanda hubung.
-4. Masukkan **e-Faktur date**. Tanggal tidak boleh melewati hari ini.
-5. Pilih **Save**.
+4. Masukkan **Tanggal e-Faktur**. Tanggal tidak boleh melewati hari ini.
+5. Pilih **Simpan**.
 
 Isi kedua keterangan bersamaan. Bila invoice memang tidak punya dokumen pajak, kosongkan keduanya:
-jendelanya menyebutkan hal itu — *leave both empty for a non-VAT document*.
+jendelanya menyebutkan hal itu — *biarkan keduanya kosong untuk dokumen non-PPN*.
 
 ## Bagaimana hasilnya
 
-- Kolom **e-Faktur** pada invoice menampilkan nomornya beserta tanggalnya.
+- Pesan **Detail e-Faktur disimpan** muncul.
 - Halaman invoice sendiri menampilkan **e-Faktur** dengan nomor dan tanggalnya di bawah
-  **Bill evidence**.
-- Kedua keterangan terbawa di unduhan **Ekspor** daftar, pada **e-Faktur number** dan
-  **e-Faktur date**.
+  **Bukti invoice**.
+- Kedua keterangan terbawa di unduhan **Ekspor** daftar, pada **Nomor e-Faktur** dan
+  **Tanggal e-Faktur**.
 
 ## Kesalahan umum dan cara mengatasinya
 
-- **"Enter the e-Faktur number as well, or clear the date."** / **"Enter the e-Faktur date as well,
-  or clear the number."** — keduanya dicatat bersamaan. Isi yang kurang, atau kosongkan keduanya.
-- **"Use up to 32 digits, dots, or dashes."** — nomornya memuat karakter yang tidak diperbolehkan.
+- **"Isi juga nomor e-Faktur, atau kosongkan tanggalnya."** / **"Isi juga tanggal e-Faktur, atau
+  kosongkan nomornya."** — keduanya dicatat bersamaan. Isi yang kurang, atau kosongkan keduanya.
+- **"Gunakan maksimal 32 angka, titik, atau tanda hubung."** — nomornya memuat karakter yang tidak diperbolehkan.
   Salin ulang dari dokumen pajak.
-- **"The e-Faktur date cannot be in the future."** — perbaiki tanggalnya.
-- **"This invoice has been cancelled, so its e-Faktur can no longer be recorded."** — invoice yang
-  dibatalkan tidak menyimpan dokumen pajak. Bila pekerjaannya masih harus ditagih, buat invoice
-  baru (lihat [Membatalkan invoice dan menagih ulang](cancel-an-invoice-and-bill-again.md)).
-- **Tidak ada Record e-Faktur di menu baris** — draf belum punya dokumen pajak terbit, jadi
+- **"Tanggal e-Faktur tidak boleh di masa depan."** — perbaiki tanggalnya.
+- **"Invoice ini sudah dibatalkan, sehingga e-Fakturnya tidak dapat dicatat lagi."** — invoice itu
+  sudah dibatalkan (lihat [Membatalkan invoice dan menagih ulang](cancel-an-invoice-and-bill-again.md)).
+- **Tidak ada Catat e-Faktur di menu baris** — draf belum punya dokumen pajak terbit, jadi
   tindakannya muncul setelah invoice disetujui. Tindakan ini juga tidak ada pada proyek yang tidak
   dikenai PPN, karena penjualan seperti itu tidak punya dokumen PPN untuk dicatat.
-- **"e-Faktur not saved"** — kalimat di bawahnya menyebut penyebabnya. Perbaiki nilainya lalu simpan
+- **"e-Faktur tidak disimpan"** — kalimat di bawahnya menyebut penyebabnya. Perbaiki nilainya lalu simpan
   lagi.

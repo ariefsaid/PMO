@@ -23,14 +23,14 @@ project to the accounting system, the profit and loss can also be read for that 
 
 1. Open **Statements**.
 2. Set **Period type** to **Month**, **Quarter** or **Fiscal year**, then choose the **Period** from
-   the list. The latest finished period is chosen for you.
+   the list.
 3. Choose the **Statement**: **Trial balance**, **Profit and loss** or **Balance sheet**.
-4. For **Profit and loss**, if your organisation maps projects, **Scope** lets you read the whole
-   **Company** or one project.
+4. For **Profit and loss**, **Scope** lets you read the whole **Company** or one project, where your
+   organisation has projects mapped to the accounting system.
 5. Read the statement. It shows the **Current period** and the **Previous period** side by side, with
    **As at** dates, **For the period**, and **Amounts in ⟨currency⟩**.
 6. Use **Collapse all** and **Expand all**, or a group's own control, to fold sections.
-7. If the figures look out of date, choose **Refresh now** and wait for the new figures to appear.
+7. If the figures look out of date, choose **Refresh now**. The page says "Refresh requested. New figures appear shortly."
 
 ## What the result looks like
 
@@ -44,18 +44,15 @@ project to the accounting system, the profit and loss can also be read for that 
 
 - **"No statements yet"** — the accounting system has not published figures. An Admin sets the
   connection up under **Administration** → **Integrations**, then **Refresh now**.
-- **"Statements come from the accounting system."** — nothing is connected yet. Use **Set up
-  accounting**, or read the **Management profit and loss** linked from the same card.
+- **"Statements come from the accounting system."** — nothing is connected yet. Admin can use **Set up accounting**; everyone with access can read the **Management profit and loss** on the same card, with **Open reports**.
 - **"You don't have access to financial statements"** — company statements are for Admin, Finance
   and Executive roles.
 - **"Could not request a refresh. Try again."** — try again in a moment.
-- **"A refresh was requested recently."** — a refresh is already queued; wait for it.
-- **"Refresh is not available yet."** — the figures have not been read once, so there is nothing to
-  refresh yet.
-- **"No periods available"** — the accounting system has no closed period of that type yet. Choose
-  another period type.
-- **"Selected project name unavailable"** — the chosen project could not be read. Use **Retry**, or
-  choose **Company**.
+- **"A refresh was requested recently."** — wait for the new figures.
+- **"Refresh is not available yet."** — try again later.
+- **"No periods available"** — no period of that type is available. Choose another **Period type**.
+- **"Selected project name unavailable"** — the chosen project's name could not be read. Use **Retry**,
+  or choose **Company**.
 
 ---
 
@@ -66,7 +63,7 @@ project to the accounting system, the profit and loss can also be read for that 
 ## Untuk apa ini
 
 **Laporan keuangan** menampilkan **Neraca saldo**, **Laba rugi**, dan **Neraca** perusahaan untuk
-satu bulan, kuartal, atau tahun fiskal, dengan periode sebelumnya di sampingnya. Bila organisasi Anda
+satu bulan, triwulan, atau tahun fiskal, dengan periode sebelumnya di sampingnya. Bila organisasi Anda
 memetakan proyek ke sistem akuntansi, laba rugi juga dapat dibaca untuk proyek itu saja.
 
 ## Siapa yang dapat melakukannya
@@ -74,7 +71,7 @@ memetakan proyek ke sistem akuntansi, laba rugi juga dapat dibaca untuk proyek i
 - **Membaca laporan keuangan**: Admin, Eksekutif, Keuangan.
 - Manajer Proyek dan Engineer tidak membaca laporan keuangan.
 - Laporan keuangan berasal dari sistem akuntansi. Bila belum ada yang terhubung, halamannya
-  menawarkan laba rugi manajemen dari **Laporan**.
+  menawarkan **Laba rugi manajemen** dari **Laporan**.
 
 ## Di mana menemukannya
 
@@ -85,38 +82,37 @@ memetakan proyek ke sistem akuntansi, laba rugi juga dapat dibaca untuk proyek i
 ## Langkah-langkah
 
 1. Buka **Laporan keuangan**.
-2. Isi **Period type** dengan **Month**, **Quarter**, atau **Fiscal year**, lalu pilih **Period** dari
-   daftarnya. Periode terbaru yang sudah selesai dipilih untuk Anda.
-3. Pilih **Statement**: **Trial balance**, **Profit and loss**, atau **Balance sheet**.
-4. Untuk **Profit and loss**, bila organisasi Anda memetakan proyek, **Scope** memungkinkan Anda
-   membaca seluruh **Company** atau satu proyek.
-5. Baca laporannya. Laporan menampilkan **Current period** dan **Previous period** berdampingan,
-   dengan tanggal **As at**, **For the period**, dan **Amounts in ⟨currency⟩**.
-6. Gunakan **Collapse all** dan **Expand all**, atau kontrol pada masing-masing kelompok, untuk
-   melipat bagiannya.
-7. Bila angkanya terlihat usang, pilih **Refresh now** dan tunggu angka barunya muncul.
+2. Isi **Jenis periode** dengan **Bulan**, **Triwulan**, atau **Tahun fiskal**, lalu pilih **Periode**
+   dari daftarnya.
+3. Pilih **Laporan**: **Neraca saldo**, **Laba rugi**, atau **Neraca**.
+4. Untuk **Laba rugi**, **Cakupan** memungkinkan Anda membaca seluruh **Perusahaan** atau satu proyek,
+   bila organisasi Anda memetakan proyek ke sistem akuntansi.
+5. Baca laporannya. Laporan menampilkan **Periode berjalan** dan **Periode sebelumnya** berdampingan,
+   dengan tanggal **Per tanggal**, **Untuk periode**, dan **Jumlah dalam ⟨mata uang⟩**.
+6. Gunakan **Ciutkan semua** dan **Bentangkan semua**, atau kontrol pada masing-masing kelompok,
+   untuk melipat bagiannya.
+7. Bila angkanya terlihat usang, pilih **Segarkan sekarang**. Halamannya menyatakan "Permintaan
+   penyegaran dikirim. Angka terbaru akan muncul sebentar lagi."
 
 ## Bagaimana hasilnya
 
-- Judul **Period shown** menyebutkan periode dan mata uangnya, dan **Updated ⟨date⟩** menyebutkan
-  kapan angkanya dibaca. **Update delayed** berarti pembacaan terbaru belum masuk.
+- Judul **Periode yang ditampilkan** menyebutkan periode dan mata uangnya, dan **Diperbarui ⟨tanggal⟩**
+  menyebutkan kapan angkanya dibaca. **Pembaruan tertunda** berarti pembacaan terbaru belum masuk.
 - Tiap bagian menampilkan akunnya dengan kolom debet dan kredit serta total per bagian.
-- Periode yang tidak berisi apa pun berbunyi **No activity in this period**.
-- Bila sebuah angka tidak dilaporkan, selnya berbunyi **Not provided**, bukan kosong atau nol.
+- Periode yang tidak berisi apa pun berbunyi **Tidak ada aktivitas pada periode ini**.
+- Bila sebuah angka tidak dilaporkan, selnya berbunyi **Tidak tersedia**, bukan kosong atau nol.
 
 ## Kesalahan umum dan cara mengatasinya
 
-- **"No statements yet"** — sistem akuntansi belum menerbitkan angka. Admin mengatur koneksinya di
-  **Administrasi** → **Integrasi**, lalu **Refresh now**.
-- **"Statements come from the accounting system."** — belum ada yang terhubung. Gunakan
-  **Set up accounting**, atau baca **Laba rugi manajemen** yang ditautkan pada kartu yang sama.
-- **"You don't have access to financial statements"** — laporan keuangan perusahaan untuk peran
-  Admin, Keuangan, dan Eksekutif.
-- **"Could not request a refresh. Try again."** — coba lagi sebentar lagi.
-- **"A refresh was requested recently."** — penyegaran sudah antre; tunggu.
-- **"Refresh is not available yet."** — angkanya belum pernah dibaca, jadi belum ada yang bisa
-  disegarkan.
-- **"No periods available"** — sistem akuntansi belum punya periode tertutup dengan jenis itu. Pilih
-  jenis periode lain.
-- **"Selected project name unavailable"** — proyek yang dipilih tidak dapat dibaca. Gunakan
-  **Coba lagi**, atau pilih **Company**.
+- **"Belum ada laporan keuangan"** — sistem akuntansi belum menerbitkan angka. Admin mengatur koneksinya di
+  **Administrasi** → **Integrasi**, lalu **Segarkan sekarang**.
+- **"Laporan keuangan berasal dari sistem akuntansi."** — belum ada yang terhubung. Admin dapat memakai
+  **Atur akuntansi**; siapa pun yang punya akses dapat membaca **Laba rugi manajemen** pada kartu yang sama, dengan **Buka laporan**.
+- **"Anda tidak memiliki akses ke laporan keuangan"** — laporan perusahaan untuk peran
+  Admin, Finance, dan Executive.
+- **"Permintaan penyegaran gagal. Coba lagi."** — coba lagi sebentar lagi.
+- **"Penyegaran sudah diminta baru-baru ini."** — tunggu angka barunya.
+- **"Penyegaran belum tersedia."** — coba lagi nanti.
+- **"Tidak ada periode tersedia"** — tidak ada periode dengan jenis itu. Pilih **Jenis periode** lain.
+- **"Nama proyek yang dipilih tidak tersedia"** — nama proyek yang dipilih tidak dapat dibaca. Gunakan
+  **Coba lagi**, atau pilih **Perusahaan**.

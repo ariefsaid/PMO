@@ -42,7 +42,7 @@ PMO, marked **Outside PMO**.
 3. If sending fails, the page says **Approved, but not sent** and offers **Retry send**. An approved
    journal that has not reached the ledger also offers **Send to the ledger**; use it to send it
    again once the cause is fixed.
-4. To correct an approved journal, choose **Reverse**: enter the **Reversal date** and a **Reason**,
+4. To correct a **Posted** journal, choose **Reverse**: enter the **Reversal date** and a **Reason**,
    then **Draft the reversal**. A new draft swaps every debit and credit, and a second approver
    approves it.
 
@@ -68,12 +68,10 @@ PMO, marked **Outside PMO**.
 - **"You cannot make this change"** — your role cannot write journals, or the journal is no longer in
   a state that allows it.
 - **You cannot approve your own journal** — another Admin, Executive or Finance user must approve it.
-  The page says why on the journal.
 - **"Approved, but not sent"** — the journal is approved. Choose **Retry send**.
-- **"The journal was not accepted"** — the ledger refused it. Read the message and correct the
-  journal, or ask an Admin to check the connection.
-- **A movement you expected is missing** — a journal made in the accounting system appears as
-  **Outside PMO** after the next sync.
+- **"The journal was not accepted"** — read the message under it and correct the journal.
+- **A movement you did not write in PMO appears** — a ledger movement made elsewhere is marked
+  **Outside PMO**.
 
 ---
 
@@ -125,7 +123,7 @@ PMO, bertanda **Di luar PMO**.
 3. Bila pengiriman gagal, halamannya berbunyi **Disetujui, tetapi belum terkirim** dan menawarkan
    **Kirim ulang**. Jurnal yang sudah disetujui tetapi belum sampai ke buku besar juga menawarkan
    **Kirim ke buku besar**; gunakan itu untuk mengirimnya lagi setelah penyebabnya dibereskan.
-4. Untuk memperbaiki jurnal yang sudah disetujui, pilih **Balik**: isi **Tanggal pembalikan** dan
+4. Untuk memperbaiki jurnal yang sudah **Diposting**, pilih **Balik**: isi **Tanggal pembalikan** dan
    **Alasan**, lalu **Buat draf pembalikan**. Draf baru menukar setiap debet dan kredit, dan penyetuju
    kedua menyetujuinya.
 
@@ -149,13 +147,12 @@ PMO, bertanda **Di luar PMO**.
 - **Ada pemberitahuan bahwa Admin harus memilih jurnal untuk entri manual sebelum jurnal dapat
   diposting.** — minta Admin memilihnya, di pengaturan akuntansi, jurnal tempat entri ini
   diposting.
-- **"The amount has more decimals than the currency holds."** — hapus angka desimal yang berlebih.
-- **"You cannot make this change"** — peran Anda tidak dapat menulis jurnal, atau jurnalnya sudah
+- **"Jumlah memiliki lebih banyak desimal daripada yang dimiliki mata uang. Hapus desimal yang berlebih."** — hapus angka desimal yang berlebih.
+- **"Anda tidak dapat melakukan perubahan ini"** — peran Anda tidak dapat menulis jurnal, atau jurnalnya sudah
   tidak dalam keadaan yang memungkinkan.
 - **Anda tidak dapat menyetujui jurnal Anda sendiri** — Admin, Eksekutif, atau pengguna Keuangan lain
-  yang harus menyetujuinya. Halamannya menyebutkan alasannya.
+  yang harus menyetujuinya.
 - **"Disetujui, tetapi belum terkirim"** — jurnalnya sudah disetujui. Pilih **Kirim ulang**.
-- **"Jurnal tidak diterima"** — buku besar menolaknya. Baca pesannya dan perbaiki jurnalnya, atau
-  minta Admin memeriksa koneksinya.
-- **Pergerakan yang Anda harapkan tidak ada** — jurnal yang dibuat di sistem akuntansi muncul sebagai
-  **Di luar PMO** setelah sinkronisasi berikutnya.
+- **"Jurnal tidak diterima"** — baca pesan di bawahnya dan perbaiki jurnalnya.
+- **Muncul pergerakan yang tidak Anda tulis di PMO** — pergerakan buku besar yang dibuat di tempat
+  lain bertanda **Di luar PMO**.

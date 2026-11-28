@@ -11,8 +11,7 @@ Nothing on this screen can be changed.
 ## Who can do this
 
 - **Read opening balances**: Admin, Finance.
-- Opening balances are switched on for the whole organisation by an Admin, under **Setup
-  workflows**. While that switch is off, the page says so.
+- Opening balances are switched on for the whole organisation by an Admin, with the **Enable setup workflows** switch. While that switch is off, the page says so.
 
 ## Where to find it
 
@@ -43,7 +42,7 @@ Nothing on this screen can be changed.
 ## Common errors and what to do
 
 - **"Opening balances are turned off for this organisation. Ask an Admin to enable setup workflows."**
-  — an Admin switches **Setup workflows** on at the foot of the Finance home.
+  — an Admin turns on **Enable setup workflows** in the **Setup workflows** card on the Finance home.
 - **"No opening balances are loaded"** — nothing has been loaded yet. This is done once, when the
   organisation goes live.
 - **"Couldn't load opening balances"** — use **Try again**.
@@ -72,47 +71,47 @@ Tidak ada yang dapat diubah di layar ini.
 ## Siapa yang dapat melakukannya
 
 - **Membaca saldo awal**: Admin, Keuangan.
-- Saldo awal dinyalakan untuk seluruh organisasi oleh Admin, lewat **Setup workflows**. Selama saklar
-  itu mati, halamannya menyebutkan hal itu.
+- Saldo awal dinyalakan untuk seluruh organisasi oleh Admin, lewat saklar **Aktifkan alur kerja
+  penyiapan**. Selama saklar itu mati, halamannya menyebutkan hal itu.
 
 ## Di mana menemukannya
 
 - **Keuangan** → **Penagihan dan pekerjaan** → **Saldo awal**.
-- Tautannya muncul hanya setelah Admin menyalakan alur penyiapan.
+- Tautannya muncul hanya setelah Admin menyalakan alur kerja penyiapan.
 
 ## Langkah-langkah
 
-1. Buka **Saldo awal**. Halamannya menampilkan **Go-live ⟨tanggal⟩ · loaded ⟨tanggal⟩ by ⟨nama⟩**
-   untuk tiap kelompok saldo.
-2. Baca **Totals to check against your source file** lebih dulu: **What**, **Loaded**, dan **Value**,
-   untuk **Stock (value at cost)**, **Work orders: certified value**, dan
-   **Work orders: already invoiced**.
+1. Buka **Saldo awal**. Halamannya menampilkan **Mulai berjalan ⟨tanggal⟩ · dimuat ⟨tanggal⟩ oleh
+   ⟨nama⟩** untuk tiap kelompok saldo.
+2. Baca **Total untuk dicocokkan dengan file sumber** lebih dulu: **Apa**, **Dimuat**, dan **Nilai**,
+   untuk **Stok (nilai biaya)**, **Perintah kerja: nilai tersertifikasi**, dan
+   **Perintah kerja: sudah ditagih**.
 3. Bandingkan total itu dengan berkas yang Anda siapkan sebelum mulai.
-4. Baca **Stock by location**: kartu tiap lokasi memuat **Item**, **Quantity**, dan **Value**, dengan
+4. Baca **Stok per lokasi**: kartu tiap lokasi memuat **Barang**, **Kuantitas**, dan **Nilai**, dengan
    **Total** per lokasi.
-5. Baca **Running work orders**: kartu tiap pesanan memuat **Contract line**,
-   **Certified quantity**, **Claimed quantity**, dan **Claimed value**, dengan **Certified value** di
-   bawah tabel.
+5. Baca **Perintah kerja berjalan**: kartu tiap pesanan memuat **Baris kontrak**,
+   **Kuantitas tersertifikasi**, **Kuantitas ditagih**, dan **Nilai ditagih**, dengan **Nilai
+   tersertifikasi** di bawah tabel.
 6. Bila halamannya lebih lebar dari layar Anda, geser ke samping untuk melihat semua kolom.
 
 ## Bagaimana hasilnya
 
 - Tabel total tidak pernah menjumlahkan dua mata uang: tiap mata uang punya barisnya sendiri.
 - Pemuatan yang memiliki catatan menampilkan catatannya di samping nama yang memuatnya.
-- Bantuan halaman menyebutkan apa yang **tidak** dicakup totalnya: piutang, utang, dan kas lokasi
+- Bantuan halaman menyebutkan apa yang **tidak** dicakup totalnya: piutang, utang, dan kas lapangan
   tidak dimuat, sehingga tidak ditampilkan di sini.
-- **Back to Finance** mengembalikan Anda ke halaman utama Keuangan.
+- **Kembali ke Keuangan** mengembalikan Anda ke halaman utama Keuangan.
 
 ## Kesalahan umum dan cara mengatasinya
 
-- **"Opening balances are turned off for this organisation. Ask an Admin to enable setup workflows."**
-  — Admin menyalakan **Setup workflows** di kaki halaman utama Keuangan.
-- **"No opening balances are loaded"** — belum ada yang dimuat. Ini dilakukan sekali, saat organisasi
+- **"Saldo awal dimatikan untuk organisasi ini. Minta Admin mengaktifkan alur kerja penyiapan."**
+  — Admin menyalakan **Aktifkan alur kerja penyiapan** pada kartu **Alur kerja penyiapan** di halaman utama Keuangan.
+- **"Belum ada saldo awal yang dimuat"** — belum ada yang dimuat. Ini dilakukan sekali, saat organisasi
   mulai memakai PMO.
-- **"Couldn't load opening balances"** — gunakan **Coba lagi**.
-- **"Could not load or save this setting. Try again."** — saklar penyiapannya tidak dapat dibaca.
+- **"Saldo awal tidak dapat dimuat"** — gunakan **Coba lagi**.
+- **"Pengaturan ini tidak dapat dimuat atau disimpan. Coba lagi."** — saklar penyiapannya tidak dapat dibaca.
   Gunakan **Coba lagi**.
 - **Totalnya tidak cocok dengan berkas Anda** — bandingkan baris per baris: total milik berkas sumber
   tidak disimpan bersama pemuatannya, jadi perbandingannya ada di tangan Anda.
-- **Halamannya tidak ada di menu** — tautannya hanya muncul selama alur penyiapan menyala, dan hanya
+- **Halamannya tidak ada di menu** — tautannya hanya muncul selama alur kerja penyiapan menyala, dan hanya
   untuk Admin dan Keuangan.

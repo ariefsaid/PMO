@@ -28,42 +28,41 @@ month end, and the one that exports the figures to a spreadsheet.
    - **Invoiced to date** — cumulative invoice value through the as-at month.
    - **Opening invoiced** — invoice value from before the first chosen month.
    - **Left to bill** — signed contract value minus invoiced to date.
-4. Read the table, **Projects as at ⟨month⟩ · excl. tax**. Each row shows the project (and its
-   manager), its number and client, **Progress**, **Contract**, **Earned**, **Invoiced**, the number
-   of **Invoices**, **Done, not yet billed** and **Left to bill**. The foot of the table totals each
+4. Read the table, **Projects as at ⟨month⟩**, marked *excl. tax*. Each row shows the project (and its
+   manager), **Progress**, **Contract**, **Recognised**, **Invoiced**, the number of **Invoices**,
+   **Done, not yet billed** and **Left to bill**. The foot of the table totals each
    currency separately.
 5. Use **Search projects** to narrow the table to a project, client or manager.
 6. Choose a row's **⋯** menu for **Open project**, **View invoices**, **Record progress** or
    **Export current line**.
-7. Choose **Export** to download the table as a spreadsheet. **Show monthly totals** adds a month-by-
+7. Choose **Export** to download the figures. **Show monthly totals** adds a month-by-
    month table under the project list.
 8. Below the table, the charts **Earned against contract** and **Earned and invoiced to date** show
-   the same figures over time.
+   the same figures.
 
 ## What the result looks like
 
-- Every figure is **excl. tax** and carries a help note explaining how it is calculated.
+- Every figure is **excl. tax**, and each top figure has a help note explaining how it is calculated.
 - A row whose project has no progress assessment yet shows **Invoiced basis** in **Progress**: earned
   revenue then follows invoiced revenue.
 - **Left to bill** names a contract with no value when one is left out of the total, and says so when
   a foreign-currency invoice needs reconciling first.
 - When invoices have no project assigned, a note under the table says so and **Assign projects**
   opens them.
-- Where your organisation turns on **Profit per discipline**, a further table shows **Earned**,
-  **Billed**, **Earned, not yet billed**, **Margin on earned** and **Margin on billed** per project.
+- Where your organisation turns on the setting **Profit per discipline**, a further table, **Earned and billed revenue by project**, shows **Earned**, **Billed**, **Earned, not yet billed**, **Margin on earned** and **Margin on billed**.
 
 ## Common errors and what to do
 
 - **"Choose a start month on or before the as-at month, at most 24 months apart."** — correct
   **From** or **As at**.
-- **"No projects to report"** — there are no projects with a contract in this range. Widen the dates,
-  or create the project's first invoice.
-- **A figure reads "Unavailable" or a sentence about reconciliation** — an invoice in a foreign
-  currency has to be reconciled before it can be added. **Open invoices** takes you to it.
+- **"No projects to report"** — nothing to show for this range. Widen the dates. Admin and Finance also see **New invoice**.
+- **A figure is missing, with a sentence about reconciliation** — an invoice in a foreign currency has to be reconciled before the amount can be known. **Open invoices** takes you to the invoices.
+- **"Unavailable"** above the table — the invoice counts did not load. Use **Retry invoice counts**.
 - **"1 contract with no value, not in the total"** — record the contract value on that project.
 - **"Some invoices lack project assignments."** — assign the invoices to their projects so their
   value lands in the right row.
 - **"Couldn't load Reports"** — check the connection and use **Retry**.
+- **"You don't have access to Reports"** — Reports is for Finance, Executive and Admin.
 
 ---
 
@@ -90,7 +89,7 @@ direktur keuangan pada akhir bulan, dan yang mengekspor angkanya ke lembar kerja
 ## Langkah-langkah
 
 1. Buka **Laporan**.
-2. Tentukan bulannya lewat **From** dan **As at**. Rentangnya harus mulai pada atau sebelum bulan
+2. Tentukan bulannya lewat **Dari** dan **Per**. Rentangnya harus mulai pada atau sebelum bulan
    acuan dan paling banyak 24 bulan.
 3. Baca angka di bagian atas, untuk bulan acuan dan dalam mata uang organisasi Anda:
    - **Selesai, belum ditagih** — yang diperoleh sampai saat ini dikurangi yang sudah ditagihkan.
@@ -100,39 +99,38 @@ direktur keuangan pada akhir bulan, dan yang mengekspor angkanya ke lembar kerja
    - **Ditagih sampai saat ini** — nilai invoice kumulatif sampai bulan acuan.
    - **Saldo awal ditagih** — nilai invoice dari sebelum bulan pertama yang dipilih.
    - **Sisa yang harus ditagih** — nilai kontrak yang ditandatangani dikurangi yang sudah ditagih.
-4. Baca tabelnya, **Projects as at ⟨month⟩ · excl. tax**. Tiap baris menampilkan proyeknya (dan
-   manajernya), nomor dan kliennya, **Progress**, **Contract**, **Earned**, **Invoiced**, jumlah
-   **Invoices**, **Done, not yet billed**, dan **Left to bill**. Kaki tabel menjumlahkan tiap mata
+4. Baca tabelnya, **Proyek per ⟨bulan⟩**, bertanda *tanpa pajak*. Tiap baris menampilkan proyeknya (dan
+   manajernya), **Progres**, **Kontrak**, **Diakui**, **Ditagih**, jumlah **Invoice**,
+   **Selesai, belum ditagih**, dan **Sisa yang harus ditagih**. Kaki tabel menjumlahkan tiap mata
    uang secara terpisah.
 5. Gunakan **Cari proyek** untuk menyempitkan tabel ke satu proyek, klien, atau manajer.
-6. Pilih menu **⋯** pada baris untuk **Open project**, **View invoices**, **Record progress**, atau
-   **Export current line**.
-7. Pilih **Ekspor** untuk mengunduh tabelnya sebagai lembar kerja. **Show monthly totals** menambah
+6. Pilih menu **⋯** pada baris untuk **Buka proyek**, **Lihat invoice**, **Catat progres**, atau
+   **Ekspor baris ini**.
+7. Pilih **Ekspor** untuk mengunduh angkanya. **Tampilkan total bulanan** menambah
    tabel bulanan di bawah daftar proyek.
-8. Di bawah tabel, grafik **Earned against contract** dan **Earned and invoiced to date** menampilkan
-   angka yang sama menurut waktu.
+8. Di bawah tabel, grafik **Pendapatan terhadap kontrak** dan **Pendapatan dan tagihan sampai saat ini**
+   menampilkan angka yang sama.
 
 ## Bagaimana hasilnya
 
-- Semua angka **excl. tax** dan memiliki catatan bantuan yang menjelaskan cara perhitungannya.
-- Baris yang proyeknya belum punya pengukuran progres menampilkan **Invoiced basis** pada
-  **Progress**: pendapatan yang diperoleh lalu mengikuti nilai yang ditagihkan.
-- **Left to bill** menyebutkan kontrak tanpa nilai bila ada yang dikeluarkan dari total, dan
-  menyebutkannya bila invoice mata uang asing perlu direkonsiliasi lebih dulu.
-- Bila ada invoice tanpa proyek, catatan di bawah tabel menyebutkannya dan **Assign projects**
+- Semua angka **tanpa pajak**, dan tiap angka di bagian atas punya catatan bantuan yang menjelaskan cara perhitungannya.
+- Baris yang proyeknya belum punya pengukuran progres menampilkan **Berdasarkan invoice** pada
+  **Progres**: pendapatan yang diperoleh lalu mengikuti nilai yang ditagihkan.
+- **Sisa yang harus ditagih** menyebutkan kontrak tanpa nilai bila ada yang dikeluarkan dari total, dan
+  menyebutkan bila invoice mata uang asing perlu direkonsiliasi lebih dulu.
+- Bila ada invoice tanpa proyek, catatan di bawah tabel menyebutkannya dan **Tetapkan proyek**
   membukanya.
-- Bila organisasi Anda menyalakan **Profit per discipline**, tabel lanjutan menampilkan **Earned**,
-  **Billed**, **Earned, not yet billed**, **Margin on earned**, dan **Margin on billed** per proyek.
+- Bila organisasi Anda menyalakan pengaturan **Profit per discipline**, tabel lanjutan, **Pendapatan yang dihasilkan dan yang ditagih per proyek**, menampilkan **Dihasilkan**, **Ditagih**, **Dihasilkan, belum ditagih**, **Margin atas yang dihasilkan**, dan **Margin atas yang ditagih**.
 
 ## Kesalahan umum dan cara mengatasinya
 
-- **"Choose a start month on or before the as-at month, at most 24 months apart."** — perbaiki
-  **From** atau **As at**.
-- **"No projects to report"** — tidak ada proyek dengan kontrak pada rentang ini. Lebarkan tanggalnya,
-  atau buat invoice pertama proyeknya.
-- **Sebuah angka berbunyi "Unavailable" atau kalimat tentang rekonsiliasi** — invoice dalam mata uang
-  asing harus direkonsiliasi sebelum dapat dijumlahkan. **Open invoices** membawa Anda ke sana.
-- **"1 contract with no value, not in the total"** — catat nilai kontrak pada proyek itu.
-- **"Some invoices lack project assignments."** — tetapkan invoice ke proyeknya agar nilainya masuk
+- **"Pilih bulan awal pada atau sebelum bulan laporan, paling jauh 24 bulan."** — perbaiki
+  **Dari** atau **Per**.
+- **"Tidak ada proyek untuk dilaporkan"** — tidak ada yang bisa ditampilkan untuk rentang ini. Lebarkan tanggalnya. Admin dan Keuangan juga melihat **Buat invoice**.
+- **Sebuah angka tidak ada, disertai kalimat tentang rekonsiliasi** — invoice dalam mata uang asing harus direkonsiliasi sebelum jumlahnya dapat diketahui. **Buka invoice** membawa Anda ke invoicenya.
+- **"Jumlah invoice tidak tersedia"** di atas tabel — jumlah invoice tidak termuat. Gunakan **Coba lagi jumlah invoice**.
+- **"{n} kontrak tanpa nilai, tidak termasuk total"** — catat nilai kontrak pada proyek itu.
+- **"Beberapa invoice belum ditetapkan ke proyek."** — tetapkan invoice ke proyeknya agar nilainya masuk
   ke baris yang benar.
-- **"Couldn't load Reports"** — periksa koneksi dan gunakan **Coba lagi**.
+- **"Laporan gagal dimuat"** — periksa koneksi dan gunakan **Coba lagi**.
+- **"Anda tidak memiliki akses ke laporan"** — Laporan untuk peran Finance, Executive, dan Admin.

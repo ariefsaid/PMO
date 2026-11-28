@@ -10,7 +10,7 @@ attach the supplier's own copy of it.
 
 - **Look up a supplier invoice and its payment**: Admin, Executive, Project Manager, Finance.
 - **Record a missing bill or attach a file**: Admin, Finance.
-- Engineers do not read purchases or their bills.
+- Engineers do not read supplier invoices or payments.
 
 ## Where to find it
 
@@ -54,14 +54,12 @@ If you do not know which purchase the invoice belongs to, open the supplier from
 
 - **The supplier is not in Payables** — the bill may already be paid, or not recorded yet. Search the
   purchase instead: **Procurement** → search the supplier or the purchase's code.
-- **The purchase has no supplier invoice row** — the bill is not recorded in PMO. Record it from the
-  capture row. If your organisation records invoices in its accounting system, they appear on the
-  purchase after the next sync.
-- **"Supplier invoices and payments are not shown for your role."** — your role reads purchases but
+- **The purchase has no supplier invoice row** — the bill is not recorded. Record it from the
+  capture row.
+- **"Supplier bills and payments are not shown for your role."** — your role reads purchases but
   not their bills. Ask Finance.
 - **The bill shows a different amount from the supplier's copy** — compare the amounts and the tax
-  treatment on the row. A bill that does not match its order or receipt is held, and the reason is in
-  its match.
+  treatment on the row.
 - **The bill has no file** — attach the supplier's document with **Attach file** on the row.
 - **The supplier says the e-Faktur is different** — record or correct it on the invoice row
   (see [Record the tax invoice number](record-the-tax-invoice-number.md)).
@@ -82,14 +80,14 @@ ada — lalu tempat melampirkan salinan dari supplier.
 
 - **Mencari invoice supplier dan pembayarannya**: Admin, Eksekutif, Manajer Proyek, Keuangan.
 - **Mencatat tagihan yang belum ada atau melampirkan berkas**: Admin, Keuangan.
-- Engineer tidak membaca pengadaan maupun tagihannya.
+- Engineer tidak membaca invoice supplier maupun pembayarannya.
 
 ## Di mana menemukannya
 
 - **Keuangan** → **Utang** — cari dengan nama supplier.
 - Halaman supplier sendiri: **Perusahaan** → supplier. Kartu **Pengadaan**-nya memuat setiap
   pengadaan yang menyebut supplier itu.
-- Tab **Berkas** sebuah pengadaan memuat **Case documents**: permintaan pembelian, pesanan,
+- Tab **Berkas** sebuah pengadaan memuat **Dokumen kasus**: permintaan pembelian, pesanan,
   penerimaan, invoice supplier, dan pembayaran dalam satu daftar bertanggal.
 
 ## Langkah-langkah
@@ -97,45 +95,42 @@ ada — lalu tempat melampirkan salinan dari supplier.
 1. Buka **Utang** dan tuliskan nama supplier pada **Cari utang**.
 2. Baca barisnya: **Supplier**, **Pengadaan** beserta kodenya, **Proyek**, **Umur invoice**, dan
    **Jumlah**-nya. Baris di sini berarti tagihannya tercatat dan belum dibayar.
-3. Buka barisnya. Pilih **Open procurement** pada menunya untuk melihat seluruh pengadaannya.
-4. Pada pengadaannya, buka tab **Berkas**. Di **Case documents**, temukan baris
-   **Supplier invoice**. Baris itu memuat:
-   - **Date**, **System #**, dan **External ref** (referensi milik supplier),
+3. Buka barisnya. Pilih **Buka pengadaan** pada menunya untuk melihat seluruh pengadaannya.
+4. Pada pengadaannya, buka tab **Berkas**. Di **Dokumen kasus**, temukan baris
+   invoice supplier. Baris itu memuat:
+   - **Tanggal**, **Nomor sistem**, dan **Ref eksternal** (referensi milik supplier),
    - nomor dan tanggal **e-Faktur**, bila tercatat,
-   - **Amount**, **Withholding**, dan **Status** tagihannya,
-   - kolom **File**, untuk dokumen dari supplier.
-5. Jawab supplier dari keterangan itu. Angka uang pengadaannya menampilkan **Invoiced**, **Paid**, dan
-   **Unpaid**, sehingga Anda dapat mengatakan sudah dibayar atau belum dan berapa sisa tagihannya.
-6. Bila supplier memerlukan salinannya, lampirkan: gunakan **Attach file** pada kolom **File** di
+   - **Jumlah**, **Pemotongan pajak**, dan **Status** tagihannya,
+   - kolom **Berkas**, untuk dokumen dari supplier.
+5. Jawab supplier dari keterangan itu. Angka uang pengadaannya menampilkan jumlah yang sudah ditagih, dibayar, dan
+   belum dibayar, sehingga Anda dapat mengatakan sudah dibayar atau belum dan berapa sisa tagihannya.
+6. Bila supplier memerlukan salinannya, lampirkan: gunakan **Lampirkan berkas** pada kolom **Berkas** di
    baris invoice itu.
 7. Bila tagihannya sama sekali tidak ada, catat: pada baris pencatatan, pilih
-   **Capture Supplier invoice** (lihat [Mencatat pembayaran supplier](record-a-supplier-payment.md)).
+   **Catat Supplier invoice** (lihat [Mencatat pembayaran supplier](record-a-supplier-payment.md)).
 
 Bila Anda tidak tahu invoice itu milik pengadaan mana, buka suppliernya dari **Perusahaan** dan baca
 kartu **Pengadaan**-nya — setiap pengadaan yang menyebut supplier itu terdaftar di sana.
 
 ## Bagaimana hasilnya
 
-- **Case documents** mencantumkan tiap dokumen satu kali, urut tanggal, dengan jenis, nomor,
-  referensi, jumlah, dan statusnya; **Status** dan **Progression** pengadaannya mengikuti dokumen
-  yang tercatat.
-- Pembayaran atas tagihan yang lunas tampil sebagai baris **Payment** tersendiri di bawah invoice-nya.
-- Bila tagihan menunggu pencocokan dengan pesanan dan penerimaannya, **Open bills and match** pada
-  menu baris membuka pencocokannya (lihat [Pencocokan tiga arah](../office/three-way-match.md)).
+- **Dokumen kasus** mencantumkan tiap dokumen satu kali, urut tanggal, dengan jenis, nomor,
+  referensi, jumlah, dan statusnya.
+- Pembayaran atas tagihan yang lunas tampil sebagai baris **Pembayaran** tersendiri.
+- Untuk tagihan yang ditahan pencocokan tiga arah, **Buka tagihan dan pencocokan** pada
+  menu baris di **Utang** membuka dokumennya (lihat [Pencocokan tiga arah](../office/three-way-match.md)).
 
 ## Kesalahan umum dan cara mengatasinya
 
 - **Supplier tidak ada di Utang** — tagihannya mungkin sudah dibayar, atau belum dicatat. Cari
   pengadaannya: **Pengadaan** → cari nama supplier atau kode pengadaannya.
-- **Pengadaannya tidak punya baris invoice supplier** — tagihannya belum dicatat di PMO. Catat dari
-  baris pencatatan. Bila organisasi Anda mencatat invoice di sistem akuntansi, invoice itu muncul
-  pada pengadaannya setelah sinkronisasi berikutnya.
-- **"Supplier invoices and payments are not shown for your role."** — peran Anda membaca pengadaan,
+- **Pengadaannya tidak punya baris invoice supplier** — tagihannya belum dicatat. Catat dari
+  baris pencatatan.
+- **"Invoice supplier dan pembayaran tidak ditampilkan untuk peran Anda."** — peran Anda membaca pengadaan,
   tetapi tidak tagihannya. Tanyakan ke Keuangan.
 - **Nilai tagihan berbeda dari salinan supplier** — bandingkan jumlah dan perlakuan pajaknya pada
-  baris itu. Tagihan yang tidak cocok dengan pesanan atau penerimaannya akan ditahan, dan alasannya
-  ada pada pencocokannya.
-- **Tagihannya belum punya berkas** — lampirkan dokumen supplier dengan **Attach file** pada
+  baris itu.
+- **Tagihannya belum punya berkas** — lampirkan dokumen supplier dengan **Lampirkan berkas** pada
   barisnya.
 - **Supplier menyebut e-Faktur berbeda** — catat atau perbaiki pada baris invoice-nya (lihat
   [Mencatat nomor faktur pajak](record-the-tax-invoice-number.md)).

@@ -30,7 +30,8 @@ and whether it has passed its target. Use it to see what is stuck and who has to
 5. Click a card to open that claim on the project's **Contract** tab, where you finish the open step
    or raise the invoice.
 6. Scroll on to **Work-order billing steps** for the steps recorded per work order, with **Done**,
-   **Current**, **Not yet open** and **Skipped**.
+   **Current**, **Not yet open** and **Skipped**. This section appears only when work orders have
+   billing steps.
 
 ## What the result looks like
 
@@ -49,8 +50,8 @@ and whether it has passed its target. Use it to see what is stuck and who has to
   open the project's **Contract** tab.
 - **A card says "Not started"** — no step of that claim is running yet. Open the claim and check
   its stages.
-- **A card sits in one column although the work is finished** — the step has not been marked
-  **Complete** on the claim. The board never moves a claim by itself.
+- **A card sits in one column although the work is finished** — the stage has not been completed
+  on the claim (**Complete stage**). The board never moves a claim by itself.
 - **"The work-order billing steps could not be loaded."** — the section at the bottom failed to load;
   the board above still works. Reload the page.
 
@@ -92,8 +93,9 @@ halaman ini untuk melihat apa yang tertahan dan siapa yang harus bertindak.
    berarti **Siap ditagihkan**; umurnya dihitung sejak langkah terakhir.
 5. Klik kartunya untuk membuka klaim itu di tab **Kontrak** proyek, tempat Anda menyelesaikan langkah
    yang terbuka atau menerbitkan invoice-nya.
-6. Gulir ke **Work-order billing steps** untuk langkah yang tercatat per perintah kerja, dengan
-   **Done**, **Current**, **Not yet open**, dan **Skipped**.
+6. Gulir ke **Langkah penagihan perintah kerja** untuk langkah yang tercatat per perintah kerja,
+   dengan **Selesai**, **Berjalan**, **Belum dibuka**, dan **Dilewati**. Bagian ini hanya muncul bila
+   perintah kerja punya langkah penagihan.
 
 ## Bagaimana hasilnya
 
@@ -113,7 +115,7 @@ halaman ini untuk melihat apa yang tertahan dan siapa yang harus bertindak.
   proyek, atau buka tab **Kontrak** proyeknya.
 - **Kartu berbunyi "Belum dimulai"** — belum ada langkah klaim itu yang berjalan. Buka klaimnya dan
   periksa tahapnya.
-- **Kartu tetap di satu kolom padahal pekerjaannya selesai** — langkahnya belum ditandai
-  **Selesai** pada klaim. Papan tidak pernah memindahkan klaim sendiri.
-- **"The work-order billing steps could not be loaded."** — bagian di bawah gagal dimuat; papan di
+- **Kartu tetap di satu kolom padahal pekerjaannya selesai** — tahapnya belum diselesaikan pada
+  klaim (**Selesaikan tahap**). Papan tidak pernah memindahkan klaim sendiri.
+- **"Langkah penagihan perintah kerja tidak dapat dimuat."** — bagian di bawah gagal dimuat; papan di
   atasnya tetap berjalan. Muat ulang halamannya.

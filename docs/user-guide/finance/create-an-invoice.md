@@ -25,7 +25,7 @@ project, and each line with its quantity and rate.
 2. Pick the **Customer**. The list shows the companies already recorded for your organisation.
 3. Pick the **Project**. Only live projects of that customer are offered. Where your organisation
    writes its invoices in PMO, the project sets the invoice's currency and its tax rate.
-4. Choose the **Billing kind**:
+4. Once a project is picked, choose the **Billing kind**:
    - **Contract billing** counts against the contract: it reduces what is left to invoice and counts
      toward revenue and margin.
    - **Other billing** is for licences, reimbursables and work outside the contract: it counts
@@ -38,7 +38,8 @@ project, and each line with its quantity and rate.
 
 ## What the result looks like
 
-- The invoice appears in the **Invoices** list as a **Draft**, with no number yet.
+- The invoice appears in the **Invoices** list as **Draft · needs a second approver**, with no number
+  yet.
 - Its own page shows the lines, the subtotal, the tax and the total, and the status steps
   **Draft** → **Submitted** → **Delivered to client** → **Paid**.
 - The form's note says it plainly: the invoice is a draft and a different Finance or Admin user
@@ -56,10 +57,12 @@ project, and each line with its quantity and rate.
   quantity or a rate, or has a zero quantity. Fill it in.
 - **The customer's projects are missing from the list** — the project belongs to another customer,
   or it is archived. Change the customer first, or pick a live project of this one.
-- **The save is refused with a message about the project** — read the sentence in the dialog and
-  fix that on the project. A refused save leaves everything you typed in place.
-- **The invoice was created with the wrong project** — use the row menu's **Assign project** (or
-  **Change project**) to correct it while the invoice is still a draft.
+- **The save is refused with a message** — read the message in the dialog and correct what it
+  names. The window stays open with everything you typed.
+- **The invoice was created with the wrong project** — the project of an invoice written in PMO
+  cannot be changed. Cancel the draft from its row menu (see
+  [Cancel an invoice and bill again](cancel-an-invoice-and-bill-again.md)) and create it again.
+  Only its billing kind can be changed, with **Change billing kind** in the row menu.
 
 ---
 
@@ -89,41 +92,43 @@ invoice sendiri — pelanggan, proyek, dan tiap baris dengan kuantitas dan harga
 ## Langkah-langkah
 
 1. Buka **Piutang** dan pilih **Invoice baru**.
-2. Pilih **Customer**. Daftarnya memuat perusahaan yang sudah tercatat untuk organisasi Anda.
-3. Pilih **Project**. Hanya proyek aktif milik pelanggan itu yang ditawarkan. Bila organisasi Anda
+2. Pilih **Pelanggan**. Daftarnya memuat perusahaan yang sudah tercatat untuk organisasi Anda.
+3. Pilih **Proyek**. Hanya proyek aktif milik pelanggan itu yang ditawarkan. Bila organisasi Anda
    menulis invoice-nya di PMO, proyek menentukan mata uang dan tarif pajak invoice.
-4. Pilih **Billing kind**:
-   - **Contract billing** dihitung terhadap kontrak: mengurangi sisa yang harus ditagih dan masuk
+4. Setelah proyek dipilih, pilih **Jenis penagihan**:
+   - **Penagihan kontrak** dihitung terhadap kontrak: mengurangi sisa yang harus ditagih dan masuk
      ke pendapatan serta margin.
-   - **Other billing** untuk lisensi, biaya yang diganti, dan pekerjaan di luar kontrak: masuk ke
+   - **Penagihan lainnya** untuk lisensi, biaya yang diganti, dan pekerjaan di luar kontrak: masuk ke
      pendapatan serta margin, tetapi tidak mengurangi sisa yang harus ditagih.
-5. Tambahkan tiap baris. Satu baris memerlukan **Description** (atau **Item code**), **Qty**, dan
-   **Rate**. Gunakan **Add line item** untuk baris berikutnya, dan ikon tempat sampah di samping
+5. Tambahkan tiap baris. Satu baris memerlukan **Deskripsi** (atau **Kode item**), **Jml.**, dan
+   **Tarif**. Gunakan **Tambah baris item** untuk baris berikutnya, dan ikon tempat sampah di samping
    baris untuk menghapusnya.
-6. Periksa **Invoice draft review** di bagian bawah formulir: **Subtotal**, **Tax**, dan **Total**
+6. Periksa **Tinjauan draf invoice** di bagian bawah formulir: **Subtotal**, **Pajak**, dan **Total**
    dalam mata uang invoice.
-7. Pilih **Create invoice**.
+7. Pilih **Buat invoice**.
 
 ## Bagaimana hasilnya
 
-- Invoice muncul di daftar **Invoice** sebagai **Draf**, belum bernomor.
+- Invoice muncul di daftar **Invoice** sebagai **Draf · perlu penyetuju kedua**, belum bernomor.
 - Halamannya menampilkan baris, subtotal, pajak, dan total, serta langkah status
-  **Draft** → **Submitted** → **Delivered to client** → **Paid**.
+  **Draf** → **Diajukan** → **Terkirim ke klien** → **Dibayar**.
 - Catatan pada formulir menyebutkannya dengan jelas: invoice ini draf dan Admin atau pengguna
   Keuangan lain yang menyetujuinya. Setelah disetujui, invoice mendapat nomornya, menjadi
   **Belum dibayar**, dan dapat menerima pembayaran.
 
 ## Kesalahan umum dan cara mengatasinya
 
-- **"This project has no VAT rate recorded, so it cannot be invoiced yet."** — tautan pada pesan
+- **"Proyek ini belum memiliki tarif PPN yang tercatat, sehingga belum dapat ditagihkan."** — tautan pada pesan
   membuka proyek, tempat tarif PPN-nya dicatat. Simpan tarifnya di sana, lalu kembali ke invoice.
-- **"Currency is unavailable, so draft totals cannot be displayed."** — proyek belum punya mata
+- **"Mata uang tidak tersedia, sehingga total draf tidak dapat ditampilkan."** — proyek belum punya mata
   uang. Atur di proyeknya.
-- **"Enter valid line details, quantities, and rates to review totals."** — ada baris yang belum
+- **"Lengkapi detail baris, kuantitas, dan harga yang valid untuk meninjau total."** — ada baris yang belum
   berisi kuantitas atau harga, atau kuantitasnya nol. Lengkapi.
 - **Proyek milik pelanggan tidak muncul di daftar** — proyek itu milik pelanggan lain atau sudah
   diarsipkan. Ganti pelanggannya lebih dulu, atau pilih proyek aktif milik pelanggan ini.
-- **Penyimpanan ditolak dengan pesan tentang proyek** — baca kalimat di dialog dan perbaiki di
-  proyeknya. Penyimpanan yang ditolak membiarkan semua yang Anda isi tetap ada.
-- **Invoice terbuat dengan proyek yang salah** — gunakan **Assign project** (atau
-  **Change project**) pada menu baris untuk memperbaikinya selama invoice masih draf.
+- **Penyimpanan ditolak dengan sebuah pesan** — baca pesan di dialog dan perbaiki yang disebutnya.
+  Jendelanya tetap terbuka dengan semua yang Anda isi.
+- **Invoice terbuat dengan proyek yang salah** — proyek pada invoice yang ditulis di PMO tidak dapat
+  diubah. Batalkan drafnya dari menu baris (lihat
+  [Membatalkan invoice dan menagih ulang](cancel-an-invoice-and-bill-again.md)) lalu buat lagi.
+  Hanya jenis penagihannya yang dapat diubah, dengan **Ubah jenis penagihan** di menu baris.

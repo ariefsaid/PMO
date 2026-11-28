@@ -26,14 +26,14 @@ Ticks are a scratchpad: they are not saved, and nothing on this page raises a cl
    **Target**, **Picked (⟨n⟩)** and **Left to target** (or **Above target by**).
 2. Move between months with the arrows beside the month name.
 3. Filter to one project with the **Project** picker, or leave **All projects**.
-4. Tick a line, or **Pick all** for a project. **Clear picks** empties the whole list, and
-   **Clear project** one project's.
+4. Tick a line, or **Pick all** for a project (once all its lines are ticked, the button reads
+   **Clear project** and unticks them). **Clear picks** empties the whole list.
 5. Read each line: the item, its **Work order**, how many units are **accepted, not claimed**, the
    amount, and **⟨n⟩ days since accepted**.
 6. Where the organisation turns on the reminder, a line over the day limit is flagged
    **Over the ⟨n⟩-day limit**, and the summary counts the lines over it.
-7. Under **Progress not yet accepted by the client**, read the measured work still waiting for the
-   client's acceptance; open a project to record or confirm it.
+7. Where it is shown, **Progress not yet accepted by the client** lists the measured work still
+   waiting for the client's acceptance; click a line to open its project.
 8. To set a target or the reminder, choose **Plan settings**: a **Default monthly target**, a
    **Target for ⟨month⟩** for one month, and the reminder switch with its **Flag after (days)**.
 
@@ -48,8 +48,7 @@ Ticks are a scratchpad: they are not saved, and nothing on this page raises a cl
 
 ## Common errors and what to do
 
-- **"No candidates to show"** — no accepted work is waiting to be claimed. Work appears here once it
-  is accepted and not yet claimed.
+- **"No candidates to show"** — *No measured progress is waiting for acceptance or ready to claim.*
 - **"The billing plan could not be loaded"** — use the retry on the message.
 - **"No target set"** — choose **Plan settings** and set a default monthly target, or a target for
   this month.
@@ -89,41 +88,41 @@ atau invoice.
 
 ## Langkah-langkah
 
-1. Buka **Rencana penagihan**. **Month summary** di bagian atas tetap terlihat saat Anda menggulir:
+1. Buka **Rencana penagihan**. **Ringkasan bulan** di bagian atas tetap terlihat saat Anda menggulir:
    bulannya, **Target**, **Dipilih (⟨n⟩)**, dan **Sisa menuju target** (atau **Melebihi target
    sebesar**).
 2. Pindah bulan dengan panah di samping nama bulan.
 3. Saring ke satu proyek dengan pemilih **Proyek**, atau biarkan **Semua proyek**.
-4. Centang satu baris, atau **Pilih semua** untuk satu proyek. **Hapus pilihan** mengosongkan seluruh
-   daftar, dan **Clear project** mengosongkan satu proyek.
+4. Centang satu baris, atau **Pilih semua** untuk satu proyek (bila semua barisnya sudah dicentang,
+   tombolnya berbunyi **Hapus proyek** dan menghapus centangnya). **Hapus pilihan** mengosongkan
+   seluruh daftar.
 5. Baca tiap barisnya: itemnya, **Perintah kerja**-nya, berapa unit yang
-   **accepted, not claimed**, nilainya, dan **⟨n⟩ hari sejak diterima**.
+   **diterima, belum diklaim**, nilainya, dan **⟨n⟩ hari sejak diterima**.
 6. Bila organisasi menyalakan pengingatnya, baris yang melewati batas hari ditandai
-   **Over the ⟨n⟩-day limit**, dan ringkasannya menghitung baris yang melewatinya.
-7. Di bawah **Progress not yet accepted by the client**, baca pekerjaan terukur yang masih menunggu
-   penerimaan klien; buka proyeknya untuk mencatat atau mengonfirmasinya.
+   **Melewati batas ⟨n⟩ hari**, dan ringkasannya menghitung baris yang melewatinya.
+7. Bila ditampilkan, **Progres belum diterima klien** memuat pekerjaan terukur yang masih menunggu
+   penerimaan klien; klik barisnya untuk membuka proyeknya.
 8. Untuk mengatur target atau pengingatnya, pilih **Pengaturan rencana**: **Target bulanan bawaan**,
-   **Target untuk ⟨bulan⟩** untuk satu bulan, serta saklar pengingat dengan **Flag after (days)**.
+   **Target untuk ⟨bulan⟩** untuk satu bulan, serta saklar pengingat dengan **Tandai setelah (hari)**.
 
 ## Bagaimana hasilnya
 
 - **Dipilih (⟨n⟩)** menjumlahkan baris yang dicentang dalam mata uang target; centang dalam mata uang
   lain dicantumkan terpisah — *⟨jumlah⟩ dipilih dalam ⟨mata uang⟩, tidak dihitung terhadap target*.
 - Baris yang dicentang dan akan melewati kuantitas kontrak menampilkan
-  **Over-claimed: this would pass the contract quantity**. Itu peringatan, bukan penghalang.
+  **Klaim berlebih: ini akan melewati kuantitas kontrak**. Itu peringatan, bukan penghalang.
 - Bila kandidatnya lebih banyak daripada yang ditampilkan, catatan berbunyi
   **Menampilkan ⟨n⟩ terbesar. Saring menurut proyek untuk melihat sisanya.**
 
 ## Kesalahan umum dan cara mengatasinya
 
-- **"Tidak ada kandidat untuk ditampilkan"** — tidak ada pekerjaan yang sudah diterima dan menunggu
-  diklaim. Pekerjaan muncul di sini setelah diterima dan belum diklaim.
+- **"Tidak ada kandidat untuk ditampilkan"** — *Tidak ada progres terukur yang menunggu penerimaan atau siap diklaim.*
 - **"Rencana penagihan tidak dapat dimuat"** — gunakan coba lagi pada pesannya.
-- **"No target set"** — pilih **Pengaturan rencana** dan isi target bulanan bawaan, atau target untuk
+- **"Target belum ditetapkan"** — pilih **Pengaturan rencana** dan isi target bulanan bawaan, atau target untuk
   bulan ini.
-- **"A target needs a three-letter currency."** — isi **Currency** di samping targetnya.
-- **"Enter an amount of zero or more."** — perbaiki nilai targetnya.
-- **"Enter a whole number of days from 1 to 3650."** — perbaiki **Flag after (days)**.
-- **Centang Anda hilang** — pilihan tidak disimpan; pilihan ulang saat Anda meninggalkan halaman.
-- **"Unaccepted progress could not be loaded"** — bagian bawah itu gagal; daftar pilihan di atasnya
+- **"Target memerlukan mata uang tiga huruf."** — isi **Mata uang** di samping targetnya.
+- **"Masukkan jumlah nol atau lebih."** — perbaiki nilai targetnya.
+- **"Masukkan bilangan bulat hari dari 1 sampai 3650."** — perbaiki **Tandai setelah (hari)**.
+- **Centang Anda hilang** — pilihan tidak disimpan; pilihan hilang saat Anda meninggalkan halaman.
+- **"Progres yang belum diterima tidak dapat dimuat"** — bagian bawah itu gagal; daftar pilihan di atasnya
   tetap berjalan. Muat ulang halamannya.

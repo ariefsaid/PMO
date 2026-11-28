@@ -27,19 +27,18 @@ what has been waiting too long.
    - **Oldest invoice age** — how many days the oldest unpaid invoice has been waiting.
 2. Read **Invoice age**: **0–30 days**, **31–60 days**, **61–90 days** and **Over 90 days**. The age
    counts calendar days since the supplier's invoice date, not days past a due date.
-3. Read the table. Each row is one supplier invoice with its **Supplier**, **Procurement**, the
-   **Project** (and that project's manager), its **Invoice age**, and its **Amount**. Where your
-   organisation uses payment channels, the **Payment channel** column shows how the purchase will be
-   paid.
+3. Read the table. Each row is a supplier invoice waiting to be paid, with its **Supplier**,
+   **Procurement**, the **Project** (and that project's manager), its **Invoice age**, and its
+   **Amount**. Where your organisation uses payment channels, a **Payment channel** column is added.
 4. Choose **Overdue only** to narrow the list to supplier invoices more than 90 days old, oldest
    first. The button carries its own count.
-
-The list carries no supplier due date, so the **Invoice age** is how you judge what goes into this
-week's run: the older the invoice, the longer the supplier has waited.
-5. Use **Search payables** to find a supplier, a purchase, a project or a project manager.
+5. Use **Search payables** to narrow the list.
 6. Choose **Export** for the list as a spreadsheet, or select rows and choose **Export selected**.
 7. To pay one, click the row (or use **Open procurement** in its menu), then record the payment on
    the purchase.
+
+The list carries no supplier due date, so the **Invoice age** is how you judge what goes into this
+week's run: the older the invoice, the longer the supplier has waited.
 
 ## What the result looks like
 
@@ -49,24 +48,23 @@ week's run: the older the invoice, the longer the supplier has waited.
   a note under the table says how many.
 - After you record a payment, the invoice leaves the list, and the **To pay suppliers** figure falls
   by the amount paid.
-- **Open bills and match** in a row's menu opens the purchase's documents and three-way match, for a
+- **Open bills and match** in a row's menu opens the purchase's documents, for a
   bill held against its order or receipt (see [Three-way match](../office/three-way-match.md)).
 
 ## Common errors and what to do
 
-- **The list is empty** — nothing is unpaid. A supplier bill appears here once it is recorded and
-  still has a balance.
+- **"No supplier invoices waiting to be paid."** — nothing is unpaid.
 - **"No payables match this search."** — clear the search, or turn off **Overdue only**.
 - **"No supplier invoices over 90 days match the current filters."** — nothing is that old with the
   current search. Clear it to see the whole list.
-- **An amount is missing from the total** — the supplier invoice carries no amount yet. Open the
-  purchase and complete the bill.
-- **"Couldn't load supplier invoices"** — use **Retry**; the ageing section reloads with it.
+- **A note says an invoice has no amount and is left out of the total** — the supplier invoice
+  carries no amount.
+- **"Couldn't load supplier invoices"** — use the retry on the message.
 - **A payment is refused with a message about the three-way match** — the bill does not match its
   order and receipts. Review the match on the purchase, or ask an Admin or Finance user who did not
   record the bill to approve the exception.
-- **You approved the purchase and cannot pay it** — the person who approved a purchase cannot also
-  pay it. Ask another Admin or Finance user to record the payment.
+- **Record payment is unavailable on the purchase** — if a line says the approver cannot pay their
+  own purchase, ask another Admin or Finance user to record the payment.
 
 ---
 
@@ -102,20 +100,19 @@ ini dan melihat tagihan mana yang sudah terlalu lama menunggu.
 2. Baca **Umur invoice**: **0–30 hari**, **31–60 hari**, **61–90 hari**, dan **Lebih dari 90 hari**.
    Umurnya dihitung dalam hari kalender sejak tanggal invoice supplier, bukan sejak tanggal jatuh
    tempo.
-3. Baca tabelnya. Tiap baris adalah satu invoice supplier dengan **Supplier**, **Pengadaan**,
-   **Proyek** (dan manajer proyeknya), **Umur invoice**, dan **Jumlah**-nya. Bila organisasi Anda
-   memakai kanal pembayaran, kolom **Kanal pembayaran** menunjukkan bagaimana pengadaannya akan
-   dibayar.
-4. Pilih **Overdue only** untuk menyaring invoice supplier yang berumur lebih dari 90 hari, dari yang
+3. Baca tabelnya. Tiap baris adalah invoice supplier yang menunggu pembayaran, dengan **Supplier**,
+   **Pengadaan**, **Proyek** (dan manajer proyeknya), **Umur invoice**, dan **Jumlah**-nya. Bila
+   organisasi Anda memakai kanal pembayaran, kolom **Kanal pembayaran** ditambahkan.
+4. Pilih **Hanya yang terlambat** untuk menyaring invoice supplier yang berumur lebih dari 90 hari, dari yang
    tertua. Tombolnya mencantumkan jumlahnya.
+5. Gunakan **Cari utang** untuk mempersempit daftar.
+6. Pilih **Ekspor** untuk mengunduh daftarnya sebagai lembar kerja, atau pilih baris lalu
+   **Ekspor yang dipilih**.
+7. Untuk membayar satu tagihan, klik barisnya (atau **Buka pengadaan** pada menunya), lalu catat
+   pembayarannya pada pengadaan itu.
 
 Daftar ini tidak memuat tanggal jatuh tempo dari supplier, jadi **Umur invoice** adalah dasar menilai
 apa yang masuk pembayaran minggu ini: makin tua invoice-nya, makin lama supplier menunggu.
-5. Gunakan **Cari utang** untuk menemukan supplier, pengadaan, proyek, atau manajer proyek.
-6. Pilih **Ekspor** untuk mengunduh daftarnya sebagai lembar kerja, atau pilih baris lalu
-   **Ekspor pilihan**.
-7. Untuk membayar satu tagihan, klik barisnya (atau **Open procurement** pada menunya), lalu catat
-   pembayarannya pada pengadaan itu.
 
 ## Bagaimana hasilnya
 
@@ -125,22 +122,22 @@ apa yang masuk pembayaran minggu ini: makin tua invoice-nya, makin lama supplier
   dan catatan di bawah tabel menyebut jumlahnya.
 - Setelah Anda mencatat pembayaran, invoice keluar dari daftar, dan angka
   **Yang harus dibayar kepada supplier** turun sebesar yang dibayarkan.
-- **Open bills and match** pada menu baris membuka dokumen pengadaan dan pencocokan tiga arah, untuk
+- **Buka tagihan dan pencocokan** pada menu baris membuka dokumen pengadaan, untuk
   tagihan yang ditahan terhadap pesanan atau penerimaannya (lihat
   [Pencocokan tiga arah](../office/three-way-match.md)).
 
 ## Kesalahan umum dan cara mengatasinya
 
-- **Daftarnya kosong** — tidak ada yang belum dibayar. Tagihan supplier muncul di sini setelah
-  dicatat dan masih memiliki saldo.
-- **"No payables match this search."** — kosongkan pencarian, atau matikan **Overdue only**.
-- **"No supplier invoices over 90 days match the current filters."** — tidak ada yang setua itu
+- **"Tidak ada invoice supplier yang menunggu pembayaran."** — tidak ada yang belum dibayar.
+- **"Tidak ada utang yang cocok dengan pencarian ini."** — kosongkan pencarian, atau matikan **Hanya yang terlambat**.
+- **"Tidak ada invoice supplier berumur lebih dari 90 hari yang cocok dengan filter saat ini."** — tidak ada yang setua itu
   dengan pencarian saat ini. Kosongkan pencarian untuk melihat seluruh daftar.
-- **Sebuah nilai tidak masuk ke total** — invoice supplier-nya belum punya nilai. Buka pengadaannya
-  dan lengkapi tagihannya.
-- **"Couldn't load supplier invoices"** — gunakan **Coba lagi**; bagian umur ikut dimuat ulang.
+- **Sebuah catatan menyebut invoice tanpa jumlah dan tidak masuk total** — invoice supplier-nya
+  belum punya nilai.
+- **"Invoice supplier tidak dapat dimuat"** — gunakan coba lagi pada pesannya.
 - **Pembayaran ditolak dengan pesan tentang pencocokan tiga arah** — tagihannya tidak cocok dengan
   pesanan dan penerimaannya. Tinjau pencocokannya pada pengadaan, atau minta Admin atau pengguna
   Keuangan yang tidak mencatat tagihan itu menyetujui pengecualiannya.
-- **Anda menyetujui pengadaannya dan tidak dapat membayarnya** — orang yang menyetujui pengadaan
-  tidak dapat juga membayarnya. Minta Admin atau pengguna Keuangan lain mencatat pembayarannya.
+- **Catat pembayaran tidak tersedia pada pengadaan** — bila sebuah baris menyebut penyetuju tidak
+  dapat membayar pengadaan yang disetujuinya sendiri, minta Admin atau pengguna Keuangan lain
+  mencatat pembayarannya.

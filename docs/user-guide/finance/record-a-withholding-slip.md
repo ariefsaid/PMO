@@ -13,7 +13,7 @@ tax process, and you enter what it says.
 
 - **Record a withholding slip**: Admin, Finance.
 - **Read slips and their history**: Admin, Executive, Project Manager, Finance.
-- A procurement must have a supplier recorded before its slip can be recorded.
+- A procurement must have a supplier recorded before a slip can be recorded for it.
 
 ## Where to find it
 
@@ -47,8 +47,7 @@ tax process, and you enter what it says.
 - The bill's **Withholding** cell reads **Slipped** with the slip number, and **View bukti potong**
   opens that slip.
 - **Bukti potong history** lists every slip recorded for the bill, including ones since voided.
-- A bill whose withholding has no slip yet reads **Not recorded**, because a bill with withheld tax
-  is not complete until its slip is on file.
+- A bill whose withholding has no slip yet reads **Not recorded**.
 
 ## Common errors and what to do
 
@@ -62,10 +61,9 @@ tax process, and you enter what it says.
   from the issued slip, or correct the bill first.
 - **"Choose a tax month no later than the current month."** — correct the **Tax period (month)**.
 - **"Issued withholding cannot exceed the tax base."** — check the two figures against the slip.
-- **No eligible bills** — the supplier has no bill in this currency and PPh type with withholding on
-  it. Record the bill's **Tax withheld** first (see
-  [Record a supplier payment](record-a-supplier-payment.md)).
-- **"Set a supplier on this procurement case before recording this slip."** — record the purchase's
+- **"No eligible bills for this supplier, currency and PPh type."** — record the bill's **Tax
+  withheld** first (see [Record a supplier payment](record-a-supplier-payment.md)).
+- **"Set a supplier on the procurement case before recording this slip."** — record the purchase's
   supplier first; the row offers **Set supplier**.
 
 ---
@@ -91,56 +89,55 @@ berasal dari proses pajak Anda, dan Anda memasukkan isinya.
 
 ## Di mana menemukannya
 
-- Buka pengadaannya → tab **Berkas** → kolom **Withholding** pada tagihan menampilkan angka
-  pemotongannya dengan **Record bukti potong** di bawahnya.
-- Tindakan yang sama ada di menu baris tagihan (⋯ di ujung baris **Case documents**).
-- Setelah tercatat, **View bukti potong** membuka bukti potongnya, dan **Bukti potong history**
+- Buka pengadaannya → tab **Berkas** → kolom **Pemotongan pajak** pada tagihan menampilkan angka
+  pemotongannya dengan **Catat bukti potong** di bawahnya.
+- Tindakan yang sama ada di menu baris tagihan (⋯ di ujung baris **Dokumen kasus**).
+- Setelah tercatat, **Lihat bukti potong** membuka bukti potongnya, dan **Riwayat bukti potong**
   memuat semua bukti potong untuk tagihan itu.
 
 ## Langkah-langkah
 
 1. Buka pengadaannya dan masuk ke tab **Berkas**.
-2. Temukan tagihan supplier-nya. Sel **Withholding** menampilkan yang dipotong; di bawahnya, pilih
-   **Record bukti potong**.
+2. Temukan tagihan supplier-nya. Sel **Pemotongan pajak** menampilkan yang dipotong; di bawahnya, pilih
+   **Catat bukti potong**.
 3. Isi keterangan yang tercetak pada bukti potong terbit:
-   - **Issued slip number**
-   - **Slip date** (hari ini atau lebih awal)
-   - **Tax period (month)** — tidak melewati bulan berjalan
-   - **PPh type** — **PPh 23** atau **PPh 4(2)**
-   - **Tax base**
-   - **Issued withheld amount**
-4. Di bawah **Eligible bills**, centang setiap tagihan yang dicakup bukti potong itu. Daftarnya
+   - **Nomor slip terbit**
+   - **Tanggal slip** (hari ini atau lebih awal)
+   - **Masa pajak (bulan)** — tidak melewati bulan berjalan
+   - **Jenis PPh** — **PPh 23** atau **PPh 4(2)**
+   - **Dasar pengenaan pajak**
+   - **Jumlah potongan pada slip**
+4. Di bawah **Tagihan yang memenuhi syarat**, centang setiap tagihan yang dicakup bukti potong itu. Daftarnya
    memuat tagihan supplier dalam mata uang dan jenis PPh yang sama. Tagihan yang jenis PPh-nya belum
    tercatat meminta Anda mengonfirmasinya lebih dulu — centang
-   **Confirm as PPh 23 from issued slip** (atau PPh 4(2)).
-5. Periksa **Selection · Slip · Difference** di bagian bawah: jumlah yang terbit harus sama persis
+   **Konfirmasi sebagai PPh 23 berdasarkan bukti potong terbit** (atau PPh 4(2)).
+5. Periksa **Pilihan ⟨jumlah⟩ · Slip ⟨jumlah⟩ · Selisih ⟨jumlah⟩** di bagian bawah: jumlah yang terbit harus sama persis
    dengan pemotongan tagihan yang Anda centang.
-6. Pilih **Record bukti potong**.
+6. Pilih **Catat bukti potong**.
 
 ## Bagaimana hasilnya
 
-- Sel **Withholding** pada tagihan bertanda **Slipped** dengan nomor bukti potongnya, dan
-  **View bukti potong** membuka bukti potong itu.
-- **Bukti potong history** memuat semua bukti potong yang tercatat untuk tagihan itu, termasuk yang
+- Sel **Pemotongan pajak** pada tagihan bertanda **Sudah dipotong** dengan nomor bukti potongnya, dan
+  **Lihat bukti potong** membuka bukti potong itu.
+- **Riwayat bukti potong** memuat semua bukti potong yang tercatat untuk tagihan itu, termasuk yang
   sudah dibatalkan.
-- Tagihan yang pemotongannya belum punya bukti potong bertanda **Not recorded**, karena tagihan
-  dengan pajak dipotong belum lengkap sampai bukti potongnya tercatat.
+- Tagihan yang pemotongannya belum punya bukti potong bertanda **Belum dicatat**.
 
 ## Kesalahan umum dan cara mengatasinya
 
-- **"The issued amount does not match selected bills."** — jumlah yang Anda masukkan berbeda dari
+- **"Jumlah terbit tidak sama dengan tagihan yang dipilih."** — jumlah yang Anda masukkan berbeda dari
   tagihan yang dicentang. Perbaiki jumlahnya, atau centang tagihan yang totalnya sesuai.
-- **"A slip number or bill is already covered."** — nomor bukti potong itu sudah dipakai, atau salah
-  satu tagihannya sudah ada di bukti potong lain. Periksa **Bukti potong history** tagihan itu.
-- **"This slip changed. Reload it before saving."** — bukti potongnya berubah di tempat lain. Tutup
+- **"Nomor slip atau tagihan sudah tercatat."** — nomor bukti potong itu sudah dipakai, atau salah
+  satu tagihannya sudah ada di bukti potong lain. Periksa **Riwayat bukti potong** tagihan itu.
+- **"Slip ini telah berubah. Muat ulang sebelum menyimpan."** — bukti potongnya berubah di tempat lain. Tutup
   jendelanya, buka lagi, dan isi ulang.
-- **"Confirm the unknown bill types."** — tagihan yang dicentang belum punya jenis PPh. Konfirmasi
+- **"Konfirmasi jenis tagihan yang belum diketahui."** — tagihan yang dicentang belum punya jenis PPh. Konfirmasi
   jenisnya dari bukti potong terbit, atau perbaiki tagihannya lebih dulu.
-- **"Choose a tax month no later than the current month."** — perbaiki **Tax period (month)**.
-- **"Issued withholding cannot exceed the tax base."** — periksa kedua angka terhadap bukti
+- **"Pilih masa pajak yang tidak melebihi bulan berjalan."** — perbaiki **Masa pajak (bulan)**.
+- **"Jumlah potongan pada bukti potong tidak boleh melebihi dasar pengenaan pajak."** — periksa kedua angka terhadap bukti
   potongnya.
-- **Tidak ada tagihan yang memenuhi syarat** — supplier tidak punya tagihan dalam mata uang dan
-  jenis PPh ini yang memiliki pemotongan. Catat dulu **Tax withheld** pada tagihannya (lihat
+- **"Tidak ada tagihan yang memenuhi syarat untuk supplier, mata uang, dan jenis PPh ini."** —
+  catat dulu **Pajak dipotong** pada tagihannya (lihat
   [Mencatat pembayaran supplier](record-a-supplier-payment.md)).
-- **"Set a supplier on this procurement case before recording this slip."** — catat supplier
-  pengadaannya lebih dulu; barisnya menawarkan **Set supplier**.
+- **"Atur supplier pada kasus pengadaan sebelum mencatat bukti potong."** — catat supplier
+  pengadaannya lebih dulu; barisnya menawarkan **Tentukan supplier**.

@@ -45,7 +45,7 @@ have not yet matched to an invoice stays on the payment as **Not yet applied** u
 4. For each invoice choose the invoice and its **Amount**. **Fill balance** puts in the invoice's
    balance or whatever is left of the payment, whichever is smaller. **Add another invoice** adds a
    row.
-5. Watch **Left to apply**; it must not go below zero.
+5. Watch **Left to apply: ⟨amount⟩**; it must not go below zero.
 6. Choose **Apply**.
 
 To take an amount back off an invoice, choose **Unapply** beside it and confirm. The amount returns
@@ -67,8 +67,8 @@ to **Not yet applied** on the payment, and the invoice owes it again.
 
 - **"Cash received plus withheld tax must equal the amount allocated to the invoice."** — correct
   either the settled amount or the cash and withholding figures so they add up.
-- **"Withholding slip not entered (required for a deduction)."** — a withheld amount needs the slip
-  number in **Tax withheld**.
+- **"Withholding slip not entered (required for a deduction)."** — shown in the **Tax withheld**
+  section: a withheld amount needs the slip number there.
 - **"The payment date cannot be in the future."** / **"The payment date cannot be before the invoice
   date."** — correct the **Payment date**.
 - **"No open invoices for this customer."** — the customer has nothing unpaid, or the open invoice is
@@ -81,10 +81,9 @@ to **Not yet applied** on the payment, and the invoice owes it again.
   received. Lower the rows.
 - **"An invoice can be listed only once."** — combine the two rows for the same invoice.
 - **The wrong invoice was settled** — choose **Unapply** beside it, then apply the money again.
-- **The payment was recorded twice** — cancel the duplicate: open it and choose **Cancel** in its
-  menu. A cancelled receipt puts its amount back on the invoice's balance.
-- **Cancelling the invoice is refused because receipts exist** — cancel the receipts recorded against
-  the invoice first, then cancel the invoice.
+- **The payment was recorded twice** — cancel the duplicate: choose **Cancel** in its row menu.
+- **Cancelling the invoice is refused with "Cancel this invoice's receipts first"** — cancel the
+  receipts recorded against the invoice first, then cancel the invoice.
 
 ---
 
@@ -106,7 +105,7 @@ menerapkannya.
 
 ## Di mana menemukannya
 
-- **Keuangan** → **Piutang** → tab **Pembayaran diterima**. Tombol **Catat pembayaran** ada di atas
+- **Keuangan** → **Piutang** → tab **Pembayaran diterima**. Tombol **Terima pembayaran** ada di atas
   halaman.
 - Halaman invoice sendiri menawarkan **Catat pembayaran** sebagai tombol utamanya selama masih ada
   sisa tagihan.
@@ -117,19 +116,19 @@ menerapkannya.
 
 ### Mencatat uangnya
 
-1. Buka **Piutang** dan pilih **Catat pembayaran**.
-2. Pilih **Customer**.
-3. Pilih invoice pada **Sales Invoice (optional)**.
-   - Dengan invoice, jumlahnya mulai dari sisa tagihan invoice itu. Isi **lebih kecil untuk
-     pembayaran sebagian**, atau lebih besar bila klien membayar lebih.
+1. Buka **Piutang** dan pilih **Terima pembayaran**. Formulirnya berjudul **Terima pembayaran**.
+2. Pilih **Pelanggan**.
+3. Pilih invoice pada **Invoice Penjualan (opsional)**.
+   - Dengan invoice, jumlahnya mulai dari sisa tagihan invoice itu. Isi jumlah lebih kecil untuk
+     pembayaran sebagian, atau lebih besar bila klien membayar lebih.
    - Tanpa invoice, jumlahnya dicatat sebagai pembayaran pelanggan tanpa invoice, dan Anda dapat
      menerapkannya ke invoice nanti.
-4. Periksa **Amount settled** dan **Cash received** — uang yang benar-benar masuk ke bank.
-5. Bila klien memotong pajak, buka **Tax withheld** dan isi **Withheld tax amount** serta
-   **Withholding-slip number**. Kas diterima ditambah pajak dipotong harus sama dengan jumlah yang
+4. Periksa **Jumlah yang dilunasi** dan **Kas diterima** — uang yang benar-benar masuk ke bank.
+5. Bila klien memotong pajak, buka **Pajak dipotong** dan isi **Jumlah pajak dipotong** serta
+   **Nomor bukti potong**. Kas diterima ditambah pajak dipotong harus sama dengan jumlah yang
    dilunasi.
-6. Isi **Payment date**. Tanggal tidak boleh di masa depan, dan tidak boleh sebelum tanggal invoice.
-7. Pilih **Record payment**.
+6. Isi **Tanggal pembayaran**. Tanggal tidak boleh di masa depan, dan tidak boleh sebelum tanggal invoice.
+7. Pilih **Catat pembayaran**.
 
 ### Menerapkan uangnya ke invoice
 
@@ -139,7 +138,7 @@ menerapkannya.
 3. Selama **Belum dialokasikan** masih di atas nol, pilih **Terapkan ke invoice**.
 4. Untuk tiap invoice, pilih invoice dan **Jumlah**-nya. **Isi sisa tagihan** mengisi sisa tagihan
    invoice atau sisa pembayaran, mana yang lebih kecil. **Tambah invoice lain** menambah baris.
-5. Perhatikan **Sisa yang bisa diterapkan**; nilainya tidak boleh di bawah nol.
+5. Perhatikan **Sisa yang bisa diterapkan: ⟨jumlah⟩**; nilainya tidak boleh di bawah nol.
 6. Pilih **Terapkan**.
 
 Untuk menarik kembali sejumlah uang dari invoice, pilih **Batalkan penerapan** di sampingnya lalu
@@ -150,34 +149,33 @@ memiliki sisa tagihan sebesar itu.
 
 - Pembayaran muncul di **Pembayaran diterima** dengan nomornya, invoice-nya (atau invoice pertama
   dan *+n lainnya*), pelanggan, **Status**, **Jumlah**, dan **Tanggal**. Kuitansi aktif bertanda
-  **Received**.
-- Halaman pembayaran sendiri (**Payment record**) menampilkan **Payment total**, **Kas diterima**,
+  **Diterima**.
+- Halaman pembayaran sendiri (**Detail pembayaran**) menampilkan **Total pembayaran**, **Kas diterima**,
   **Pajak dipotong**, **Pasal pemotongan** bila tercatat, dan **Invoice yang dilunasi pembayaran
   ini** beserta jumlah yang diterapkan pada masing-masing.
-- Halaman tiap invoice yang dilunasi mencantumkan pembayarannya di bawah **Applied receipts**, dan
-  **Terutang**-nya turun sebesar yang diterapkan. Invoice yang lunas bertanda **Lunas**; pembayaran
+- Halaman tiap invoice yang dilunasi mencantumkan pembayarannya di bawah **Penerimaan yang dialokasikan**, dan
+  **Belum dibayar**-nya turun sebesar yang diterapkan. Invoice yang lunas bertanda **Lunas**; pembayaran
   sebagian bertanda **Dibayar sebagian**.
 - **Diterima bulan ini** di halaman Piutang bergerak sebesar kas yang diterima.
 
 ## Kesalahan umum dan cara mengatasinya
 
-- **"Cash received plus withheld tax must equal the amount allocated to the invoice."** — perbaiki
+- **"Kas diterima ditambah pajak dipotong harus sama dengan jumlah yang dialokasikan ke invoice."** — perbaiki
   jumlah yang dilunasi atau angka kas dan pemotongannya sehingga sama.
-- **"Withholding slip not entered (required for a deduction)."** — jumlah yang dipotong memerlukan
-  nomor bukti potong di **Tax withheld**.
-- **"The payment date cannot be in the future."** / **"The payment date cannot be before the invoice
-  date."** — perbaiki **Payment date**.
-- **"No open invoices for this customer."** — pelanggan ini tidak punya tagihan terbuka, atau
+- **"Nomor bukti potong belum diisi (wajib untuk pemotongan pajak)."** — tampil di bagian
+  **Pajak dipotong**: jumlah yang dipotong memerlukan nomor bukti potong di sana.
+- **"Tanggal pembayaran tidak boleh di masa depan."** / **"Tanggal pembayaran tidak boleh sebelum
+  tanggal invoice."** — perbaiki **Tanggal pembayaran**.
+- **"Tidak ada invoice terbuka untuk pelanggan ini."** — pelanggan ini tidak punya tagihan terbuka, atau
   invoice-nya masih draf. Setujui invoice dulu, lalu catat pembayarannya.
-- **"This invoice is waiting for approval. Approve it before applying the receipt."** — setujui
+- **"Invoice ini menunggu persetujuan. Setujui sebelum menerapkan kuitansi."** — setujui
   invoice, lalu terapkan pembayarannya.
-- **"This is more than the invoice still owes (⟨amount⟩)."** — turunkan jumlah untuk invoice itu,
+- **"Jumlahnya melebihi sisa tagihan invoice (⟨jumlah⟩)."** — turunkan jumlah untuk invoice itu,
   atau terapkan sisanya ke invoice lain.
-- **"This is more than the payment has left to apply."** — barisnya melebihi uang yang diterima.
+- **"Jumlahnya melebihi sisa pembayaran yang belum diterapkan."** — barisnya melebihi uang yang diterima.
   Turunkan jumlahnya.
-- **"An invoice can be listed only once."** — gabungkan dua baris untuk invoice yang sama.
+- **"Satu invoice hanya boleh dicantumkan sekali."** — gabungkan dua baris untuk invoice yang sama.
 - **Invoice yang dilunasi salah** — pilih **Batalkan penerapan** di sampingnya, lalu terapkan lagi.
-- **Pembayaran tercatat dua kali** — batalkan yang ganda: buka lalu pilih **Cancel** pada menunya.
-  Kuitansi yang dibatalkan mengembalikan jumlahnya ke sisa tagihan invoice.
-- **Pembatalan ditolak karena sudah ada kuitansi** — batalkan kuitansi yang tercatat pada invoice
-  itu lebih dulu, lalu batalkan invoice-nya.
+- **Pembayaran tercatat dua kali** — batalkan yang ganda: pilih **Batal** pada menu barisnya.
+- **Pembatalan invoice ditolak dengan "Batalkan penerimaan invoice ini terlebih dahulu"** — batalkan
+  kuitansi yang tercatat pada invoice itu lebih dulu, lalu batalkan invoice-nya.
