@@ -215,7 +215,7 @@ create policy rate_catalogue_variants_engineer_read on public.rate_catalogue_var
 
 -- ── engineer sets a work order's area, group and check-in point ────────────────────────────────────────────────────────────────
 create or replace function public.set_work_order_area_group(p_work_order uuid, p_area uuid DEFAULT NULL::uuid, p_group uuid DEFAULT NULL::uuid, p_set_area boolean DEFAULT true, p_set_group boolean DEFAULT true)
- returns void language plpgsql security definer set search_path to 'public', 'pg_temp' as $$
+ returns void language plpgsql security definer set search_path = public, pg_temp as $$
 begin
   perform public.assert_not_light();
   if public.auth_org_id() is null or not public.is_active_member()
@@ -260,7 +260,7 @@ end $$;
 
 -- ── engineer writes the work order plan (cost against revenue): the setter, then the plan table it writes as the caller ────────
 create or replace function public.set_work_order_plan(p_project_id uuid, p_work_order_id uuid, p_changes jsonb)
- returns integer language plpgsql set search_path to 'public', 'pg_temp' as $$
+ returns integer language plpgsql set search_path = public, pg_temp as $$
 declare
   v_change jsonb;
   v_kind text;
@@ -361,7 +361,7 @@ alter policy claim_billing_stage_documents_engineer_read_scope on public.claim_b
 -- ── planner: links tasks to a work order and writes task dependencies ──────────────────────────────────────────────────────────
 -- Insert guard: a planner may name a work order on a new task; proof_required stays with managers.
 create or replace function public.check_task_work_order() returns trigger
-  language plpgsql security definer set search_path to 'public', 'pg_temp' as $$
+  language plpgsql security definer set search_path = public, pg_temp as $$
 declare
   v_org uuid; v_project uuid; v_status public.work_order_status;
 begin

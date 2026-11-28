@@ -120,7 +120,7 @@ select is(array(select column_name::text from information_schema.column_privileg
  'AC-SRCAT-ACL exact placement creation columns retain server organisation stamp');
 -- Exhaustive new admission edges across ALL public functions and policies at migrated head.
 select is(array(select proname from cat_functions where prosrc ~* $re$actor_holds_job_role[[:space:]]*\([[:space:]]*'planner'$re$ order by proname),
- array['guard_work_order_section','wo_revenue_plan_vs_actual','wrp_writable_work_order'],
+ array['check_task_work_order','enforce_assignee_status_only','guard_work_order_section','wo_revenue_plan_vs_actual','wrp_writable_work_order'],
  'AC-SRCAT-PLANNER no other direct Planner function admission');
 select is(array(select proname from cat_functions where prosrc ~* $re$actor_holds_job_role[[:space:]]*\([[:space:]]*'equipment_officer'$re$ order by proname),
  array['create_rented_equipment_asset','equipment_can_edit_terms','equipment_metrics'],
@@ -136,9 +136,10 @@ select is(array(select proname from cat_functions where prosrc ~* $re$(wo_revenu
  array[]::text[],'AC-SRCAT-READS no other function inherits either newly admitted read');
 select is(array(select tablename||':'||policyname from cat_policies
  where coalesce(qual,'')||coalesce(with_check,'') ~* $re$actor_holds_job_role[[:space:]]*\([[:space:]]*'planner'$re$ order by tablename,policyname),
- array['work_order_crews:work_order_crews_insert','work_order_crews:work_order_crews_update',
+ array['task_dependencies:task_dependencies_planner_write','tasks:tasks_planner_update',
+ 'work_order_crews:work_order_crews_insert','work_order_crews:work_order_crews_update',
  'work_order_sections:work_order_sections_insert','work_order_sections:work_order_sections_update'],
- 'AC-SRCAT-PLANNER no financial table policy admits Planner');
+ 'AC-SRCAT-PLANNER no financial table policy admits Planner (task links and dependencies are scheduling, not money)');
 -- DD-R1124-17 deliberately adds only asset-register create/edit and rental terms (register a rented asset, edit and read its terms) for the Equipment Officer.
 select is(array(select tablename||':'||policyname||':'||cmd from cat_policies
  where coalesce(qual,'')||coalesce(with_check,'') ~* $re$actor_holds_job_role[[:space:]]*\([[:space:]]*'equipment_officer'$re$ order by tablename,policyname,cmd),
