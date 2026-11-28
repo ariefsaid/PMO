@@ -1,5 +1,7 @@
 # Load opening stock
 
+## What this is for
+
 Opening stock is how a new organisation starts its stock book: one file of the dated in-and-out
 movements of each item at each location, loaded once, so the ledger begins from real history instead
 of from a blank page. Nothing is posted until you have seen the preview and confirmed it.
@@ -67,6 +69,8 @@ sits at the top of the stock setup page.
 ## Bahasa Indonesia
 
 # Memuat stok awal
+
+## Untuk apa ini
 
 Stok awal adalah cara organisasi baru memulai buku stoknya: satu berkas berisi pergerakan masuk dan
 keluar setiap barang di setiap lokasi beserta tanggalnya, dimuat sekali, sehingga buku stok dimulai

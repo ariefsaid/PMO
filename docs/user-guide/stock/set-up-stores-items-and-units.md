@@ -1,5 +1,7 @@
 # Set up stores, items and units
 
+## What this is for
+
 Before the site can use **Stock**, three lists must exist: the **units** you count in (bag, metre,
 kilogram), the **items** you keep, and the **warehouses** — a central store, a project site store, a
 project yard, a staging area, or a vendor's place where your material sits. Each warehouse has
@@ -89,6 +91,8 @@ master data.
 ## Bahasa Indonesia
 
 # Menyiapkan gudang, barang, dan satuan
+
+## Untuk apa ini
 
 Sebelum lokasi dapat memakai **Stok**, tiga daftar harus ada: **satuan** yang Anda pakai menghitung
 (sak, meter, kilogram), **barang** yang Anda simpan, dan **gudang** — gudang pusat, gudang lokasi

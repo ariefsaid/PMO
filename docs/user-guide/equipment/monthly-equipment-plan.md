@@ -1,5 +1,7 @@
 # Plan the month's equipment and turn the plan into rental orders
 
+## What this is for
+
 Once a month, a project knows what plant and services it will need: a crane for two weeks, an
 excavator on hire, a survey crew. The **Monthly equipment plan** lists that need, project by month,
 and approval turns each line into a draft rental order, so nothing is ordered twice by hand and
@@ -72,6 +74,8 @@ the monthly equipment plan** in its place.
 ## Bahasa Indonesia
 
 # Merencanakan peralatan bulan ini dan mengubahnya menjadi pesanan sewa
+
+## Untuk apa ini
 
 Setiap bulan, sebuah proyek tahu alat dan jasa apa yang dibutuhkannya: crane untuk dua minggu,
 ekskavator sewaan, tim survei. **Rencana peralatan bulanan** mencatat kebutuhan itu, per proyek per

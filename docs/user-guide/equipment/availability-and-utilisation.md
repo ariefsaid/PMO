@@ -1,5 +1,7 @@
 # Promise work against machines that exist: availability and utilisation
 
+## What this is for
+
 Two figures tell you whether the plant can carry the week's plan:
 
 - **Availability** — the share of days a machine was available to work. A machine marked **Broken**,
@@ -75,6 +77,8 @@ targets and the working hours. Finance and the equipment manager read the rental
 ## Bahasa Indonesia
 
 # Menjanjikan pekerjaan pada mesin yang benar-benar ada: ketersediaan dan pemanfaatan
+
+## Untuk apa ini
 
 Dua angka menunjukkan apakah alat dapat menanggung rencana minggu itu:
 

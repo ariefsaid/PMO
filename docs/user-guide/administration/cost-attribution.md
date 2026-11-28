@@ -1,5 +1,7 @@
 # Place untagged cost onto projects
 
+## What this is for
+
 When cost arrives from your accounting system, most of it already names a project. Some does not — a
 shared account, an overhead, a bill booked without a project tag. **Cost attribution** rules place
 that untagged cost onto one or more projects by a percentage, so the project's actual cost is complete
@@ -68,6 +70,8 @@ accounting system.
 ## Bahasa Indonesia
 
 # Menempatkan biaya tanpa proyek ke proyek
+
+## Untuk apa ini
 
 Saat biaya datang dari sistem akuntansi Anda, sebagian besar sudah menyebut proyek. Sebagian tidak —
 akun bersama, biaya overhead, tagihan yang dicatat tanpa tanda proyek. Aturan **Atribusi biaya**

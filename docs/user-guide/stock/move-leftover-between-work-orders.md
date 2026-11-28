@@ -1,5 +1,7 @@
 # Move leftover material to another work order
 
+## What this is for
+
 When one work order finishes a part of the job with material left over, that material often belongs
 to another work order at the same site. This feature moves it as one document: the first work order is
 credited with the return and the second is charged with the issue, while the stock stays exactly where
@@ -65,6 +67,8 @@ Two ways to the same page:
 ## Bahasa Indonesia
 
 # Memindahkan sisa material ke perintah kerja lain
+
+## Untuk apa ini
 
 Saat sebuah perintah kerja menyelesaikan sebagian pekerjaan dan materialnya bersisa, sisa itu sering
 menjadi milik perintah kerja lain di lokasi yang sama. Fitur ini memindahkannya sebagai satu dokumen:

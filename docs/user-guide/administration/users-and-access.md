@@ -1,5 +1,7 @@
 # Add a person, give them a role, and remove access
 
+## What this is for
+
 Everyone who signs in to PMO is a user of your organisation. Each user has an **Access level** — the
 five levels are **Admin**, **Executive**, **Project Manager**, **Finance** and **Engineer** — and,
 where your organisation has turned job roles on, a **Job role** such as Storekeeper or Site
@@ -87,6 +89,8 @@ the only active Admin of an organisation cannot be disabled.
 ## Bahasa Indonesia
 
 # Menambah orang, memberi peran, dan mencabut akses
+
+## Untuk apa ini
 
 Setiap orang yang masuk ke PMO adalah pengguna organisasi Anda. Setiap pengguna punya **Tingkat
 akses** — lima tingkatnya adalah **Admin**, **Eksekutif**, **Manajer Proyek**, **Finance**, dan

@@ -1,5 +1,7 @@
 # Answer "what happened to this item?" from its ledger
 
+## What this is for
+
 The ledger is the running record of every stock movement: each receipt, transfer, issue, return,
 count and adjustment, with its date, its document, the change it made and the balance left behind.
 When someone asks where a quantity went, the ledger answers from movements instead of memory.
@@ -54,6 +56,8 @@ page.
 ## Bahasa Indonesia
 
 # Menjawab "barang ini ke mana?" dari buku stok
+
+## Untuk apa ini
 
 Buku stok adalah catatan berjalan setiap pergerakan stok: setiap penerimaan, transfer, pengeluaran,
 pengembalian, hitungan, dan penyesuaian, beserta tanggal, dokumennya, perubahan yang dibuat, dan

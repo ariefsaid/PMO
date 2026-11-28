@@ -1,5 +1,7 @@
 # See stock at risk against each location's cover
 
+## What this is for
+
 Each stock location can carry a **Cover value** — the amount of protection recorded for the stock it
 holds. **Stock → At risk** compares the value of the stock at every location with that cover, so the
 value sitting unprotected is visible instead of assumed. It is the screen to open when you ask "how
@@ -68,6 +70,8 @@ may read stock cost; other roles see the locations and whether each has guard co
 ## Bahasa Indonesia
 
 # Melihat stok berisiko terhadap perlindungan tiap lokasi
+
+## Untuk apa ini
 
 Setiap lokasi stok dapat memiliki **Nilai perlindungan** — besaran perlindungan yang dicatat untuk
 stok yang disimpannya. **Stok → Berisiko** membandingkan nilai stok di setiap lokasi dengan

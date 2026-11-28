@@ -1,5 +1,7 @@
 # Find out who changed a record and when
 
+## What this is for
+
 Every change to a work order, a budget, a purchase, a task, a project or a customer record is
 written down: what changed, who changed it, and when. The **History** views turn that record into an
 answer — "who set this value, and on what day?" — instead of an email trail.
@@ -62,6 +64,8 @@ report's validation, a document's renewal each name who decided and when.
 ## Bahasa Indonesia
 
 # Mengetahui siapa mengubah sebuah catatan dan kapan
+
+## Untuk apa ini
 
 Setiap perubahan pada perintah kerja, anggaran, pembelian, tugas, proyek, atau catatan pelanggan
 tercatat: apa yang berubah, siapa yang mengubahnya, dan kapan. Tampilan **Riwayat** mengubah catatan

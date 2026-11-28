@@ -1,5 +1,7 @@
 # Keep numbering, currency and exchange rates right
 
+## What this is for
+
 These are the organisation-wide settings that every other screen depends on: the pattern project
 numbers follow, the fiscal year and default tax treatment money is read against, and the exchange
 rates that let a foreign-currency amount be shown in rupiah. They are set once, then left alone — and
@@ -86,6 +88,8 @@ it as the index. The three screens this page covers:
 ## Bahasa Indonesia
 
 # Menjaga penomoran, mata uang, dan kurs tetap benar
+
+## Untuk apa ini
 
 Ini adalah pengaturan organisasi yang menjadi dasar semua layar lain: pola nomor proyek, tahun buku
 dan perlakuan pajak bawaan yang menjadi dasar pembacaan uang, serta kurs yang memungkinkan nilai mata

@@ -1,5 +1,7 @@
 # Keep the equipment register
 
+## What this is for
+
 The asset register is the list of every machine your organisation runs or hires: loaders, trucks,
 generators, cranes. Each asset has a code, a name, whether it is owned or rented, and the unit its
 hours are logged in. The register is what crews pick from when they record machinery usage, and what
@@ -79,6 +81,8 @@ rental terms**.
 ## Bahasa Indonesia
 
 # Mengelola daftar peralatan
+
+## Untuk apa ini
 
 Daftar aset adalah kumpulan semua mesin yang dijalankan atau disewa organisasi Anda: loader, truk,
 genset, crane. Setiap aset punya kode, nama, status milik sendiri atau sewa, dan satuan pencatatan

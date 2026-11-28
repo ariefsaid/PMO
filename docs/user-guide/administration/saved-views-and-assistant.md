@@ -1,5 +1,7 @@
 # Build a saved view, and ask the assistant
 
+## What this is for
+
 Two things on this page save you time: a **view** you compose once and open again, and the
 **assistant** you can ask a question in plain words.
 
@@ -93,6 +95,8 @@ colleagues; only you (or whoever owns it) can edit or archive it.
 ## Bahasa Indonesia
 
 # Membuat tampilan tersimpan, dan bertanya kepada asisten
+
+## Untuk apa ini
 
 Dua hal di halaman ini menghemat waktu: **tampilan** yang Anda susun sekali lalu buka lagi, dan
 **asisten** yang dapat ditanyai dengan kata sederhana.

@@ -1,5 +1,7 @@
 # Set up projects, stages, disciplines and the lists your teams choose from
 
+## What this is for
+
 Before projects run smoothly, the organisation's own lists must exist: what service lines and sectors
 a project can be classified as, the stages a sale and a project move through, the cost disciplines
 costs are grouped by, the issue types people raise, the work-order areas and groups, and the choices
@@ -86,6 +88,8 @@ card explains what it changes, and each saves with its own button.
 ## Bahasa Indonesia
 
 # Menyiapkan proyek, tahapan, disiplin, dan daftar pilihan tim Anda
+
+## Untuk apa ini
 
 Sebelum proyek berjalan lancar, daftar milik organisasi harus ada: lini layanan dan sektor yang boleh
 dipakai proyek, tahapan yang dilalui penjualan dan proyek, disiplin biaya tempat biaya dikelompokkan,

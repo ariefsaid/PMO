@@ -1,5 +1,7 @@
 # Reorder levels and restocking
 
+## What this is for
+
 A reorder level is the quantity of an item, at one warehouse, at which you want to buy more. When
 stock on hand reaches that level, the item appears on the **Reorder** list so nothing runs out
 quietly. PMO can also suggest a level for you from how much the item has actually been used, and
@@ -67,6 +69,8 @@ restocks an item.
 ## Bahasa Indonesia
 
 # Level pemesanan ulang dan pengisian stok
+
+## Untuk apa ini
 
 Level pemesanan ulang adalah jumlah sebuah barang di satu gudang yang menjadi tanda untuk membeli
 lagi. Saat sisa stok mencapai level itu, barang muncul di daftar **Pemesanan ulang** agar tidak

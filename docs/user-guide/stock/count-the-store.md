@@ -1,5 +1,7 @@
 # Count the store and record the difference
 
+## What this is for
+
 A stock count compares what is on the shelf with what the book says. You write down the quantity
 you actually counted on each line; PMO shows the system quantity and the difference as you type.
 A count that agrees with the book changes nothing. A count where anything differs becomes an
@@ -78,6 +80,8 @@ from its document page with **Edit draft**.
 ## Bahasa Indonesia
 
 # Menghitung stok gudang dan mencatat selisihnya
+
+## Untuk apa ini
 
 Stok opname membandingkan apa yang ada di rak dengan catatan. Anda menulis jumlah yang benar-benar
 Anda hitung di tiap baris; PMO menampilkan jumlah sistem dan selisihnya saat Anda mengetik.

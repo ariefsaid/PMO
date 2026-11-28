@@ -1,5 +1,7 @@
 # Set usage standards for consumables
 
+## What this is for
+
 A usage standard says how much of a consumable a unit of planned work uses — for example, how much
 welding rod one dia-inch of welded pipe takes. Work orders turn these standards into a **Consumables**
 plan, and material requests are then checked against that plan, so "we always use about this much"
@@ -60,6 +62,8 @@ Finance, Project Manager, Executive or Admin.
 ## Bahasa Indonesia
 
 # Menetapkan standar pemakaian bahan habis pakai
+
+## Untuk apa ini
 
 Standar pemakaian menyebut berapa banyak bahan habis pakai yang dipakai satu satuan pekerjaan —
 misalnya berapa kawat las untuk satu dia-inci pipa yang dilas. Perintah kerja mengubah standar ini

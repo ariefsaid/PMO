@@ -1,5 +1,7 @@
 # Record who is cleared for site
 
+## What this is for
+
 Before someone is mobilised to site, they usually need a set of things in place: a safety induction, a
 medical check, a badge, a licence. The **cleared-for-site checklist** is your organisation's own list
 of those items, plus one answer per person — done or not, the date it was done, when it expires, and
@@ -84,6 +86,8 @@ Project Manager and HR Officer can read the checklist and see who is cleared.
 ## Bahasa Indonesia
 
 # Mencatat siapa yang lolos ke lokasi
+
+## Untuk apa ini
 
 Sebelum seseorang dimobilisasi ke lokasi, biasanya ada beberapa hal yang harus siap: induksi
 keselamatan, pemeriksaan kesehatan, badge, lisensi. **Daftar periksa izin ke lokasi** adalah daftar

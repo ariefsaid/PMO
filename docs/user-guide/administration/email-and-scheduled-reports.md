@@ -1,5 +1,7 @@
 # Email notifications and scheduled reports
 
+## What this is for
+
 PMO already shows a bell with in-app notifications. This page adds email: which events also send an
 email, in which language, and which reports are emailed to people or roles on a schedule. It exists so
 nobody has to open PMO just to find out that something is waiting for them.
@@ -76,6 +78,8 @@ recipients who can read them too.
 ## Bahasa Indonesia
 
 # Notifikasi email dan laporan terjadwal
+
+## Untuk apa ini
 
 PMO sudah menampilkan lonceng dengan notifikasi di dalam aplikasi. Halaman ini menambahkan email:
 kejadian mana yang juga mengirim email, dalam bahasa apa, dan laporan mana yang dikirim lewat email

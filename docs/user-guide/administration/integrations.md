@@ -1,5 +1,7 @@
 # Connect the services your organisation works with
 
+## What this is for
+
 PMO runs on its own. When your organisation already uses other services, PMO can connect to them so
 information moves instead of being typed twice: a task tool for project tasks, an accounting system
 for purchases and stock, and Microsoft 365 for documents. **Nothing is connected until an Admin
@@ -85,6 +87,8 @@ connects their own Microsoft 365 account under **My integrations**.
 ## Bahasa Indonesia
 
 # Menghubungkan layanan yang dipakai organisasi Anda
+
+## Untuk apa ini
 
 PMO berjalan sendiri. Bila organisasi Anda sudah memakai layanan lain, PMO dapat terhubung ke sana
 agar informasi berpindah, bukan diketik dua kali: alat tugas untuk tugas proyek, sistem akuntansi

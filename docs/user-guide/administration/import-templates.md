@@ -1,5 +1,7 @@
 # Load master data with import templates
 
+## What this is for
+
 Typing a hundred stock items, a rate catalogue or a crew list by hand is slow and easy to get wrong.
 Wherever PMO offers an **Import** button, it also offers a spreadsheet template: download it, fill it,
 upload it, and PMO checks every row before it saves anything. Rows that fail are listed in a file you
@@ -76,6 +78,8 @@ Each list carries its own **Import** button:
 ## Bahasa Indonesia
 
 # Memuat data induk dengan templat impor
+
+## Untuk apa ini
 
 Mengetik seratus barang stok, katalog tarif, atau daftar kru dengan tangan itu lambat dan mudah salah.
 Di setiap tempat PMO menawarkan tombol **Impor**, ia juga menawarkan templat spreadsheet: unduh, isi,
