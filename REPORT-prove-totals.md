@@ -113,3 +113,19 @@ Error: S21_HANDLER_SERVER_EXITED_EARLY
 
     Error Context: ../../../../tmp/claude-0/-home-user-PMO/a160afea-aa91-52d7-83a5-3494273ab535/scratchpad/e2e/out-chunk-chromium-03-rerun/AC-S21-005-task-list-revie-de223--and-reads-back-the-binding-chromium/error-context.md
 ```
+
+Notes on serial lane chunk 00:
+- AC-AUTH-005 and AC-AUTHF-005-password-reset failed alone first with `connect ECONNREFUSED 127.0.0.1:54324` (the mail inbox). My first stack start left out Mailpit (as CI's pgtap job does). After restarting the stack with Mailpit (database kept) both passed alone (11 passed each). Environment, not the branch.
+- AC-IXD-PROC-W5-3-approvals-inbox, test "an Engineer with nothing to decide at /approvals is denied": failed alone right after the chunk (1 failed, 14 passed). The page showed the Approvals screen with its heading and a nav link "Approvals, 0 pending", not the "you don't have access" surface, so the Engineer was treated as having standing to decide. Later, in the same stack after other specs had run, the same spec passed both on the branch (15 passed, 1.5m) and on plain origin/dev code (15 passed, 1.5m). The branch does not change my_decision_standing or the Approvals page. Verdict: order- and database-state-dependent, not shown to come from this branch. I could not find which earlier spec left the standing behind (no keeper, step, stand-in, pin or direct-report row existed for that user afterwards).
+
+## Step 7: typecheck and guards (pmo-portal)
+- `npm run typecheck`: exit 0, no errors (app, server, test and tooling projects).
+- `npm run check:guards`: exit 0 (read-state: 3 allowlisted, 0 new; layout-baseline: 352 keys, none grew against origin/dev; self-tests passed).
+
+## Summary
+- Merge with origin/dev: clean.
+- pgtap job: all steps green except step 10 (supabase test db, 1180 files): ONE real failure, supabase/tests/erp_purchase_documents.test.sql test 24 (AC-EPR-006). The new function get_supplier_payables_totals (migration 2814) reads erp_purchase_documents_linked and is missing from that test's allow-list. CI's pgtap job will go red on this until the allow-list gets an entry (or the function is reworked).
+- Unit: 2,834 files over 8 shards; 1 test failed, checkEdgeFnErrorReporting (sandbox runs as root; unrelated to the branch).
+- Browser: 480 specs in 12 chunks; every failure passed when re-run alone except the two environment cases above, which are explained and pass. No browser failure is attributed to the branch.
+- typecheck and check:guards: green.
+- Deviation: browser chunks ran partly in the background because a 40-file chunk outlasts the 10-minute foreground limit; a worker restart killed one background run mid-way, and chunks 04 onward were re-run in order. Chunks 00-03 results were unaffected.
