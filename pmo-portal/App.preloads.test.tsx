@@ -59,8 +59,8 @@ describe('#2097: route preload rules load the route namespace in parallel with i
     // labels (PhoneNavBar) come from `home`, so the dashboard's first paint needs that catalogue.
     ['/', ['dashboard', 'home']],
     ['/procurement', ['procurement', 'procurementList']],
-    ['/finance/receivables', ['finance', 'financeHub']],
-    ['/administration/users', ['administration', 'costAttribution', 'plans', 'procurement', 'safety']],
+    ['/finance/receivables', ['finance', 'financeHub', 'commonPages']],
+    ['/administration/users', ['administration', 'costAttribution', 'plans', 'procurement', 'safety', 'commonPages']],
     ['/settings/profile', ['profilePreferences']],
     ['/stock/ledger', ['stock']],
   ])('%s preloads %j', (route, expected) => {
