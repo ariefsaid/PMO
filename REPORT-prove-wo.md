@@ -50,3 +50,6 @@ Sandbox restarted once mid-run (chunk 1 was killed at 49/63 and re-run in full a
 - chromium c8 (9 files): 42 passed (3.2m),
 - serial chunk 0: 1 failed,16 skipped,50 passed (8.9m),
   - FAILED: 1) [serial] › e2e/serial/AC-IXD-PROC-W5-3-approvals-inbox.spec.ts:510:1 › AC-IXD-PROC-W5-3-role: an Engineer with nothing to decide at /approvals is denied (AccessDenied surface rendered) 
+  - Re-run alone on the polluted DB: fails again (page showed "You're all caught up" inbox for the Engineer, not the access-denied surface = the user had gained standing).
+    Re-run after `supabase db reset` (fresh seed): the whole file passes, 15 passed (1.3m), including this test. So it is shared-DB state left by earlier chunks, not the branch (Approvals page is not in the diff).
+    The DB was reset here, so serial chunks 1-3 ran on a fresh seed.
