@@ -38,7 +38,10 @@ export function checkCatalogues({ en, id, baseline, allowlist }) {
 
 function loadLocale(locale) {
   const dir = path.join(LOCALES, locale);
-  return Object.fromEntries(fs.readdirSync(dir).filter((name) => name.endsWith('.json')).map((name) => [path.basename(name, '.json'), JSON.parse(fs.readFileSync(path.join(dir, name), 'utf8'))]));
+  const all = Object.fromEntries(fs.readdirSync(dir).filter((name) => name.endsWith('.json')).map((name) => [path.basename(name, '.json'), JSON.parse(fs.readFileSync(path.join(dir, name), 'utf8'))]));
+  // `commonPages` is the second file of `common` (its fallback namespace): one catalogue for the key policy.
+  const { commonPages, ...rest } = all;
+  return { ...rest, common: { ...rest.common, ...commonPages } };
 }
 
 function runSelfTest() {

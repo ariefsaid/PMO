@@ -24,6 +24,7 @@
  */
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { commonCatalogue } from '@/test/commonCatalogue';
 import { describe, expect, it } from 'vitest';
 
 type Handoff = [namespace: string, key: string, english: string, indonesian: string];
@@ -106,7 +107,9 @@ const A7: Handoff[] = [
 const HANDOFF: Handoff[] = [...A5, ...A6, ...A9, ...A3, ...A7, ...C4_LEFTOVER];
 
 const catalogue = (locale: 'en' | 'id', namespace: string) =>
-  JSON.parse(readFileSync(join(process.cwd(), 'public/locales', locale, `${namespace}.json`), 'utf8')) as Record<string, unknown>;
+  namespace === 'common'
+    ? commonCatalogue(locale)
+    : JSON.parse(readFileSync(join(process.cwd(), 'public/locales', locale, `${namespace}.json`), 'utf8')) as Record<string, unknown>;
 
 const namespaces = [...new Set(HANDOFF.map(([namespace]) => namespace))];
 const catalogues = {

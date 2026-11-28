@@ -1,6 +1,8 @@
 import { createInstance } from 'i18next';
 import en from '../public/locales/en/common.json';
 import id from '../public/locales/id/common.json';
+import enPages from '../public/locales/en/commonPages.json';
+import idPages from '../public/locales/id/commonPages.json';
 import enFinance from '../public/locales/en/finance.json';
 import idFinance from '../public/locales/id/finance.json';
 import enProject from '../public/locales/en/project.json';
@@ -21,11 +23,11 @@ export const financeTestI18nReady = financeTestI18n.init({
   lng: 'en',
   fallbackLng: 'en',
   defaultNS: 'common',
-  fallbackNS: 'common',
-  ns: ['common', 'finance', 'project', 'procurement', 'projects', 'procurementRecord', 'status', 'expenseClaims'],
+  fallbackNS: ['common', 'commonPages'],
+  ns: ['common', 'commonPages', 'finance', 'project', 'procurement', 'projects', 'procurementRecord', 'status', 'expenseClaims'],
   resources: {
-    en: { common: en, finance: enFinance, project: enProject, procurement: enProcurement, projects: enProjects, procurementRecord: enProcurementRecord, status: enStatus, expenseClaims: enExpenseClaims },
-    id: { common: id, finance: idFinance, project: idProject, procurement: idProcurement, projects: idProjects, procurementRecord: idProcurementRecord, status: idStatus, expenseClaims: idExpenseClaims },
+    en: { common: en, commonPages: enPages, finance: enFinance, project: enProject, procurement: enProcurement, projects: enProjects, procurementRecord: enProcurementRecord, status: enStatus, expenseClaims: enExpenseClaims },
+    id: { common: id, commonPages: idPages, finance: idFinance, project: idProject, procurement: idProcurement, projects: idProjects, procurementRecord: idProcurementRecord, status: idStatus, expenseClaims: idExpenseClaims },
   },
   interpolation: { escapeValue: false },
   initImmediate: false,
